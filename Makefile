@@ -1,6 +1,6 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 
-.PHONY: all run-js
+.PHONY: all run-nodejs
 
 all: test.node.js
 
