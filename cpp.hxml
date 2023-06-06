@@ -1,0 +1,4 @@
+--dce full
+--library haxe-strings
+-m Main
+--cpp cpp
