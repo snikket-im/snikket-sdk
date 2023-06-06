@@ -1,33 +1,21 @@
 package xmpp;
 
-import haxe.crypto.Base64;
-import haxe.io.Bytes;
-
-#if nodejs
-import js.node.Crypto;
-#end
+import hx.strings.RandomStrings;
 
 class ID {
 	public static function tiny():String {
-		return Base64.urlEncode(getRandomBytes(3));
+		return RandomStrings.randomAsciiAlphaNumeric(6);
 	}
 
 	public static function short():String {
-		return Base64.urlEncode(getRandomBytes(9));
+		return RandomStrings.randomAsciiAlphaNumeric(18);
 	}
 
 	public static function medium():String {
-		return Base64.urlEncode(getRandomBytes(18));
+		return RandomStrings.randomAsciiAlphaNumeric(32);
 	}
 
 	public static function long():String {
-		return Base64.urlEncode(getRandomBytes(27));
+		return RandomStrings.randomUUIDv4();
 	}
-
-#if nodejs
-	private static function getRandomBytes(n:Int):Bytes {
-		return Crypto.randomBytes(n).hxToBytes();
-	}
-#end
-
 }
