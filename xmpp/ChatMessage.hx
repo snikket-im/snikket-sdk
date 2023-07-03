@@ -34,12 +34,12 @@ class ChatMessage {
 
 	public function new() { }
 
-	public static function fromStanza(stanza:Stanza, localJid:String):ChatMessage {
+	public static function fromStanza(stanza:Stanza, localJid:String):Null<ChatMessage> {
 		var msg = new ChatMessage();
 		msg.text = stanza.getChildText("body");
 		msg.to = stanza.attr.get("to");
 		msg.from = stanza.attr.get("from");
-		var domain = JID.split(localJid).domain;
+		final domain = JID.parse(localJid).domain;
 		for (stanzaId in stanza.allTags("stanza-id", "urn:xmpp:sid:0")) {
 			if (stanzaId.attr.get("by") == domain) {
 				msg.serverId = stanzaId.attr.get("id");
@@ -47,6 +47,9 @@ class ChatMessage {
 			}
 		}
 		msg.direction = (msg.to == localJid) ? MessageReceived : MessageSent;
+
+		if (msg.text == null) return null;
+
 		return msg;
 	}
 

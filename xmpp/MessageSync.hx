@@ -78,6 +78,8 @@ class MessageSync {
 			var timestamp = result.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
 
 			var msg = ChatMessage.fromStanza(originalMessage, client.jid);
+			if (msg == null) return EventUnhandled;
+
 			msg.set_serverId(result.attr.get("id"));
 			msg.set_timestamp(timestamp);
 
