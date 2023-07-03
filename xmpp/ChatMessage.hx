@@ -39,7 +39,7 @@ class ChatMessage {
 		msg.text = stanza.getChildText("body");
 		msg.to = stanza.attr.get("to");
 		msg.from = stanza.attr.get("from");
-		var domain = JID.split(localJid).domain;
+		final domain = JID.parse(localJid).domain;
 		for (stanzaId in stanza.allTags("stanza-id", "urn:xmpp:sid:0")) {
 			if (stanzaId.attr.get("by") == domain) {
 				msg.serverId = stanzaId.attr.get("id");
