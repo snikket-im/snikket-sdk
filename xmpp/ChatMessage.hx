@@ -34,7 +34,7 @@ class ChatMessage {
 
 	public function new() { }
 
-	public static function fromStanza(stanza:Stanza, localJid:String):ChatMessage {
+	public static function fromStanza(stanza:Stanza, localJid:String):Null<ChatMessage> {
 		var msg = new ChatMessage();
 		msg.text = stanza.getChildText("body");
 		msg.to = stanza.attr.get("to");
@@ -47,6 +47,9 @@ class ChatMessage {
 			}
 		}
 		msg.direction = (msg.to == localJid) ? MessageReceived : MessageSent;
+
+		if (msg.text == null) return null;
+
 		return msg;
 	}
 
