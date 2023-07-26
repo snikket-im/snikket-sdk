@@ -14,6 +14,7 @@ class ChatAttachment {
 	public var description(default, null):String = null;
 }
 
+@:expose
 class ChatMessage {
 	public var localId (default, set) : String = null;
 	public var serverId (default, set) : String = null;
