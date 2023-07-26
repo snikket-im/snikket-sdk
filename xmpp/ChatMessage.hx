@@ -73,6 +73,10 @@ class ChatMessage {
 		return this.timestamp = timestamp;
 	}
 
+	public function conversation():String {
+		return direction == MessageReceived ? JID.parse(from).asBare().asString() : JID.parse(to).asBare().asString();
+	}
+
 	public function isIncoming():Bool {
 		return direction == MessageReceived;
 	}
