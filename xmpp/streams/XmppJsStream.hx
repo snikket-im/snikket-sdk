@@ -176,10 +176,10 @@ class XmppJsStream extends GenericStream {
 	private function convertToStanza(el:XmppJsXml):Stanza {
 		var stanza = new Stanza(el.name, el.attrs);
 		for (child in el.children) {
-			if(XmppJsLtx.isElement(child)) {
-				stanza.addChild(convertToStanza(child));
-			} else if(XmppJsLtx.isText(child)) {
+			if(XmppJsLtx.isText(child)) {
 				stanza.text(cast(child, String));
+			} else {
+				stanza.addChild(convertToStanza(child));
 			}
 		}
 		return stanza;
