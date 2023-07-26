@@ -74,5 +74,14 @@ class ChatMessage {
 	public function isIncoming():Bool {
 		return direction == MessageReceived;
 	}
-}
 
+	public function asStanza():Stanza {
+		var attrs: haxe.DynamicAccess<String> = { type: "chat" };
+		if (from != null) attrs.set("from", from);
+		if (to != null) attrs.set("to", to);
+		if (localId != null) attrs.set("id", localId);
+		var stanza = new Stanza("message", attrs);
+		stanza.textTag("body", text);
+		return stanza;
+	}
+}

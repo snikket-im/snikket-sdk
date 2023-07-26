@@ -57,5 +57,7 @@ class DirectChat extends Chat {
 		return sync;
 	}
 
-	public function sendMessage(message:ChatMessage):Void {}
+	public function sendMessage(message:ChatMessage):Void {
+		client.sendStanza(message.asStanza());
+	}
 }

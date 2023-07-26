@@ -44,4 +44,8 @@ class Client extends xmpp.EventEmitter {
 	public function sendQuery(query:GenericQuery) {
 		this.stream.sendIq(query.getQueryStanza(), query.handleResponse);
 	}
+
+	public function sendStanza(stanza:Stanza) {
+		stream.sendStanza(stanza);
+	}
 }
