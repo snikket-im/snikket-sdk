@@ -9,6 +9,7 @@ typedef ChatList = Array<Chat>;
 
 class Client extends xmpp.EventEmitter {
 	private var stream:GenericStream;
+	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
 	public var jid(default,null):String;
 
 	public function new(jid: String) {
@@ -23,7 +24,24 @@ class Client extends xmpp.EventEmitter {
 		stream.connect(jid);
 	}
 
+	public function addChatMessageListener(handler:ChatMessage->Void):Void {
+		chatMessageHandlers.push(handler);
+	}
+
 	private function onConnected(data) {
+		this.stream.on("message", function(event) {
+			final stanza:Stanza = event.stanza;
+			final chatMessage = ChatMessage.fromStanza(stanza, jid);
+			if (chatMessage != null) {
+				for (handler in chatMessageHandlers) {
+					handler(chatMessage);
+				}
+			}
+
+			return EventUnhandled; // Allow others to get this event as well
+		});
+
+		stream.sendStanza(new Stanza("presence")); // Set self to online
 		return this.trigger("status/online", {});
 	}
 
