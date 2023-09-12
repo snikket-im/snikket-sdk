@@ -4,6 +4,7 @@ import xmpp.Chat;
 import xmpp.EventEmitter;
 import xmpp.Stream;
 import xmpp.queries.GenericQuery;
+import xmpp.queries.RosterGet;
 
 typedef ChatList = Array<Chat>;
 
@@ -12,6 +13,7 @@ class Client extends xmpp.EventEmitter {
 	private var stream:GenericStream;
 	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
 	public var jid(default,null):String;
+	private var chats: ChatList = [];
 
 	public function new(jid: String) {
 		super();
@@ -34,6 +36,8 @@ class Client extends xmpp.EventEmitter {
 			final stanza:Stanza = event.stanza;
 			final chatMessage = ChatMessage.fromStanza(stanza, jid);
 			if (chatMessage != null) {
+				var chat = getDirectChat(chatMessage.conversation());
+				chatActivity(chat);
 				for (handler in chatMessageHandlers) {
 					handler(chatMessage);
 				}
@@ -43,6 +47,7 @@ class Client extends xmpp.EventEmitter {
 		});
 
 		stream.sendStanza(new Stanza("presence")); // Set self to online
+		rosterGet();
 		return this.trigger("status/online", {});
 	}
 
@@ -52,11 +57,28 @@ class Client extends xmpp.EventEmitter {
 
 	/* Return array of chats, sorted by last activity */
 	public function getChats():ChatList {
-		return [];
+		return chats;
 	}
 
-	public function getDirectChat(chatId:String):DirectChat {
-		return new DirectChat(this, this.stream, chatId);
+	public function getDirectChat(chatId:String, triggerIfNew:Bool = true):DirectChat {
+		for (chat in chats) {
+			if (Std.isOfType(chat, DirectChat) && chat.chatId == chatId) {
+				return Std.downcast(chat, DirectChat);
+			}
+		}
+		var chat = new DirectChat(this, this.stream, chatId);
+		chats.unshift(chat);
+		if (triggerIfNew) this.trigger("chats/update", [chat]);
+		return chat;
+	}
+
+	public function chatActivity(chat: Chat) {
+		var idx = chats.indexOf(chat);
+		if (idx > 0) {
+			chats.splice(idx, 1);
+			chats.unshift(chat);
+			this.trigger("chats/update", []);
+		}
 	}
 
 	/* Internal-ish methods */
@@ -66,5 +88,16 @@ class Client extends xmpp.EventEmitter {
 
 	public function sendStanza(stanza:Stanza) {
 		stream.sendStanza(stanza);
+	}
+
+	private function rosterGet() {
+		var rosterGet = new RosterGet();
+		rosterGet.onFinished(() -> {
+			for (item in rosterGet.getResult()) {
+				getDirectChat(item.jid, false);
+			}
+			this.trigger("chats/update", chats);
+		});
+		sendQuery(rosterGet);
 	}
 }

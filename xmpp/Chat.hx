@@ -61,6 +61,7 @@ class DirectChat extends Chat {
 	}
 
 	public function sendMessage(message:ChatMessage):Void {
+		client.chatActivity(this);
 		client.sendStanza(message.asStanza());
 	}
 }
