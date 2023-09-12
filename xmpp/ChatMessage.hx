@@ -43,13 +43,23 @@ class ChatMessage {
 		final localJid = JID.parse(localJidStr);
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;
+
+		if (msg.from != null && JID.parse(msg.from).asString() == localJidBare.asString()) {
+			var carbon = stanza.getChild("received", "urn:xmpp:carbons:2");
+			if (carbon == null) carbon = stanza.getChild("sent", "urn:xmpp:carbons:2");
+			if (carbon != null) {
+				var fwd = carbon.getChild("forwarded", "urn:xmpp:forward:0");
+				if(fwd != null) return fromStanza(fwd.getFirstChild(), localJidStr);
+			}
+		}
+
 		for (stanzaId in stanza.allTags("stanza-id", "urn:xmpp:sid:0")) {
 			if (stanzaId.attr.get("by") == domain || stanzaId.attr.get("by") == localJidBare.asString()) {
 				msg.serverId = stanzaId.attr.get("id");
 				break;
 			}
 		}
-		msg.direction = (JID.parse(msg.to).asBare().asString() == localJidBare.asString()) ? MessageReceived : MessageSent;
+		msg.direction = (msg.to == null || JID.parse(msg.to).asBare().asString() == localJidBare.asString()) ? MessageReceived : MessageSent;
 
 		if (msg.text == null) return null;
 
