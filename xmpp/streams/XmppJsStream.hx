@@ -16,7 +16,7 @@ extern class XmppJsClient {
 	function send(stanza:XmppJsXml):Void;
 }
 
-@:jsRequire("@xmpp/jid", "jid")
+@:jsRequire("@xmpp/jid", "JID")
 extern class XmppJsJID {
 	function new(jid:String);
 
@@ -95,7 +95,6 @@ class XmppJsStream extends GenericStream {
 			try {
 				var parsed:HostMetaJson = Json.parse(data);
 				for(entry in parsed.links) {
-					trace("ENTRY");
 					if(entry.href.substr(0, 6) == "wss://") {
 						callback(entry.href);
 						return;
@@ -114,7 +113,8 @@ class XmppJsStream extends GenericStream {
 	private function connectWithURI(uri:String) {
 		trace("Got connection URI: "+uri);
 		if(uri == null) {
-			this.state.event("connection-error");
+			// What if first is null and next is fine??
+			//this.state.event("connection-error");
 			return;
 		}
 		connectionURI = uri;

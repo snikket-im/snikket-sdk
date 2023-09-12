@@ -7,6 +7,7 @@ import xmpp.queries.GenericQuery;
 
 typedef ChatList = Array<Chat>;
 
+@:expose
 class Client extends xmpp.EventEmitter {
 	private var stream:GenericStream;
 	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
