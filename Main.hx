@@ -16,6 +16,9 @@ class Main {
 				}
 				trace("complete: " + !result.sync.hasMore());
 			});
+			chat.onMessage((msg) -> {
+				trace("live message: ", msg);
+			});
 
 			return EventHandled;
 		});

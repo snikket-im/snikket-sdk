@@ -28,6 +28,12 @@ class ID {
 	private static function getRandomBytes(n:Int):Bytes {
 		return Crypto.randomBytes(n).hxToBytes();
 	}
+#elseif js
+	private static function getRandomBytes(n:Int):Bytes {
+		var array = new js.lib.Uint8Array(n);
+		js.Browser.window.crypto.getRandomValues(array);
+		return Bytes.ofData(array.buffer);
+	}
 #end
 
 }

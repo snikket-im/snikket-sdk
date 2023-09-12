@@ -10,3 +10,8 @@ test.node.js: xmpp/*.hx xmpp/queries/*.hx xmpp/streams/*.hx
 run-nodejs: test.node.js
 	nodejs "$<"
 
+browser.js:
+	haxe browser.hxml
+	echo "var exports = {};" > browser.js
+	sed -e 's/hxEnums\["xmpp.EventResult"\] = {/hxEnums["xmpp.EventResult"] = $$hx_exports.xmpp.EventResult = {/'< browser.haxe.js >> browser.js
+	echo "export const { xmpp } = exports;" >> browser.js

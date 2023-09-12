@@ -14,6 +14,7 @@ class ChatAttachment {
 	public var description(default, null):String = null;
 }
 
+@:expose
 class ChatMessage {
 	public var localId (default, set) : String = null;
 	public var serverId (default, set) : String = null;
@@ -34,19 +35,24 @@ class ChatMessage {
 
 	public function new() { }
 
-	public static function fromStanza(stanza:Stanza, localJid:String):ChatMessage {
+	public static function fromStanza(stanza:Stanza, localJidStr:String):Null<ChatMessage> {
 		var msg = new ChatMessage();
 		msg.text = stanza.getChildText("body");
 		msg.to = stanza.attr.get("to");
 		msg.from = stanza.attr.get("from");
-		var domain = JID.split(localJid).domain;
+		final localJid = JID.parse(localJidStr);
+		final localJidBare = localJid.asBare();
+		final domain = localJid.domain;
 		for (stanzaId in stanza.allTags("stanza-id", "urn:xmpp:sid:0")) {
-			if (stanzaId.attr.get("by") == domain) {
+			if (stanzaId.attr.get("by") == domain || stanzaId.attr.get("by") == localJidBare.asString()) {
 				msg.serverId = stanzaId.attr.get("id");
 				break;
 			}
 		}
-		msg.direction = (msg.to == localJid) ? MessageReceived : MessageSent;
+		msg.direction = (JID.parse(msg.to).asBare().asString() == localJidBare.asString()) ? MessageReceived : MessageSent;
+
+		if (msg.text == null) return null;
+
 		return msg;
 	}
 
@@ -68,8 +74,21 @@ class ChatMessage {
 		return this.timestamp = timestamp;
 	}
 
+	public function conversation():String {
+		return direction == MessageReceived ? JID.parse(from).asBare().asString() : JID.parse(to).asBare().asString();
+	}
+
 	public function isIncoming():Bool {
 		return direction == MessageReceived;
 	}
-}
 
+	public function asStanza():Stanza {
+		var attrs: haxe.DynamicAccess<String> = { type: "chat" };
+		if (from != null) attrs.set("from", from);
+		if (to != null) attrs.set("to", to);
+		if (localId != null) attrs.set("id", localId);
+		var stanza = new Stanza("message", attrs);
+		stanza.textTag("body", text);
+		return stanza;
+	}
+}
