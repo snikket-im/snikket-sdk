@@ -30,12 +30,24 @@ abstract class GenericStream extends EventEmitter {
 		final xmlns = stanza.attr.get("xmlns");
 		if(xmlns == "jabber:client") {
 			final name = stanza.name;
-			if(stanza.name == "iq") {
+			if(name == "iq") {
 				var type = stanza.attr.get("type");
 				trace('type: $type');
 				if(type == "result" || type == "error") {
 					var id = stanza.attr.get("id");
 					trigger('iq-response/$id', { stanza: stanza });
+				} else {
+					if (trigger('iq', { stanza: stanza }) == EventUnhandled) {
+						var reply = new Stanza("iq", {
+							type: "error",
+							id: stanza.attr.get("id"),
+							to: stanza.attr.get("from")
+						})
+							.tag("error", { type: "cancel" })
+							.tag("service-unavailable", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" })
+							.up().up();
+						sendStanza(reply);
+					}
 				}
 			} else if (name == "message" || name == "presence") {
 				trigger(name, { stanza: stanza });
