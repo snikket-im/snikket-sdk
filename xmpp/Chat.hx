@@ -1,5 +1,6 @@
 package xmpp;
 
+import xmpp.ID;
 import xmpp.MessageSync;
 import xmpp.ChatMessage;
 import xmpp.Chat;
@@ -63,5 +64,19 @@ class DirectChat extends Chat {
 	public function sendMessage(message:ChatMessage):Void {
 		client.chatActivity(this);
 		client.sendStanza(message.asStanza());
+	}
+
+	public function bookmark() {
+		stream.sendIq(
+			new Stanza("iq", { type: "set", id: ID.short() })
+				.tag("query", { xmlns: "jabber:iq:roster" })
+				.tag("item", { jid: chatId })
+				.up().up(),
+			(response) -> {
+				if (response.attr.get("type") == "error") return;
+				stream.sendStanza(new Stanza("presence", { to: chatId, type: "subscribe", id: ID.short() }));
+				stream.sendStanza(new Stanza("presence", { to: chatId, type: "subscribed", id: ID.short() }));
+			}
+		);
 	}
 }
