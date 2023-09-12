@@ -94,7 +94,8 @@ class Client extends xmpp.EventEmitter {
 		var rosterGet = new RosterGet();
 		rosterGet.onFinished(() -> {
 			for (item in rosterGet.getResult()) {
-				getDirectChat(item.jid, false);
+				var chat = getDirectChat(item.jid, false);
+				if (item.fn != null && item.fn != "") chat.setDisplayName(item.fn);
 			}
 			this.trigger("chats/update", chats);
 		});
