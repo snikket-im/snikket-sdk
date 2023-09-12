@@ -28,6 +28,10 @@ class JID {
 		return new JID(this.node, this.domain);
 	}
 
+	public function isValid():Bool {
+		return domain.indexOf(".") >= 0;
+	}
+
 	public function equals(rhs:JID):Bool {
 		return (
 			this.node == rhs.node &&

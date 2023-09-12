@@ -72,6 +72,15 @@ class Client extends xmpp.EventEmitter {
 		return chat;
 	}
 
+	public function findAvailableChats(q:String, callback:(q:String, chatIds:Array<String>) -> Void) {
+		var jid = JID.parse(q);
+		if (jid.isValid()) {
+			callback(q, [jid.asBare().asString()]);
+			return;
+		}
+		callback(q, []);
+	}
+
 	public function chatActivity(chat: Chat) {
 		var idx = chats.indexOf(chat);
 		if (idx > 0) {
