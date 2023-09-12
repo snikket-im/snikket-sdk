@@ -4,6 +4,7 @@ import xmpp.MessageSync;
 import xmpp.ChatMessage;
 import xmpp.Chat;
 import xmpp.GenericStream;
+import xmpp.queries.MAMQuery;
 
 enum ChatType {
 	ChatTypeDirect;
@@ -25,7 +26,7 @@ abstract class Chat {
 
 	abstract public function sendMessage(message:ChatMessage):Void;
 
-	abstract public function getMessages(handler:MessageListHandler):MessageSync;
+	abstract public function getMessages(beforeId:Null<String>, handler:MessageListHandler):MessageSync;
 
 	public function isDirectChat():Bool { return type.match(ChatTypeDirect); };
 	public function isGroupChat():Bool  { return type.match(ChatTypeGroup);  };
@@ -50,8 +51,10 @@ class DirectChat extends Chat {
 		super(client, stream, chatId, ChatTypeDirect);
 	}
 
-	public function getMessages(handler:MessageListHandler):MessageSync {
-		var sync = new MessageSync(this.client, this.stream, this.chatId, {});
+	public function getMessages(beforeId:Null<String>, handler:MessageListHandler):MessageSync {
+		var filter:MAMQueryParams = { with: this.chatId };
+		if (beforeId != null) filter.page = { before: beforeId };
+		var sync = new MessageSync(this.client, this.stream, filter);
 		sync.onMessages(handler);
 		sync.fetchNext();
 		return sync;

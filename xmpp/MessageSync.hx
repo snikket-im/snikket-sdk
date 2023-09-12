@@ -28,10 +28,9 @@ class MessageSync {
 	private var complete:Bool = false;
 	private var newestPageFirst:Bool = true;
 
-	public function new(client:Client, stream:GenericStream, chatId:String, filter:MessageFilter, ?serviceJID:String) {
+	public function new(client:Client, stream:GenericStream, filter:MessageFilter, ?serviceJID:String) {
 		this.client = client;
 		this.stream = stream;
-		this.chatId = chatId;
 		this.filter = Reflect.copy(filter);
 		this.serviceJID = serviceJID != null ? serviceJID : client.jid;
 	}
@@ -40,27 +39,24 @@ class MessageSync {
 		if(handler == null) {
 			throw new Exception("Attempt to fetch messages, but no handler has been set");
 		}
+		if (complete) {
+			throw new Exception("Attempt to fetch messages, but already complete");
+		}
 		var messages:Array<ChatMessage> = [];
 		if(lastPage == null) {
-			if(newestPageFirst == true) {
-				filter.page = {
-					before: "", // Request last page of results
-				};
-			} else {
-				filter.page = null;
+			if(newestPageFirst == true && (filter.page == null || filter.page.before == null)) {
+				if (filter.page == null) filter.page = {};
+				filter.page.before = ""; // Request last page of results
 			}
 		} else {
+			if (filter.page == null) filter.page = {};
 			if(newestPageFirst == true) {
-				filter.page = {
-					before: lastPage.first,
-				};
+				filter.page.before = lastPage.first;
 			} else {
-				filter.page = {
-					after: lastPage.last,
-				};
+				filter.page.after = lastPage.last;
 			}
 		}
-		var query = new MAMQuery(filter);
+		var query = new MAMQuery(filter, serviceJID);
 		var resultHandler = stream.on("message", function (event) {
 			var message:Stanza = event.stanza;
 			var from = message.attr.exists("from") ? message.attr.get("from") : client.jid;
