@@ -14,10 +14,12 @@ class Client extends xmpp.EventEmitter {
 	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
 	public var jid(default,null):String;
 	private var chats: ChatList = [];
+	private var persistence: Persistence;
 
-	public function new(jid: String) {
+	public function new(jid: String, persistence: Persistence) {
 		super();
 		this.jid = jid;
+		this.persistence = persistence;
 		stream = new Stream();
 		stream.on("status/online", this.onConnected);
 		stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { jid: this.jid }));
@@ -48,6 +50,7 @@ class Client extends xmpp.EventEmitter {
 
 		stream.sendStanza(new Stanza("presence")); // Set self to online
 		rosterGet();
+		sync();
 		return this.trigger("status/online", {});
 	}
 
@@ -99,5 +102,23 @@ class Client extends xmpp.EventEmitter {
 			this.trigger("chats/update", chats);
 		});
 		sendQuery(rosterGet);
+	}
+
+	private function sync() {
+		persistence.lastId(jid, null, function(lastId) {
+			var sync = new MessageSync(
+				this,
+				stream,
+				lastId == null ? {} : { page: { after: lastId } }
+			);
+			sync.setNewestPageFirst(false);
+			sync.onMessages((messageList) -> {
+				for (message in messageList.messages) {
+					persistence.storeMessage(jid, message);
+				}
+				if (sync.hasMore()) sync.fetchNext();
+			});
+			sync.fetchNext();
+		});
 	}
 }

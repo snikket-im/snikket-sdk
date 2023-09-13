@@ -25,10 +25,7 @@ typedef MAMQueryParams = {
 
 typedef MAMQueryResult = {
 	var complete : Bool;
-	var page : {
-		var firstId : String;
-		var lastId : String;
-	};
+	var page : ResultSetPageResult;
 };
 
 class MAMQuery extends GenericQuery {
@@ -114,8 +111,8 @@ class MAMQuery extends GenericQuery {
 			result = {
 				complete: fin.attr.get("complete") == "true" || fin.attr.get("complete") == "1",
 				page: {
-					firstId: rsmInfo.getChildText("first"),
-					lastId: rsmInfo.getChildText("last"),
+					first: rsmInfo.getChildText("first"),
+					last: rsmInfo.getChildText("last"),
 				}
 			};
 		}

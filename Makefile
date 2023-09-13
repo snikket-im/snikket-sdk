@@ -14,4 +14,5 @@ browser.js:
 	haxe browser.hxml
 	echo "var exports = {};" > browser.js
 	sed -e 's/hxEnums\["xmpp.EventResult"\] = {/hxEnums["xmpp.EventResult"] = $$hx_exports.xmpp.EventResult = {/'< browser.haxe.js >> browser.js
+	cat xmpp/persistence/*.js >> browser.js
 	echo "export const { xmpp } = exports;" >> browser.js
