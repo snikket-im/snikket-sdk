@@ -16,6 +16,14 @@ exports.xmpp.persistence = {
 			db = event.target.result;
 		};
 
+		var cache = null;
+		caches.open(dbname).then((c) => cache = c);
+
+		function mkNiUrl(hashAlgorithm, hashBytes) {
+			const b64url = btoa(Array.from(new Uint8Array(hashBytes), (x) => String.fromCodePoint(x)).join("")).replace(/\+/, "-").replace(/\//, "_").replace(/=/, "");
+			return "/.well-known/ni/" + hashAlgorithm + "/" + b64url;
+		}
+
 		return {
 			lastId: function(account, jid, callback) {
 				const tx = db.transaction(["messages"], "readonly");
@@ -91,6 +99,40 @@ exports.xmpp.persistence = {
 					console.error(event);
 					callback([]);
 				}
+			},
+
+			getMediaUri: function(hashAlgorithm, hash, callback) {
+				var niUrl;
+				if (hashAlgorithm == "sha-256") {
+					niUrl = mkNiUrl(hashAlgorithm, hash);
+				} else {
+					niUrl = localStorage.getItem(mkNiUrl(hashAlgorithm, hash));
+					if (!niUrl) {
+						callback(null);
+						return;
+					}
+				}
+				cache.match(niUrl).then((response) => {
+					if (response) {
+						response.blob().then((blob) => {
+							callback(URL.createObjectURL(blob));
+						});
+					} else {
+						callback(null);
+					}
+				});
+			},
+
+			storeMedia: function(mime, buffer, callback) {
+				(async function() {
+					const sha256 = await crypto.subtle.digest("SHA-256", buffer);
+					const sha512 = await crypto.subtle.digest("SHA-512", buffer);
+					const sha1 = await crypto.subtle.digest("SHA-1", buffer);
+					const sha256NiUrl = mkNiUrl("sha-256", sha256);
+					await cache.put(sha256NiUrl, new Response(buffer, { headers: { "Content-Type": mime } }));
+					localStorage.setItem(mkNiUrl("sha-1", sha1), sha256NiUrl);
+					localStorage.setItem(mkNiUrl("sha-512", sha512), sha256NiUrl);
+				})().then(callback);
 			}
 		}
 	}

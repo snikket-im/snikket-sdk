@@ -1,10 +1,16 @@
 package xmpp;
 
+import haxe.crypto.Base64;
+import haxe.io.Bytes;
+import haxe.io.BytesData;
+import xmpp.Caps;
 import xmpp.Chat;
 import xmpp.EventEmitter;
 import xmpp.Stream;
 import xmpp.queries.GenericQuery;
 import xmpp.queries.RosterGet;
+import xmpp.queries.PubsubGet;
+import xmpp.PubsubEvent;
 
 typedef ChatList = Array<Chat>;
 
@@ -15,6 +21,7 @@ class Client extends xmpp.EventEmitter {
 	public var jid(default,null):String;
 	private var chats: ChatList = [];
 	private var persistence: Persistence;
+	private final caps = new Caps("https://sdk.snikket.org", [], ["urn:xmpp:avatar:metadata+notify"]);
 
 	public function new(jid: String, persistence: Persistence) {
 		super();
@@ -45,11 +52,51 @@ class Client extends xmpp.EventEmitter {
 				}
 			}
 
+			final pubsubEvent = PubsubEvent.fromStanza(stanza);
+			if (pubsubEvent != null && pubsubEvent.getFrom() != null && pubsubEvent.getNode() == "urn:xmpp:avatar:metadata" && pubsubEvent.getItems().length > 0) {
+				final item = pubsubEvent.getItems()[0];
+				final avatarSha1Hex = pubsubEvent.getItems()[0].attr.get("id");
+				final avatarSha1 = Bytes.ofHex(avatarSha1Hex).getData();
+				final metadata = item.getChild("metadata", "urn:xmpp:avatar:metadata");
+				var mime = "image/png";
+				if (metadata != null) {
+					final info = metadata.getChild("info"); // should have xmlns matching metadata
+					if (info != null && info.attr.get("type") != null) {
+						mime = info.attr.get("type");
+					}
+				}
+				final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
+				chat.setAvatarSha1(avatarSha1);
+				persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
+					if (uri == null) {
+						final pubsubGet = new PubsubGet(pubsubEvent.getFrom(), "urn:xmpp:avatar:data", avatarSha1Hex);
+						pubsubGet.onFinished(() -> {
+							final item = pubsubGet.getResult()[0];
+							if (item == null) return;
+							final dataNode = item.getChild("data", "urn:xmpp:avatar:data");
+							if (dataNode == null) return;
+							persistence.storeMedia(mime, Base64.decode(StringTools.replace(dataNode.getText(), "\n", "")).getData(), () -> {
+								this.trigger("chats/update", [chat]);
+							});
+						});
+						sendQuery(pubsubGet);
+					} else {
+						this.trigger("chats/update", [chat]);
+					}
+				});
+			}
+
 			return EventUnhandled; // Allow others to get this event as well
 		});
 
 		this.stream.on("iq", function(event) {
 			final stanza:Stanza = event.stanza;
+
+			if (stanza.attr.get("type") == "get" && stanza.getChild("query", "http://jabber.org/protocol/disco#info") != null) {
+				stream.sendStanza(caps.discoReply(stanza));
+				return EventHandled;
+			}
+
 			if (
 				stanza.attr.get("from") != null &&
 				stanza.attr.get("from") != JID.parse(jid).domain
@@ -78,7 +125,7 @@ class Client extends xmpp.EventEmitter {
 		});
 
 		// Set self to online
-		stream.sendStanza(new Stanza("presence"));
+		stream.sendStanza(caps.addC(new Stanza("presence")));
 
 		// Enable carbons
 		stream.sendStanza(
@@ -86,6 +133,7 @@ class Client extends xmpp.EventEmitter {
 				.tag("enable", { xmlns: "urn:xmpp:carbons:2" })
 				.up()
 		);
+
 		rosterGet();
 		sync();
 		return this.trigger("status/online", {});
