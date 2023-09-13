@@ -1,10 +1,15 @@
 package xmpp;
 
+import haxe.crypto.Base64;
+import haxe.io.Bytes;
+import haxe.io.BytesData;
 import xmpp.Chat;
 import xmpp.EventEmitter;
 import xmpp.Stream;
 import xmpp.queries.GenericQuery;
 import xmpp.queries.RosterGet;
+import xmpp.queries.PubsubGet;
+import xmpp.PubsubEvent;
 
 typedef ChatList = Array<Chat>;
 
@@ -45,7 +50,51 @@ class Client extends xmpp.EventEmitter {
 				}
 			}
 
+			final pubsubEvent = PubsubEvent.fromStanza(stanza);
+			if (pubsubEvent != null && pubsubEvent.getFrom() != null && pubsubEvent.getNode() == "urn:xmpp:avatar:metadata" && pubsubEvent.getItems().length > 0) {
+				final avatarSha1Hex = pubsubEvent.getItems()[0].attr.get("id");
+				final avatarSha1 = Bytes.ofHex(avatarSha1Hex).getData();
+				final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
+				chat.setAvatarSha1(avatarSha1);
+				persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
+					if (uri == null) {
+						final pubsubGet = new PubsubGet(pubsubEvent.getFrom(), "urn:xmpp:avatar:data", avatarSha1Hex);
+						pubsubGet.onFinished(() -> {
+							final item = pubsubGet.getResult()[0];
+							if (item == null) return;
+							final dataNode = item.getChild("data", "urn:xmpp:avatar:data");
+							if (dataNode == null) return;
+							persistence.storeMedia(Base64.decode(dataNode.getText()).getData(), () -> {
+								this.trigger("chats/update", [chat]);
+							});
+						});
+						sendQuery(pubsubGet);
+					} else {
+						this.trigger("chats/update", [chat]);
+					}
+				});
+			}
+
 			return EventUnhandled; // Allow others to get this event as well
+		});
+
+		this.stream.on("iq", function(event) {
+			final stanza:Stanza = event.stanza;
+			if (stanza.attr.get("type") == "get" && stanza.getChild("query", "http://jabber.org/protocol/disco#info") != null) {
+				stream.sendStanza(
+					new Stanza("iq", {
+						type: "result",
+						id: stanza.attr.get("id"),
+						to: stanza.attr.get("from")
+					})
+						.tag("query", { xmlns: "http://jabber.org/protocol/disco#info" })
+						.tag("feature", { "var": "urn:xmpp:avatar:metadata+notify"}).up()
+						.up()
+				);
+				return EventHandled;
+			}
+
+			return EventUnhandled;
 		});
 
 		stream.sendStanza(new Stanza("presence")); // Set self to online
