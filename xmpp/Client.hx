@@ -3,6 +3,7 @@ package xmpp;
 import haxe.crypto.Base64;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
+import xmpp.Caps;
 import xmpp.Chat;
 import xmpp.EventEmitter;
 import xmpp.Stream;
@@ -20,6 +21,7 @@ class Client extends xmpp.EventEmitter {
 	public var jid(default,null):String;
 	private var chats: ChatList = [];
 	private var persistence: Persistence;
+	private final caps = new Caps("https://sdk.snikket.org", [], ["urn:xmpp:avatar:metadata+notify"]);
 
 	public function new(jid: String, persistence: Persistence) {
 		super();
@@ -90,23 +92,14 @@ class Client extends xmpp.EventEmitter {
 		this.stream.on("iq", function(event) {
 			final stanza:Stanza = event.stanza;
 			if (stanza.attr.get("type") == "get" && stanza.getChild("query", "http://jabber.org/protocol/disco#info") != null) {
-				stream.sendStanza(
-					new Stanza("iq", {
-						type: "result",
-						id: stanza.attr.get("id"),
-						to: stanza.attr.get("from")
-					})
-						.tag("query", { xmlns: "http://jabber.org/protocol/disco#info" })
-						.tag("feature", { "var": "urn:xmpp:avatar:metadata+notify"}).up()
-						.up()
-				);
+				stream.sendStanza(caps.discoReply(stanza));
 				return EventHandled;
 			}
 
 			return EventUnhandled;
 		});
 
-		stream.sendStanza(new Stanza("presence")); // Set self to online
+		stream.sendStanza(caps.addC(new Stanza("presence"))); // Set self to online
 		rosterGet();
 		sync();
 		return this.trigger("status/online", {});
