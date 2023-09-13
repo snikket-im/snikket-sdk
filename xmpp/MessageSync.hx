@@ -88,6 +88,7 @@ class MessageSync {
 			var result = query.getResult();
 			if(result != null) {
 				complete = result.complete;
+				lastPage = result.page;
 			}
 			handler({
 				sync: this,

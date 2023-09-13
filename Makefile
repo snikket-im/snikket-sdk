@@ -13,5 +13,6 @@ run-nodejs: test.node.js
 browser.js:
 	haxe browser.hxml
 	echo "var exports = {};" > browser.js
-	sed -e 's/hxEnums\["xmpp.EventResult"\] = {/hxEnums["xmpp.EventResult"] = $$hx_exports.xmpp.EventResult = {/'< browser.haxe.js >> browser.js
+	sed -e 's/hxEnums\["xmpp.EventResult"\] = {/hxEnums["xmpp.EventResult"] = $$hx_exports.xmpp.EventResult = {/' < browser.haxe.js | sed -e 's/hxEnums\["xmpp.MessageDirection"\] = {/hxEnums["xmpp.MessageDirection"] = $$hx_exports.xmpp.MessageDirection = {/' >> browser.js
+	cat xmpp/persistence/*.js >> browser.js
 	echo "export const { xmpp } = exports;" >> browser.js
