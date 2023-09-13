@@ -52,8 +52,17 @@ class Client extends xmpp.EventEmitter {
 
 			final pubsubEvent = PubsubEvent.fromStanza(stanza);
 			if (pubsubEvent != null && pubsubEvent.getFrom() != null && pubsubEvent.getNode() == "urn:xmpp:avatar:metadata" && pubsubEvent.getItems().length > 0) {
+				final item = pubsubEvent.getItems()[0];
 				final avatarSha1Hex = pubsubEvent.getItems()[0].attr.get("id");
 				final avatarSha1 = Bytes.ofHex(avatarSha1Hex).getData();
+				final metadata = item.getChild("metadata", "urn:xmpp:avatar:metadata");
+				var mime = "image/png";
+				if (metadata != null) {
+					final info = metadata.getChild("info"); // should have xmlns matching metadata
+					if (info != null && info.attr.get("type") != null) {
+						mime = info.attr.get("type");
+					}
+				}
 				final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
 				chat.setAvatarSha1(avatarSha1);
 				persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
@@ -64,7 +73,7 @@ class Client extends xmpp.EventEmitter {
 							if (item == null) return;
 							final dataNode = item.getChild("data", "urn:xmpp:avatar:data");
 							if (dataNode == null) return;
-							persistence.storeMedia(Base64.decode(dataNode.getText()).getData(), () -> {
+							persistence.storeMedia(mime, Base64.decode(StringTools.replace(dataNode.getText(), "\n", "")).getData(), () -> {
 								this.trigger("chats/update", [chat]);
 							});
 						});

@@ -8,5 +8,5 @@ abstract class Persistence {
 	abstract public function storeMessage(accountId: String, message: ChatMessage):Void;
 	abstract public function getMessages(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (messages:Array<ChatMessage>)->Void):Void;
 	abstract public function getMediaUri(hashAlgorithm:String, hash:BytesData, callback: (uri:Null<String>)->Void):Void;
-	abstract public function storeMedia(bytes:BytesData, callback: ()->Void):Void;
+	abstract public function storeMedia(mime:String, bytes:BytesData, callback: ()->Void):Void;
 }
