@@ -123,13 +123,13 @@ exports.xmpp.persistence = {
 				});
 			},
 
-			storeMedia: function(buffer, callback) {
+			storeMedia: function(mime, buffer, callback) {
 				(async function() {
 					const sha256 = await crypto.subtle.digest("SHA-256", buffer);
 					const sha512 = await crypto.subtle.digest("SHA-512", buffer);
 					const sha1 = await crypto.subtle.digest("SHA-1", buffer);
 					const sha256NiUrl = mkNiUrl("sha-256", sha256);
-					await cache.put(sha256NiUrl, new Response(buffer));
+					await cache.put(sha256NiUrl, new Response(buffer, { headers: { "Content-Type": mime } }));
 					localStorage.setItem(mkNiUrl("sha-1", sha1), sha256NiUrl);
 					localStorage.setItem(mkNiUrl("sha-512", sha512), sha256NiUrl);
 				})().then(callback);
