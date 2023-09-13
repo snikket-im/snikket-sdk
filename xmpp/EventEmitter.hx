@@ -38,6 +38,6 @@ class EventEmitter {
 				case EventStop | EventValue(_): return ret;
 			}
 		}
-		return EventHandled;
+		return handled ? EventHandled : EventUnhandled;
 	}
 }

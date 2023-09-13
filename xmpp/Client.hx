@@ -48,6 +48,35 @@ class Client extends xmpp.EventEmitter {
 			return EventUnhandled; // Allow others to get this event as well
 		});
 
+		this.stream.on("iq", function(event) {
+			final stanza:Stanza = event.stanza;
+			if (
+				stanza.attr.get("from") != null &&
+				stanza.attr.get("from") != JID.parse(jid).domain
+			) {
+				return EventUnhandled;
+			}
+
+			var roster = new RosterGet();
+			roster.handleResponse(stanza);
+			var items = roster.getResult();
+			if (items.length == 0) return EventUnhandled;
+
+			for (item in items) {
+				if (item.subscription != "remove") getDirectChat(item.jid, false);
+			}
+			this.trigger("chats/update", chats);
+
+			var reply = new Stanza("iq", {
+				type: "result",
+				id: stanza.attr.get("id"),
+				to: stanza.attr.get("from")
+			});
+			sendStanza(reply);
+
+			return EventHandled;
+		});
+
 		stream.sendStanza(new Stanza("presence")); // Set self to online
 		rosterGet();
 		sync();
