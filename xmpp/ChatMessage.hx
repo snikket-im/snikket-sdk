@@ -49,7 +49,7 @@ class ChatMessage {
 				break;
 			}
 		}
-		msg.direction = (JID.parse(msg.to).asBare().asString() == localJidBare.asString()) ? MessageReceived : MessageSent;
+		msg.direction = (msg.to == null || JID.parse(msg.to).asBare().asString() == localJidBare.asString()) ? MessageReceived : MessageSent;
 
 		if (msg.text == null) return null;
 

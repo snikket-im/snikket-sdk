@@ -69,7 +69,7 @@ class Client extends xmpp.EventEmitter {
 				return Std.downcast(chat, DirectChat);
 			}
 		}
-		var chat = new DirectChat(this, this.stream, chatId);
+		var chat = new DirectChat(this, this.stream, this.persistence, chatId);
 		chats.unshift(chat);
 		if (triggerIfNew) this.trigger("chats/update", [chat]);
 		return chat;
@@ -105,11 +105,14 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	private function sync() {
+		var thirtyDaysAgo = Date.format(
+			DateTools.delta(std.Date.now(), DateTools.days(-30))
+		);
 		persistence.lastId(jid, null, function(lastId) {
 			var sync = new MessageSync(
 				this,
 				stream,
-				lastId == null ? {} : { page: { after: lastId } }
+				lastId == null ? { startTime: thirtyDaysAgo } : { page: { after: lastId } }
 			);
 			sync.setNewestPageFirst(false);
 			sync.onMessages((messageList) -> {

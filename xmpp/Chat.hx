@@ -15,18 +15,20 @@ enum ChatType {
 abstract class Chat {
 	private var client:Client;
 	private var stream:GenericStream;
+	private var persistence:Persistence;
 	public var chatId(default, null):String;
 	public var type(default, null):Null<ChatType>;
 
-	private function new(client:Client, stream:GenericStream, chatId:String, type:ChatType) {
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, type:ChatType) {
 		this.client = client;
 		this.stream = stream;
+		this.persistence = persistence;
 		this.chatId = chatId;
 	}
 
 	abstract public function sendMessage(message:ChatMessage):Void;
 
-	abstract public function getMessages(beforeId:Null<String>, handler:MessageListHandler):MessageSync;
+	abstract public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
 
 	public function isDirectChat():Bool { return type.match(ChatTypeDirect); };
 	public function isGroupChat():Bool  { return type.match(ChatTypeGroup);  };
@@ -47,17 +49,27 @@ abstract class Chat {
 }
 
 class DirectChat extends Chat {
-	public function new(client:Client, stream:GenericStream, chatId:String) {
-		super(client, stream, chatId, ChatTypeDirect);
+	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String) {
+		super(client, stream, persistence, chatId, ChatTypeDirect);
 	}
 
-	public function getMessages(beforeId:Null<String>, handler:MessageListHandler):MessageSync {
-		var filter:MAMQueryParams = { with: this.chatId };
-		if (beforeId != null) filter.page = { before: beforeId };
-		var sync = new MessageSync(this.client, this.stream, filter);
-		sync.onMessages(handler);
-		sync.fetchNext();
-		return sync;
+	public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
+		persistence.getMessages(client.jid, chatId, beforeId, beforeTime, (messages) -> {
+			if (messages.length > 0) {
+				handler(messages);
+			} else {
+				var filter:MAMQueryParams = { with: this.chatId };
+				if (beforeId != null) filter.page = { before: beforeId };
+				var sync = new MessageSync(this.client, this.stream, filter);
+				sync.onMessages((messages) -> {
+					for (message in messages.messages) {
+						persistence.storeMessage(chatId, message);
+					}
+					handler(messages.messages);
+				});
+				sync.fetchNext();
+			}
+		});
 	}
 
 	public function sendMessage(message:ChatMessage):Void {
