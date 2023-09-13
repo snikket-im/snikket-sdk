@@ -31,6 +31,8 @@ abstract class Chat {
 
 	abstract public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
 
+	abstract public function getDisplayName():String;
+
 	public function isDirectChat():Bool { return type.match(ChatTypeDirect); };
 	public function isGroupChat():Bool  { return type.match(ChatTypeGroup);  };
 	public function isPublicChat():Bool { return type.match(ChatTypePublic); };
@@ -50,8 +52,18 @@ abstract class Chat {
 }
 
 class DirectChat extends Chat {
+	private var displayName:String;
 	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String) {
 		super(client, stream, persistence, chatId, ChatTypeDirect);
+		this.displayName = chatId;
+	}
+
+	public function setDisplayName(fn:String) {
+		this.displayName = fn;
+	}
+
+	public function getDisplayName() {
+		return this.displayName;
 	}
 
 	public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
