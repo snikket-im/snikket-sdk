@@ -1,5 +1,6 @@
 package xmpp;
 
+import haxe.io.BytesData;
 import xmpp.MessageSync;
 import xmpp.ChatMessage;
 import xmpp.Chat;
@@ -17,6 +18,7 @@ abstract class Chat {
 	private var client:Client;
 	private var stream:GenericStream;
 	private var persistence:Persistence;
+	private var avatarSha1:Null<BytesData> = null;
 	public var chatId(default, null):String;
 	public var type(default, null):Null<ChatType>;
 
@@ -78,7 +80,21 @@ class DirectChat extends Chat {
 		client.sendStanza(message.asStanza());
 	}
 
+	public function setAvatarSha1(sha1: BytesData) {
+		this.avatarSha1 = sha1;
+	}
+
 	public function getPhoto(callback:(String)->Void) {
-		callback(Color.defaultPhoto(chatId, chatId.charAt(0)));
+		if (avatarSha1 != null) {
+			persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
+				if (uri != null) {
+					callback(uri);
+				} else {
+					callback(Color.defaultPhoto(chatId, chatId.charAt(0)));
+				}
+			});
+		} else {
+			callback(Color.defaultPhoto(chatId, chatId.charAt(0)));
+		}
 	}
 }
