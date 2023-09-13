@@ -77,7 +77,15 @@ class Client extends xmpp.EventEmitter {
 			return EventHandled;
 		});
 
-		stream.sendStanza(new Stanza("presence")); // Set self to online
+		// Set self to online
+		stream.sendStanza(new Stanza("presence"));
+
+		// Enable carbons
+		stream.sendStanza(
+			new Stanza("iq", { type: "set", id: ID.short() })
+				.tag("enable", { xmlns: "urn:xmpp:carbons:2" })
+				.up()
+		);
 		rosterGet();
 		sync();
 		return this.trigger("status/online", {});
