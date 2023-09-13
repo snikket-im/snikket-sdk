@@ -5,6 +5,7 @@ import xmpp.ChatMessage;
 import xmpp.Chat;
 import xmpp.GenericStream;
 import xmpp.queries.MAMQuery;
+import xmpp.Color;
 
 enum ChatType {
 	ChatTypeDirect;
@@ -75,5 +76,9 @@ class DirectChat extends Chat {
 	public function sendMessage(message:ChatMessage):Void {
 		client.chatActivity(this);
 		client.sendStanza(message.asStanza());
+	}
+
+	public function getPhoto(callback:(String)->Void) {
+		callback(Color.defaultPhoto(chatId, chatId.charAt(0)));
 	}
 }
