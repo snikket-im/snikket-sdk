@@ -133,6 +133,19 @@ exports.xmpp.persistence = {
 					localStorage.setItem(mkNiUrl("sha-1", sha1), sha256NiUrl);
 					localStorage.setItem(mkNiUrl("sha-512", sha512), sha256NiUrl);
 				})().then(callback);
+			},
+
+			storeCaps: function(caps) {
+				localStorage.setItem("caps:" + caps.ver(), JSON.stringify(caps));
+			},
+
+			getCaps: function(ver, callback) {
+				const raw = JSON.parse(localStorage.getItem("caps:" + ver));
+				if (raw) {
+					callback(new xmpp.Caps(raw.node, raw.identities.map((identity) => new xmpp.Identity(identity.category, identity.type, identity.name)), raw.features));
+				} else {
+					callback(null);
+				}
 			}
 		}
 	}

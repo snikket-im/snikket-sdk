@@ -20,6 +20,7 @@ abstract class Chat {
 	private var stream:GenericStream;
 	private var persistence:Persistence;
 	private var avatarSha1:Null<BytesData> = null;
+	private var caps:Map<String, Caps> = [];
 	public var chatId(default, null):String;
 	public var type(default, null):Null<ChatType>;
 
@@ -39,6 +40,10 @@ abstract class Chat {
 	public function isDirectChat():Bool { return type.match(ChatTypeDirect); };
 	public function isGroupChat():Bool  { return type.match(ChatTypeGroup);  };
 	public function isPublicChat():Bool { return type.match(ChatTypePublic); };
+
+	public function setCaps(resource:String, caps:Caps) {
+		this.caps.set(resource, caps);
+	}
 
 	public function onMessage(handler:ChatMessage->Void):Void {
 		this.stream.on("message", function(event) {

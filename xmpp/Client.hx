@@ -10,6 +10,7 @@ import xmpp.Stream;
 import xmpp.queries.GenericQuery;
 import xmpp.queries.RosterGet;
 import xmpp.queries.PubsubGet;
+import xmpp.queries.DiscoInfoGet;
 import xmpp.PubsubEvent;
 
 typedef ChatList = Array<Chat>;
@@ -122,6 +123,31 @@ class Client extends xmpp.EventEmitter {
 			sendStanza(reply);
 
 			return EventHandled;
+		});
+
+		this.stream.on("presence", function(event) {
+			final stanza:Stanza = event.stanza;
+			final c = stanza.getChild("c", "http://jabber.org/protocol/caps");
+			if (c != null && stanza.attr.get("from") != null) {
+				final chat = getDirectChat(stanza.attr.get("from"), false);
+				persistence.getCaps(c.attr.get("ver"), (caps) -> {
+					if (caps == null) {
+						final discoGet = new DiscoInfoGet(stanza.attr.get("from"), c.attr.get("node") + "#" + c.attr.get("ver"));
+						discoGet.onFinished(() -> {
+							if (discoGet.getResult() != null) {
+								persistence.storeCaps(discoGet.getResult());
+								chat.setCaps(JID.parse(stanza.attr.get("from")).resource, discoGet.getResult());
+							}
+						});
+						sendQuery(discoGet);
+					} else {
+						chat.setCaps(JID.parse(stanza.attr.get("from")).resource, caps);
+					}
+				});
+				return EventHandled;
+			}
+
+			return EventUnhandled;
 		});
 
 		// Set self to online
