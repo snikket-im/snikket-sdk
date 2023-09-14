@@ -21,6 +21,7 @@ abstract class Chat {
 	private var persistence:Persistence;
 	private var avatarSha1:Null<BytesData> = null;
 	private var caps:Map<String, Caps> = [];
+	private var trusted:Bool = false;
 	public var chatId(default, null):String;
 	public var type(default, null):Null<ChatType>;
 
@@ -43,6 +44,22 @@ abstract class Chat {
 
 	public function setCaps(resource:String, caps:Caps) {
 		this.caps.set(resource, caps);
+	}
+
+	public function getCaps():KeyValueIterator<String, Caps> {
+		return caps.keyValueIterator();
+	}
+
+	public function getResourceCaps(resource:String):Caps {
+		return caps[resource];
+	}
+
+	public function setTrusted(trusted:Bool) {
+		this.trusted = trusted;
+	}
+
+	public function isTrusted():Bool {
+		return this.trusted;
 	}
 
 	public function onMessage(handler:ChatMessage->Void):Void {

@@ -11,6 +11,7 @@ import xmpp.queries.GenericQuery;
 import xmpp.queries.RosterGet;
 import xmpp.queries.PubsubGet;
 import xmpp.queries.DiscoInfoGet;
+import xmpp.queries.JabberIqGatewayGet;
 import xmpp.PubsubEvent;
 
 typedef ChatList = Array<Chat>;
@@ -111,7 +112,10 @@ class Client extends xmpp.EventEmitter {
 			if (items.length == 0) return EventUnhandled;
 
 			for (item in items) {
-				if (item.subscription != "remove") getDirectChat(item.jid, false);
+				if (item.subscription != "remove") {
+					final chat = getDirectChat(item.jid, false);
+					chat.setTrusted(item.subscription == "both" || item.subscription == "from");
+				}
 			}
 			this.trigger("chats/update", chats);
 
@@ -187,12 +191,49 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function findAvailableChats(q:String, callback:(q:String, chatIds:Array<String>) -> Void) {
-		var jid = JID.parse(q);
+		var results = [];
+		final query = StringTools.trim(q);
+		final jid = JID.parse(query);
 		if (jid.isValid()) {
-			callback(q, [jid.asBare().asString()]);
-			return;
+			results.push(jid.asBare().asString());
+			callback(q, results); // send some right away
 		}
-		callback(q, []);
+		for (chat in chats) {
+			if (chat.isTrusted()) {
+				final resources:Map<String, Bool> = [];
+				for (resource in Caps.withIdentity(chat.getCaps(), "gateway", null)) {
+					resources[resource] = true;
+				}
+				for (resource in Caps.withFeature(chat.getCaps(), "jabber:iq:gateway")) {
+					resources[resource] = true;
+				}
+				for (resource in resources.keys()) {
+					final bareJid = JID.parse(chat.chatId);
+					final fullJid = new JID(bareJid.node, bareJid.domain, resource);
+					final jigGet = new JabberIqGatewayGet(fullJid.asString(), query);
+					jigGet.onFinished(() -> {
+						if (jigGet.getResult() == null) {
+							final caps = chat.getResourceCaps(resource);
+							if (bareJid.isDomain() && caps.features.contains("jid\\20escaping")) {
+								results.push(new JID(query, bareJid.domain).asString());
+								callback(q, results);
+							} else if (bareJid.isDomain()) {
+								results.push(new JID(StringTools.replace(query, "@", "%"), bareJid.domain).asString());
+								callback(q, results);
+							}
+						} else {
+							switch (jigGet.getResult()) {
+								case Left(error): return;
+								case Right(result):
+									results.push(result);
+									callback(q, results);
+							}
+						}
+					});
+					sendQuery(jigGet);
+				}
+			}
+		}
 	}
 
 	public function chatActivity(chat: Chat) {
@@ -218,6 +259,7 @@ class Client extends xmpp.EventEmitter {
 		rosterGet.onFinished(() -> {
 			for (item in rosterGet.getResult()) {
 				var chat = getDirectChat(item.jid, false);
+				chat.setTrusted(item.subscription == "both" || item.subscription == "from");
 				if (item.fn != null && item.fn != "") chat.setDisplayName(item.fn);
 			}
 			this.trigger("chats/update", chats);

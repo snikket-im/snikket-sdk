@@ -6,7 +6,33 @@ class JID {
 	public final resource : Null<String>;
 
 	public function new(?node:String, domain:String, ?resource:String) {
-		this.node = node;
+		this.node = node == null ? null :
+			StringTools.replace(StringTools.replace(StringTools.replace(
+			StringTools.replace(StringTools.replace(StringTools.replace(
+			StringTools.replace(StringTools.replace(StringTools.replace(
+			StringTools.replace(StringTools.replace(StringTools.replace(
+			StringTools.replace(StringTools.replace(StringTools.replace(
+			StringTools.replace(StringTools.replace(StringTools.replace(
+				StringTools.replace(StringTools.trim(node),
+				"\\5c", "\\5c5c"),
+				"\\20", "\\5c20"),
+				"\\22", "\\5c22"),
+				"\\26", "\\5c26"),
+				"\\27", "\\5c27"),
+				"\\2f", "\\5c2f"),
+				"\\3a", "\\5c3a"),
+				"\\3c", "\\5c3c"),
+				"\\3e", "\\5c3e"),
+				"\\40", "\\5c40"),
+				" ", "\\20"),
+				'"', "\\22"),
+				"&", "\\26"),
+				"'", "\\27"),
+				"/", "\\2f"),
+				":", "\\3a"),
+				"<", "\\3c"),
+				">", "\\3e"),
+				"@", "\\40");
 		this.domain = domain;
 		this.resource = resource;
 	}
@@ -30,6 +56,10 @@ class JID {
 
 	public function isValid():Bool {
 		return domain.indexOf(".") >= 0;
+	}
+
+	public function isDomain():Bool {
+		return node == null;
 	}
 
 	public function equals(rhs:JID):Bool {
