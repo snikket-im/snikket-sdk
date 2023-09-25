@@ -177,7 +177,7 @@ class XmppJsStream extends GenericStream {
 		return xml;
 	}
 
-	private function convertToStanza(el:XmppJsXml):Stanza {
+	private static function convertToStanza(el:XmppJsXml):Stanza {
 		var stanza = new Stanza(el.name, el.attrs);
 		for (child in el.children) {
 			if(XmppJsLtx.isText(child)) {
@@ -187,6 +187,10 @@ class XmppJsStream extends GenericStream {
 			}
 		}
 		return stanza;
+	}
+
+	public static function parse(input:String):Stanza {
+		return convertToStanza(XmppJsLtx.parse(input));
 	}
 
 	public function sendStanza(stanza:Stanza) {

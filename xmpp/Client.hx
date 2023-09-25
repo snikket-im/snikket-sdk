@@ -6,13 +6,15 @@ import haxe.io.BytesData;
 import xmpp.Caps;
 import xmpp.Chat;
 import xmpp.EventEmitter;
-import xmpp.Stream;
-import xmpp.queries.GenericQuery;
-import xmpp.queries.RosterGet;
-import xmpp.queries.PubsubGet;
-import xmpp.queries.DiscoInfoGet;
-import xmpp.queries.JabberIqGatewayGet;
+import xmpp.EventHandler;
 import xmpp.PubsubEvent;
+import xmpp.Stream;
+import xmpp.queries.DiscoInfoGet;
+import xmpp.queries.GenericQuery;
+import xmpp.queries.JabberIqGatewayGet;
+import xmpp.queries.PubsubGet;
+import xmpp.queries.Push2Enable;
+import xmpp.queries.RosterGet;
 
 typedef ChatList = Array<Chat>;
 
@@ -265,6 +267,40 @@ class Client extends xmpp.EventEmitter {
 	public function sendStanza(stanza:Stanza) {
 		stream.sendStanza(stanza);
 	}
+
+	#if js
+	public function subscribePush(reg: js.html.ServiceWorkerRegistration, push_service: String, vapid_key: { publicKey: js.html.CryptoKey, privateKey: js.html.CryptoKey}) {
+		js.Browser.window.crypto.subtle.exportKey("raw", vapid_key.publicKey).then((vapid_public_raw) -> {
+			reg.pushManager.subscribe(untyped {
+				userVisibleOnly: true,
+				applicationServerKey: vapid_public_raw
+			}).then((pushSubscription) -> {
+				enablePush(
+					push_service,
+					vapid_key.privateKey,
+					pushSubscription.endpoint,
+					pushSubscription.getKey(js.html.push.PushEncryptionKeyName.P256DH),
+					pushSubscription.getKey(js.html.push.PushEncryptionKeyName.AUTH)
+				);
+			});
+		});
+	}
+
+	public function enablePush(push_service: String, vapid_private_key: js.html.CryptoKey, endpoint: String, p256dh: BytesData, auth: BytesData) {
+		js.Browser.window.crypto.subtle.exportKey("pkcs8", vapid_private_key).then((vapid_private_pkcs8) -> {
+			sendQuery(new Push2Enable(
+				jid,
+				push_service,
+				endpoint,
+				Bytes.ofData(p256dh),
+				Bytes.ofData(auth),
+				"ES256",
+				Bytes.ofData(vapid_private_pkcs8),
+				[ "aud" => new js.html.URL(endpoint).origin ]
+			));
+		});
+	}
+	#end
 
 	private function rosterGet() {
 		var rosterGet = new RosterGet();

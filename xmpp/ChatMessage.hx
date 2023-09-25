@@ -27,9 +27,10 @@ class ChatMessage {
 	var threadId (default, null): String = null;
 	var replyTo (default, null): String = null;
 
-	var attachments : Array<ChatAttachment> = null;
+	public var attachments : Array<ChatAttachment> = [];
 
 	public var text (default, null): String = null;
+	public var lang (default, null): Null<String> = null;
 
 	private var direction:MessageDirection = null;
 
@@ -37,7 +38,11 @@ class ChatMessage {
 
 	public static function fromStanza(stanza:Stanza, localJidStr:String):Null<ChatMessage> {
 		var msg = new ChatMessage();
+		msg.lang = stanza.attr.get("xml:lang");
 		msg.text = stanza.getChildText("body");
+		if (msg.text != null && (msg.lang == null || msg.lang == "")) {
+			msg.lang = stanza.getChild("body").attr.get("xml:lang");
+		}
 		msg.to = stanza.attr.get("to");
 		msg.from = stanza.attr.get("from");
 		final localJid = JID.parse(localJidStr);
@@ -85,7 +90,11 @@ class ChatMessage {
 	}
 
 	public function conversation():String {
-		return direction == MessageReceived ? JID.parse(from).asBare().asString() : JID.parse(to).asBare().asString();
+		return isIncoming() ? JID.parse(from).asBare().asString() : JID.parse(to).asBare().asString();
+	}
+
+	public function account():String {
+		return !isIncoming() ? JID.parse(from).asBare().asString() : JID.parse(to).asBare().asString();
 	}
 
 	public function isIncoming():Bool {
