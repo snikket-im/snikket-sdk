@@ -11,4 +11,6 @@ abstract class Persistence {
 	abstract public function storeMedia(mime:String, bytes:BytesData, callback: ()->Void):Void;
 	abstract public function storeCaps(caps:Caps):Void;
 	abstract public function getCaps(ver:String, callback: (Caps)->Void):Void;
+	abstract public function storeLogin(login:String, clientId:String, token:Null<String>):Void;
+	abstract public function getLogin(login:String, callback:({ ?clientId: String, ?token: String })->Void):Void;
 }

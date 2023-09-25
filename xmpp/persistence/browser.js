@@ -4,13 +4,14 @@
 exports.xmpp.persistence = {
 	browser: (dbname) => {
 		var db = null;
-		var dbOpenReq = indexedDB.open(dbname, 1);
+		var dbOpenReq = indexedDB.open(dbname);
 		dbOpenReq.onerror = console.error;
 		dbOpenReq.onupgradeneeded = (event) => {
 			const upgradeDb = event.target.result;
 			const store = upgradeDb.createObjectStore("messages", { keyPath: "serverId" });
 			store.createIndex("account", ["account", "timestamp"]);
 			store.createIndex("conversation", ["account", "conversation", "timestamp"]);
+			upgradeDb.createObjectStore("keyvaluepairs");
 		};
 		dbOpenReq.onsuccess = (event) => {
 			db = event.target.result;
@@ -22,6 +23,13 @@ exports.xmpp.persistence = {
 		function mkNiUrl(hashAlgorithm, hashBytes) {
 			const b64url = btoa(Array.from(new Uint8Array(hashBytes), (x) => String.fromCodePoint(x)).join("")).replace(/\+/, "-").replace(/\//, "_").replace(/=/, "");
 			return "/.well-known/ni/" + hashAlgorithm + "/" + b64url;
+		}
+
+		function promisifyRequest(request) {
+			return new Promise((resolve, reject) => {
+				request.oncomplete = request.onsuccess = () => resolve(request.result);
+				request.onabort = request.onerror = () => reject(request.error);
+			});
 		}
 
 		return {
@@ -146,6 +154,29 @@ exports.xmpp.persistence = {
 				} else {
 					callback(null);
 				}
+			},
+
+			storeLogin: function(login, clientId, token) {
+				const tx = db.transaction(["keyvaluepairs"], "readwrite");
+				const store = tx.objectStore("keyvaluepairs");
+				store.put(clientId, "login:clientId:" + login).onerror = console.error;
+				if (token != null) store.put(token, "login:token:" + login).onerror = console.error;
+			},
+
+			getLogin: function(login, callback) {
+				const tx = db.transaction(["keyvaluepairs"], "readonly");
+				const store = tx.objectStore("keyvaluepairs");
+				Promise.all([
+					promisifyRequest(store.get("login:clientId:" + login)),
+					promisifyRequest(store.get("login:token:" + login))
+				]).then((result) => {
+					callback({
+						clientId: result[0],
+						token: result[1]
+					});
+				}).catch((e) => {
+					callback({});
+				});
 			}
 		}
 	}

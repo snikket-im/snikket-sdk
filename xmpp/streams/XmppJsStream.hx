@@ -19,6 +19,7 @@ extern class XmppJsClient {
 @:jsRequire("@xmpp/jid", "JID")
 extern class XmppJsJID {
 	function new(jid:String);
+	function toString():String;
 
 	var local(default, set):String;
 	var domain(default, set):String;
@@ -49,6 +50,7 @@ extern class XmppJsLtx {
 	static function isNode(el:Dynamic):Bool;
 	static function isElement(el:Dynamic):Bool;
 	static function isText(el:Dynamic):Bool;
+	static function parse(input:String):XmppJsXml;
 }
 
 @:jsRequire("@xmpp/id")
@@ -124,6 +126,7 @@ class XmppJsStream extends GenericStream {
 				service: connectionURI,
 				domain: jid.domain,
 				username: jid.local,
+				resource: jid.resource,
 				password: event.password,
 			});
 
@@ -133,7 +136,8 @@ class XmppJsStream extends GenericStream {
 
 			this.client = xmpp;
 
-			xmpp.on("online", function (data) {
+			xmpp.on("online", function (jid) {
+				this.jid = jid;
 				this.state.event("connection-success");
 			});
 
@@ -196,7 +200,7 @@ class XmppJsStream extends GenericStream {
 	/* State handlers */
 
 	private function onOnline(event) {
-		trigger("status/online", {});
+		trigger("status/online", { jid: jid.toString() });
 	}
 
 	private function onOffline(event) {

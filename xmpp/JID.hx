@@ -62,6 +62,10 @@ class JID {
 		return node == null;
 	}
 
+	public function isBare():Bool {
+		return resource == null;
+	}
+
 	public function equals(rhs:JID):Bool {
 		return (
 			this.node == rhs.node &&

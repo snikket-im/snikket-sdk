@@ -31,11 +31,17 @@ class Client extends xmpp.EventEmitter {
 		this.persistence = persistence;
 		stream = new Stream();
 		stream.on("status/online", this.onConnected);
-		stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { jid: this.jid }));
 	}
 
 	public function start() {
-		stream.connect(jid);
+		persistence.getLogin(jid, (login) -> {
+			if (login.token == null) {
+				stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { jid: this.jid }));
+			} else {
+				stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: login.token }));
+			}
+			stream.connect(login.clientId == null ? jid : jid + "/" + login.clientId);
+		});
 	}
 
 	public function addChatMessageListener(handler:ChatMessage->Void):Void {
@@ -43,6 +49,10 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	private function onConnected(data) {
+		if (data != null && data.jid != null) {
+			final jidp = JID.parse(data.jid);
+			if (!jidp.isBare()) persistence.storeLogin(jidp.asBare().asString(), jidp.resource, null);
+		}
 		this.stream.on("message", function(event) {
 			final stanza:Stanza = event.stanza;
 			final chatMessage = ChatMessage.fromStanza(stanza, jid);
