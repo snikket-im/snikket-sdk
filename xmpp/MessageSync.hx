@@ -86,7 +86,10 @@ class MessageSync {
 		query.onFinished(function () {
 			resultHandler.unsubscribe();
 			var result = query.getResult();
-			if(result != null) {
+			if(result == null) {
+				trace("Error from MAM, stopping sync");
+				complete = true;
+			} else {
 				complete = result.complete;
 				lastPage = result.page;
 			}
