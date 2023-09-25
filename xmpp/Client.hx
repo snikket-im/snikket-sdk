@@ -143,7 +143,7 @@ class Client extends xmpp.EventEmitter {
 			final stanza:Stanza = event.stanza;
 			final c = stanza.getChild("c", "http://jabber.org/protocol/caps");
 			if (c != null && stanza.attr.get("from") != null) {
-				final chat = getDirectChat(stanza.attr.get("from"), false);
+				final chat = getDirectChat(JID.parse(stanza.attr.get("from")).asBare().asString(), false);
 				persistence.getCaps(c.attr.get("ver"), (caps) -> {
 					if (caps == null) {
 						final discoGet = new DiscoInfoGet(stanza.attr.get("from"), c.attr.get("node") + "#" + c.attr.get("ver"));
@@ -164,9 +164,6 @@ class Client extends xmpp.EventEmitter {
 			return EventUnhandled;
 		});
 
-		// Set self to online
-		stream.sendStanza(caps.addC(new Stanza("presence")));
-
 		// Enable carbons
 		stream.sendStanza(
 			new Stanza("iq", { type: "set", id: ID.short() })
@@ -175,8 +172,13 @@ class Client extends xmpp.EventEmitter {
 		);
 
 		rosterGet();
-		sync();
-		return this.trigger("status/online", {});
+		sync(() -> {
+			// Set self to online
+			stream.sendStanza(caps.addC(new Stanza("presence")));
+			this.trigger("status/online", {});
+		});
+
+		return EventHandled;
 	}
 
 	public function usePassword(password: String):Void {
@@ -277,7 +279,7 @@ class Client extends xmpp.EventEmitter {
 		sendQuery(rosterGet);
 	}
 
-	private function sync() {
+	private function sync(?callback: ()->Void) {
 		var thirtyDaysAgo = Date.format(
 			DateTools.delta(std.Date.now(), DateTools.days(-30))
 		);
@@ -292,7 +294,11 @@ class Client extends xmpp.EventEmitter {
 				for (message in messageList.messages) {
 					persistence.storeMessage(jid, message);
 				}
-				if (sync.hasMore()) sync.fetchNext();
+				if (sync.hasMore()) {
+					sync.fetchNext();
+				} else {
+					if (callback != null) callback();
+				}
 			});
 			sync.fetchNext();
 		});
