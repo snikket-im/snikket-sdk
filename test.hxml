@@ -1,0 +1,6 @@
+--library haxe-strings
+--library hsluv
+--library utest
+
+--run
+test.TestAll
