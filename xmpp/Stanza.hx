@@ -3,6 +3,7 @@ package xmpp;
 import haxe.DynamicAccess;
 import haxe.Exception;
 import haxe.ds.StringMap;
+import Xml;
 
 enum Node {
 	Element(stanza:Stanza);
@@ -70,6 +71,28 @@ class Stanza implements NodeInterface {
 
 	public function toString():String {
 		return this.serialize();
+	}
+
+	public static function fromXml(el:Xml):Stanza {
+		if(el.nodeType == XmlType.Document) {
+			return fromXml(el.firstElement());
+		}
+
+		var attrs: DynamicAccess<String> = {};
+		for (a in el.attributes()) {
+			attrs.set(a, el.get(a));
+		}
+		var stanza = new Stanza(el.nodeName, attrs);
+		for (child in el) {
+			if(child.nodeType == XmlType.Element) {
+				stanza.addChild(fromXml(child));
+			} else if (child.nodeType == XmlType.ProcessingInstruction || child.nodeType == XmlType.DocType || child.nodeType == XmlType.Comment) {
+				// Ignore non-operative XML items
+			} else {
+				stanza.text(child.nodeValue);
+			}
+		}
+		return stanza;
 	}
 
 	public function tag(name:String, ?attr:DynamicAccess<String>) {
