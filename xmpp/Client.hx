@@ -3,6 +3,7 @@ package xmpp;
 import haxe.crypto.Base64;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
+import js.html.rtc.IceServer; // only typedefs, should be portable
 import xmpp.Caps;
 import xmpp.Chat;
 import xmpp.EventEmitter;
@@ -10,6 +11,7 @@ import xmpp.EventHandler;
 import xmpp.PubsubEvent;
 import xmpp.Stream;
 import xmpp.queries.DiscoInfoGet;
+import xmpp.queries.ExtDiscoGet;
 import xmpp.queries.GenericQuery;
 import xmpp.queries.JabberIqGatewayGet;
 import xmpp.queries.PubsubGet;
@@ -301,6 +303,28 @@ class Client extends xmpp.EventEmitter {
 		});
 	}
 	#end
+
+	public function getIceServers(callback: (Array<IceServer>)->Void) {
+		final extDiscoGet = new ExtDiscoGet(JID.parse(this.jid).domain);
+		extDiscoGet.onFinished(() -> {
+			final servers = [];
+			for (service in extDiscoGet.getResult()) {
+				if (!["stun", "stuns", "turn", "turns"].contains(service.attr.get("type"))) continue;
+				final host = service.attr.get("host");
+				if (host == null || host == "") continue;
+				final port = Std.parseInt(service.attr.get("port"));
+				if (port == null || port < 1 || port > 65535) continue;
+				final isTurn = ["turn", "turns"].contains(service.attr.get("type"));
+				servers.push({
+					username: service.attr.get("username"),
+					credential: service.attr.get("password"),
+					urls: [service.attr.get("type") + ":" + (host.indexOf(":") >= 0 ? "[" + host + "]" : host) + ":" + port + (isTurn ? "?transport=" + service.attr.get("transport") : "")]
+				});
+			}
+			callback(servers);
+		});
+		sendQuery(extDiscoGet);
+	}
 
 	private function rosterGet() {
 		var rosterGet = new RosterGet();
