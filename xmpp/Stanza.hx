@@ -125,6 +125,13 @@ class Stanza implements NodeInterface {
 		return this;
 	}
 
+	public function addChildren(children:Iterable<Stanza>) {
+		for (child in children) {
+			addChild(child);
+		}
+		return this;
+	}
+
 	public function addChild(stanza:Stanza) {
 		this.last_added.children.push(Element(stanza));
 		return this;
