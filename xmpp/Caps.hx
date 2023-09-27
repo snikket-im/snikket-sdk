@@ -78,7 +78,7 @@ class Caps {
 		for (feature in features) {
 			s += feature + "<";
 		}
-		return Base64.encode(Sha1.make(Bytes.ofString(s)), false);
+		return Base64.encode(Sha1.make(Bytes.ofString(s)), true);
 	}
 }
 
