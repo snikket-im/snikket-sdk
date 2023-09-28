@@ -8,6 +8,7 @@ import xmpp.Chat;
 import xmpp.GenericStream;
 import xmpp.queries.MAMQuery;
 import xmpp.Color;
+using Lambda;
 
 enum ChatType {
 	ChatTypeDirect;
@@ -24,6 +25,7 @@ abstract class Chat {
 	private var trusted:Bool = false;
 	public var chatId(default, null):String;
 	public var type(default, null):Null<ChatType>;
+	public var jingleSessions: Map<String, xmpp.jingle.Session> = [];
 
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, type:ChatType) {
 		this.client = client;
@@ -60,6 +62,31 @@ abstract class Chat {
 
 	public function isTrusted():Bool {
 		return this.trusted;
+	}
+
+	public function acceptCall() {
+		for (session in jingleSessions) {
+			session.accept();
+		}
+	}
+
+	public function hangup() {
+		for (session in jingleSessions) {
+			session.hangup();
+			jingleSessions.remove(session.sid);
+		}
+	}
+
+	public function callStatus() {
+		for (session in jingleSessions) {
+			return session.callStatus();
+		}
+
+		return "none";
+	}
+
+	public function videoTracks() {
+		return jingleSessions.flatMap((session) -> session.videoTracks());
 	}
 
 	public function onMessage(handler:ChatMessage->Void):Void {

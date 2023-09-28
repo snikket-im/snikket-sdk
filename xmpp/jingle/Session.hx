@@ -1,10 +1,93 @@
 package xmpp.jingle;
 
+import xmpp.ID;
 import xmpp.jingle.PeerConnection;
 import xmpp.jingle.SessionDescription;
 using Lambda;
 
-class Session {
+interface Session {
+	public var sid (get, null): String;
+	public function initiate(session: InitiatedSession): Null<InitiatedSession>;
+	public function accept(): Void;
+	public function hangup(): Void;
+	public function retract(): Void;
+	public function terminate(): Void;
+	public function transportInfo(stanza: Stanza): Promise<Void>;
+	public function callStatus():String;
+	public function videoTracks():Array<MediaStreamTrack>;
+}
+
+class IncomingProposedSession implements Session {
+	public var sid (get, null): String;
+	private final client: Client;
+	private final from: JID;
+	private final _sid: String;
+	private var accepted: Bool = false;
+
+	public function new(client: Client, from: JID, sid: String) {
+		this.client = client;
+		this.from = from;
+		this._sid = sid;
+	}
+
+	public function ring() {
+		// XEP-0353 says to send <ringing/> but that leaks presence if not careful
+		client.trigger("call/ring", { chatId: from.asBare().asString(), session: this });
+	}
+
+	public function hangup() {
+		// XEP-0353 says to send <reject/> but that leaks presence if not careful
+		// It also tells all other devices to stop ringing, which you may or may not want
+		client.getDirectChat(from.asBare().asString(), false).jingleSessions.remove(sid);
+	}
+
+	public function retract() {
+		// Other side retracted, stop ringing
+		client.trigger("call/retract", { chatId: from.asBare().asString() });
+	}
+
+	public function terminate() {
+		trace("Tried to terminate before session-inititate: " + sid, this);
+	}
+
+	public function transportInfo(_) {
+		trace("Got transport-info before session-inititate: " + sid, this);
+		return Promise.resolve(null);
+	}
+
+	public function accept() {
+		if (accepted) return;
+		accepted = true;
+		client.sendPresence(from.asString());
+		client.sendStanza(
+			new Stanza("message", { to: from.asString(), type: "chat" })
+				.tag("proceed", { xmlns: "urn:xmpp:jingle-message:0", id: sid }).up()
+				.tag("store", { xmlns: "urn:xmpp:hints" })
+		);
+	}
+
+	public function initiate(session: InitiatedSession) {
+		// TODO: check if new session has corrent media
+		if (session.sid != sid) return null;
+		if (!accepted) return null;
+		session.accept();
+		return session;
+	}
+
+	public function callStatus() {
+		return "incoming";
+	}
+
+	public function videoTracks() {
+		return [];
+	}
+
+	private function get_sid() {
+		return this._sid;
+	}
+}
+
+class InitiatedSession implements Session {
 	public var sid (get, null): String;
 	private final client: Client;
 	private final sessionInitiate: Stanza;
@@ -13,6 +96,7 @@ class Session {
 	private var pc: PeerConnection = null;
 	private final queuedInboundTransportInfo: Array<Stanza> = [];
 	private final queuedOutboundCandidate: Array<{ candidate: String, sdpMid: String, usernameFragment: String }> = [];
+	private var accepted: Bool = false;
 
 	public function new(client: Client, sessionInitiate: Stanza) {
 		this.client = client;
@@ -25,8 +109,34 @@ class Session {
 		return jingle.attr.get("sid");
 	}
 
+	public function ring() {
+		client.trigger("call/ring", { chatId: JID.parse(sessionInitiate.attr.get("from")).asBare().asString(), session: this });
+	}
+
+	public function retract() {
+		trace("Tried to retract session in wrong state: " + sid, this);
+	}
+
 	public function accept() {
+		if (accepted) return;
+		accepted = true;
 		client.trigger("call/media", { session: this });
+	}
+
+	public function hangup() {
+		client.sendStanza(
+			new Stanza("iq", { to: sessionInitiate.attr.get("from"), type: "set", id: ID.medium() })
+				.tag("jingle", { xmlns: "urn:xmpp:jingle:1", action: "session-terminate", sid: sid })
+				.tag("reason").tag("success")
+				.up().up().up()
+		);
+		terminate();
+		client.trigger("call/retract", { chatId: JID.parse(sessionInitiate.attr.get("from")).asBare().asString() });
+	}
+
+	public function initiate(session: InitiatedSession) {
+		trace("Trying to inititate already initiated session: " + sid);
+		return null;
 	}
 
 	public function terminate() {
@@ -37,6 +147,7 @@ class Session {
 				tranceiver.sender.track.stop();
 			}
 		}
+		pc = null;
 	}
 
 	public function transportInfo(stanza: Stanza) {
@@ -54,6 +165,17 @@ class Session {
 				usernameFragment: candidate.ufrag
 			});
 		})).then((_) -> {});
+	}
+
+	public function callStatus() {
+		return "ongoing";
+	}
+
+	public function videoTracks() {
+		if (pc == null) return [];
+		return pc.getTransceivers()
+			.filter((t) -> t.receiver != null && t.receiver.track != null && t.receiver.track.kind == "video" && !t.receiver.track.muted)
+			.map((t) -> t.receiver.track);
 	}
 
 	private function sendIceCandidate(candidate: { candidate: String, sdpMid: String, usernameFragment: String }) {

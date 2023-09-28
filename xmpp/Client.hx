@@ -10,6 +10,7 @@ import xmpp.EventEmitter;
 import xmpp.EventHandler;
 import xmpp.PubsubEvent;
 import xmpp.Stream;
+import xmpp.jingle.Session;
 import xmpp.queries.DiscoInfoGet;
 import xmpp.queries.ExtDiscoGet;
 import xmpp.queries.GenericQuery;
@@ -27,7 +28,22 @@ class Client extends xmpp.EventEmitter {
 	public var jid(default,null):String;
 	private var chats: ChatList = [];
 	private var persistence: Persistence;
-	private final caps = new Caps("https://sdk.snikket.org", [], ["urn:xmpp:avatar:metadata+notify"]);
+	private final caps = new Caps(
+		"https://sdk.snikket.org",
+		[],
+		[
+			"http://jabber.org/protocol/disco#info",
+			"http://jabber.org/protocol/caps",
+			"urn:xmpp:avatar:metadata+notify",
+			"urn:xmpp:jingle-message:0",
+			"urn:xmpp:jingle:1",
+			"urn:xmpp:jingle:apps:dtls:0",
+			"urn:xmpp:jingle:apps:rtp:1",
+			"urn:xmpp:jingle:apps:rtp:audio",
+			"urn:xmpp:jingle:apps:rtp:video",
+			"urn:xmpp:jingle:transports:ice-udp:1"
+		]
+	);
 
 	public function new(jid: String, persistence: Persistence) {
 		super();
@@ -59,6 +75,27 @@ class Client extends xmpp.EventEmitter {
 		}
 		this.stream.on("message", function(event) {
 			final stanza:Stanza = event.stanza;
+			final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
+
+			final jmiP = stanza.getChild("propose", "urn:xmpp:jingle-message:0");
+			if (jmiP != null && jmiP.attr.get("id") != null) {
+				final session = new IncomingProposedSession(this, from, jmiP.attr.get("id"));
+				final chat = getDirectChat(from.asBare().asString());
+				chat.jingleSessions.set(session.sid, session);
+				chatActivity(chat);
+				session.ring();
+			}
+
+			final jmiR = stanza.getChild("retract", "urn:xmpp:jingle-message:0");
+			if (jmiR != null && jmiR.attr.get("id") != null) {
+				final chat = getDirectChat(from.asBare().asString());
+				final session = chat.jingleSessions.get(jmiR.attr.get("id"));
+				if (session != null) {
+					session.retract();
+					chat.jingleSessions.remove(session.sid);
+				}
+			}
+
 			final chatMessage = ChatMessage.fromStanza(stanza, jid);
 			if (chatMessage != null) {
 				var chat = getDirectChat(chatMessage.conversation());
@@ -107,6 +144,41 @@ class Client extends xmpp.EventEmitter {
 
 		this.stream.on("iq", function(event) {
 			final stanza:Stanza = event.stanza;
+			final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
+
+			final jingle = stanza.getChild("jingle", "urn:xmpp:jingle:1");
+			if (stanza.attr.get("type") == "set" && jingle != null) {
+				// First, jingle requires useless replies to every iq
+				sendStanza(new Stanza("iq", { type: "result", to: stanza.attr.get("from"), id: stanza.attr.get("id") }));
+				final chat = getDirectChat(from.asBare().asString());
+				final session = chat.jingleSessions.get(jingle.attr.get("sid"));
+
+				if (jingle.attr.get("action") == "session-initiate") {
+					final newSession = new xmpp.jingle.InitiatedSession(this, stanza);
+					if (session != null) {
+						final nextSession = session.initiate(newSession);
+						if (nextSession == null) {
+							chat.jingleSessions.remove(session.sid);
+						} else {
+							chat.jingleSessions.set(session.sid, nextSession);
+						}
+					} else {
+						chat.jingleSessions.set(session.sid, newSession);
+						chatActivity(chat);
+						newSession.ring();
+					}
+				}
+
+				if (session != null && jingle.attr.get("action") == "session-terminate") {
+					session.terminate();
+					chat.jingleSessions.remove(jingle.attr.get("sid"));
+				}
+
+				if (session != null && jingle.attr.get("action") == "transport-info") {
+					session.transportInfo(stanza);
+				}
+				return EventHandled;
+			}
 
 			if (stanza.attr.get("type") == "get" && stanza.getChild("query", "http://jabber.org/protocol/disco#info") != null) {
 				stream.sendStanza(caps.discoReply(stanza));
@@ -178,7 +250,7 @@ class Client extends xmpp.EventEmitter {
 		rosterGet();
 		sync(() -> {
 			// Set self to online
-			stream.sendStanza(caps.addC(new Stanza("presence")));
+			sendPresence();
 			this.trigger("status/online", {});
 		});
 
@@ -268,6 +340,10 @@ class Client extends xmpp.EventEmitter {
 
 	public function sendStanza(stanza:Stanza) {
 		stream.sendStanza(stanza);
+	}
+
+	public function sendPresence(?to: String) {
+		sendStanza(caps.addC(new Stanza("presence", to == null ? {} : { to: to })));
 	}
 
 	#if js
