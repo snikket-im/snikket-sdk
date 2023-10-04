@@ -7,7 +7,7 @@ using Lambda;
 
 interface Session {
 	public var sid (get, null): String;
-	public function initiate(session: InitiatedSession): Null<InitiatedSession>;
+	public function initiate(stanza: Stanza): InitiatedSession;
 	public function accept(): Void;
 	public function hangup(): Void;
 	public function retract(): Void;
@@ -47,11 +47,11 @@ class IncomingProposedSession implements Session {
 	}
 
 	public function terminate() {
-		trace("Tried to terminate before session-inititate: " + sid, this);
+		trace("Tried to terminate before session-initiate: " + sid, this);
 	}
 
 	public function transportInfo(_) {
-		trace("Got transport-info before session-inititate: " + sid, this);
+		trace("Got transport-info before session-initiate: " + sid, this);
 		return Promise.resolve(null);
 	}
 
@@ -66,10 +66,11 @@ class IncomingProposedSession implements Session {
 		);
 	}
 
-	public function initiate(session: InitiatedSession) {
+	public function initiate(stanza: Stanza) {
 		// TODO: check if new session has corrent media
-		if (session.sid != sid) return null;
-		if (!accepted) return null;
+		final session = InitiatedSession.fromSessionInitiate(client, stanza);
+		if (session.sid != sid) throw "id mismatch";
+		if (!accepted) throw "trying to initiate unaccepted session";
 		session.accept();
 		return session;
 	}
@@ -87,30 +88,126 @@ class IncomingProposedSession implements Session {
 	}
 }
 
+class OutgoingProposedSession implements Session {
+	public var sid (get, null): String;
+	private final client: Client;
+	private final to: JID;
+	private final _sid: String;
+	private var audio = false;
+	private var video = false;
+
+	public function new(client: Client, to: JID) {
+		this.client = client;
+		this.to = to;
+		this._sid = ID.long();
+	}
+
+	public function propose(audio: Bool, video: Bool) {
+		this.audio = audio;
+		this.video = video;
+		final stanza = new Stanza("message", { to: to.asString(), type: "chat" })
+			.tag("propose", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
+		if (audio) {
+			stanza.tag("description", { xmlns: "urn:xmpp:jingle:apps:rtp:1", media: "audio" }).up();
+		}
+		if (video) {
+			stanza.tag("description", { xmlns: "urn:xmpp:jingle:apps:rtp:1", media: "video" }).up();
+		}
+		stanza.up().tag("store", { xmlns: "urn:xmpp:hints" });
+		client.sendStanza(stanza);
+	}
+
+	public function ring() {
+		trace("Tried to accept before initiate: " + sid, this);
+	}
+
+	public function hangup() {
+		client.sendStanza(
+			new Stanza("message", { to: to.asString(), type: "chat" })
+				.tag("retract", { xmlns: "urn:xmpp:jingle-message:0", id: sid }).up()
+				.tag("store", { xmlns: "urn:xmpp:hints" })
+		);
+		client.getDirectChat(to.asBare().asString(), false).jingleSessions.remove(sid);
+	}
+
+	public function retract() {
+		// Other side rejected the call
+		client.trigger("call/retract", { chatId: to.asBare().asString() });
+	}
+
+	public function terminate() {
+		trace("Tried to terminate before session-initiate: " + sid, this);
+	}
+
+	public function transportInfo(_) {
+		trace("Got transport-info before session-initiate: " + sid, this);
+		return Promise.resolve(null);
+	}
+
+	public function accept() {
+		trace("Tried to accept before initiate: " + sid, this);
+	}
+
+	public function initiate(stanza: Stanza) {
+		final jmi = stanza.getChild("proceed", "urn:xmpp:jingle-message:0");
+		if (jmi == null) throw "no jmi: " + stanza;
+		if (jmi.attr.get("id") != sid) throw "sid doesn't match: " + jmi.attr.get("id") + " vs " + sid;
+		client.sendPresence(to.asString());
+		final session = new OutgoingSession(client, JID.parse(stanza.attr.get("from")), sid);
+		client.trigger("call/media", { session: session, audio: audio, video: video });
+		return session;
+	}
+
+	public function callStatus() {
+		return "outgoing";
+	}
+
+	public function videoTracks() {
+		return [];
+	}
+
+	private function get_sid() {
+		return this._sid;
+	}
+}
+
 class InitiatedSession implements Session {
 	public var sid (get, null): String;
 	private final client: Client;
-	private final sessionInitiate: Stanza;
-	private final session: SessionDescription;
-	private var answer: Null<SessionDescription> = null;
+	private final counterpart: JID;
+	private final _sid: String;
+	private var remoteDescription: Null<SessionDescription> = null;
+	private var localDescription: Null<SessionDescription> = null;
 	private var pc: PeerConnection = null;
 	private final queuedInboundTransportInfo: Array<Stanza> = [];
 	private final queuedOutboundCandidate: Array<{ candidate: String, sdpMid: String, usernameFragment: String }> = [];
 	private var accepted: Bool = false;
 
-	public function new(client: Client, sessionInitiate: Stanza) {
+	public function new(client: Client, counterpart: JID, sid: String, remoteDescription: Null<SessionDescription>) {
 		this.client = client;
-		this.sessionInitiate = sessionInitiate;
-		this.session = SessionDescription.fromStanza(sessionInitiate, false);
+		this.counterpart = counterpart;
+		this._sid = sid;
+		this.remoteDescription = remoteDescription;
+	}
+
+	public static function fromSessionInitiate(client: Client, stanza: Stanza): InitiatedSession {
+		final jingle = stanza.getChild("jingle", "urn:xmpp:jingle:1");
+		final session = new InitiatedSession(
+			client,
+			JID.parse(stanza.attr.get("from")),
+			jingle.attr.get("sid"),
+			SessionDescription.fromStanza(stanza, false)
+		);
+		session.transportInfo(stanza); // Add any candidates from the initiate
+		return session;
 	}
 
 	public function get_sid() {
-		final jingle = sessionInitiate.getChild("jingle", "urn:xmpp:jingle:1");
-		return jingle.attr.get("sid");
+		return _sid;
 	}
 
 	public function ring() {
-		client.trigger("call/ring", { chatId: JID.parse(sessionInitiate.attr.get("from")).asBare().asString(), session: this });
+		client.trigger("call/ring", { chatId: counterpart.asBare().asString(), session: this });
 	}
 
 	public function retract() {
@@ -118,25 +215,27 @@ class InitiatedSession implements Session {
 	}
 
 	public function accept() {
-		if (accepted) return;
+		if (accepted || remoteDescription == null) return;
 		accepted = true;
-		client.trigger("call/media", { session: this });
+		final audio = remoteDescription.media.find((m) -> m.media == "audio") != null;
+		final video = remoteDescription.media.find((m) -> m.media == "video") != null;
+		client.trigger("call/media", { session: this, audio: audio, video: video });
 	}
 
 	public function hangup() {
 		client.sendStanza(
-			new Stanza("iq", { to: sessionInitiate.attr.get("from"), type: "set", id: ID.medium() })
+			new Stanza("iq", { to: counterpart.asString(), type: "set", id: ID.medium() })
 				.tag("jingle", { xmlns: "urn:xmpp:jingle:1", action: "session-terminate", sid: sid })
 				.tag("reason").tag("success")
 				.up().up().up()
 		);
 		terminate();
-		client.trigger("call/retract", { chatId: JID.parse(sessionInitiate.attr.get("from")).asBare().asString() });
+		client.trigger("call/retract", { chatId: counterpart.asBare().asString() });
 	}
 
-	public function initiate(session: InitiatedSession) {
-		trace("Trying to inititate already initiated session: " + sid);
-		return null;
+	public function initiate(stanza: Stanza) {
+		trace("Trying to initiate already initiated session: " + sid);
+		return throw "already initiated";
 	}
 
 	public function terminate() {
@@ -157,7 +256,7 @@ class InitiatedSession implements Session {
 		}
 
 		return Promise.all(IceCandidate.fromStanza(stanza).map((candidate) -> {
-			final index = session.identificationTags.indexOf(candidate.sdpMid);
+			final index = remoteDescription.identificationTags.indexOf(candidate.sdpMid);
 			return pc.addIceCandidate(untyped {
 				candidate: candidate.toSdp(),
 				sdpMid: candidate.sdpMid,
@@ -181,12 +280,11 @@ class InitiatedSession implements Session {
 	private function sendIceCandidate(candidate: { candidate: String, sdpMid: String, usernameFragment: String }) {
 		if (candidate == null) return; // All candidates received now
 		if (candidate.candidate == "") return; // All candidates received now
-		if (answer == null) {
+		if (localDescription == null) {
 			queuedOutboundCandidate.push(candidate);
 			return;
 		}
-		final jingle = sessionInitiate.getChild("jingle", "urn:xmpp:jingle:1");
-		final media = answer.media.find((media) -> media.mid == candidate.sdpMid);
+		final media = localDescription.media.find((media) -> media.mid == candidate.sdpMid);
 		if (media == null) throw "Unknown media: " + candidate.sdpMid;
 		final transportInfo = new TransportInfo(
 			new Media(
@@ -202,19 +300,18 @@ class InitiatedSession implements Session {
 				],
 				media.formats
 			),
-			jingle.attr.get("sid")
+			sid
 		).toStanza(false);
-		transportInfo.attr.set("to", sessionInitiate.attr.get("from"));
+		transportInfo.attr.set("to", counterpart.asString());
 		transportInfo.attr.set("id", ID.medium());
 		client.sendStanza(transportInfo);
 	}
 
 	public function supplyMedia(streams: Array<MediaStream>) {
-		final jingle = sessionInitiate.getChild("jingle", "urn:xmpp:jingle:1");
 		client.getIceServers((servers) -> {
 			pc = new PeerConnection({ iceServers: servers });
 			pc.addEventListener("track", (event) -> {
-				client.trigger("call/track", { chatId: JID.parse(sessionInitiate.attr.get("from")).asBare().asString(), track: event.track, streams: event.streams });
+				client.trigger("call/track", { chatId: counterpart.asBare().asString(), track: event.track, streams: event.streams });
 			});
 			pc.addEventListener("negotiationneeded", (event) -> trace("renegotiate", event));
 			pc.addEventListener("icecandidate", (event) -> {
@@ -225,38 +322,56 @@ class InitiatedSession implements Session {
 					pc.addTrack(track, stream);
 				}
 			}
-			pc.setRemoteDescription({ type: SdpType.OFFER, sdp: session.toSdp() })
-			.then((_) -> {
-				final inboundTransportInfo = queuedInboundTransportInfo.copy();
-				queuedInboundTransportInfo.resize(0);
-				return Promise.all(IceCandidate.fromStanza(sessionInitiate).map((candidate) -> {
-					final index = session.identificationTags.indexOf(candidate.sdpMid);
-					return pc.addIceCandidate(untyped {
-						candidate: candidate.toSdp(),
-						sdpMid: candidate.sdpMid,
-						sdpMLineIndex: index < 0 ? null : index,
-						usernameFragment: candidate.ufrag
-					});
-				}).concat(inboundTransportInfo.map(transportInfo)));
-			})
-				.then((_) -> pc.setLocalDescription(null))
-				.then((_) -> {
-					answer = SessionDescription.parse(pc.localDescription.sdp);
-					final sessionAccept = answer.toStanza("session-accept", jingle.attr.get("sid"), false);
-					sessionAccept.attr.set("to", sessionInitiate.attr.get("from"));
-					sessionAccept.attr.set("id", ID.medium());
-					client.sendStanza(sessionAccept);
 
-					final outboundCandidate = queuedOutboundCandidate.copy();
-					queuedOutboundCandidate.resize(0);
-					for (candidate in outboundCandidate) {
-						sendIceCandidate(candidate);
-					}
-				})
-				.catchError((e) -> {
-					trace("acceptJingleRtp error", e);
-					pc.close();
-				});
+			onPeerConnection().catchError((e) -> {
+				trace("supplyMedia error", e);
+				pc.close();
+			});
 		});
+	}
+
+	private function setupLocalDescription(type: String) {
+		return pc.setLocalDescription(null).then((_) -> {
+			localDescription = SessionDescription.parse(pc.localDescription.sdp);
+			final sessionAccept = localDescription.toStanza(type, sid, false);
+			sessionAccept.attr.set("to", counterpart.asString());
+			sessionAccept.attr.set("id", ID.medium());
+			client.sendStanza(sessionAccept);
+
+			final outboundCandidate = queuedOutboundCandidate.copy();
+			queuedOutboundCandidate.resize(0);
+			for (candidate in outboundCandidate) {
+				sendIceCandidate(candidate);
+			}
+		});
+	}
+
+	private function onPeerConnection() {
+		return pc.setRemoteDescription({ type: SdpType.OFFER, sdp: remoteDescription.toSdp() })
+		.then((_) -> {
+			final inboundTransportInfo = queuedInboundTransportInfo.copy();
+			queuedInboundTransportInfo.resize(0);
+			return inboundTransportInfo.map(transportInfo);
+		})
+		.then((_) -> {
+			setupLocalDescription("session-accept");
+		});
+	}
+}
+
+class OutgoingSession extends InitiatedSession {
+	public function new(client: Client, counterpart: JID, sid: String) {
+		super(client, counterpart, sid, null);
+	}
+
+	private override function onPeerConnection() {
+		return setupLocalDescription("session-initiate");
+	}
+
+	public override function initiate(stanza: Stanza) {
+		remoteDescription = SessionDescription.fromStanza(stanza, true);
+		pc.setRemoteDescription({ type: SdpType.ANSWER, sdp: remoteDescription.toSdp() })
+		  .then((_) -> transportInfo(stanza));
+		return this;
 	}
 }

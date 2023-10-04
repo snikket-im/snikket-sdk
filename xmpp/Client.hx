@@ -96,6 +96,29 @@ class Client extends xmpp.EventEmitter {
 				}
 			}
 
+			final jmiPro = stanza.getChild("proceed", "urn:xmpp:jingle-message:0");
+			if (jmiPro != null && jmiPro.attr.get("id") != null) {
+				final chat = getDirectChat(from.asBare().asString());
+				final session = chat.jingleSessions.get(jmiPro.attr.get("id"));
+				if (session != null) {
+					try {
+						chat.jingleSessions.set(session.sid, session.initiate(stanza));
+					} catch (e) {
+						trace("JMI proceed failed", e);
+					}
+				}
+			}
+
+			final jmiRej = stanza.getChild("reject", "urn:xmpp:jingle-message:0");
+			if (jmiRej != null && jmiRej.attr.get("id") != null) {
+				final chat = getDirectChat(from.asBare().asString());
+				final session = chat.jingleSessions.get(jmiRej.attr.get("id"));
+				if (session != null) {
+					session.retract();
+					chat.jingleSessions.remove(session.sid);
+				}
+			}
+
 			final chatMessage = ChatMessage.fromStanza(stanza, jid);
 			if (chatMessage != null) {
 				var chat = getDirectChat(chatMessage.conversation());
@@ -154,18 +177,25 @@ class Client extends xmpp.EventEmitter {
 				final session = chat.jingleSessions.get(jingle.attr.get("sid"));
 
 				if (jingle.attr.get("action") == "session-initiate") {
-					final newSession = new xmpp.jingle.InitiatedSession(this, stanza);
 					if (session != null) {
-						final nextSession = session.initiate(newSession);
-						if (nextSession == null) {
+						try {
+							chat.jingleSessions.set(session.sid, session.initiate(stanza));
+						} catch (e) {
 							chat.jingleSessions.remove(session.sid);
-						} else {
-							chat.jingleSessions.set(session.sid, nextSession);
 						}
 					} else {
+						final newSession = xmpp.jingle.InitiatedSession.fromSessionInitiate(this, stanza);
 						chat.jingleSessions.set(session.sid, newSession);
 						chatActivity(chat);
 						newSession.ring();
+					}
+				}
+
+				if (session != null && jingle.attr.get("action") == "session-accept") {
+					try {
+						chat.jingleSessions.set(session.sid, session.initiate(stanza));
+					} catch (e) {
+						trace("session-accept failed", e);
 					}
 				}
 

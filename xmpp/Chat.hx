@@ -1,13 +1,14 @@
 package xmpp;
 
-import xmpp.ID;
 import haxe.io.BytesData;
-import xmpp.MessageSync;
-import xmpp.ChatMessage;
 import xmpp.Chat;
-import xmpp.GenericStream;
-import xmpp.queries.MAMQuery;
+import xmpp.ChatMessage;
 import xmpp.Color;
+import xmpp.GenericStream;
+import xmpp.ID;
+import xmpp.MessageSync;
+import xmpp.jingle.Session;
+import xmpp.queries.MAMQuery;
 using Lambda;
 
 enum ChatType {
@@ -62,6 +63,28 @@ abstract class Chat {
 
 	public function isTrusted():Bool {
 		return this.trusted;
+	}
+
+	public function canAudioCall():Bool {
+		for (resource => cap in caps) {
+			if (cap.features.contains("urn:xmpp:jingle:apps:rtp:audio")) return true;
+		}
+
+		return false;
+	}
+
+	public function canVideoCall():Bool {
+		for (resource => cap in caps) {
+			if (cap.features.contains("urn:xmpp:jingle:apps:rtp:video")) return true;
+		}
+
+		return false;
+	}
+
+	public function startCall(audio: Bool, video: Bool) {
+		final session = new OutgoingProposedSession(client, JID.parse(chatId));
+		jingleSessions.set(session.sid, session);
+		session.propose(audio, video);
 	}
 
 	public function acceptCall() {
