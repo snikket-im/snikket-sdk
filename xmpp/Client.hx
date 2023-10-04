@@ -81,9 +81,11 @@ class Client extends xmpp.EventEmitter {
 			if (jmiP != null && jmiP.attr.get("id") != null) {
 				final session = new IncomingProposedSession(this, from, jmiP.attr.get("id"));
 				final chat = getDirectChat(from.asBare().asString());
-				chat.jingleSessions.set(session.sid, session);
-				chatActivity(chat);
-				session.ring();
+				if (!chat.jingleSessions.exists(session.sid)) {
+					chat.jingleSessions.set(session.sid, session);
+					chatActivity(chat);
+					session.ring();
+				}
 			}
 
 			final jmiR = stanza.getChild("retract", "urn:xmpp:jingle-message:0");
@@ -449,6 +451,19 @@ class Client extends xmpp.EventEmitter {
 		persistence.lastId(jid, null, (lastId) -> doSync(callback, lastId));
 	}
 
+	private function onMAMJMI(sid: String, stanza: Stanza) {
+		if (stanza.attr.get("from") == null) return;
+		final from = JID.parse(stanza.attr.get("from"));
+		final chat = getDirectChat(from.asBare().asString());
+		if (chat.jingleSessions.exists(sid)) return; // Already know about this session
+		final jmiP = stanza.getChild("propose", "urn:xmpp:jingle-message:0");
+		if (jmiP == null) return;
+		final session = new IncomingProposedSession(this, from, sid);
+		chat.jingleSessions.set(session.sid, session);
+		chatActivity(chat);
+		session.ring();
+	}
+
 	private function doSync(callback: Null<()->Void>, lastId: Null<String>) {
 		var thirtyDaysAgo = Date.format(
 			DateTools.delta(std.Date.now(), DateTools.days(-30))
@@ -466,6 +481,9 @@ class Client extends xmpp.EventEmitter {
 			if (sync.hasMore()) {
 				sync.fetchNext();
 			} else {
+				for (sid => stanza in sync.jmi) {
+					onMAMJMI(sid, stanza);
+				}
 				if (callback != null) callback();
 			}
 		});

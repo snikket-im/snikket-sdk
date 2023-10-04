@@ -166,7 +166,7 @@ class Stanza implements NodeInterface {
 			var ourXmlns = this.attr.get("xmlns");
 			tags = tags.filter(function (child:Stanza):Bool {
 				var childXmlns = child.attr.get("xmlns");
-				return (name == null || child.name == name
+				return ((name == null || child.name == name)
 				  && ((xmlns == null && (ourXmlns == childXmlns || childXmlns == null))
 				     || childXmlns == xmlns));
 			});

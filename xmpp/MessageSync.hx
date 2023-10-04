@@ -28,6 +28,7 @@ class MessageSync {
 	private var lastPage:ResultSetPageResult;
 	private var complete:Bool = false;
 	private var newestPageFirst:Bool = true;
+	public var jmi(default, null): Map<String, Stanza> = [];
 
 	public function new(client:Client, stream:GenericStream, filter:MessageFilter, ?serviceJID:String) {
 		this.client = client;
@@ -43,7 +44,7 @@ class MessageSync {
 		if (complete) {
 			throw new Exception("Attempt to fetch messages, but already complete");
 		}
-		var messages:Array<ChatMessage> = [];
+		final messages:Array<ChatMessage> = [];
 		if(lastPage == null) {
 			if(newestPageFirst == true && (filter.page == null || filter.page.before == null)) {
 				if (filter.page == null) filter.page = {};
@@ -74,8 +75,13 @@ class MessageSync {
 			}
 			var timestamp = result.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
 
+			final jmiChildren = originalMessage.allTags(null, "urn:xmpp:jingle-message:0");
+			if (jmiChildren.length > 0) {
+				jmi.set(jmiChildren[0].attr.get("id"), originalMessage);
+			}
+
 			var msg = ChatMessage.fromStanza(originalMessage, client.jid);
-			if (msg == null) return EventUnhandled;
+			if (msg == null) return EventHandled;
 
 			msg.set_serverId(result.attr.get("id"));
 			msg.set_timestamp(timestamp);
@@ -90,15 +96,17 @@ class MessageSync {
 			if(result == null) {
 				trace("Error from MAM, stopping sync");
 				complete = true;
-				errorHandler(query.responseStanza);
+				if (errorHandler != null) errorHandler(query.responseStanza);
 			} else {
 				complete = result.complete;
 				lastPage = result.page;
 			}
-			handler({
-				sync: this,
-				messages: messages,
-			});
+			if (result != null || errorHandler == null) {
+				handler({
+					sync: this,
+					messages: messages,
+				});
+			}
 		});
 		client.sendQuery(query);
 	}
