@@ -31,7 +31,7 @@ typedef MAMQueryResult = {
 class MAMQuery extends GenericQuery {
 	public var xmlns(default, null) = "urn:xmpp:mam:2";
 	public var queryId:String = null;
-	private var responseStanza:Stanza;
+	public var responseStanza(default, null):Stanza;
 	private var result:MAMQueryResult;
 
 	private function addStringField(name:String, value:String) {

@@ -446,27 +446,37 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	private function sync(?callback: ()->Void) {
+		persistence.lastId(jid, null, (lastId) -> doSync(callback, lastId));
+	}
+
+	private function doSync(callback: Null<()->Void>, lastId: Null<String>) {
 		var thirtyDaysAgo = Date.format(
 			DateTools.delta(std.Date.now(), DateTools.days(-30))
 		);
-		persistence.lastId(jid, null, function(lastId) {
-			var sync = new MessageSync(
-				this,
-				stream,
-				lastId == null ? { startTime: thirtyDaysAgo } : { page: { after: lastId } }
-			);
-			sync.setNewestPageFirst(false);
-			sync.onMessages((messageList) -> {
-				for (message in messageList.messages) {
-					persistence.storeMessage(jid, message);
-				}
-				if (sync.hasMore()) {
-					sync.fetchNext();
-				} else {
-					if (callback != null) callback();
-				}
-			});
-			sync.fetchNext();
+		var sync = new MessageSync(
+			this,
+			stream,
+			lastId == null ? { startTime: thirtyDaysAgo } : { page: { after: lastId } }
+		);
+		sync.setNewestPageFirst(false);
+		sync.onMessages((messageList) -> {
+			for (message in messageList.messages) {
+				persistence.storeMessage(jid, message);
+			}
+			if (sync.hasMore()) {
+				sync.fetchNext();
+			} else {
+				if (callback != null) callback();
+			}
 		});
+		sync.onError((stanza) -> {
+			if (lastId != null) {
+				// Gap in sync, out newest message has expired from server
+				doSync(callback, null);
+			} else {
+				if (callback != null) callback();
+			}
+		});
+		sync.fetchNext();
 	}
 }

@@ -24,6 +24,7 @@ class MessageSync {
 	private var filter:MessageFilter;
 	private var serviceJID:String;
 	private var handler:MessageListHandler;
+	private var errorHandler:(Stanza)->Void;
 	private var lastPage:ResultSetPageResult;
 	private var complete:Bool = false;
 	private var newestPageFirst:Bool = true;
@@ -89,6 +90,7 @@ class MessageSync {
 			if(result == null) {
 				trace("Error from MAM, stopping sync");
 				complete = true;
+				errorHandler(query.responseStanza);
 			} else {
 				complete = result.complete;
 				lastPage = result.page;
@@ -107,6 +109,10 @@ class MessageSync {
 
 	public function onMessages(handler:MessageListHandler):Void {
 		this.handler = handler;
+	}
+
+	public function onError(handler:(Stanza)->Void) {
+		this.errorHandler = handler;
 	}
 
 	public function setNewestPageFirst(newestPageFirst:Bool):Void {
