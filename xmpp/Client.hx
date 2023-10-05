@@ -206,6 +206,10 @@ class Client extends xmpp.EventEmitter {
 					chat.jingleSessions.remove(jingle.attr.get("sid"));
 				}
 
+				if (session != null && jingle.attr.get("action") == "content-add") {
+					session.contentAdd(stanza);
+				}
+
 				if (session != null && jingle.attr.get("action") == "transport-info") {
 					session.transportInfo(stanza);
 				}

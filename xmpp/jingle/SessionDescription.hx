@@ -96,11 +96,11 @@ class SessionDescription {
 		return new SessionDescription(version, name, media, attributes, tags);
 	}
 
-	public static function fromStanza(iq: Stanza, initiator: Bool) {
+	public static function fromStanza(iq: Stanza, initiator: Bool, ?existingDescription: SessionDescription) {
 		final attributes: Array<Attribute> = [];
 		final jingle = iq.getChild("jingle", "urn:xmpp:jingle:1");
 		final group = jingle.getChild("group", "urn:xmpp:jingle:apps:grouping:0");
-		final media = jingle.allTags("content").map((el) -> Media.fromElement(el, initiator, group != null));
+		final media = jingle.allTags("content").map((el) -> Media.fromElement(el, initiator, group != null, existingDescription));
 
 		var tags: Array<String>;
 		if (group != null) {
@@ -113,6 +113,62 @@ class SessionDescription {
 		attributes.push(new Attribute("msid-semantic", "WMS my-media-stream"));
 
 		return new SessionDescription(0, "-", media, attributes, tags);
+	}
+
+	public function getUfragPwd() {
+		var ufragPwd = null;
+		for (m in media) {
+			final mUfragPwd = m.getUfragPwd();
+			if (ufragPwd != null && mUfragPwd.ufrag != ufragPwd.ufrag) throw "ufrag not unique";
+			if (ufragPwd != null && mUfragPwd.pwd != ufragPwd.pwd) throw "pwd not unique";
+			ufragPwd = mUfragPwd;
+		}
+
+		if (ufragPwd == null) throw "no ufrag or pwd found";
+		return ufragPwd;
+	}
+
+	public function getFingerprint() {
+		var fingerprint = attributes.find((attr) -> attr.key == "fingerprint");
+		if (fingerprint != null) return fingerprint;
+
+		for (m in media) {
+			final mFingerprint = m.attributes.find((attr) -> attr.key == "fingerprint");
+			if (fingerprint != null && mFingerprint != null && fingerprint.value != mFingerprint.value) throw "fingerprint not unique";
+			fingerprint = mFingerprint;
+		}
+
+		if (fingerprint == null) throw "no fingerprint found";
+		return fingerprint;
+	}
+
+	public function getDtlsSetup() {
+		var setup = attributes.find((attr) -> attr.key == "setup");
+		if (setup != null) return setup.value;
+
+		for (m in media) {
+			final mSetup = m.attributes.find((attr) -> attr.key == "setup");
+			if (setup != null && mSetup != null && setup.value != mSetup.value) throw "setup not unique";
+			setup = mSetup;
+		}
+
+		if (setup == null) throw "no setup found";
+		return setup.value;
+	}
+
+	public function addContent(newDescription: SessionDescription) {
+		for (newM in newDescription.media) {
+			if (media.find((m) -> m.mid == newM.mid) != null) {
+				throw "Media with id " + newM.mid + " already exists!";
+			}
+		}
+		return new SessionDescription(
+			version,
+			name,
+			media.concat(newDescription.media),
+			attributes.filter((attr) -> attr.key != "group").concat(newDescription.attributes.filter((attr) -> attr.key == "group")),
+			newDescription.identificationTags
+		);
 	}
 
 	public function toSdp() {
@@ -177,23 +233,33 @@ class Media {
 		this.formats = formats;
 	}
 
-	public static function fromElement(content: Stanza, initiator: Bool, hasGroup: Bool) {
+	public static function fromElement(content: Stanza, initiator: Bool, hasGroup: Bool, ?existingDescription: SessionDescription) {
 		final mediaAttributes: Array<Attribute> = [];
 		final mediaFormats: Array<Int> = [];
 		final mid = content.attr.get("name");
 		final transport = content.getChild("transport", "urn:xmpp:jingle:transports:ice-udp:1");
 		if (transport == null) throw "ice-udp transport is missing";
 
-		if (transport.attr.get("ufrag") == null) throw "transport is missing ufrag";
-		final ufrag = transport.attr.get("ufrag");
+		var ufrag = transport.attr.get("ufrag");
+		var pwd = transport.attr.get("pwd");
+		if ((ufrag == null || pwd == null) && existingDescription != null) {
+			final ufragPwd = existingDescription.getUfragPwd();
+			ufrag = ufragPwd.ufrag;
+			pwd = ufragPwd.pwd;
+		}
+		if (ufrag == null) throw "transport is missing ufrag";
 		mediaAttributes.push(new Attribute("ice-ufrag", ufrag));
 
-		if (transport.attr.get("pwd") == null) throw "transport is missing pwd";
-		mediaAttributes.push(new Attribute("ice-pwd", transport.attr.get("pwd")));
+		if (pwd == null) throw "transport is missing pwd";
+		mediaAttributes.push(new Attribute("ice-pwd", pwd));
 		mediaAttributes.push(new Attribute("ice-options", "trickle"));
 
 		final fingerprint = transport.getChild("fingerprint", "urn:xmpp:jingle:apps:dtls:0");
-		if (fingerprint != null) {
+		if (fingerprint == null) {
+			if (existingDescription != null) {
+				mediaAttributes.push(existingDescription.getFingerprint());
+			}
+		} else {
 			mediaAttributes.push(new Attribute("fingerprint", fingerprint.attr.get("hash") + " " + fingerprint.getText()));
 			if (fingerprint.attr.get("setup") != null) {
 				mediaAttributes.push(new Attribute("setup", fingerprint.attr.get("setup")));
@@ -299,7 +365,7 @@ class Media {
 	}
 
 	public function contentElement(initiator: Bool) {
-			final attrs: DynamicAccess<String> = { xmlns: "urn:xmpp:jingle:1", creator: "initiator", name: mid };
+		final attrs: DynamicAccess<String> = { xmlns: "urn:xmpp:jingle:1", creator: "initiator", name: mid };
 		if (attributes.exists((attr) -> attr.key == "inactive")) {
 			attrs.set("senders", "none");
 		} else if (attributes.exists((attr) -> attr.key == "sendonly")) {
@@ -399,12 +465,18 @@ class Media {
 		return content;
 	}
 
+	public function getUfragPwd() {
+		final ufrag = attributes.find((attr) -> attr.key == "ice-ufrag");
+		final pwd = attributes.find((attr) -> attr.key == "ice-pwd");
+		if (ufrag == null || pwd == null) throw "transport is missing ufrag or pwd";
+		return { ufrag: ufrag.value, pwd: pwd.value };
+	}
+
 	public function toTransportElement(sessionAttributes: Array<Attribute>) {
 		final transportAttr: DynamicAccess<String> = { xmlns: "urn:xmpp:jingle:transports:ice-udp:1" };
-		final ufrag = attributes.find((attr) -> attr.key == "ice-ufrag");
-		if (ufrag != null) transportAttr.set("ufrag", ufrag.value);
-		final pwd = attributes.find((attr) -> attr.key == "ice-pwd");
-		if (pwd != null) transportAttr.set("pwd", pwd.value);
+		final ufragPwd = getUfragPwd();
+		transportAttr.set("ufrag", ufragPwd.ufrag);
+		transportAttr.set("pwd", ufragPwd.pwd);
 		final transport = new Stanza("transport", transportAttr);
 		final fingerprint = (attributes.concat(sessionAttributes)).find((attr) -> attr.key == "fingerprint");
 		final setup = (attributes.concat(sessionAttributes)).find((attr) -> attr.key == "setup");
@@ -412,7 +484,7 @@ class Media {
 			final pos = fingerprint.value.indexOf(" ");
 			transport.textTag("fingerprint", fingerprint.value.substr(pos + 1), { xmlns: "urn:xmpp:jingle:apps:dtls:0", hash: fingerprint.value.substr(0, pos), setup: setup.value });
 		}
-		transport.addChildren(attributes.filter((attr) -> attr.key == "candidate").map((attr) -> IceCandidate.parse(attr.value, mid, ufrag.value).toElement()));
+		transport.addChildren(attributes.filter((attr) -> attr.key == "candidate").map((attr) -> IceCandidate.parse(attr.value, mid, ufragPwd.ufrag).toElement()));
 		transport.up();
 		return transport;
 	}

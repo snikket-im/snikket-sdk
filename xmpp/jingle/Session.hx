@@ -12,6 +12,7 @@ interface Session {
 	public function hangup(): Void;
 	public function retract(): Void;
 	public function terminate(): Void;
+	public function contentAdd(stanza: Stanza): Void;
 	public function transportInfo(stanza: Stanza): Promise<Void>;
 	public function callStatus():String;
 	public function videoTracks():Array<MediaStreamTrack>;
@@ -48,6 +49,10 @@ class IncomingProposedSession implements Session {
 
 	public function terminate() {
 		trace("Tried to terminate before session-initiate: " + sid, this);
+	}
+
+	public function contentAdd(_) {
+		trace("Got content-add before session-initiate: " + sid, this);
 	}
 
 	public function transportInfo(_) {
@@ -139,6 +144,10 @@ class OutgoingProposedSession implements Session {
 		trace("Tried to terminate before session-initiate: " + sid, this);
 	}
 
+	public function contentAdd(_) {
+		trace("Got content-add before session-initiate: " + sid, this);
+	}
+
 	public function transportInfo(_) {
 		trace("Got transport-info before session-initiate: " + sid, this);
 		return Promise.resolve(null);
@@ -179,15 +188,19 @@ class InitiatedSession implements Session {
 	private var remoteDescription: Null<SessionDescription> = null;
 	private var localDescription: Null<SessionDescription> = null;
 	private var pc: PeerConnection = null;
+	private var peerDtlsSetup: String = "actpass";
 	private final queuedInboundTransportInfo: Array<Stanza> = [];
 	private final queuedOutboundCandidate: Array<{ candidate: String, sdpMid: String, usernameFragment: String }> = [];
 	private var accepted: Bool = false;
+	private var afterMedia: Null<()->Void> = null;
+	private final initiator: Bool;
 
 	public function new(client: Client, counterpart: JID, sid: String, remoteDescription: Null<SessionDescription>) {
 		this.client = client;
 		this.counterpart = counterpart;
 		this._sid = sid;
 		this.remoteDescription = remoteDescription;
+		this.initiator = remoteDescription == null;
 	}
 
 	public static function fromSessionInitiate(client: Client, stanza: Stanza): InitiatedSession {
@@ -249,6 +262,29 @@ class InitiatedSession implements Session {
 		pc = null;
 	}
 
+	public function contentAdd(stanza: Stanza) {
+		if (remoteDescription == null) throw "Got content-add before session-accept";
+
+		final addThis = SessionDescription.fromStanza(stanza, initiator, remoteDescription);
+		var video = false;
+		var audio = false;
+		for (m in addThis.media) {
+			if (m.attributes.exists((attr) -> attr.key == "sendrecv" || attr.key == "sendonly")) {
+				if (m.media == "video") video = true;
+				if (m.media == "audio") audio = true;
+			}
+			m.attributes.push(new Attribute("setup", peerDtlsSetup));
+		}
+		remoteDescription = remoteDescription.addContent(addThis);
+		pc.setRemoteDescription({ type: SdpType.OFFER, sdp: remoteDescription.toSdp() }).then((_) -> {
+			afterMedia = () -> {
+				setupLocalDescription("content-accept", addThis.media.map((m) -> m.mid));
+				afterMedia = null;
+			};
+			client.trigger("call/media", { session: this, audio: audio, video: video });
+		});
+	}
+
 	public function transportInfo(stanza: Stanza) {
 		if (pc == null) {
 			queuedInboundTransportInfo.push(stanza);
@@ -301,13 +337,36 @@ class InitiatedSession implements Session {
 				media.formats
 			),
 			sid
-		).toStanza(false);
+		).toStanza(initiator);
 		transportInfo.attr.set("to", counterpart.asString());
 		transportInfo.attr.set("id", ID.medium());
 		client.sendStanza(transportInfo);
 	}
 
 	public function supplyMedia(streams: Array<MediaStream>) {
+		setupPeerConnection(() -> {
+			for (stream in streams) {
+				for (track in stream.getTracks()) {
+					pc.addTrack(track, stream);
+				}
+			}
+
+			if (afterMedia == null) {
+				onPeerConnection().catchError((e) -> {
+					trace("supplyMedia error", e);
+					pc.close();
+				});
+			} else {
+				afterMedia();
+			}
+		});
+	}
+
+	private function setupPeerConnection(callback: ()->Void) {
+		if (pc != null) {
+			callback();
+			return;
+		}
 		client.getIceServers((servers) -> {
 			pc = new PeerConnection({ iceServers: servers });
 			pc.addEventListener("track", (event) -> {
@@ -317,23 +376,24 @@ class InitiatedSession implements Session {
 			pc.addEventListener("icecandidate", (event) -> {
 				sendIceCandidate(event.candidate);
 			});
-			for (stream in streams) {
-				for (track in stream.getTracks()) {
-					pc.addTrack(track, stream);
-				}
-			}
-
-			onPeerConnection().catchError((e) -> {
-				trace("supplyMedia error", e);
-				pc.close();
-			});
+			callback();
 		});
 	}
 
-	private function setupLocalDescription(type: String) {
+	private function setupLocalDescription(type: String, ?filterMedia: Array<String>) {
 		return pc.setLocalDescription(null).then((_) -> {
 			localDescription = SessionDescription.parse(pc.localDescription.sdp);
-			final sessionAccept = localDescription.toStanza(type, sid, false);
+			var descriptionToSend = localDescription;
+			if (filterMedia != null) {
+				descriptionToSend = new SessionDescription(
+					descriptionToSend.version,
+					descriptionToSend.name,
+					descriptionToSend.media.filter((m) -> filterMedia.contains(m.mid)),
+					descriptionToSend.attributes,
+					descriptionToSend.identificationTags
+				);
+			}
+			final sessionAccept = descriptionToSend.toStanza(type, sid, initiator);
 			sessionAccept.attr.set("to", counterpart.asString());
 			sessionAccept.attr.set("id", ID.medium());
 			client.sendStanza(sessionAccept);
@@ -355,6 +415,9 @@ class InitiatedSession implements Session {
 		})
 		.then((_) -> {
 			setupLocalDescription("session-accept");
+		}).then((_) -> {
+			peerDtlsSetup = localDescription.getDtlsSetup() == "active" ? "passive" : "active";
+			return;
 		});
 	}
 }
@@ -370,6 +433,7 @@ class OutgoingSession extends InitiatedSession {
 
 	public override function initiate(stanza: Stanza) {
 		remoteDescription = SessionDescription.fromStanza(stanza, true);
+		peerDtlsSetup = remoteDescription.getDtlsSetup();
 		pc.setRemoteDescription({ type: SdpType.ANSWER, sdp: remoteDescription.toSdp() })
 		  .then((_) -> transportInfo(stanza));
 		return this;
