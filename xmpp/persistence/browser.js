@@ -4,18 +4,29 @@
 exports.xmpp.persistence = {
 	browser: (dbname) => {
 		var db = null;
-		var dbOpenReq = indexedDB.open(dbname);
-		dbOpenReq.onerror = console.error;
-		dbOpenReq.onupgradeneeded = (event) => {
-			const upgradeDb = event.target.result;
-			const store = upgradeDb.createObjectStore("messages", { keyPath: "serverId" });
-			store.createIndex("account", ["account", "timestamp"]);
-			store.createIndex("conversation", ["account", "conversation", "timestamp"]);
-			upgradeDb.createObjectStore("keyvaluepairs");
-		};
-		dbOpenReq.onsuccess = (event) => {
-			db = event.target.result;
-		};
+		function openDb(version) {
+			var dbOpenReq = indexedDB.open(dbname, version);
+			dbOpenReq.onerror = console.error;
+			dbOpenReq.onupgradeneeded = (event) => {
+				const upgradeDb = event.target.result;
+				if (!db.objectStoreNames.contains("messages")) {
+					const store = upgradeDb.createObjectStore("messages", { keyPath: "serverId" });
+					store.createIndex("account", ["account", "timestamp"]);
+					store.createIndex("conversation", ["account", "conversation", "timestamp"]);
+				}
+				if (!db.objectStoreNames.contains("keyvaluepairs")) {
+					upgradeDb.createObjectStore("keyvaluepairs");
+				}
+			};
+			dbOpenReq.onsuccess = (event) => {
+				db = event.target.result;
+				if (!db.objectStoreNames.contains("messages") || !db.objectStoreNames.contains("keyvaluepairs")) {
+					db.close();
+					openDb(db.version + 1);
+				}
+			};
+		}
+		openDb();
 
 		var cache = null;
 		caches.open(dbname).then((c) => cache = c);
