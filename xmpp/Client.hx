@@ -210,6 +210,10 @@ class Client extends xmpp.EventEmitter {
 					session.contentAdd(stanza);
 				}
 
+				if (session != null && jingle.attr.get("action") == "content-accept") {
+					session.contentAccept(stanza);
+				}
+
 				if (session != null && jingle.attr.get("action") == "transport-info") {
 					session.transportInfo(stanza);
 				}

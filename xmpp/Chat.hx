@@ -7,6 +7,7 @@ import xmpp.Color;
 import xmpp.GenericStream;
 import xmpp.ID;
 import xmpp.MessageSync;
+import xmpp.jingle.PeerConnection;
 import xmpp.jingle.Session;
 import xmpp.queries.MAMQuery;
 using Lambda;
@@ -85,6 +86,11 @@ abstract class Chat {
 		final session = new OutgoingProposedSession(client, JID.parse(chatId));
 		jingleSessions.set(session.sid, session);
 		session.propose(audio, video);
+	}
+
+	public function addMedia(streams: Array<MediaStream>) {
+		if (callStatus() != "ongoing") throw "cannot add media when no call ongoing";
+		jingleSessions.iterator().next().addMedia(streams);
 	}
 
 	public function acceptCall() {

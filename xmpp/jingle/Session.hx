@@ -13,7 +13,9 @@ interface Session {
 	public function retract(): Void;
 	public function terminate(): Void;
 	public function contentAdd(stanza: Stanza): Void;
+	public function contentAccept(stanza: Stanza): Void;
 	public function transportInfo(stanza: Stanza): Promise<Void>;
+	public function addMedia(streams: Array<MediaStream>): Void;
 	public function callStatus():String;
 	public function videoTracks():Array<MediaStreamTrack>;
 }
@@ -55,6 +57,10 @@ class IncomingProposedSession implements Session {
 		trace("Got content-add before session-initiate: " + sid, this);
 	}
 
+	public function contentAccept(_) {
+		trace("Got content-accept before session-initiate: " + sid, this);
+	}
+
 	public function transportInfo(_) {
 		trace("Got transport-info before session-initiate: " + sid, this);
 		return Promise.resolve(null);
@@ -78,6 +84,10 @@ class IncomingProposedSession implements Session {
 		if (!accepted) throw "trying to initiate unaccepted session";
 		session.accept();
 		return session;
+	}
+
+	public function addMedia(_) {
+		throw "Cannot add media before call starts";
 	}
 
 	public function callStatus() {
@@ -148,6 +158,10 @@ class OutgoingProposedSession implements Session {
 		trace("Got content-add before session-initiate: " + sid, this);
 	}
 
+	public function contentAccept(_) {
+		trace("Got content-accept before session-initiate: " + sid, this);
+	}
+
 	public function transportInfo(_) {
 		trace("Got transport-info before session-initiate: " + sid, this);
 		return Promise.resolve(null);
@@ -165,6 +179,10 @@ class OutgoingProposedSession implements Session {
 		final session = new OutgoingSession(client, JID.parse(stanza.attr.get("from")), sid);
 		client.trigger("call/media", { session: session, audio: audio, video: video });
 		return session;
+	}
+
+	public function addMedia(_) {
+		throw "Cannot add media before call starts";
 	}
 
 	public function callStatus() {
@@ -276,6 +294,7 @@ class InitiatedSession implements Session {
 			m.attributes.push(new Attribute("setup", peerDtlsSetup));
 		}
 		remoteDescription = remoteDescription.addContent(addThis);
+		// TODO: tie-break with any in-flight content-add we sent?
 		pc.setRemoteDescription({ type: SdpType.OFFER, sdp: remoteDescription.toSdp() }).then((_) -> {
 			afterMedia = () -> {
 				setupLocalDescription("content-accept", addThis.media.map((m) -> m.mid));
@@ -283,6 +302,18 @@ class InitiatedSession implements Session {
 			};
 			client.trigger("call/media", { session: this, audio: audio, video: video });
 		});
+	}
+
+	public function contentAccept(stanza: Stanza) {
+		if (remoteDescription == null) throw "Got content-accept before session-accept";
+		// TODO: check if matches a content-add we sent?
+
+		final addThis = SessionDescription.fromStanza(stanza, !initiator, remoteDescription);
+		for (m in addThis.media) {
+			m.attributes.push(new Attribute("setup", peerDtlsSetup));
+		}
+		remoteDescription = remoteDescription.addContent(addThis);
+		pc.setRemoteDescription({ type: SdpType.ANSWER, sdp: remoteDescription.toSdp() });
 	}
 
 	public function transportInfo(stanza: Stanza) {
@@ -300,6 +331,19 @@ class InitiatedSession implements Session {
 				usernameFragment: candidate.ufrag
 			});
 		})).then((_) -> {});
+	}
+
+	public function addMedia(streams: Array<MediaStream>) {
+		if (pc == null) throw "tried to add media before PeerConnection exists";
+
+		final oldMids = localDescription.media.map((m) -> m.mid);
+		for (stream in streams) {
+			for (track in stream.getTracks()) {
+				pc.addTrack(track, stream);
+			}
+		}
+
+		setupLocalDescription("content-add", oldMids, true);
 	}
 
 	public function callStatus() {
@@ -380,7 +424,7 @@ class InitiatedSession implements Session {
 		});
 	}
 
-	private function setupLocalDescription(type: String, ?filterMedia: Array<String>) {
+	private function setupLocalDescription(type: String, ?filterMedia: Array<String>, ?filterOut: Bool = false) {
 		return pc.setLocalDescription(null).then((_) -> {
 			localDescription = SessionDescription.parse(pc.localDescription.sdp);
 			var descriptionToSend = localDescription;
@@ -388,7 +432,7 @@ class InitiatedSession implements Session {
 				descriptionToSend = new SessionDescription(
 					descriptionToSend.version,
 					descriptionToSend.name,
-					descriptionToSend.media.filter((m) -> filterMedia.contains(m.mid)),
+					descriptionToSend.media.filter((m) -> filterOut ? !filterMedia.contains(m.mid) : filterMedia.contains(m.mid)),
 					descriptionToSend.attributes,
 					descriptionToSend.identificationTags
 				);
