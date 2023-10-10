@@ -114,6 +114,15 @@ abstract class Chat {
 		return "none";
 	}
 
+	public function dtmf() {
+		for (session in jingleSessions) {
+			final dtmf = session.dtmf();
+			if (dtmf != null) return dtmf;
+		}
+
+		return null;
+	}
+
 	public function videoTracks() {
 		return jingleSessions.flatMap((session) -> session.videoTracks());
 	}

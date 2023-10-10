@@ -18,6 +18,7 @@ interface Session {
 	public function addMedia(streams: Array<MediaStream>): Void;
 	public function callStatus():String;
 	public function videoTracks():Array<MediaStreamTrack>;
+	public function dtmf():Null<DTMFSender>;
 }
 
 class IncomingProposedSession implements Session {
@@ -96,6 +97,10 @@ class IncomingProposedSession implements Session {
 
 	public function videoTracks() {
 		return [];
+	}
+
+	public function dtmf() {
+		return null;
 	}
 
 	private function get_sid() {
@@ -191,6 +196,10 @@ class OutgoingProposedSession implements Session {
 
 	public function videoTracks() {
 		return [];
+	}
+
+	public function dtmf() {
+		return null;
 	}
 
 	private function get_sid() {
@@ -369,6 +378,13 @@ class InitiatedSession implements Session {
 		return pc.getTransceivers()
 			.filter((t) -> t.receiver != null && t.receiver.track != null && t.receiver.track.kind == "video" && !t.receiver.track.muted)
 			.map((t) -> t.receiver.track);
+	}
+
+	public function dtmf() {
+		if (pc == null) return null;
+		final transceiver = pc.getTransceivers().find((t) -> t.sender != null && t.sender.track != null && t.sender.track.kind == "audio" && !t.sender.track.muted);
+		if (transceiver == null) return null;
+		return transceiver.sender.dtmf;
 	}
 
 	private function sendIceCandidate(candidate: { candidate: String, sdpMid: String, usernameFragment: String }) {
