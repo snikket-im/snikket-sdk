@@ -297,7 +297,21 @@ class InitiatedSession implements Session {
 		// TODO: tie-break with any in-flight content-add we sent?
 		pc.setRemoteDescription({ type: SdpType.OFFER, sdp: remoteDescription.toSdp() }).then((_) -> {
 			afterMedia = () -> {
-				setupLocalDescription("content-accept", addThis.media.map((m) -> m.mid));
+				setupLocalDescription(
+					"content-accept",
+					addThis.media.map((m) -> m.mid),
+					false,
+					(gonnaAccept) -> {
+						if (gonnaAccept.media.find(
+							(m) -> m.contentElement(false).attr.get("senders") != addThis.media.find((addM) -> addM.mid == m.mid).contentElement(false).attr.get("senders")
+						) != null) {
+							final modify = gonnaAccept.toStanza("content-modify", sid, initiator);
+							modify.attr.set("to", counterpart.asString());
+							modify.attr.set("id", ID.medium());
+							client.sendStanza(modify);
+						}
+					}
+				);
 				afterMedia = null;
 			};
 			client.trigger("call/media", { session: this, audio: audio, video: video });
@@ -424,7 +438,7 @@ class InitiatedSession implements Session {
 		});
 	}
 
-	private function setupLocalDescription(type: String, ?filterMedia: Array<String>, ?filterOut: Bool = false) {
+	private function setupLocalDescription(type: String, ?filterMedia: Array<String>, ?filterOut: Bool = false, ?beforeSend: (SessionDescription)->Void) {
 		return pc.setLocalDescription(null).then((_) -> {
 			localDescription = SessionDescription.parse(pc.localDescription.sdp);
 			var descriptionToSend = localDescription;
@@ -437,6 +451,7 @@ class InitiatedSession implements Session {
 					descriptionToSend.identificationTags
 				);
 			}
+			if (beforeSend != null) beforeSend(descriptionToSend);
 			final sessionAccept = descriptionToSend.toStanza(type, sid, initiator);
 			sessionAccept.attr.set("to", counterpart.asString());
 			sessionAccept.attr.set("id", ID.medium());
