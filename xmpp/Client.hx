@@ -187,7 +187,7 @@ class Client extends xmpp.EventEmitter {
 						}
 					} else {
 						final newSession = xmpp.jingle.InitiatedSession.fromSessionInitiate(this, stanza);
-						chat.jingleSessions.set(session.sid, newSession);
+						chat.jingleSessions.set(newSession.sid, newSession);
 						chatActivity(chat);
 						newSession.ring();
 					}
