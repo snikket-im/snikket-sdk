@@ -135,6 +135,7 @@ class OutgoingProposedSession implements Session {
 		}
 		stanza.up().tag("store", { xmlns: "urn:xmpp:hints" });
 		client.sendStanza(stanza);
+		client.trigger("call/ringing", { chatId: to.asBare().asString() });
 	}
 
 	public function ring() {
