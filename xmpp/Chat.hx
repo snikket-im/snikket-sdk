@@ -12,24 +12,17 @@ import xmpp.jingle.Session;
 import xmpp.queries.MAMQuery;
 using Lambda;
 
-enum ChatType {
-	ChatTypeDirect;
-	ChatTypeGroup;
-	ChatTypePublic;
-}
-
 abstract class Chat {
 	private var client:Client;
 	private var stream:GenericStream;
 	private var persistence:Persistence;
 	private var avatarSha1:Null<BytesData> = null;
-	private var caps:Map<String, Caps> = [];
+	private var caps:haxe.DynamicAccess<Caps> = {};
 	private var trusted:Bool = false;
 	public var chatId(default, null):String;
-	public var type(default, null):Null<ChatType>;
 	public var jingleSessions: Map<String, xmpp.jingle.Session> = [];
 
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, type:ChatType) {
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String) {
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
@@ -43,10 +36,6 @@ abstract class Chat {
 	abstract public function getDisplayName():String;
 
 	abstract public function getParticipants():Array<String>;
-
-	public function isDirectChat():Bool { return type.match(ChatTypeDirect); };
-	public function isGroupChat():Bool  { return type.match(ChatTypeGroup);  };
-	public function isPublicChat():Bool { return type.match(ChatTypePublic); };
 
 	public function setCaps(resource:String, caps:Caps) {
 		this.caps.set(resource, caps);
@@ -143,10 +132,11 @@ abstract class Chat {
 	}
 }
 
+@:expose
 class DirectChat extends Chat {
 	private var displayName:String;
 	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String) {
-		super(client, stream, persistence, chatId, ChatTypeDirect);
+		super(client, stream, persistence, chatId);
 		this.displayName = chatId;
 	}
 
@@ -220,5 +210,36 @@ class DirectChat extends Chat {
 		} else {
 			callback(Color.defaultPhoto(chatId, chatId.charAt(0)));
 		}
+	}
+}
+
+@:expose
+class SerializedChat {
+	public final chatId:String;
+	public final trusted:Bool;
+	public final avatarSha1:Null<BytesData>;
+	public final caps:haxe.DynamicAccess<Caps>;
+	public final displayName:Null<String>;
+	public final klass:String;
+
+	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, caps: haxe.DynamicAccess<Caps>, displayName: Null<String>, klass: String) {
+		this.chatId = chatId;
+		this.trusted = trusted;
+		this.avatarSha1 = avatarSha1;
+		this.caps = caps;
+		this.displayName = displayName;
+		this.klass = klass;
+	}
+
+	public function toDirectChat(client: Client, stream: GenericStream, persistence: Persistence) {
+		if (klass != "DirectChat") throw "Not a direct chat: " + klass;
+		final chat = new DirectChat(client, stream, persistence, chatId);
+		if (displayName != null) chat.setDisplayName(displayName);
+		if (avatarSha1 != null) chat.setAvatarSha1(avatarSha1);
+		chat.setTrusted(trusted);
+		for (resource => c in caps) {
+			chat.setCaps(resource, c);
+		}
+		return chat;
 	}
 }

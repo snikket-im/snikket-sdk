@@ -10,18 +10,21 @@ exports.xmpp.persistence = {
 			dbOpenReq.onupgradeneeded = (event) => {
 				const upgradeDb = event.target.result;
 				if (!db.objectStoreNames.contains("messages")) {
-					const store = upgradeDb.createObjectStore("messages", { keyPath: "serverId" });
-					store.createIndex("account", ["account", "timestamp"]);
-					store.createIndex("chats", ["account", "chatId", "timestamp"]);
-					store.createIndex("localId", ["account", "chatId", "localId"]);
+					const messages = upgradeDb.createObjectStore("messages", { keyPath: "serverId" });
+					messages.createIndex("account", ["account", "timestamp"]);
+					messages.createIndex("chats", ["account", "chatId", "timestamp"]);
+					messages.createIndex("localId", ["account", "chatId", "localId"]);
 				}
 				if (!db.objectStoreNames.contains("keyvaluepairs")) {
 					upgradeDb.createObjectStore("keyvaluepairs");
 				}
+				if (!db.objectStoreNames.contains("chats")) {
+					upgradeDb.createObjectStore("chats", { keyPath: ["account", "chatId"] });
+				}
 			};
 			dbOpenReq.onsuccess = (event) => {
 				db = event.target.result;
-				if (!db.objectStoreNames.contains("messages") || !db.objectStoreNames.contains("keyvaluepairs")) {
+				if (!db.objectStoreNames.contains("messages") || !db.objectStoreNames.contains("keyvaluepairs") || !db.objectStoreNames.contains("chats")) {
 					db.close();
 					openDb(db.version + 1);
 				}
@@ -67,6 +70,35 @@ exports.xmpp.persistence = {
 					console.error(event);
 					callback(null);
 				}
+			},
+
+			storeChat: function(account, chat) {
+				const tx = db.transaction(["chats"], "readwrite");
+				const store = tx.objectStore("chats");
+
+				store.put({
+					account: account,
+					chatId: chat.chatId,
+					trusted: chat.trusted,
+					avatarSha1: chat.avatarSha1,
+					caps: chat.caps,
+					displayName: chat.displayName,
+					class: chat instanceof xmpp.DirectChat ? "DirectChat" : "Chat"
+				});
+			},
+
+			getChats: function(account, callback) {
+				const tx = db.transaction(["chats"], "readonly");
+				const store = tx.objectStore("chats");
+				const range = IDBKeyRange.bound([account], [account, []]);
+				promisifyRequest(store.getAll(range)).then((result) => callback(result.map((r) => new xmpp.SerializedChat(
+					r.chatId,
+					r.trusted,
+					r.avatarSha1,
+					r.caps,
+					r.displayName,
+					r.class
+				))));
 			},
 
 			storeMessage: function(account, message) {

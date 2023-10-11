@@ -54,13 +54,20 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function start() {
-		persistence.getLogin(jid, (login) -> {
-			if (login.token == null) {
-				stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { jid: this.jid }));
-			} else {
-				stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: login.token }));
+		persistence.getChats(jid, (protoChats) -> {
+			for (protoChat in protoChats) {
+				chats.push(protoChat.toDirectChat(this, stream, persistence));
 			}
-			stream.connect(login.clientId == null ? jid : jid + "/" + login.clientId);
+			this.trigger("chats/update", chats);
+
+			persistence.getLogin(jid, (login) -> {
+				if (login.token == null) {
+					stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { jid: this.jid }));
+				} else {
+					stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: login.token }));
+				}
+				stream.connect(login.clientId == null ? jid : jid + "/" + login.clientId);
+			});
 		});
 	}
 
@@ -145,6 +152,7 @@ class Client extends xmpp.EventEmitter {
 				}
 				final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
 				chat.setAvatarSha1(avatarSha1);
+				persistence.storeChat(jid, chat);
 				persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
 					if (uri == null) {
 						final pubsubGet = new PubsubGet(pubsubEvent.getFrom(), "urn:xmpp:avatar:data", avatarSha1Hex);
@@ -267,11 +275,13 @@ class Client extends xmpp.EventEmitter {
 							if (discoGet.getResult() != null) {
 								persistence.storeCaps(discoGet.getResult());
 								chat.setCaps(JID.parse(stanza.attr.get("from")).resource, discoGet.getResult());
+								persistence.storeChat(jid, chat);
 							}
 						});
 						sendQuery(discoGet);
 					} else {
 						chat.setCaps(JID.parse(stanza.attr.get("from")).resource, caps);
+						persistence.storeChat(jid, chat);
 					}
 				});
 				return EventHandled;
@@ -313,6 +323,7 @@ class Client extends xmpp.EventEmitter {
 			}
 		}
 		var chat = new DirectChat(this, this.stream, this.persistence, chatId);
+		persistence.storeChat(jid, chat);
 		chats.unshift(chat);
 		if (triggerIfNew) this.trigger("chats/update", [chat]);
 		return chat;
@@ -449,6 +460,7 @@ class Client extends xmpp.EventEmitter {
 				var chat = getDirectChat(item.jid, false);
 				chat.setTrusted(item.subscription == "both" || item.subscription == "from");
 				if (item.fn != null && item.fn != "") chat.setDisplayName(item.fn);
+				persistence.storeChat(jid, chat);
 			}
 			this.trigger("chats/update", chats);
 		});
