@@ -15,24 +15,24 @@ class ChatAttachment {
 }
 
 @:expose
+@:nullSafety(Strict)
 class ChatMessage {
-	public var localId (default, set) : String = null;
-	public var serverId (default, set) : String = null;
+	public var localId (default, set) : Null<String> = null;
+	public var serverId (default, set) : Null<String> = null;
 
-	public var timestamp (default, set) : String = null;
+	public var timestamp (default, set) : Null<String> = null;
 
-	public var to (default, null): String = null;
-	public var from (default, null): String = null;
+	private var to: Null<JID> = null;
+	private var from: Null<JID> = null;
 
-	var threadId (default, null): String = null;
-	var replyTo (default, null): String = null;
+	var threadId (default, null): Null<String> = null;
 
 	public var attachments : Array<ChatAttachment> = [];
 
-	public var text (default, null): String = null;
+	public var text (default, null): Null<String> = null;
 	public var lang (default, null): Null<String> = null;
 
-	private var direction:MessageDirection = null;
+	private var direction: MessageDirection = MessageReceived;
 
 	public function new() { }
 
@@ -41,15 +41,17 @@ class ChatMessage {
 		msg.lang = stanza.attr.get("xml:lang");
 		msg.text = stanza.getChildText("body");
 		if (msg.text != null && (msg.lang == null || msg.lang == "")) {
-			msg.lang = stanza.getChild("body").attr.get("xml:lang");
+			msg.lang = stanza.getChild("body")?.attr.get("xml:lang");
 		}
-		msg.to = stanza.attr.get("to");
-		msg.from = stanza.attr.get("from");
+		final to = stanza.attr.get("to");
+		msg.to = to == null ? null : JID.parse(to);
+		final from = stanza.attr.get("from");
+		msg.from = from == null ? null : JID.parse(from);
 		final localJid = JID.parse(localJidStr);
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;
 
-		if (msg.from != null && JID.parse(msg.from).asString() == localJidBare.asString()) {
+		if (msg.from != null && msg.from.equals(localJidBare)) {
 			var carbon = stanza.getChild("received", "urn:xmpp:carbons:2");
 			if (carbon == null) carbon = stanza.getChild("sent", "urn:xmpp:carbons:2");
 			if (carbon != null) {
@@ -59,12 +61,13 @@ class ChatMessage {
 		}
 
 		for (stanzaId in stanza.allTags("stanza-id", "urn:xmpp:sid:0")) {
-			if (stanzaId.attr.get("by") == domain || stanzaId.attr.get("by") == localJidBare.asString()) {
-				msg.serverId = stanzaId.attr.get("id");
+			final id = stanzaId.attr.get("id");
+			if ((stanzaId.attr.get("by") == domain || stanzaId.attr.get("by") == localJidBare.asString()) && id != null) {
+				msg.serverId = id;
 				break;
 			}
 		}
-		msg.direction = (msg.to == null || JID.parse(msg.to).asBare().asString() == localJidBare.asString()) ? MessageReceived : MessageSent;
+		msg.direction = (msg.to == null || msg.to.asBare().equals(localJidBare)) ? MessageReceived : MessageSent;
 
 		if (msg.text == null) return null;
 
@@ -103,11 +106,11 @@ class ChatMessage {
 
 	public function asStanza():Stanza {
 		var attrs: haxe.DynamicAccess<String> = { type: "chat" };
-		if (from != null) attrs.set("from", from);
-		if (to != null) attrs.set("to", to);
+		if (from != null) attrs.set("from", from.asString());
+		if (to != null) attrs.set("to", to.asString());
 		if (localId != null) attrs.set("id", localId);
 		var stanza = new Stanza("message", attrs);
-		stanza.textTag("body", text);
+		if (text != null) stanza.textTag("body", text);
 		return stanza;
 	}
 }
