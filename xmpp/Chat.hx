@@ -42,6 +42,8 @@ abstract class Chat {
 
 	abstract public function getDisplayName():String;
 
+	abstract public function getParticipants():Array<String>;
+
 	public function isDirectChat():Bool { return type.match(ChatTypeDirect); };
 	public function isGroupChat():Bool  { return type.match(ChatTypeGroup);  };
 	public function isPublicChat():Bool { return type.match(ChatTypePublic); };
@@ -156,6 +158,10 @@ class DirectChat extends Chat {
 		return this.displayName;
 	}
 
+	public function getParticipants() {
+		return chatId.split("\n");
+	}
+
 	public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
 		persistence.getMessages(client.jid, chatId, beforeId, beforeTime, (messages) -> {
 			if (messages.length > 0) {
@@ -166,9 +172,9 @@ class DirectChat extends Chat {
 				var sync = new MessageSync(this.client, this.stream, filter);
 				sync.onMessages((messages) -> {
 					for (message in messages.messages) {
-						persistence.storeMessage(chatId, message);
+						persistence.storeMessage(client.jid, message);
 					}
-					handler(messages.messages);
+					handler(messages.messages.filter((m) -> m.chatId() == chatId));
 				});
 				sync.fetchNext();
 			}
@@ -177,7 +183,11 @@ class DirectChat extends Chat {
 
 	public function sendMessage(message:ChatMessage):Void {
 		client.chatActivity(this);
-		client.sendStanza(message.asStanza());
+		message.recipients = getParticipants().map((p) -> JID.parse(p));
+		for (recipient in message.recipients) {
+			message.to = recipient;
+			client.sendStanza(message.asStanza());
+		}
 	}
 
 	public function bookmark() {

@@ -13,6 +13,7 @@ exports.xmpp.persistence = {
 					const store = upgradeDb.createObjectStore("messages", { keyPath: "serverId" });
 					store.createIndex("account", ["account", "timestamp"]);
 					store.createIndex("chats", ["account", "chatId", "timestamp"]);
+					store.createIndex("localId", ["account", "chatId", "localId"]);
 				}
 				if (!db.objectStoreNames.contains("keyvaluepairs")) {
 					upgradeDb.createObjectStore("keyvaluepairs");
@@ -71,12 +72,21 @@ exports.xmpp.persistence = {
 			storeMessage: function(account, message) {
 				const tx = db.transaction(["messages"], "readwrite");
 				const store = tx.objectStore("messages");
-				store.put({
-					...message,
-					account: account,
-					chatId: message.chatId(),
-					timestamp: new Date(message.timestamp),
-					direction: message.direction.toString()
+				promisifyRequest(store.index("localId").get([account, message.chatId(), message.localId])).then((result) => {
+					if (result && message.direction === xmpp.MessageDirection.MessageSent && result.direction === "MessageSent") return; // duplicate, we trust our own stanza ids
+
+					store.put({
+						...message,
+						account: account,
+						chatId: message.chatId(),
+						to: message.to?.asString(),
+						from: message.from?.asString(),
+						sender: message.sender?.asString(),
+						recipients: message.recipients.map((r) => r.asString()),
+						replyTo: message.replyTo.map((r) => r.asString()),
+						timestamp: new Date(message.timestamp),
+						direction: message.direction.toString()
+					});
 				});
 			},
 
@@ -101,12 +111,15 @@ exports.xmpp.persistence = {
 						message.localId = value.localId;
 						message.serverId = value.serverId;
 						message.timestamp = value.timestamp && value.timestamp.toISOString();
-						message.to = value.to;
-						message.from = value.from;
+						message.to = value.to && xmpp.JID.parse(value.to);
+						message.from = value.from && xmpp.JID.parse(value.from);
+						message.sender = value.sender && xmpp.JID.parse(value.sender);
+						message.recipients = value.recipients.map((r) => xmpp.JID.parse(r));
+						message.replyTo = value.replyTo.map((r) => xmpp.JID.parse(r));
 						message.threadId = value.threadId;
-						message.replyTo = value.replyTo;
 						message.attachments = value.attachments;
 						message.text = value.text;
+						message.lang = value.lang;
 						message.direction = value.direction == "MessageReceived" ? xmpp.MessageDirection.MessageReceived : xmpp.MessageDirection.MessageSent;
 						result.push(message);
 						event.target.result.continue();

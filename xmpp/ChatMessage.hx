@@ -1,6 +1,7 @@
 package xmpp;
 
 import haxe.Exception;
+using Lambda;
 
 import xmpp.JID;
 
@@ -22,8 +23,11 @@ class ChatMessage {
 
 	public var timestamp (default, set) : Null<String> = null;
 
-	private var to: Null<JID> = null;
+	public var to: Null<JID> = null;
 	private var from: Null<JID> = null;
+	private var sender: Null<JID> = null;
+	public var recipients: Array<JID> = [];
+	private var replyTo: Array<JID> = [];
 
 	var threadId (default, null): Null<String> = null;
 
@@ -47,6 +51,7 @@ class ChatMessage {
 		msg.to = to == null ? null : JID.parse(to);
 		final from = stanza.attr.get("from");
 		msg.from = from == null ? null : JID.parse(from);
+		msg.sender = msg.from;
 		final localJid = JID.parse(localJidStr);
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;
@@ -60,6 +65,8 @@ class ChatMessage {
 			}
 		}
 
+		final localId = stanza.attr.get("id");
+		if (localId != null) msg.localId = localId;
 		for (stanzaId in stanza.allTags("stanza-id", "urn:xmpp:sid:0")) {
 			final id = stanzaId.attr.get("id");
 			if ((stanzaId.attr.get("by") == domain || stanzaId.attr.get("by") == localJidBare.asString()) && id != null) {
@@ -68,6 +75,56 @@ class ChatMessage {
 			}
 		}
 		msg.direction = (msg.to == null || msg.to.asBare().equals(localJidBare)) ? MessageReceived : MessageSent;
+
+		final recipients: Map<String, Bool> = [];
+		final replyTo: Map<String, Bool> = [];
+		if (msg.to != null) {
+			recipients[msg.to.asBare().asString()] = true;
+		}
+		if (msg.direction == MessageReceived && msg.from != null) {
+			replyTo[msg.from.asString()] = true;
+		} else if(msg.to != null) {
+			replyTo[msg.to.asString()] = true;
+		}
+
+		final addresses = stanza.getChild("addresses", "http://jabber.org/protocol/address");
+		var anyExtendedReplyTo = false;
+		if (addresses != null) {
+			for (address in addresses.allTags("address")) {
+				final jid = address.attr.get("jid");
+				if (address.attr.get("type") == "noreply") {
+					replyTo.clear();
+				} else if (jid == null) {
+					trace("No support for addressing to non-jid", address);
+					return null;
+				} else if (address.attr.get("type") == "to" || address.attr.get("type") == "cc") {
+					recipients[JID.parse(jid).asBare().asString()] = true;
+					if (!anyExtendedReplyTo) replyTo[JID.parse(jid).asString()] = true; // reply all
+				} else if (address.attr.get("type") == "replyto" || address.attr.get("type") == "replyroom") {
+					if (!anyExtendedReplyTo) {
+						replyTo.clear();
+						anyExtendedReplyTo = true;
+					}
+					replyTo[JID.parse(jid).asString()] = true;
+				} else if (address.attr.get("type") == "ofrom") {
+					if (JID.parse(jid).domain == msg.sender?.domain) {
+						// TODO: check that domain supports extended addressing
+						msg.sender = JID.parse(jid);
+					}
+				}
+			}
+		}
+
+		msg.recipients = ({ iterator: () -> recipients.keys() }).map((s) -> JID.parse(s));
+		msg.recipients.sort((x, y) -> Reflect.compare(x.asString(), y.asString()));
+		msg.replyTo = ({ iterator: () -> replyTo.keys() }).map((s) -> JID.parse(s));
+		msg.replyTo.sort((x, y) -> Reflect.compare(x.asString(), y.asString()));
+
+		final msgFrom = msg.from;
+		if (msg.direction == MessageReceived && msgFrom != null && msg.replyTo.find((r) -> r.asBare().equals(msgFrom.asBare())) == null) {
+			trace("Don't know what chat message without from in replyTo belongs in", stanza);
+			return null;
+		}
 
 		if (msg.text == null) return null;
 
@@ -93,7 +150,15 @@ class ChatMessage {
 	}
 
 	public function chatId():String {
-		return (isIncoming() ? from?.asBare()?.asString() : to?.asBare()?.asString()) ?? throw "from or to is null";
+		if (isIncoming()) {
+			return replyTo.map((r) -> r.asBare().asString()).join("\n");
+		} else {
+			return recipients.map((r) -> r.asString()).join("\n");
+		}
+	}
+
+	public function senderId():String {
+		return sender?.asBare().asString() ?? throw "sender is null";
 	}
 
 	public function account():String {
@@ -110,6 +175,13 @@ class ChatMessage {
 		if (to != null) attrs.set("to", to.asString());
 		if (localId != null) attrs.set("id", localId);
 		var stanza = new Stanza("message", attrs);
+		if (recipients.length > 1) {
+			final addresses = stanza.tag("addresses", { xmlns: "http://jabber.org/protocol/address" });
+			for (recipient in recipients) {
+				addresses.tag("address", { type: "to", jid: recipient.asString(), delivered: "true" }).up();
+			}
+			addresses.up();
+		}
 		if (text != null) stanza.textTag("body", text);
 		return stanza;
 	}

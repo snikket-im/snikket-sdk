@@ -1,5 +1,6 @@
 package xmpp;
 
+@:expose
 class JID {
 	public final node : Null<String>;
 	public final domain : String;
