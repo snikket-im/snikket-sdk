@@ -89,12 +89,12 @@ class ChatMessage {
 		return this.timestamp = timestamp;
 	}
 
-	public function conversation():String {
-		return isIncoming() ? JID.parse(from).asBare().asString() : JID.parse(to).asBare().asString();
+	public function chatId():String {
+		return (isIncoming() ? from?.asBare()?.asString() : to?.asBare()?.asString()) ?? throw "from or to is null";
 	}
 
 	public function account():String {
-		return !isIncoming() ? JID.parse(from).asBare().asString() : JID.parse(to).asBare().asString();
+		return (!isIncoming() ? from?.asBare()?.asString() : to?.asBare()?.asString()) ?? throw "from or to is null";
 	}
 
 	public function isIncoming():Bool {

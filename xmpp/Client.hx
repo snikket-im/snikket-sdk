@@ -123,7 +123,7 @@ class Client extends xmpp.EventEmitter {
 
 			final chatMessage = ChatMessage.fromStanza(stanza, jid);
 			if (chatMessage != null) {
-				var chat = getDirectChat(chatMessage.conversation());
+				var chat = getDirectChat(chatMessage.chatId());
 				chatActivity(chat);
 				for (handler in chatMessageHandlers) {
 					handler(chatMessage);

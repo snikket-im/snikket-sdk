@@ -12,7 +12,7 @@ exports.xmpp.persistence = {
 				if (!db.objectStoreNames.contains("messages")) {
 					const store = upgradeDb.createObjectStore("messages", { keyPath: "serverId" });
 					store.createIndex("account", ["account", "timestamp"]);
-					store.createIndex("conversation", ["account", "conversation", "timestamp"]);
+					store.createIndex("chats", ["account", "chatId", "timestamp"]);
 				}
 				if (!db.objectStoreNames.contains("keyvaluepairs")) {
 					upgradeDb.createObjectStore("keyvaluepairs");
@@ -54,9 +54,9 @@ exports.xmpp.persistence = {
 					"prev"
 					);
 				} else {
-					cursor = store.index("conversation").openCursor(
-					IDBKeyRange.bound([account, jid, new Date(0)], [account, jid, new Date("9999-01-01")]),
-					"prev"
+					cursor = store.index("chats").openCursor(
+						IDBKeyRange.bound([account, jid, new Date(0)], [account, jid, new Date("9999-01-01")]),
+						"prev"
 					);
 				}
 				cursor.onsuccess = (event) => {
@@ -74,18 +74,18 @@ exports.xmpp.persistence = {
 				store.put({
 					...message,
 					account: account,
-					conversation: message.conversation(),
+					chatId: message.chatId(),
 					timestamp: new Date(message.timestamp),
 					direction: message.direction.toString()
 				});
 			},
 
-			getMessages: function(account, conversation, _beforeId, beforeTime, callback) {
+			getMessages: function(account, chatId, _beforeId, beforeTime, callback) {
 				const beforeDate = beforeTime ? new Date(beforeTime) : new Date("9999-01-01");
 				const tx = db.transaction(["messages"], "readonly");
 				const store = tx.objectStore("messages");
-				const cursor = store.index("conversation").openCursor(
-					IDBKeyRange.bound([account, conversation, new Date(0)], [account, conversation, beforeDate]),
+				const cursor = store.index("chats").openCursor(
+					IDBKeyRange.bound([account, chatId, new Date(0)], [account, chatId, beforeDate]),
 					"prev"
 				);
 				const result = [];

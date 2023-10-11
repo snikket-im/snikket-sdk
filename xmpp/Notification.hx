@@ -35,7 +35,7 @@ class Notification {
 			"New Message",
 			m.text,
 			m.account(),
-			m.conversation(),
+			m.chatId(),
 			m.serverId,
 			imageUri,
 			m.lang,
