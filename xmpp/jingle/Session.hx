@@ -341,7 +341,7 @@ class InitiatedSession implements Session {
 	}
 
 	public function transportInfo(stanza: Stanza) {
-		if (pc == null) {
+		if (pc == null || remoteDescription == null) {
 			queuedInboundTransportInfo.push(stanza);
 			return Promise.resolve(null);
 		}
