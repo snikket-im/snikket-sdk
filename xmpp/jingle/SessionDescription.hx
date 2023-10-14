@@ -579,12 +579,12 @@ class IceCandidate {
 			protocol: transport.toLowerCase(),
 			priority: priority,
 			ip: connectionAddress,
-			port: port
+			port: port,
+			generation: parameters.get("generation") ?? "0"
 		};
 		if (parameters.get("typ") != null) attrs.set("type", parameters.get("typ"));
 		if (parameters.get("raddr") != null) attrs.set("rel-addr", parameters.get("raddr"));
 		if (parameters.get("rport") != null) attrs.set("rel-port", parameters.get("rport"));
-		if (parameters.get("generation") != null) attrs.set("generation", parameters.get("generation"));
 		if (parameters.get("tcptype") != null) attrs.set("tcptype", parameters.get("tcptype"));
 		return new Stanza("candidate", attrs);
 	}
