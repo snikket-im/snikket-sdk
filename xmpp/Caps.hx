@@ -41,21 +41,15 @@ class Caps {
 		this.features = features;
 	}
 
-	public function discoReply(stanza: Stanza):Stanza {
-		final reply = new Stanza("iq", {
-			type: "result",
-			id: stanza.attr.get("id"),
-			to: stanza.attr.get("from")
-		});
-		final query = reply.tag("query", { xmlns: "http://jabber.org/protocol/disco#info" });
+	public function discoReply():Stanza {
+		final query = new Stanza("query", { xmlns: "http://jabber.org/protocol/disco#info" });
 		for (identity in identities) {
 			identity.addToDisco(query);
 		}
 		for (feature in features) {
 			query.tag("feature", { "var": feature }).up();
 		}
-		query.up();
-		return reply;
+		return query;
 	}
 
 	public function addC(stanza: Stanza): Stanza {

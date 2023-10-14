@@ -53,6 +53,10 @@ class Client extends xmpp.EventEmitter {
 		stream.on("status/online", this.onConnected);
 	}
 
+	public function accountId() {
+		return JID.parse(jid).asBare().asString();
+	}
+
 	public function start() {
 		persistence.getChats(jid, (protoChats) -> {
 			for (protoChat in protoChats) {
@@ -175,75 +179,73 @@ class Client extends xmpp.EventEmitter {
 			return EventUnhandled; // Allow others to get this event as well
 		});
 
-		this.stream.on("iq", function(event) {
-			final stanza:Stanza = event.stanza;
+		this.stream.onIq(Set, "jingle", "urn:xmpp:jingle:1", (stanza) -> {
 			final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
-
 			final jingle = stanza.getChild("jingle", "urn:xmpp:jingle:1");
-			if (stanza.attr.get("type") == "set" && jingle != null) {
-				// First, jingle requires useless replies to every iq
-				sendStanza(new Stanza("iq", { type: "result", to: stanza.attr.get("from"), id: stanza.attr.get("id") }));
-				final chat = getDirectChat(from.asBare().asString());
-				final session = chat.jingleSessions.get(jingle.attr.get("sid"));
+			final chat = getDirectChat(from.asBare().asString());
+			final session = chat.jingleSessions.get(jingle.attr.get("sid"));
 
-				if (jingle.attr.get("action") == "session-initiate") {
-					if (session != null) {
-						try {
-							chat.jingleSessions.set(session.sid, session.initiate(stanza));
-						} catch (e) {
-							chat.jingleSessions.remove(session.sid);
-						}
-					} else {
-						final newSession = xmpp.jingle.InitiatedSession.fromSessionInitiate(this, stanza);
-						chat.jingleSessions.set(newSession.sid, newSession);
-						chatActivity(chat);
-						newSession.ring();
-					}
-				}
-
-				if (session != null && jingle.attr.get("action") == "session-accept") {
+			if (jingle.attr.get("action") == "session-initiate") {
+				if (session != null) {
 					try {
 						chat.jingleSessions.set(session.sid, session.initiate(stanza));
 					} catch (e) {
-						trace("session-accept failed", e);
+						chat.jingleSessions.remove(session.sid);
 					}
+				} else {
+					final newSession = xmpp.jingle.InitiatedSession.fromSessionInitiate(this, stanza);
+					chat.jingleSessions.set(newSession.sid, newSession);
+					chatActivity(chat);
+					newSession.ring();
 				}
-
-				if (session != null && jingle.attr.get("action") == "session-terminate") {
-					session.terminate();
-					chat.jingleSessions.remove(jingle.attr.get("sid"));
-				}
-
-				if (session != null && jingle.attr.get("action") == "content-add") {
-					session.contentAdd(stanza);
-				}
-
-				if (session != null && jingle.attr.get("action") == "content-accept") {
-					session.contentAccept(stanza);
-				}
-
-				if (session != null && jingle.attr.get("action") == "transport-info") {
-					session.transportInfo(stanza);
-				}
-				return EventHandled;
 			}
 
-			if (stanza.attr.get("type") == "get" && stanza.getChild("query", "http://jabber.org/protocol/disco#info") != null) {
-				stream.sendStanza(caps.discoReply(stanza));
-				return EventHandled;
+			if (session != null && jingle.attr.get("action") == "session-accept") {
+				try {
+					chat.jingleSessions.set(session.sid, session.initiate(stanza));
+				} catch (e) {
+					trace("session-accept failed", e);
+				}
 			}
 
+			if (session != null && jingle.attr.get("action") == "session-terminate") {
+				session.terminate();
+				chat.jingleSessions.remove(jingle.attr.get("sid"));
+			}
+
+			if (session != null && jingle.attr.get("action") == "content-add") {
+				session.contentAdd(stanza);
+			}
+
+			if (session != null && jingle.attr.get("action") == "content-accept") {
+				session.contentAccept(stanza);
+			}
+
+			if (session != null && jingle.attr.get("action") == "transport-info") {
+				session.transportInfo(stanza);
+			}
+
+			// jingle requires useless replies to every iq
+			return IqResult;
+		});
+
+
+		this.stream.onIq(Get, "query", "http://jabber.org/protocol/disco#info", (stanza) -> {
+			return IqResultElement(caps.discoReply());
+		});
+
+		this.stream.onIq(Set, "query", "jabber:iq:roster", (stanza) -> {
 			if (
 				stanza.attr.get("from") != null &&
 				stanza.attr.get("from") != JID.parse(jid).domain
 			) {
-				return EventUnhandled;
+				return IqNoResult;
 			}
 
 			var roster = new RosterGet();
 			roster.handleResponse(stanza);
 			var items = roster.getResult();
-			if (items.length == 0) return EventUnhandled;
+			if (items.length == 0) return IqNoResult;
 
 			for (item in items) {
 				if (item.subscription != "remove") {
@@ -253,14 +255,7 @@ class Client extends xmpp.EventEmitter {
 			}
 			this.trigger("chats/update", chats);
 
-			var reply = new Stanza("iq", {
-				type: "result",
-				id: stanza.attr.get("id"),
-				to: stanza.attr.get("from")
-			});
-			sendStanza(reply);
-
-			return EventHandled;
+			return IqResult;
 		});
 
 		this.stream.on("presence", function(event) {

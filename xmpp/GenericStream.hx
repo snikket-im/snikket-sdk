@@ -3,6 +3,12 @@ package xmpp;
 import xmpp.Stanza;
 import xmpp.EventEmitter;
 
+enum IqResult {
+	IqResultElement(element:Stanza);
+	IqResult;
+	IqNoResult;
+}
+
 abstract class GenericStream extends EventEmitter {
 
 	public function new() {
@@ -14,6 +20,7 @@ abstract class GenericStream extends EventEmitter {
 	abstract public function connect(jid:String):Void;
 	abstract public function sendStanza(stanza:Stanza):Void;
 	abstract public function newId():String;
+	abstract public function onIq(type:IqRequestType, tag:String, xmlns:String, handler:(Stanza)->IqResult):Void;
 
 	public function sendIq(stanza:Stanza, callback:(stanza:Stanza)->Void):Void {
 		var id = newId();
@@ -37,17 +44,7 @@ abstract class GenericStream extends EventEmitter {
 					var id = stanza.attr.get("id");
 					trigger('iq-response/$id', { stanza: stanza });
 				} else {
-					if (trigger('iq', { stanza: stanza }) == EventUnhandled) {
-						var reply = new Stanza("iq", {
-							type: "error",
-							id: stanza.attr.get("id"),
-							to: stanza.attr.get("from")
-						})
-							.tag("error", { type: "cancel" })
-							.tag("service-unavailable", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" })
-							.up().up();
-						sendStanza(reply);
-					}
+					// These are handled by onIq instead
 				}
 			} else if (name == "message" || name == "presence") {
 				trigger(name, { stanza: stanza });

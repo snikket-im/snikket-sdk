@@ -278,3 +278,8 @@ class Stanza implements NodeInterface {
 		};
 	}
 }
+
+enum IqRequestType {
+	Get;
+	Set;
+}

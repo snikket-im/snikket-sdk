@@ -14,9 +14,13 @@ extern class XmppJsClient {
 	function start():Promise<Dynamic>;
 	function on(eventName:String, callback:(Dynamic)->Void):Void;
 	function send(stanza:XmppJsXml):Void;
+	var iqCallee:{
+		get: (String, String, ({stanza: XmppJsXml})->Any)->Void,
+		set: (String, String, ({stanza: XmppJsXml})->Any)->Void,
+	};
 }
 
-@:jsRequire("@xmpp/jid", "JID")
+@:jsRequire("@xmpp/jid", "jid")
 extern class XmppJsJID {
 	function new(jid:String);
 	function toString():String;
@@ -199,6 +203,23 @@ class XmppJsStream extends GenericStream {
 
 	public function newId():String {
 		return XmppJsId.id();
+	}
+
+	private function fromIqResult(result: IqResult): Any {
+		switch (result) {
+		case IqResultElement(el): return convertFromStanza(el);
+		case IqResult: return true;
+		case IqNoResult: return false;
+		}
+	}
+
+	public function onIq(type:IqRequestType, tag:String, xmlns:String, handler:(Stanza)->IqResult) {
+		switch (type) {
+		case Get:
+			client.iqCallee.get(xmlns, tag, (el) -> fromIqResult(handler(convertToStanza(el.stanza))));
+		case Set:
+			client.iqCallee.set(xmlns, tag, (el) -> fromIqResult(handler(convertToStanza(el.stanza))));
+		}
 	}
 
 	/* State handlers */
