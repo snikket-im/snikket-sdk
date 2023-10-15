@@ -222,6 +222,8 @@ class InitiatedSession implements Session {
 	private var accepted: Bool = false;
 	private var afterMedia: Null<()->Void> = null;
 	private final initiator: Bool;
+	private var candidatesDone: Null<()->Void> = null;
+	private final caps: Caps;
 
 	public function new(client: Client, counterpart: JID, sid: String, remoteDescription: Null<SessionDescription>) {
 		this.client = client;
@@ -229,6 +231,7 @@ class InitiatedSession implements Session {
 		this._sid = sid;
 		this.remoteDescription = remoteDescription;
 		this.initiator = remoteDescription == null;
+		this.caps = client.getDirectChat(counterpart.asBare().asString()).getResourceCaps(counterpart.resource);
 	}
 
 	public static function fromSessionInitiate(client: Client, stanza: Stanza): InitiatedSession {
@@ -389,8 +392,11 @@ class InitiatedSession implements Session {
 	}
 
 	private function sendIceCandidate(candidate: { candidate: String, sdpMid: String, usernameFragment: String }) {
-		if (candidate == null) return; // All candidates received now
-		if (candidate.candidate == "") return; // All candidates received now
+		if (candidate == null || candidate.candidate == "") { // All candidates received now
+			if (candidatesDone != null) candidatesDone();
+			return;
+		}
+		if (candidatesDone != null) return; // We're waiting for all done, not trickling
 		if (localDescription == null) {
 			queuedOutboundCandidate.push(candidate);
 			return;
@@ -456,7 +462,13 @@ class InitiatedSession implements Session {
 	}
 
 	private function setupLocalDescription(type: String, ?filterMedia: Array<String>, ?filterOut: Bool = false, ?beforeSend: (SessionDescription)->Void) {
-		return pc.setLocalDescription(null).then((_) -> {
+		return pc.setLocalDescription(null).then((_) ->
+			if ((type == "session-initiate" || type == "session-accept") && caps.features.contains("urn:ietf:rfc:3264")) {
+				new Promise((resolve, reject) -> candidatesDone = () -> resolve(true));
+			} else {
+				null;
+			}
+		).then((_) -> {
 			localDescription = SessionDescription.parse(pc.localDescription.sdp);
 			var descriptionToSend = localDescription;
 			if (filterMedia != null) {
