@@ -11,24 +11,28 @@ class Caps {
 	public final features : Array<String>;
 	// TODO: data forms
 
-	public static function withIdentity(caps:KeyValueIterator<String, Caps>, category:Null<String>, type:Null<String>):Array<String> {
+	public static function withIdentity(caps:KeyValueIterator<String, Null<Caps>>, category:Null<String>, type:Null<String>):Array<String> {
 		final result = [];
 		for (cap in caps) {
-			for (identity in cap.value.identities) {
-				if ((category == null || category == identity.category) && (type == null || type == identity.type)) {
-					result.push(cap.key);
+			if (cap.value != null) {
+				for (identity in cap.value.identities) {
+					if ((category == null || category == identity.category) && (type == null || type == identity.type)) {
+						result.push(cap.key);
+					}
 				}
 			}
 		}
 		return result;
 	}
 
-	public static function withFeature(caps:KeyValueIterator<String, Caps>, feature:String):Array<String> {
+	public static function withFeature(caps:KeyValueIterator<String, Null<Caps>>, feature:String):Array<String> {
 		final result = [];
 		for (cap in caps) {
-			for (feat in cap.value.features) {
-				if (feature == feat) {
-					result.push(cap.key);
+			if (cap.value != null) {
+				for (feat in cap.value.features) {
+					if (feature == feat) {
+						result.push(cap.key);
+					}
 				}
 			}
 		}

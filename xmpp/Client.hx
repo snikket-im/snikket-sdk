@@ -261,24 +261,34 @@ class Client extends xmpp.EventEmitter {
 		this.stream.on("presence", function(event) {
 			final stanza:Stanza = event.stanza;
 			final c = stanza.getChild("c", "http://jabber.org/protocol/caps");
-			if (c != null && stanza.attr.get("from") != null) {
-				final chat = getDirectChat(JID.parse(stanza.attr.get("from")).asBare().asString(), false);
-				persistence.getCaps(c.attr.get("ver"), (caps) -> {
-					if (caps == null) {
-						final discoGet = new DiscoInfoGet(stanza.attr.get("from"), c.attr.get("node") + "#" + c.attr.get("ver"));
-						discoGet.onFinished(() -> {
-							if (discoGet.getResult() != null) {
-								persistence.storeCaps(discoGet.getResult());
+			if (stanza.attr.get("from") != null) {
+				final chat = getChat(JID.parse(stanza.attr.get("from")).asBare().asString());
+				if (chat == null) {
+					trace("Presence for unknown JID: " + stanza.attr.get("from"));
+					return EventUnhandled;
+				}
+				if (c == null) {
+					chat.setCaps(JID.parse(stanza.attr.get("from")).resource, null);
+					persistence.storeChat(jid, chat);
+					this.trigger("chats/update", [chat]);
+				} else {
+					persistence.getCaps(c.attr.get("ver"), (caps) -> {
+						if (caps == null) {
+							final discoGet = new DiscoInfoGet(stanza.attr.get("from"), c.attr.get("node") + "#" + c.attr.get("ver"));
+							discoGet.onFinished(() -> {
 								chat.setCaps(JID.parse(stanza.attr.get("from")).resource, discoGet.getResult());
+								if (discoGet.getResult() != null) persistence.storeCaps(discoGet.getResult());
 								persistence.storeChat(jid, chat);
-							}
-						});
-						sendQuery(discoGet);
-					} else {
-						chat.setCaps(JID.parse(stanza.attr.get("from")).resource, caps);
-						persistence.storeChat(jid, chat);
-					}
-				});
+								this.trigger("chats/update", [chat]);
+							});
+							sendQuery(discoGet);
+						} else {
+							chat.setCaps(JID.parse(stanza.attr.get("from")).resource, caps);
+							persistence.storeChat(jid, chat);
+							this.trigger("chats/update", [chat]);
+						}
+					});
+				}
 				return EventHandled;
 			}
 

@@ -17,7 +17,7 @@ abstract class Chat {
 	private var stream:GenericStream;
 	private var persistence:Persistence;
 	private var avatarSha1:Null<BytesData> = null;
-	private var caps:haxe.DynamicAccess<Caps> = {};
+	private var caps:haxe.DynamicAccess<Null<Caps>> = {};
 	private var trusted:Bool = false;
 	public var chatId(default, null):String;
 	public var jingleSessions: Map<String, xmpp.jingle.Session> = [];
