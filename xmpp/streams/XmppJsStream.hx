@@ -77,6 +77,7 @@ class XmppJsStream extends GenericStream {
 	private var connectionURI:String;
 	private var debug = true;
 	private var state:FSM;
+	private var pending:Array<XmppJsXml> = [];
 
 	override public function new() {
 		super();
@@ -143,6 +144,10 @@ class XmppJsStream extends GenericStream {
 			xmpp.on("online", function (jid) {
 				this.jid = jid;
 				this.state.event("connection-success");
+				var item;
+				while ((item = pending.shift()) != null) {
+					client.send(item);
+				}
 			});
 
 			xmpp.on("offline", function (data) {
@@ -198,7 +203,11 @@ class XmppJsStream extends GenericStream {
 	}
 
 	public function sendStanza(stanza:Stanza) {
-		client.send(convertFromStanza(stanza));
+		if (client == null) {
+			pending.push(convertFromStanza(stanza));
+		} else {
+			client.send(convertFromStanza(stanza));
+		}
 	}
 
 	public function newId():String {
