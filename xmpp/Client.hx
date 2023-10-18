@@ -268,7 +268,7 @@ class Client extends xmpp.EventEmitter {
 		this.stream.on("presence", function(event) {
 			final stanza:Stanza = event.stanza;
 			final c = stanza.getChild("c", "http://jabber.org/protocol/caps");
-			if (stanza.attr.get("from") != null) {
+			if (stanza.attr.get("from") != null && stanza.attr.get("type") == null) {
 				final chat = getChat(JID.parse(stanza.attr.get("from")).asBare().asString());
 				if (chat == null) {
 					trace("Presence for unknown JID: " + stanza.attr.get("from"));
@@ -297,6 +297,18 @@ class Client extends xmpp.EventEmitter {
 					});
 				}
 				return EventHandled;
+			}
+
+			if (stanza.attr.get("from") != null && stanza.attr.get("type") == "unavailable") {
+				final chat = getChat(JID.parse(stanza.attr.get("from")).asBare().asString());
+				if (chat == null) {
+					trace("Presence for unknown JID: " + stanza.attr.get("from"));
+					return EventUnhandled;
+				}
+				// Maybe in the future record it as offine rather than removing it
+				chat.removeCaps(JID.parse(stanza.attr.get("from")).resource);
+				persistence.storeChat(jid, chat);
+				this.trigger("chats/update", [chat]);
 			}
 
 			return EventUnhandled;

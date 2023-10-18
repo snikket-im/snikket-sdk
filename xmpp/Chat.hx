@@ -60,6 +60,10 @@ abstract class Chat {
 		this.caps.set(resource, caps);
 	}
 
+	public function removeCaps(resource:String) {
+		this.caps.remove(resource);
+	}
+
 	public function getCaps():KeyValueIterator<String, Caps> {
 		return caps.keyValueIterator();
 	}
