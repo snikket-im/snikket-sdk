@@ -59,7 +59,7 @@ abstract class Chat {
 
 	public function canAudioCall():Bool {
 		for (resource => cap in caps) {
-			if (cap.features.contains("urn:xmpp:jingle:apps:rtp:audio")) return true;
+			if (cap?.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false) return true;
 		}
 
 		return false;
@@ -67,7 +67,7 @@ abstract class Chat {
 
 	public function canVideoCall():Bool {
 		for (resource => cap in caps) {
-			if (cap.features.contains("urn:xmpp:jingle:apps:rtp:video")) return true;
+			if (cap?.features?.contains("urn:xmpp:jingle:apps:rtp:video") ?? false) return true;
 		}
 
 		return false;

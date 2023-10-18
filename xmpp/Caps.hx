@@ -3,6 +3,7 @@ package xmpp;
 import haxe.crypto.Base64;
 import haxe.crypto.Sha1;
 import haxe.io.Bytes;
+using Lambda;
 
 @:expose
 class Caps {
@@ -43,6 +44,11 @@ class Caps {
 		this.node = node;
 		this.identities = identities;
 		this.features = features;
+	}
+
+	public function isChannel(chatId: String) {
+		if (chatId.indexOf("@") < 0) return false; // MUC must have a localpart
+		return features.contains("http://jabber.org/protocol/muc") && identities.find((identity) -> identity.category == "conference") != null;
 	}
 
 	public function discoReply():Stanza {
