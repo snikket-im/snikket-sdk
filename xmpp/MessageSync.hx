@@ -38,21 +38,21 @@ class MessageSync {
 	}
 
 	public function fetchNext():Void {
-		if(handler == null) {
+		if (handler == null) {
 			throw new Exception("Attempt to fetch messages, but no handler has been set");
 		}
 		if (complete) {
 			throw new Exception("Attempt to fetch messages, but already complete");
 		}
 		final messages:Array<ChatMessage> = [];
-		if(lastPage == null) {
-			if(newestPageFirst == true && (filter.page == null || filter.page.before == null)) {
+		if (lastPage == null) {
+			if (newestPageFirst == true && (filter.page == null || filter.page.before == null)) {
 				if (filter.page == null) filter.page = {};
 				filter.page.before = ""; // Request last page of results
 			}
 		} else {
 			if (filter.page == null) filter.page = {};
-			if(newestPageFirst == true) {
+			if (newestPageFirst == true) {
 				filter.page.before = lastPage.first;
 			} else {
 				filter.page.after = lastPage.last;
@@ -62,15 +62,15 @@ class MessageSync {
 		var resultHandler = stream.on("message", function (event) {
 			var message:Stanza = event.stanza;
 			var from = message.attr.exists("from") ? message.attr.get("from") : client.jid;
-			if(from != serviceJID) { // Only listen for results from the JID we queried
+			if (from != serviceJID) { // Only listen for results from the JID we queried
 				return EventUnhandled;
 			}
 			var result = message.getChild("result", query.xmlns);
-			if(result == null || result.attr.get("queryid") != query.queryId) { // Not (a|our) MAM result
+			if (result == null || result.attr.get("queryid") != query.queryId) { // Not (a|our) MAM result
 				return EventUnhandled;
 			}
 			var originalMessage = result.findChild("{urn:xmpp:forward:0}forwarded/{jabber:client}message");
-			if(originalMessage == null) { // No message, nothing for us to do
+			if (originalMessage == null) { // No message, nothing for us to do
 				return EventHandled;
 			}
 			var timestamp = result.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
@@ -93,7 +93,7 @@ class MessageSync {
 		query.onFinished(function () {
 			resultHandler.unsubscribe();
 			var result = query.getResult();
-			if(result == null) {
+			if (result == null) {
 				trace("Error from MAM, stopping sync");
 				complete = true;
 				if (errorHandler != null) errorHandler(query.responseStanza);
