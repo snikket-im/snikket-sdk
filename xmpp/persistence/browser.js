@@ -83,7 +83,7 @@ exports.xmpp.persistence = {
 					avatarSha1: chat.avatarSha1,
 					caps: chat.caps,
 					displayName: chat.displayName,
-					class: chat instanceof xmpp.DirectChat ? "DirectChat" : "Chat"
+					class: chat instanceof xmpp.DirectChat ? "DirectChat" : (chat instanceof xmpp.Channel ? "Channel" : "Chat")
 				});
 			},
 

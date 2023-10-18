@@ -8,7 +8,7 @@ using Lambda;
 @:expose
 class Caps {
 	private final node: String;
-	private final identities: Array<Identity>;
+	public final identities: Array<Identity>;
 	public final features : Array<String>;
 	// TODO: data forms
 

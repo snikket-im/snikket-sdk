@@ -18,15 +18,14 @@ import xmpp.queries.JabberIqGatewayGet;
 import xmpp.queries.PubsubGet;
 import xmpp.queries.Push2Enable;
 import xmpp.queries.RosterGet;
-
-typedef ChatList = Array<Chat>;
+using Lambda;
 
 @:expose
 class Client extends xmpp.EventEmitter {
 	private var stream:GenericStream;
 	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
 	public var jid(default,null):String;
-	private var chats: ChatList = [];
+	private var chats: Array<Chat> = [];
 	private var persistence: Persistence;
 	private final caps = new Caps(
 		"https://sdk.snikket.org",
@@ -57,10 +56,14 @@ class Client extends xmpp.EventEmitter {
 		return JID.parse(jid).asBare().asString();
 	}
 
+	public function displayName() {
+		return JID.parse(jid).node;
+	}
+
 	public function start() {
 		persistence.getChats(jid, (protoChats) -> {
 			for (protoChat in protoChats) {
-				chats.push(protoChat.toDirectChat(this, stream, persistence));
+				chats.push(protoChat.toChat(this, stream, persistence));
 			}
 			this.trigger("chats/update", chats);
 
@@ -132,12 +135,16 @@ class Client extends xmpp.EventEmitter {
 				}
 			}
 
-			final chatMessage = ChatMessage.fromStanza(stanza, jid);
+			var chatMessage = ChatMessage.fromStanza(stanza, jid);
 			if (chatMessage != null) {
-				var chat = getDirectChat(chatMessage.chatId());
-				chatActivity(chat);
-				for (handler in chatMessageHandlers) {
-					handler(chatMessage);
+				var chat = getChat(chatMessage.chatId());
+				if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
+				if (chat != null) {
+					chatActivity(chat);
+					chatMessage = chat.prepareIncomingMessage(chatMessage, stanza);
+					for (handler in chatMessageHandlers) {
+						handler(chatMessage);
+					}
 				}
 			}
 
@@ -317,8 +324,31 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	/* Return array of chats, sorted by last activity */
-	public function getChats():ChatList {
+	public function getChats():Array<Chat> {
 		return chats;
+	}
+
+	// We can ask for caps here because presumably they looked this up
+	// via findAvailableChats
+	public function startChat(chatId:String, fn:Null<String>, caps:Caps):Chat {
+		final existingChat = getChat(chatId);
+		if (existingChat != null) return existingChat;
+
+		final chat = if (caps.isChannel(chatId)) {
+			final channel = new Channel(this, this.stream, this.persistence, chatId, caps);
+			chats.unshift(channel);
+			channel;
+		} else {
+			getDirectChat(chatId, false);
+		}
+		if (fn != null) chat.setDisplayName(fn);
+		persistence.storeChat(accountId(), chat);
+		this.trigger("chats/update", [chat]);
+		return chat;
+	}
+
+	public function getChat(chatId:String):Null<Chat> {
+		return chats.find((chat) -> chat.chatId == chatId);
 	}
 
 	public function getDirectChat(chatId:String, triggerIfNew:Bool = true):DirectChat {
@@ -327,20 +357,39 @@ class Client extends xmpp.EventEmitter {
 				return Std.downcast(chat, DirectChat);
 			}
 		}
-		var chat = new DirectChat(this, this.stream, this.persistence, chatId);
+		final chat = new DirectChat(this, this.stream, this.persistence, chatId);
 		persistence.storeChat(jid, chat);
 		chats.unshift(chat);
 		if (triggerIfNew) this.trigger("chats/update", [chat]);
 		return chat;
 	}
 
-	public function findAvailableChats(q:String, callback:(q:String, chatIds:Array<String>) -> Void) {
+	public function findAvailableChats(q:String, callback:(q:String, results:Array<{ chatId: String, fn: String, note: String, caps: Caps }>) -> Void) {
 		var results = [];
 		final query = StringTools.trim(q);
 		final jid = JID.parse(query);
+		final checkAndAdd = (jid) -> {
+			final discoGet = new DiscoInfoGet(jid.asString());
+			discoGet.onFinished(() -> {
+				final resultCaps = discoGet.getResult();
+				if (resultCaps == null) {
+					final err = discoGet.responseStanza?.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
+					if (err == null || err?.name == "service-unavailable" || err?.name == "feature-not-implemented") {
+						results.push({ chatId: jid.asString(), fn: query, note: jid.asString(), caps: new Caps("", [], []) });
+					}
+				} else {
+					persistence.storeCaps(resultCaps);
+					final identity = resultCaps.identities[0];
+					final fn = identity?.name ?? query;
+					final note = jid.asString() + (identity == null ? "" : " (" + identity.type + ")");
+					results.push({ chatId: jid.asString(), fn: fn, note: note, caps: resultCaps });
+				}
+				callback(q, results);
+			});
+			sendQuery(discoGet);
+		};
 		if (jid.isValid()) {
-			results.push(jid.asBare().asString());
-			callback(q, results); // send some right away
+			checkAndAdd(jid);
 		}
 		for (chat in chats) {
 			if (chat.isTrusted()) {
@@ -359,18 +408,15 @@ class Client extends xmpp.EventEmitter {
 						if (jigGet.getResult() == null) {
 							final caps = chat.getResourceCaps(resource);
 							if (bareJid.isDomain() && caps.features.contains("jid\\20escaping")) {
-								results.push(new JID(query, bareJid.domain).asString());
-								callback(q, results);
+								checkAndAdd(new JID(query, bareJid.domain));
 							} else if (bareJid.isDomain()) {
-								results.push(new JID(StringTools.replace(query, "@", "%"), bareJid.domain).asString());
-								callback(q, results);
+								checkAndAdd(new JID(StringTools.replace(query, "@", "%"), bareJid.domain));
 							}
 						} else {
 							switch (jigGet.getResult()) {
 								case Left(error): return;
 								case Right(result):
-									results.push(result);
-									callback(q, results);
+									checkAndAdd(JID.parse(result));
 							}
 						}
 					});
@@ -398,8 +444,13 @@ class Client extends xmpp.EventEmitter {
 		stream.sendStanza(stanza);
 	}
 
-	public function sendPresence(?to: String) {
-		sendStanza(caps.addC(new Stanza("presence", to == null ? {} : { to: to })));
+	public function sendPresence(?to: String, ?augment: (Stanza)->Stanza) {
+		sendStanza(
+			(augment ?? (s)->s)(
+				caps.addC(new Stanza("presence", to == null ? {} : { to: to }))
+					.textTag("nick", displayName(), { xmlns: "http://jabber.org/protocol/nick" })
+			)
+		);
 	}
 
 	#if js

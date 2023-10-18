@@ -9,6 +9,7 @@ import xmpp.ID;
 import xmpp.MessageSync;
 import xmpp.jingle.PeerConnection;
 import xmpp.jingle.Session;
+import xmpp.queries.DiscoInfoGet;
 import xmpp.queries.MAMQuery;
 using Lambda;
 
@@ -21,21 +22,39 @@ abstract class Chat {
 	private var trusted:Bool = false;
 	public var chatId(default, null):String;
 	public var jingleSessions: Map<String, xmpp.jingle.Session> = [];
+	private var displayName:String;
 
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String) {
+	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String) {
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
 		this.chatId = chatId;
+		this.displayName = chatId;
 	}
+
+	abstract public function prepareIncomingMessage(message:ChatMessage, stanza:Stanza):ChatMessage;
 
 	abstract public function sendMessage(message:ChatMessage):Void;
 
 	abstract public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
 
-	abstract public function getDisplayName():String;
-
 	abstract public function getParticipants():Array<String>;
+
+	abstract public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void):Void;
+
+	abstract public function bookmark():Void;
+
+	public function getPhoto(callback:(String)->Void) {
+		callback(Color.defaultPhoto(chatId, getDisplayName().charAt(0)));
+	}
+
+	public function setDisplayName(fn:String) {
+		this.displayName = fn;
+	}
+
+	public function getDisplayName() {
+		return this.displayName;
+	}
 
 	public function setCaps(resource:String, caps:Caps) {
 		this.caps.set(resource, caps);
@@ -47,6 +66,10 @@ abstract class Chat {
 
 	public function getResourceCaps(resource:String):Caps {
 		return caps[resource];
+	}
+
+	public function setAvatarSha1(sha1: BytesData) {
+		this.avatarSha1 = sha1;
 	}
 
 	public function setTrusted(trusted:Bool) {
@@ -134,26 +157,17 @@ abstract class Chat {
 
 @:expose
 class DirectChat extends Chat {
-	private var displayName:String;
-	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String) {
-		super(client, stream, persistence, chatId);
-		this.displayName = chatId;
-	}
-
-	public function setDisplayName(fn:String) {
-		this.displayName = fn;
-	}
-
-	public function getDisplayName() {
-		return this.displayName;
-	}
-
 	public function getParticipants() {
 		return chatId.split("\n");
 	}
 
+	public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void) {
+		final chat = client.getDirectChat(participantId);
+		chat.getPhoto((photoUri) -> callback({ photoUri: photoUri, displayName: chat.getDisplayName() }));
+	}
+
 	public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
-		persistence.getMessages(client.jid, chatId, beforeId, beforeTime, (messages) -> {
+		persistence.getMessages(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
 			if (messages.length > 0) {
 				handler(messages);
 			} else {
@@ -171,6 +185,10 @@ class DirectChat extends Chat {
 		});
 	}
 
+	public function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
+		return message;
+	}
+
 	public function sendMessage(message:ChatMessage):Void {
 		client.chatActivity(this);
 		message.recipients = getParticipants().map((p) -> JID.parse(p));
@@ -182,7 +200,7 @@ class DirectChat extends Chat {
 
 	public function bookmark() {
 		stream.sendIq(
-			new Stanza("iq", { type: "set", id: ID.short() })
+			new Stanza("iq", { type: "set" })
 				.tag("query", { xmlns: "jabber:iq:roster" })
 				.tag("item", { jid: chatId })
 				.up().up(),
@@ -194,22 +212,179 @@ class DirectChat extends Chat {
 		);
 	}
 
-	public function setAvatarSha1(sha1: BytesData) {
-		this.avatarSha1 = sha1;
-	}
-
-	public function getPhoto(callback:(String)->Void) {
+	override public function getPhoto(callback:(String)->Void) {
 		if (avatarSha1 != null) {
 			persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
 				if (uri != null) {
 					callback(uri);
 				} else {
-					callback(Color.defaultPhoto(chatId, chatId.charAt(0)));
+					callback(Color.defaultPhoto(chatId, getDisplayName().charAt(0)));
 				}
 			});
 		} else {
-			callback(Color.defaultPhoto(chatId, chatId.charAt(0)));
+			super.getPhoto(callback);
 		}
+	}
+}
+
+@:expose
+class Channel extends Chat {
+	private var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"]); // TODO: persist this
+
+	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, ?disco: Caps) {
+		super(client, stream, persistence, chatId);
+		if (disco != null) this.disco = disco;
+		selfPing(disco == null);
+	}
+
+	public function selfPing(shouldRefreshDisco = true) {
+		stream.sendIq(
+			new Stanza("iq", { type: "get", to: getFullJid().asString() })
+				.tag("ping", { xmlns: "urn:xmpp:ping" }).up(),
+			(response) -> {
+				if (response.attr.get("type") == "error") {
+					final err = response.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
+					if (err.name == "service-unavailable" || err.name == "feature-not-implemented") return; // Error, success!
+					if (err.name == "remote-server-not-found" || err.name == "remote-server-timeout") return; // Timeout, retry later
+					if (err.name == "item-not-found") return; // Nick was changed?
+					(shouldRefreshDisco ? refreshDisco : (cb)->cb())(() -> {
+						client.sendPresence(
+							getFullJid().asString(),
+							(stanza) -> {
+								stanza.tag("x", { xmlns: "http://jabber.org/protocol/muc" });
+								if (disco.features.contains("urn:xmpp:mam:2")) stanza.tag("history", { maxchars: "0" }).up();
+								// TODO: else since (last message we know about)
+								stanza.up();
+								return stanza;
+							}
+						);
+					});
+				}
+			}
+		);
+	}
+
+	public function refreshDisco(?callback: ()->Void) {
+		final discoGet = new DiscoInfoGet(chatId);
+		discoGet.onFinished(() -> {
+			if (discoGet.getResult() != null) {
+				disco = discoGet.getResult();
+				persistence.storeCaps(discoGet.getResult());
+				persistence.storeChat(client.accountId(), this);
+			}
+			if (callback != null) callback();
+		});
+		client.sendQuery(discoGet);
+	}
+
+	private function getFullJid() {
+		final jid = JID.parse(chatId);
+		return new JID(jid.node, jid.domain, client.displayName());
+	}
+
+	public function getParticipants() {
+		final jid = JID.parse(chatId);
+		return caps.keys().map((resource) -> new JID(jid.node, jid.domain, resource).asString());
+	}
+
+	public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void) {
+		if (participantId == getFullJid().asString()) {
+			client.getDirectChat(client.accountId(), false).getPhoto((photoUri) -> {
+				callback({ photoUri: photoUri, displayName: client.displayName() });
+			});
+		} else {
+			final nick = JID.parse(participantId).resource;
+			final photoUri = Color.defaultPhoto(participantId, nick.charAt(0));
+			callback({ photoUri: photoUri, displayName: nick });
+		}
+	}
+
+	public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
+		persistence.getMessages(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
+			if (messages.length > 0) {
+				handler(messages);
+			} else {
+				var filter:MAMQueryParams = {};
+				if (beforeId != null) filter.page = { before: beforeId };
+				var sync = new MessageSync(this.client, this.stream, filter, chatId);
+				sync.onMessages((messages) -> {
+					for (message in messages.messages) {
+						message = prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() }));
+						trace("WUT", message);
+						persistence.storeMessage(client.jid, message);
+					}
+					handler(messages.messages.filter((m) -> m.chatId() == chatId));
+				});
+				sync.fetchNext();
+			}
+		});
+	}
+
+	public function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
+		// TODO: mark type!=groupchat as whisper somehow
+		message.sender = JID.parse(stanza.attr.get("from")); // MUC always needs full JIDs
+		if (message.senderId() == getFullJid().asString()) {
+			message.recipients = message.replyTo;
+			message.direction = MessageSent;
+		}
+		return message;
+	}
+
+	public function sendMessage(message:ChatMessage):Void {
+		client.chatActivity(this);
+		message.to = JID.parse(chatId);
+		client.sendStanza(message.asStanza("groupchat"));
+	}
+
+	public function bookmark() {
+		// TODO: we should have been created from an existing bookmark if there was one,
+		// and we need to be sure to preserve everything we don't mean to change if this is an update
+		stream.sendIq(
+			new Stanza("iq", { type: "set" })
+				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
+				.tag("publish", { node: "urn:xmpp:bookmarks:1" })
+				.tag("item", { id: chatId })
+				.tag("conference", { xmlns: "urn:xmpp:bookmarks:1", name: getDisplayName(), autojoin: "true" })
+				.textTag("nick", client.displayName())
+				.up().up()
+				.tag("publish-options")
+				.tag("x", { xmlns: "jabber:x:data", type: "submit" })
+				.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
+				.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
+				.tag("field", { "var": "pubsub#max_items" }).textTag("value", "max").up()
+				.tag("field", { "var": "pubsub#send_last_published_item" }).textTag("value", "never").up()
+				.tag("field", { "var": "pubsub#access_model" }).textTag("value", "whitelist").up()
+				.tag("field", { "var": "pubsub#notify_delete" }).textTag("value", "true").up()
+				.tag("field", { "var": "pubsub#notify_retract" }).textTag("value", "true").up()
+				.up().up().up().up(),
+			(response) -> {
+				if (response.attr.get("type") == "error") {
+					final preconditionError = response.getChild("error")?.getChild("precondition-not-met", "http://jabber.org/protocol/pubsub#errors");
+					if (preconditionError != null) {
+						// publish options failed, so force them to be right, what a silly workflow
+						stream.sendIq(
+							new Stanza("iq", { type: "set" })
+								.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub#owner" })
+								.tag("configure", { node: "urn:xmpp:bookmarks:1" })
+								.tag("x", { xmlns: "jabber:x:data", type: "submit" })
+								.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
+								.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
+								.tag("field", { "var": "pubsub#max_items" }).textTag("value", "max").up()
+								.tag("field", { "var": "pubsub#send_last_published_item" }).textTag("value", "never").up()
+								.tag("field", { "var": "pubsub#access_model" }).textTag("value", "whitelist").up()
+								.tag("field", { "var": "pubsub#notify_delete" }).textTag("value", "true").up()
+								.tag("field", { "var": "pubsub#notify_retract" }).textTag("value", "true").up()
+								.up().up().up(),
+							(response) -> {
+								if (response.attr.get("type") == "result") {
+									bookmark();
+								}
+							}
+						);
+					}
+				}
+			}
+		);
 	}
 }
 
@@ -231,9 +406,14 @@ class SerializedChat {
 		this.klass = klass;
 	}
 
-	public function toDirectChat(client: Client, stream: GenericStream, persistence: Persistence) {
-		if (klass != "DirectChat") throw "Not a direct chat: " + klass;
-		final chat = new DirectChat(client, stream, persistence, chatId);
+	public function toChat(client: Client, stream: GenericStream, persistence: Persistence) {
+		final chat = if (klass == "DirectChat") {
+			new DirectChat(client, stream, persistence, chatId);
+		} else if (klass == "Channel") {
+			new Channel(client, stream, persistence, chatId);
+		} else {
+			throw "Unknown class: " + klass;
+		}
 		if (displayName != null) chat.setDisplayName(displayName);
 		if (avatarSha1 != null) chat.setAvatarSha1(avatarSha1);
 		chat.setTrusted(trusted);

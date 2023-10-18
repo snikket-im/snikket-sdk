@@ -25,9 +25,9 @@ class ChatMessage {
 
 	public var to: Null<JID> = null;
 	private var from: Null<JID> = null;
-	private var sender: Null<JID> = null;
+	public var sender: Null<JID> = null;
 	public var recipients: Array<JID> = [];
-	private var replyTo: Array<JID> = [];
+	public var replyTo: Array<JID> = [];
 
 	var threadId (default, null): Null<String> = null;
 
@@ -36,7 +36,7 @@ class ChatMessage {
 	public var text (default, null): Null<String> = null;
 	public var lang (default, null): Null<String> = null;
 
-	private var direction: MessageDirection = MessageReceived;
+	public var direction: MessageDirection = MessageReceived;
 
 	public function new() { }
 
@@ -51,7 +51,7 @@ class ChatMessage {
 		msg.to = to == null ? null : JID.parse(to);
 		final from = stanza.attr.get("from");
 		msg.from = from == null ? null : JID.parse(from);
-		msg.sender = msg.from;
+		msg.sender = stanza.attr.get("type") == "groupchat" ? msg.from : msg.from?.asBare();
 		final localJid = JID.parse(localJidStr);
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;
@@ -82,7 +82,7 @@ class ChatMessage {
 			recipients[msg.to.asBare().asString()] = true;
 		}
 		if (msg.direction == MessageReceived && msg.from != null) {
-			replyTo[msg.from.asString()] = true;
+			replyTo[stanza.attr.get("type") == "groupchat" ? msg.from.asBare().asString() : msg.from.asString()] = true;
 		} else if(msg.to != null) {
 			replyTo[msg.to.asString()] = true;
 		}
@@ -109,7 +109,7 @@ class ChatMessage {
 				} else if (address.attr.get("type") == "ofrom") {
 					if (JID.parse(jid).domain == msg.sender?.domain) {
 						// TODO: check that domain supports extended addressing
-						msg.sender = JID.parse(jid);
+						msg.sender = JID.parse(jid).asBare();
 					}
 				}
 			}
@@ -158,7 +158,7 @@ class ChatMessage {
 	}
 
 	public function senderId():String {
-		return sender?.asBare().asString() ?? throw "sender is null";
+		return sender?.asString() ?? throw "sender is null";
 	}
 
 	public function account():String {
@@ -169,8 +169,8 @@ class ChatMessage {
 		return direction == MessageReceived;
 	}
 
-	public function asStanza():Stanza {
-		var attrs: haxe.DynamicAccess<String> = { type: "chat" };
+	public function asStanza(?type: String):Stanza {
+		var attrs: haxe.DynamicAccess<String> = { type: type ?? "chat" };
 		if (from != null) attrs.set("from", from.asString());
 		if (to != null) attrs.set("to", to.asString());
 		if (localId != null) attrs.set("id", localId);

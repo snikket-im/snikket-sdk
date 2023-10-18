@@ -14,7 +14,7 @@ class DiscoInfoGet extends GenericQuery {
 	public var xmlns(default, null) = "http://jabber.org/protocol/disco#info";
 	public var queryId:String = null;
 	public var ver:String = null;
-	private var responseStanza:Stanza;
+	public var responseStanza(default, null):Stanza;
 	private var result: Caps;
 
 	public function new(to: String, ?node: String) {
