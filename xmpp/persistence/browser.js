@@ -84,6 +84,8 @@ exports.xmpp.persistence = {
 					caps: chat.caps,
 					displayName: chat.displayName,
 					uiState: chat.uiState?.toString(),
+					extensions: chat.extensions?.toString(),
+					disco: chat.disco,
 					class: chat instanceof xmpp.DirectChat ? "DirectChat" : (chat instanceof xmpp.Channel ? "Channel" : "Chat")
 				});
 			},
@@ -99,6 +101,8 @@ exports.xmpp.persistence = {
 					r.caps,
 					r.displayName,
 					r.uiState,
+					r.extensions,
+					r.disco,
 					r.class
 				))));
 			},

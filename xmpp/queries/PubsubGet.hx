@@ -16,7 +16,7 @@ class PubsubGet extends GenericQuery {
 	private var responseStanza:Stanza;
 	private var result: Array<Stanza>;
 
-	public function new(to: String, node: String, ?itemId: String) {
+	public function new(to: Null<String>, node: String, ?itemId: String) {
 		var attr: DynamicAccess<String> = { node: node };
 		if (ver != null) attr["ver"] = ver;
 		/* Build basic query */

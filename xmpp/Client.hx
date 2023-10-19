@@ -322,6 +322,7 @@ class Client extends xmpp.EventEmitter {
 		);
 
 		rosterGet();
+		bookmarksGet();
 		sync(() -> {
 			// Set self to online
 			sendPresence();
@@ -352,7 +353,7 @@ class Client extends xmpp.EventEmitter {
 		}
 
 		final chat = if (caps.isChannel(chatId)) {
-			final channel = new Channel(this, this.stream, this.persistence, chatId, Open, caps);
+			final channel = new Channel(this, this.stream, this.persistence, chatId, Open, null, caps);
 			chats.unshift(channel);
 			channel;
 		} else {
@@ -542,6 +543,58 @@ class Client extends xmpp.EventEmitter {
 			this.trigger("chats/update", chats);
 		});
 		sendQuery(rosterGet);
+	}
+
+	private function bookmarksGet() {
+		final pubsubGet = new PubsubGet(null, "urn:xmpp:bookmarks:1");
+		pubsubGet.onFinished(() -> {
+			for (item in pubsubGet.getResult()) {
+				if (item.attr.get("id") != null) {
+					final chat = getChat(item.attr.get("id"));
+					if (chat == null) {
+						final discoGet = new DiscoInfoGet(item.attr.get("id"));
+						discoGet.onFinished(() -> {
+							final resultCaps = discoGet.getResult();
+							if (resultCaps == null) {
+								final err = discoGet.responseStanza?.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
+								if (err == null || err?.name == "service-unavailable" || err?.name == "feature-not-implemented") {
+									final chat = getDirectChat(item.attr.get("id"), false);
+									chat.updateFromBookmark(item);
+									persistence.storeChat(accountId(), chat);
+									this.trigger("chats/update", [chat]);
+								}
+							} else {
+								persistence.storeCaps(resultCaps);
+								final identity = resultCaps.identities[0];
+								final conf = item.getChild("conference", "urn:xmpp:bookmarks:1");
+								if (conf.attr.get("name") == null) {
+									conf.attr.set("name", identity?.name);
+								}
+								if (resultCaps.isChannel(item.attr.get("id"))) {
+									final uiState = (conf.attr.get("autojoin") == "1" || conf.attr.get("autojoin") == "true") ? Open : Closed;
+									final chat = new Channel(this, this.stream, this.persistence, item.attr.get("id"), uiState, null, resultCaps);
+									chat.updateFromBookmark(item);
+									chats.unshift(chat);
+									persistence.storeChat(accountId(), chat);
+									this.trigger("chats/update", [chat]);
+								} else {
+									final chat = getDirectChat(item.attr.get("id"), false);
+									chat.updateFromBookmark(item);
+									persistence.storeChat(accountId(), chat);
+									this.trigger("chats/update", [chat]);
+								}
+							}
+						});
+						sendQuery(discoGet);
+					} else {
+						chat.updateFromBookmark(item);
+						persistence.storeChat(accountId(), chat);
+						this.trigger("chats/update", [chat]);
+					}
+				}
+			}
+		});
+		sendQuery(pubsubGet);
 	}
 
 	private function sync(?callback: ()->Void) {

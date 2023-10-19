@@ -30,13 +30,15 @@ abstract class Chat {
 	public var jingleSessions: Map<String, xmpp.jingle.Session> = [];
 	private var displayName:String;
 	public var uiState = Open;
+	private var extensions: Stanza;
 
-	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open) {
+	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null) {
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
 		this.chatId = chatId;
 		this.uiState = uiState;
+		this.extensions = extensions ?? new Stanza("extensions", { xmlns: "urn:xmpp:bookmarks:1" });
 		this.displayName = chatId;
 	}
 
@@ -53,6 +55,14 @@ abstract class Chat {
 	abstract public function bookmark():Void;
 
 	abstract public function close():Void;
+
+	public function updateFromBookmark(item: Stanza) {
+		final conf = item.getChild("conference", "urn:xmpp:bookmarks:1");
+		final fn = conf.attr.get("name");
+		if (fn != null) setDisplayName(fn);
+		uiState = (conf.attr.get("autojoin") == "1" || conf.attr.get("autojoin") == "true") ? Open : Closed;
+		extensions = conf.getChild("extensions") ?? new Stanza("extensions", { xmlns: "urn:xmpp:bookmarks:1" });
+	}
 
 	public function getPhoto(callback:(String)->Void) {
 		callback(Color.defaultPhoto(chatId, getDisplayName().charAt(0)));
@@ -250,10 +260,10 @@ class DirectChat extends Chat {
 
 @:expose
 class Channel extends Chat {
-	private var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"]); // TODO: persist this
+	public var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"]);
 
-	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, ?disco: Caps) {
-		super(client, stream, persistence, chatId, uiState);
+	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions = null, ?disco: Caps) {
+		super(client, stream, persistence, chatId, uiState, extensions);
 		if (disco != null) this.disco = disco;
 		selfPing(disco == null);
 	}
@@ -369,15 +379,13 @@ class Channel extends Chat {
 	}
 
 	public function bookmark() {
-		// TODO: we should have been created from an existing bookmark if there was one,
-		// and we need to be sure to preserve everything we don't mean to change if this is an update
 		stream.sendIq(
 			new Stanza("iq", { type: "set" })
 				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
 				.tag("publish", { node: "urn:xmpp:bookmarks:1" })
 				.tag("item", { id: chatId })
 				.tag("conference", { xmlns: "urn:xmpp:bookmarks:1", name: getDisplayName(), autojoin: uiState == Closed ? "false" : "true" })
-				.textTag("nick", client.displayName())
+				.addChild(extensions)
 				.up().up()
 				.tag("publish-options")
 				.tag("x", { xmlns: "jabber:x:data", type: "submit" })
@@ -435,16 +443,20 @@ class SerializedChat {
 	public final avatarSha1:Null<BytesData>;
 	public final caps:haxe.DynamicAccess<Caps>;
 	public final displayName:Null<String>;
-	public final uiState: String;
+	public final uiState:String;
+	public final extensions:String;
+	public final disco:Null<Caps>;
 	public final klass:String;
 
-	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, caps: haxe.DynamicAccess<Caps>, displayName: Null<String>, uiState: Null<String>, klass: String) {
+	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, caps: haxe.DynamicAccess<Caps>, displayName: Null<String>, uiState: Null<String>, extensions: Null<String>, disco: Null<Caps>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.avatarSha1 = avatarSha1;
 		this.caps = caps;
 		this.displayName = displayName;
 		this.uiState = uiState ?? "Open";
+		this.extensions = extensions ?? "<extensions xmlns='urn:app:bookmarks:1' />";
+		this.disco = disco;
 		this.klass = klass;
 	}
 
@@ -455,10 +467,14 @@ class SerializedChat {
 			default: Open;
 		}
 
+		final extensionsStanza = Stanza.fromXml(Xml.parse(extensions));
+
 		final chat = if (klass == "DirectChat") {
-			new DirectChat(client, stream, persistence, chatId, uiStateEnum);
+			new DirectChat(client, stream, persistence, chatId, uiStateEnum, extensionsStanza);
 		} else if (klass == "Channel") {
-			new Channel(client, stream, persistence, chatId, uiStateEnum);
+			final channel = new Channel(client, stream, persistence, chatId, uiStateEnum, extensionsStanza);
+			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"]);
+			channel;
 		} else {
 			throw "Unknown class: " + klass;
 		}
