@@ -13,6 +13,12 @@ import xmpp.queries.DiscoInfoGet;
 import xmpp.queries.MAMQuery;
 using Lambda;
 
+enum UiState {
+	Pinned;
+	Open; // or Unspecified
+	Closed; // Archived
+}
+
 abstract class Chat {
 	private var client:Client;
 	private var stream:GenericStream;
@@ -23,12 +29,14 @@ abstract class Chat {
 	public var chatId(default, null):String;
 	public var jingleSessions: Map<String, xmpp.jingle.Session> = [];
 	private var displayName:String;
+	public var uiState = Open;
 
-	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String) {
+	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open) {
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
 		this.chatId = chatId;
+		this.uiState = uiState;
 		this.displayName = chatId;
 	}
 
@@ -43,6 +51,8 @@ abstract class Chat {
 	abstract public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void):Void;
 
 	abstract public function bookmark():Void;
+
+	abstract public function close():Void;
 
 	public function getPhoto(callback:(String)->Void) {
 		callback(Color.defaultPhoto(chatId, getDisplayName().charAt(0)));
@@ -216,6 +226,13 @@ class DirectChat extends Chat {
 		);
 	}
 
+	public function close() {
+		// Should this remove from roster?
+		uiState = Closed;
+		persistence.storeChat(client.accountId(), this);
+		client.trigger("chats/update", [this]);
+	}
+
 	override public function getPhoto(callback:(String)->Void) {
 		if (avatarSha1 != null) {
 			persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
@@ -235,13 +252,24 @@ class DirectChat extends Chat {
 class Channel extends Chat {
 	private var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"]); // TODO: persist this
 
-	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, ?disco: Caps) {
-		super(client, stream, persistence, chatId);
+	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, ?disco: Caps) {
+		super(client, stream, persistence, chatId, uiState);
 		if (disco != null) this.disco = disco;
 		selfPing(disco == null);
 	}
 
 	public function selfPing(shouldRefreshDisco = true) {
+		if (uiState == Closed){
+			client.sendPresence(
+				getFullJid().asString(),
+				(stanza) -> {
+					stanza.attr.set("type", "unavailable");
+					return stanza;
+				}
+			);
+			return;
+		}
+
 		stream.sendIq(
 			new Stanza("iq", { type: "get", to: getFullJid().asString() })
 				.tag("ping", { xmlns: "urn:xmpp:ping" }).up(),
@@ -348,7 +376,7 @@ class Channel extends Chat {
 				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
 				.tag("publish", { node: "urn:xmpp:bookmarks:1" })
 				.tag("item", { id: chatId })
-				.tag("conference", { xmlns: "urn:xmpp:bookmarks:1", name: getDisplayName(), autojoin: "true" })
+				.tag("conference", { xmlns: "urn:xmpp:bookmarks:1", name: getDisplayName(), autojoin: uiState == Closed ? "false" : "true" })
 				.textTag("nick", client.displayName())
 				.up().up()
 				.tag("publish-options")
@@ -390,6 +418,14 @@ class Channel extends Chat {
 			}
 		);
 	}
+
+	public function close() {
+		uiState = Closed;
+		persistence.storeChat(client.accountId(), this);
+		selfPing(false);
+		bookmark(); // TODO: what if not previously bookmarked?
+		client.trigger("chats/update", [this]);
+	}
 }
 
 @:expose
@@ -399,22 +435,30 @@ class SerializedChat {
 	public final avatarSha1:Null<BytesData>;
 	public final caps:haxe.DynamicAccess<Caps>;
 	public final displayName:Null<String>;
+	public final uiState: String;
 	public final klass:String;
 
-	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, caps: haxe.DynamicAccess<Caps>, displayName: Null<String>, klass: String) {
+	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, caps: haxe.DynamicAccess<Caps>, displayName: Null<String>, uiState: Null<String>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.avatarSha1 = avatarSha1;
 		this.caps = caps;
 		this.displayName = displayName;
+		this.uiState = uiState ?? "Open";
 		this.klass = klass;
 	}
 
 	public function toChat(client: Client, stream: GenericStream, persistence: Persistence) {
+		final uiStateEnum = switch (uiState) {
+			case "Pinned": Pinned;
+			case "Closed": Closed;
+			default: Open;
+		}
+
 		final chat = if (klass == "DirectChat") {
-			new DirectChat(client, stream, persistence, chatId);
+			new DirectChat(client, stream, persistence, chatId, uiStateEnum);
 		} else if (klass == "Channel") {
-			new Channel(client, stream, persistence, chatId);
+			new Channel(client, stream, persistence, chatId, uiStateEnum);
 		} else {
 			throw "Unknown class: " + klass;
 		}

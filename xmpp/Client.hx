@@ -337,17 +337,22 @@ class Client extends xmpp.EventEmitter {
 
 	/* Return array of chats, sorted by last activity */
 	public function getChats():Array<Chat> {
-		return chats;
+		return chats.filter((chat) -> chat.uiState != Closed);
 	}
 
 	// We can ask for caps here because presumably they looked this up
 	// via findAvailableChats
 	public function startChat(chatId:String, fn:Null<String>, caps:Caps):Chat {
 		final existingChat = getChat(chatId);
-		if (existingChat != null) return existingChat;
+		if (existingChat != null) {
+			if (existingChat.uiState == Closed) existingChat.uiState = Open;
+			Std.downcast(existingChat, Channel)?.selfPing();
+			this.trigger("chats/update", [existingChat]);
+			return existingChat;
+		}
 
 		final chat = if (caps.isChannel(chatId)) {
-			final channel = new Channel(this, this.stream, this.persistence, chatId, caps);
+			final channel = new Channel(this, this.stream, this.persistence, chatId, Open, caps);
 			chats.unshift(channel);
 			channel;
 		} else {
@@ -439,11 +444,15 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function chatActivity(chat: Chat) {
+		if (chat.uiState == Closed) {
+			chat.uiState = Open;
+			persistence.storeChat(accountId(), chat);
+		}
 		var idx = chats.indexOf(chat);
 		if (idx > 0) {
 			chats.splice(idx, 1);
 			chats.unshift(chat);
-			this.trigger("chats/update", []);
+			this.trigger("chats/update", [chat]);
 		}
 	}
 
