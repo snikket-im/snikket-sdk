@@ -290,7 +290,7 @@ class Client extends xmpp.EventEmitter {
 				if (c == null) {
 					chat.setCaps(JID.parse(stanza.attr.get("from")).resource, null);
 					persistence.storeChat(jid, chat);
-					this.trigger("chats/update", [chat]);
+					if (chat.livePresence()) this.trigger("chats/update", [chat]);
 				} else {
 					persistence.getCaps(c.attr.get("ver"), (caps) -> {
 						if (caps == null) {
@@ -299,13 +299,13 @@ class Client extends xmpp.EventEmitter {
 								chat.setCaps(JID.parse(stanza.attr.get("from")).resource, discoGet.getResult());
 								if (discoGet.getResult() != null) persistence.storeCaps(discoGet.getResult());
 								persistence.storeChat(jid, chat);
-								this.trigger("chats/update", [chat]);
+								if (chat.livePresence()) this.trigger("chats/update", [chat]);
 							});
 							sendQuery(discoGet);
 						} else {
 							chat.setCaps(JID.parse(stanza.attr.get("from")).resource, caps);
 							persistence.storeChat(jid, chat);
-							this.trigger("chats/update", [chat]);
+							if (chat.livePresence()) this.trigger("chats/update", [chat]);
 						}
 					});
 				}

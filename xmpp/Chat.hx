@@ -151,6 +151,11 @@ abstract class Chat {
 		return this.trusted;
 	}
 
+
+	public function livePresence() {
+		return false;
+	}
+
 	public function canAudioCall():Bool {
 		for (resource => p in presence) {
 			if (p.caps?.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false) return true;
@@ -402,6 +407,10 @@ class Channel extends Chat {
 			if (callback != null) callback();
 		});
 		client.sendQuery(discoGet);
+	}
+
+	override public function livePresence() {
+		return presence.exists(client.displayName());
 	}
 
 	private function getFullJid() {
