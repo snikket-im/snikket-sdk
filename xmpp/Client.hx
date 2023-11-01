@@ -65,15 +65,25 @@ class Client extends xmpp.EventEmitter {
 			for (protoChat in protoChats) {
 				chats.push(protoChat.toChat(this, stream, persistence));
 			}
-			this.trigger("chats/update", chats);
-
-			persistence.getLogin(jid, (login) -> {
-				if (login.token == null) {
-					stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { jid: this.jid }));
-				} else {
-					stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: login.token }));
+			persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
+				for (detail in details) {
+					var chat = getChat(detail.chatId);
+					if (chat != null) {
+						chat.setLastMessage(detail.message);
+						chat.setUnreadCount(detail.unreadCount);
+					}
 				}
-				stream.connect(login.clientId == null ? jid : jid + "/" + login.clientId);
+				chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
+				this.trigger("chats/update", chats);
+
+				persistence.getLogin(jid, (login) -> {
+					if (login.token == null) {
+						stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { jid: this.jid }));
+					} else {
+						stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: login.token }));
+					}
+					stream.connect(login.clientId == null ? jid : jid + "/" + login.clientId);
+				});
 			});
 		});
 	}
@@ -140,8 +150,11 @@ class Client extends xmpp.EventEmitter {
 				var chat = getChat(chatMessage.chatId());
 				if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
 				if (chat != null) {
-					chatActivity(chat);
 					chatMessage = chat.prepareIncomingMessage(chatMessage, stanza);
+					chat.setLastMessage(chatMessage);
+					chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
+					if (chatMessage.serverId != null) persistence.storeMessage(accountId(), chatMessage);
+					chatActivity(chat);
 					for (handler in chatMessageHandlers) {
 						handler(chatMessage);
 					}
@@ -315,18 +328,32 @@ class Client extends xmpp.EventEmitter {
 		});
 
 		// Enable carbons
-		stream.sendStanza(
+		sendStanza(
 			new Stanza("iq", { type: "set", id: ID.short() })
 				.tag("enable", { xmlns: "urn:xmpp:carbons:2" })
 				.up()
 		);
 
 		rosterGet();
-		bookmarksGet();
-		sync(() -> {
-			// Set self to online
-			sendPresence();
-			this.trigger("status/online", {});
+		bookmarksGet(() -> {
+			sync(() -> {
+				persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
+					for (detail in details) {
+						var chat = getChat(detail.chatId) ?? getDirectChat(detail.chatId, false);
+						final initialLastId = chat.lastMessageId();
+						chat.setLastMessage(detail.message);
+						chat.setUnreadCount(detail.unreadCount);
+						if (detail.unreadCount > 0 && initialLastId != chat.lastMessageId()) {
+							chatActivity(chat, false);
+						}
+					}
+					chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
+					this.trigger("chats/update", chats);
+					// Set self to online
+					sendPresence();
+					this.trigger("status/online", {});
+				});
+			});
 		});
 
 		return EventHandled;
@@ -444,7 +471,7 @@ class Client extends xmpp.EventEmitter {
 		}
 	}
 
-	public function chatActivity(chat: Chat) {
+	public function chatActivity(chat: Chat, trigger = true) {
 		if (chat.uiState == Closed) {
 			chat.uiState = Open;
 			persistence.storeChat(accountId(), chat);
@@ -453,7 +480,7 @@ class Client extends xmpp.EventEmitter {
 		if (idx > 0) {
 			chats.splice(idx, 1);
 			chats.unshift(chat);
-			this.trigger("chats/update", [chat]);
+			if (trigger) this.trigger("chats/update", [chat]);
 		}
 	}
 
@@ -545,7 +572,8 @@ class Client extends xmpp.EventEmitter {
 		sendQuery(rosterGet);
 	}
 
-	private function bookmarksGet() {
+	// This is called right before we're going to trigger for all chats anyway, so don't bother with single triggers
+	private function bookmarksGet(callback: ()->Void) {
 		final pubsubGet = new PubsubGet(null, "urn:xmpp:bookmarks:1");
 		pubsubGet.onFinished(() -> {
 			for (item in pubsubGet.getResult()) {
@@ -561,7 +589,6 @@ class Client extends xmpp.EventEmitter {
 									final chat = getDirectChat(item.attr.get("id"), false);
 									chat.updateFromBookmark(item);
 									persistence.storeChat(accountId(), chat);
-									this.trigger("chats/update", [chat]);
 								}
 							} else {
 								persistence.storeCaps(resultCaps);
@@ -576,12 +603,10 @@ class Client extends xmpp.EventEmitter {
 									chat.updateFromBookmark(item);
 									chats.unshift(chat);
 									persistence.storeChat(accountId(), chat);
-									this.trigger("chats/update", [chat]);
 								} else {
 									final chat = getDirectChat(item.attr.get("id"), false);
 									chat.updateFromBookmark(item);
 									persistence.storeChat(accountId(), chat);
-									this.trigger("chats/update", [chat]);
 								}
 							}
 						});
@@ -589,10 +614,10 @@ class Client extends xmpp.EventEmitter {
 					} else {
 						chat.updateFromBookmark(item);
 						persistence.storeChat(accountId(), chat);
-						this.trigger("chats/update", [chat]);
 					}
 				}
 			}
+			callback();
 		});
 		sendQuery(pubsubGet);
 	}

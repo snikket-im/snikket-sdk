@@ -31,6 +31,8 @@ abstract class Chat {
 	private var displayName:String;
 	public var uiState = Open;
 	private var extensions: Stanza;
+	private var _unreadCount = 0;
+	private var lastMessage: Null<ChatMessage>;
 
 	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null) {
 		this.client = client;
@@ -56,6 +58,14 @@ abstract class Chat {
 
 	abstract public function close():Void;
 
+	abstract public function markReadUpTo(message: ChatMessage):Void;
+
+	abstract public function lastMessageId():Null<String>;
+
+	public function lastMessageTimestamp():Null<String> {
+		return lastMessage?.timestamp;
+	}
+
 	public function updateFromBookmark(item: Stanza) {
 		final conf = item.getChild("conference", "urn:xmpp:bookmarks:1");
 		final fn = conf.attr.get("name");
@@ -66,6 +76,27 @@ abstract class Chat {
 
 	public function getPhoto(callback:(String)->Void) {
 		callback(Color.defaultPhoto(chatId, getDisplayName().charAt(0)));
+	}
+
+	public function readUpTo() {
+		final displayed = extensions.getChild("displayed", "urn:xmpp:chat-markers:0");
+		return displayed?.attr?.get("id");
+	}
+
+	public function unreadCount() {
+		return _unreadCount;
+	}
+
+	public function setUnreadCount(count:Int) {
+		_unreadCount = count;
+	}
+
+	public function preview() {
+		return lastMessage?.text ?? "";
+	}
+
+	public function setLastMessage(message:Null<ChatMessage>) {
+		lastMessage = message;
 	}
 
 	public function setDisplayName(fn:String) {
@@ -242,6 +273,37 @@ class DirectChat extends Chat {
 			message.to = recipient;
 			client.sendStanza(message.asStanza());
 		}
+		setLastMessage(message);
+		client.trigger("chats/update", [this]);
+	}
+
+	public function lastMessageId() {
+		return lastMessage?.localId ?? lastMessage?.serverId;
+	}
+
+	public function markReadUpTo(message: ChatMessage) {
+		if (readUpTo() == message.localId || readUpTo() == message.serverId) return;
+		final upTo = message.localId ?? message.serverId;
+		_unreadCount = 0; // TODO
+		for (recipient in getParticipants()) {
+			// TODO: extended addressing when relevant
+			final stanza = new Stanza("message", { to: recipient, id: ID.long() })
+				.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo }).up();
+			if (message.threadId != null) {
+				stanza.textTag("thread", message.threadId);
+			}
+			client.sendStanza(stanza);
+		}
+
+		var displayed = extensions.getChild("displayed", "urn:xmpp:chat-markers:0");
+		if (displayed == null) {
+			displayed = new Stanza("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo });
+			extensions.addChild(displayed);
+		} else {
+			displayed.attr.set("id", upTo);
+		}
+		persistence.storeChat(client.accountId(), this);
+		client.trigger("chats/update", [this]);
 	}
 
 	public function bookmark() {
@@ -406,6 +468,35 @@ class Channel extends Chat {
 		message.recipients = [message.to];
 		persistence.storeMessage(client.accountId(), message);
 		client.sendStanza(message.asStanza("groupchat"));
+		setLastMessage(message);
+		client.trigger("chats/update", [this]);
+	}
+
+	public function lastMessageId() {
+		return lastMessage?.serverId;
+	}
+
+	public function markReadUpTo(message: ChatMessage) {
+		if (readUpTo() == message.serverId) return;
+		final upTo = message.serverId;
+		_unreadCount = 0;
+		final stanza = new Stanza("message", { to: chatId, id: ID.long() })
+			.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo }).up();
+		if (message.threadId != null) {
+			stanza.textTag("thread", message.threadId);
+		}
+		client.sendStanza(stanza);
+
+		var displayed = extensions.getChild("displayed", "urn:xmpp:chat-markers:0");
+		if (displayed == null) {
+			displayed = new Stanza("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo });
+			extensions.addChild(displayed);
+		} else {
+			displayed.attr.set("id", upTo);
+		}
+		persistence.storeChat(client.accountId(), this);
+		bookmark(); // TODO: what if not previously bookmarked?
+		client.trigger("chats/update", [this]);
 	}
 
 	public function bookmark() {

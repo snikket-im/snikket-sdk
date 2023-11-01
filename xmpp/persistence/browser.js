@@ -129,6 +129,47 @@ exports.xmpp.persistence = {
 				))));
 			},
 
+			getChatsUnreadDetails: function(account, chatsArray, callback) {
+				const tx = db.transaction(["messages"], "readonly");
+				const store = tx.objectStore("messages");
+
+				const cursor = store.index("chats").openCursor(
+					IDBKeyRange.bound([account], [account, [], []]),
+					"prev"
+				);
+				const chats = {};
+				chatsArray.forEach((chat) => chats[chat.chatId] = chat);
+				const result = {};
+				var rowCount = 0;
+				cursor.onsuccess = (event) => {
+					if (event.target.result && rowCount < 1000) {
+						rowCount++;
+						const value = event.target.result.value;
+						if (result[value.chatId]) {
+							if (!result[value.chatId].foundAll) {
+								const readUpTo = chats[value.chatId]?.readUpTo();
+								if (readUpTo === value.serverId || readUpTo === value.localId || value.direction == "MessageSent") {
+									result[value.chatId].foundAll = true;
+								} else {
+									result[value.chatId].unreadCount++;
+								}
+							}
+						} else {
+							const readUpTo = chats[value.chatId]?.readUpTo();
+							const haveRead = readUpTo === value.serverId || readUpTo === value.localId || value.direction == "MessageSent";
+							result[value.chatId] = { chatId: value.chatId, message: hydrateMessage(value), unreadCount: haveRead ? 0 : 1, foundAll: haveRead };
+						}
+						event.target.result.continue();
+					} else {
+						callback(Object.values(result));
+					}
+				}
+				cursor.onerror = (event) => {
+					console.error(event);
+					callback([]);
+				}
+			},
+
 			storeMessage: function(account, message) {
 				const tx = db.transaction(["messages"], "readwrite");
 				const store = tx.objectStore("messages");
