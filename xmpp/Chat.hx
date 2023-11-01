@@ -24,7 +24,7 @@ abstract class Chat {
 	private var stream:GenericStream;
 	private var persistence:Persistence;
 	private var avatarSha1:Null<BytesData> = null;
-	private var caps:haxe.DynamicAccess<Null<Caps>> = {};
+	private var presence:haxe.DynamicAccess<Presence> = {};
 	private var trusted:Bool = false;
 	public var chatId(default, null):String;
 	public var jingleSessions: Map<String, xmpp.jingle.Session> = [];
@@ -76,20 +76,36 @@ abstract class Chat {
 		return this.displayName;
 	}
 
-	public function setCaps(resource:String, caps:Caps) {
-		this.caps.set(resource, caps);
+	public function setPresence(resource:String, presence:Presence) {
+		this.presence.set(resource, presence);
 	}
 
-	public function removeCaps(resource:String) {
-		this.caps.remove(resource);
+	public function setCaps(resource:String, caps:Caps) {
+		final presence = presence.get(resource);
+		if (presence != null) {
+			presence.caps = caps;
+		} else {
+			this.presence.set(resource, new Presence(caps));
+		}
+	}
+
+	public function removePresence(resource:String) {
+		presence.remove(resource);
 	}
 
 	public function getCaps():KeyValueIterator<String, Caps> {
-		return caps.keyValueIterator();
+		final iter = presence.keyValueIterator();
+		return {
+			hasNext: iter.hasNext,
+			next: () -> {
+				final n = iter.next();
+				return { key: n.key, value: n.value.caps };
+			}
+		};
 	}
 
 	public function getResourceCaps(resource:String):Caps {
-		return caps[resource];
+		return presence[resource].caps;
 	}
 
 	public function setAvatarSha1(sha1: BytesData) {
@@ -105,16 +121,16 @@ abstract class Chat {
 	}
 
 	public function canAudioCall():Bool {
-		for (resource => cap in caps) {
-			if (cap?.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false) return true;
+		for (resource => p in presence) {
+			if (p.caps?.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false) return true;
 		}
 
 		return false;
 	}
 
 	public function canVideoCall():Bool {
-		for (resource => cap in caps) {
-			if (cap?.features?.contains("urn:xmpp:jingle:apps:rtp:video") ?? false) return true;
+		for (resource => p in presence) {
+			if (p.caps?.features?.contains("urn:xmpp:jingle:apps:rtp:video") ?? false) return true;
 		}
 
 		return false;
@@ -296,6 +312,7 @@ class Channel extends Chat {
 					if (err.name == "remote-server-not-found" || err.name == "remote-server-timeout") return; // Timeout, retry later
 					if (err.name == "item-not-found") return; // Nick was changed?
 					(shouldRefreshDisco ? refreshDisco : (cb)->cb())(() -> {
+						presence = {}; // About to ask for a fresh set
 						client.sendPresence(
 							getFullJid().asString(),
 							(stanza) -> {
@@ -332,7 +349,7 @@ class Channel extends Chat {
 
 	public function getParticipants() {
 		final jid = JID.parse(chatId);
-		return caps.keys().map((resource) -> new JID(jid.node, jid.domain, resource).asString());
+		return presence.keys().map((resource) -> new JID(jid.node, jid.domain, resource).asString());
 	}
 
 	public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void) {
@@ -454,18 +471,18 @@ class SerializedChat {
 	public final chatId:String;
 	public final trusted:Bool;
 	public final avatarSha1:Null<BytesData>;
-	public final caps:haxe.DynamicAccess<Caps>;
+	public final presence:haxe.DynamicAccess<Presence>;
 	public final displayName:Null<String>;
 	public final uiState:String;
 	public final extensions:String;
 	public final disco:Null<Caps>;
 	public final klass:String;
 
-	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, caps: haxe.DynamicAccess<Caps>, displayName: Null<String>, uiState: Null<String>, extensions: Null<String>, disco: Null<Caps>, klass: String) {
+	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: haxe.DynamicAccess<Presence>, displayName: Null<String>, uiState: Null<String>, extensions: Null<String>, disco: Null<Caps>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.avatarSha1 = avatarSha1;
-		this.caps = caps;
+		this.presence = presence;
 		this.displayName = displayName;
 		this.uiState = uiState ?? "Open";
 		this.extensions = extensions ?? "<extensions xmlns='urn:app:bookmarks:1' />";
@@ -494,8 +511,8 @@ class SerializedChat {
 		if (displayName != null) chat.setDisplayName(displayName);
 		if (avatarSha1 != null) chat.setAvatarSha1(avatarSha1);
 		chat.setTrusted(trusted);
-		for (resource => c in caps) {
-			chat.setCaps(resource, c);
+		for (resource => p in presence) {
+			chat.setPresence(resource, p);
 		}
 		return chat;
 	}

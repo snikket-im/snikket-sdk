@@ -306,7 +306,7 @@ class Client extends xmpp.EventEmitter {
 					return EventUnhandled;
 				}
 				// Maybe in the future record it as offine rather than removing it
-				chat.removeCaps(JID.parse(stanza.attr.get("from")).resource);
+				chat.removePresence(JID.parse(stanza.attr.get("from")).resource);
 				persistence.storeChat(jid, chat);
 				this.trigger("chats/update", [chat]);
 			}
