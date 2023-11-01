@@ -6,7 +6,7 @@ class Date {
 		var tzHour = Std.int(d.getTimezoneOffset()/60);
 		var tzMinute = Std.int(Math.abs(d.getTimezoneOffset())%60);
 		return
-			str + (tzHour > 0 ? "+" : "-") +
+			str + (tzHour < 0 ? "+" : "-") +
 			StringTools.lpad(Std.string(tzHour), "0", 2) + ":" +
 			StringTools.lpad(Std.string(tzMinute), "0", 2);
 	}
