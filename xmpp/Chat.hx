@@ -215,7 +215,13 @@ class DirectChat extends Chat {
 
 	public function sendMessage(message:ChatMessage):Void {
 		client.chatActivity(this);
+		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
+		message.direction = MessageSent;
+		message.from = JID.parse(client.jid);
+		message.sender = message.from.asBare();
+		message.replyTo = [message.sender];
 		message.recipients = getParticipants().map((p) -> JID.parse(p));
+		persistence.storeMessage(client.accountId(), message);
 		for (recipient in message.recipients) {
 			message.to = recipient;
 			client.sendStanza(message.asStanza());
@@ -374,7 +380,14 @@ class Channel extends Chat {
 
 	public function sendMessage(message:ChatMessage):Void {
 		client.chatActivity(this);
+		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
+		message.direction = MessageSent;
+		message.from = JID.parse(client.jid);
+		message.sender = getFullJid();
+		message.replyTo = [message.sender];
 		message.to = JID.parse(chatId);
+		message.recipients = [message.to];
+		persistence.storeMessage(client.accountId(), message);
 		client.sendStanza(message.asStanza("groupchat"));
 	}
 

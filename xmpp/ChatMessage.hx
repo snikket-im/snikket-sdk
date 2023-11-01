@@ -20,16 +20,17 @@ class ChatAttachment {
 class ChatMessage {
 	public var localId (default, set) : Null<String> = null;
 	public var serverId (default, set) : Null<String> = null;
+	public var serverIdBy : Null<String> = null;
 
 	public var timestamp (default, set) : Null<String> = null;
 
 	public var to: Null<JID> = null;
-	private var from: Null<JID> = null;
+	public var from: Null<JID> = null;
 	public var sender: Null<JID> = null;
 	public var recipients: Array<JID> = [];
 	public var replyTo: Array<JID> = [];
 
-	var threadId (default, null): Null<String> = null;
+	public var threadId (default, null): Null<String> = null;
 
 	public var attachments : Array<ChatAttachment> = [];
 
@@ -41,7 +42,10 @@ class ChatMessage {
 	public function new() { }
 
 	public static function fromStanza(stanza:Stanza, localJidStr:String):Null<ChatMessage> {
+		if (stanza.attr.get("type") == "error") return null;
+
 		var msg = new ChatMessage();
+		msg.timestamp = stanza.findText("{urn:xmpp:delay}delay@stamp") ?? Date.format(std.Date.now());
 		msg.lang = stanza.attr.get("xml:lang");
 		msg.text = stanza.getChildText("body");
 		if (msg.text != null && (msg.lang == null || msg.lang == "")) {
@@ -67,11 +71,21 @@ class ChatMessage {
 
 		final localId = stanza.attr.get("id");
 		if (localId != null) msg.localId = localId;
+		var altServerId = null;
 		for (stanzaId in stanza.allTags("stanza-id", "urn:xmpp:sid:0")) {
 			final id = stanzaId.attr.get("id");
 			if ((stanzaId.attr.get("by") == domain || stanzaId.attr.get("by") == localJidBare.asString()) && id != null) {
+				msg.serverIdBy = localJidBare.asString();
 				msg.serverId = id;
 				break;
+			}
+			altServerId = stanzaId;
+		}
+		if (msg.serverId == null && altServerId != null && stanza.attr.get("type") != "error") {
+			final id = altServerId.attr.get("id");
+			if (id != null) {
+				msg.serverId = id;
+				msg.serverIdBy = altServerId.attr.get("by");
 			}
 		}
 		msg.direction = (msg.to == null || msg.to.asBare().equals(localJidBare)) ? MessageReceived : MessageSent;
@@ -139,7 +153,7 @@ class ChatMessage {
 	}
 
 	public function set_serverId(serverId:String):String {
-		if(this.serverId != null) {
+		if(this.serverId != null && this.serverId != serverId) {
 			throw new Exception("Message already has a serverId set");
 		}
 		return this.serverId = serverId;

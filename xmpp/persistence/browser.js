@@ -10,8 +10,7 @@ exports.xmpp.persistence = {
 			dbOpenReq.onupgradeneeded = (event) => {
 				const upgradeDb = event.target.result;
 				if (!db.objectStoreNames.contains("messages")) {
-					const messages = upgradeDb.createObjectStore("messages", { keyPath: "serverId" });
-					messages.createIndex("account", ["account", "timestamp"]);
+					const messages = upgradeDb.createObjectStore("messages", { keyPath: ["account", "serverIdBy", "serverId", "localId"] });
 					messages.createIndex("chats", ["account", "chatId", "timestamp"]);
 					messages.createIndex("localId", ["account", "chatId", "localId"]);
 				}
@@ -47,24 +46,47 @@ exports.xmpp.persistence = {
 			});
 		}
 
+		function hydrateMessage(value) {
+			const message = new xmpp.ChatMessage();
+			message.localId = value.localId ? value.localId : null;
+			message.serverId = value.serverId ? value.serverId : null;
+			message.serverIdBy = value.serverIdBy ? value.serverIdBy : null;
+			message.timestamp = value.timestamp && value.timestamp.toISOString();
+			message.to = value.to && xmpp.JID.parse(value.to);
+			message.from = value.from && xmpp.JID.parse(value.from);
+			message.sender = value.sender && xmpp.JID.parse(value.sender);
+			message.recipients = value.recipients.map((r) => xmpp.JID.parse(r));
+			message.replyTo = value.replyTo.map((r) => xmpp.JID.parse(r));
+			message.threadId = value.threadId;
+			message.attachments = value.attachments;
+			message.text = value.text;
+			message.lang = value.lang;
+			message.direction = value.direction == "MessageReceived" ? xmpp.MessageDirection.MessageReceived : xmpp.MessageDirection.MessageSent;
+			return message;
+		}
+
 		return {
 			lastId: function(account, jid, callback) {
 				const tx = db.transaction(["messages"], "readonly");
 				const store = tx.objectStore("messages");
 				var cursor = null;
 				if (jid === null) {
-					cursor = store.index("account").openCursor(
-					IDBKeyRange.bound([account, new Date(0)], [account, new Date("9999-01-01")]),
-					"prev"
+					cursor = store.index("chats").openCursor(
+						IDBKeyRange.bound([account], [account, [], []]),
+						"prev"
 					);
 				} else {
 					cursor = store.index("chats").openCursor(
-						IDBKeyRange.bound([account, jid, new Date(0)], [account, jid, new Date("9999-01-01")]),
+						IDBKeyRange.bound([account, jid], [account, jid, []]),
 						"prev"
 					);
 				}
 				cursor.onsuccess = (event) => {
-					callback(event.target.result ? event.target.result.value.serverId : null);
+					if (!event.target.result || (event.target.result.value.serverId && (jid || event.target.result.value.serverIdBy === account))) {
+						callback(event.target.result ? event.target.result.value.serverId : null);
+					} else {
+						event.target.result.continue();
+					}
 				}
 				cursor.onerror = (event) => {
 					console.error(event);
@@ -110,11 +132,16 @@ exports.xmpp.persistence = {
 			storeMessage: function(account, message) {
 				const tx = db.transaction(["messages"], "readwrite");
 				const store = tx.objectStore("messages");
-				promisifyRequest(store.index("localId").get([account, message.chatId(), message.localId])).then((result) => {
-					if (result && message.direction === xmpp.MessageDirection.MessageSent && result.direction === "MessageSent") return; // duplicate, we trust our own stanza ids
+				if (!message.serverId && !message.localId) throw "Cannot store a message with no id";
+				if (!message.serverId && message.isIncoming()) throw "Cannot store an incoming message with no server id";
+				promisifyRequest(store.index("localId").get([account, message.chatId(), message.localId || []])).then((result) => {
+					if (result && !message.isIncoming() && result.direction === "MessageSent") return; // duplicate, we trust our own stanza ids
 
 					store.put({
 						...message,
+						serverId: message.serverId || "",
+						serverIdBy: message.serverIdBy || "",
+						localId: message.localId || "",
 						account: account,
 						chatId: message.chatId(),
 						to: message.to?.asString(),
@@ -128,41 +155,27 @@ exports.xmpp.persistence = {
 				});
 			},
 
-			getMessages: function(account, chatId, _beforeId, beforeTime, callback) {
-				const beforeDate = beforeTime ? new Date(beforeTime) : new Date("9999-01-01");
+			getMessages: function(account, chatId, beforeId, beforeTime, callback) {
+				const beforeDate = beforeTime ? new Date(beforeTime) : [];
 				const tx = db.transaction(["messages"], "readonly");
 				const store = tx.objectStore("messages");
 				const cursor = store.index("chats").openCursor(
-					IDBKeyRange.bound([account, chatId, new Date(0)], [account, chatId, beforeDate]),
+					IDBKeyRange.bound([account, chatId], [account, chatId, beforeDate]),
 					"prev"
 				);
 				const result = [];
 				cursor.onsuccess = (event) => {
 					if (event.target.result && result.length < 50) {
 						const value = event.target.result.value;
-						if (value.timestamp && value.timestamp.getTime() === beforeDate.getTime()) {
+						if (value.serverId === beforeId || (value.timestamp && value.timestamp.getTime() === (beforeDate instanceof Date && beforeDate.getTime()))) {
 							event.target.result.continue();
 							return;
 						}
 
-						const message = new xmpp.ChatMessage();
-						message.localId = value.localId;
-						message.serverId = value.serverId;
-						message.timestamp = value.timestamp && value.timestamp.toISOString();
-						message.to = value.to && xmpp.JID.parse(value.to);
-						message.from = value.from && xmpp.JID.parse(value.from);
-						message.sender = value.sender && xmpp.JID.parse(value.sender);
-						message.recipients = value.recipients.map((r) => xmpp.JID.parse(r));
-						message.replyTo = value.replyTo.map((r) => xmpp.JID.parse(r));
-						message.threadId = value.threadId;
-						message.attachments = value.attachments;
-						message.text = value.text;
-						message.lang = value.lang;
-						message.direction = value.direction == "MessageReceived" ? xmpp.MessageDirection.MessageReceived : xmpp.MessageDirection.MessageSent;
-						result.push(message);
+						result.unshift(hydrateMessage(value));
 						event.target.result.continue();
 					} else {
-						callback(result.reverse());
+						callback(result);
 					}
 				}
 				cursor.onerror = (event) => {
