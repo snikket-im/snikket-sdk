@@ -83,8 +83,8 @@ class MessageSync {
 			var msg = ChatMessage.fromStanza(originalMessage, client.jid);
 			if (msg == null) return EventHandled;
 
-			msg.set_serverId(result.attr.get("id"));
-			msg.set_timestamp(timestamp);
+			msg.serverId = result.attr.get("id");
+			msg.timestamp = timestamp;
 
 			messages.push(msg);
 
