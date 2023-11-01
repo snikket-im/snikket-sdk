@@ -446,7 +446,6 @@ class Channel extends Chat {
 				sync.onMessages((messages) -> {
 					for (message in messages.messages) {
 						message = prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() }));
-						trace("WUT", message);
 						persistence.storeMessage(client.jid, message);
 					}
 					handler(messages.messages.filter((m) -> m.chatId() == chatId));
