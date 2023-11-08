@@ -115,8 +115,9 @@ abstract class Chat {
 		final presence = presence.get(resource);
 		if (presence != null) {
 			presence.caps = caps;
+			setPresence(resource, presence);
 		} else {
-			this.presence.set(resource, new Presence(caps));
+			setPresence(resource, new Presence(caps));
 		}
 	}
 
@@ -262,6 +263,7 @@ class DirectChat extends Chat {
 	}
 
 	public function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
+		message.syncPoint = true; // TODO: if client is done initial MAM. right now it always is
 		return message;
 	}
 
@@ -351,6 +353,7 @@ class DirectChat extends Chat {
 @:expose
 class Channel extends Chat {
 	public var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"]);
+	private var inSync = true;
 
 	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions = null, ?disco: Caps) {
 		super(client, stream, persistence, chatId, uiState, extensions);
@@ -381,6 +384,7 @@ class Channel extends Chat {
 					if (err.name == "item-not-found") return; // Nick was changed?
 					(shouldRefreshDisco ? refreshDisco : (cb)->cb())(() -> {
 						presence = {}; // About to ask for a fresh set
+						inSync = false;
 						client.sendPresence(
 							getFullJid().asString(),
 							(stanza) -> {
@@ -395,6 +399,48 @@ class Channel extends Chat {
 				}
 			}
 		);
+	}
+
+	override public function setPresence(resource:String, presence:Presence) {
+		super.setPresence(resource, presence);
+		if (!inSync && resource == client.displayName()) {
+			persistence.lastId(client.accountId(), chatId, doSync);
+		}
+	}
+
+	private function doSync(lastId: Null<String>) {
+		var thirtyDaysAgo = Date.format(
+			DateTools.delta(std.Date.now(), DateTools.days(-3))
+		);
+		var sync = new MessageSync(
+			client,
+			stream,
+			lastId == null ? { startTime: thirtyDaysAgo } : { page: { after: lastId } },
+			chatId
+		);
+		sync.setNewestPageFirst(false);
+		sync.onMessages((messageList) -> {
+			for (message in messageList.messages) {
+				persistence.storeMessage(client.accountId(), message);
+			}
+			if (sync.hasMore()) {
+				sync.fetchNext();
+			} else {
+				inSync = true;
+				final lastFromSync = messageList.messages[messageList.messages.length - 1];
+				if (lastFromSync != null && Reflect.compare(lastFromSync.timestamp, lastMessageTimestamp()) > 0) {
+					setLastMessage(lastFromSync);
+					client.trigger("chats/update", [this]);
+				}
+			}
+		});
+		sync.onError((stanza) -> {
+			if (lastId != null) {
+				// Gap in sync, out newest message has expired from server
+				doSync(null);
+			}
+		});
+		sync.fetchNext();
 	}
 
 	public function refreshDisco(?callback: ()->Void) {
@@ -458,6 +504,7 @@ class Channel extends Chat {
 
 	public function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
 		// TODO: mark type!=groupchat as whisper somehow
+		message.syncPoint = inSync;
 		message.sender = JID.parse(stanza.attr.get("from")); // MUC always needs full JIDs
 		if (message.senderId() == getFullJid().asString()) {
 			message.recipients = message.replyTo;

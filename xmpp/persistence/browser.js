@@ -14,6 +14,10 @@ exports.xmpp.persistence = {
 					messages.createIndex("chats", ["account", "chatId", "timestamp"]);
 					messages.createIndex("localId", ["account", "chatId", "localId"]);
 				}
+				const messages = event.target.transaction.objectStore("messages");
+				if (!messages.indexNames.contains("accounts")) {
+					messages.createIndex("accounts", ["account", "timestamp"]);
+				}
 				if (!db.objectStoreNames.contains("keyvaluepairs")) {
 					upgradeDb.createObjectStore("keyvaluepairs");
 				}
@@ -26,6 +30,13 @@ exports.xmpp.persistence = {
 				if (!db.objectStoreNames.contains("messages") || !db.objectStoreNames.contains("keyvaluepairs") || !db.objectStoreNames.contains("chats")) {
 					db.close();
 					openDb(db.version + 1);
+					return;
+				}
+				const tx = db.transaction(["messages"], "readonly");
+				if (!tx.objectStore("messages").indexNames.contains("accounts")) {
+					db.close();
+					openDb(db.version + 1);
+					return;
 				}
 			};
 		}
@@ -51,6 +62,7 @@ exports.xmpp.persistence = {
 			message.localId = value.localId ? value.localId : null;
 			message.serverId = value.serverId ? value.serverId : null;
 			message.serverIdBy = value.serverIdBy ? value.serverIdBy : null;
+			message.syncPoint = !!value.syncPoint;
 			message.timestamp = value.timestamp && value.timestamp.toISOString();
 			message.to = value.to && xmpp.JID.parse(value.to);
 			message.from = value.from && xmpp.JID.parse(value.from);
@@ -66,13 +78,19 @@ exports.xmpp.persistence = {
 		}
 
 		return {
+			test: function() {
+				//messages = upgradeDb.createObjectStore("messages", { keyPath: ["account", "serverIdBy", "serverId", "localId"] });
+				const tx = db.transaction(["messages"], "readonly");
+				const store = tx.objectStore("messages");
+				return promisifyRequest(store.get(["singpolyma@singpolyma.net", "singpolyma@singpolyma.net", "5a6398a2-d560-43b1-988c-8852edc59521", ""]));
+			},
 			lastId: function(account, jid, callback) {
 				const tx = db.transaction(["messages"], "readonly");
 				const store = tx.objectStore("messages");
 				var cursor = null;
 				if (jid === null) {
-					cursor = store.index("chats").openCursor(
-						IDBKeyRange.bound([account], [account, [], []]),
+					cursor = store.index("accounts").openCursor(
+						IDBKeyRange.bound([account], [account, []]),
 						"prev"
 					);
 				} else {
@@ -82,7 +100,7 @@ exports.xmpp.persistence = {
 					);
 				}
 				cursor.onsuccess = (event) => {
-					if (!event.target.result || (event.target.result.value.serverId && (jid || event.target.result.value.serverIdBy === account))) {
+					if (!event.target.result || (event.target.result.value.syncPoint && event.target.result.value.serverId && (jid || event.target.result.value.serverIdBy === account))) {
 						callback(event.target.result ? event.target.result.value.serverId : null);
 					} else {
 						event.target.result.continue();
@@ -133,8 +151,8 @@ exports.xmpp.persistence = {
 				const tx = db.transaction(["messages"], "readonly");
 				const store = tx.objectStore("messages");
 
-				const cursor = store.index("chats").openCursor(
-					IDBKeyRange.bound([account], [account, [], []]),
+				const cursor = store.index("accounts").openCursor(
+					IDBKeyRange.bound([account], [account, []]),
 					"prev"
 				);
 				const chats = {};
@@ -175,6 +193,7 @@ exports.xmpp.persistence = {
 				const store = tx.objectStore("messages");
 				if (!message.serverId && !message.localId) throw "Cannot store a message with no id";
 				if (!message.serverId && message.isIncoming()) throw "Cannot store an incoming message with no server id";
+				if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";
 				promisifyRequest(store.index("localId").get([account, message.chatId(), message.localId || []])).then((result) => {
 					if (result && !message.isIncoming() && result.direction === "MessageSent") return; // duplicate, we trust our own stanza ids
 
@@ -183,6 +202,7 @@ exports.xmpp.persistence = {
 						serverId: message.serverId || "",
 						serverIdBy: message.serverIdBy || "",
 						localId: message.localId || "",
+						syncPoint: !!message.syncPoint,
 						account: account,
 						chatId: message.chatId(),
 						to: message.to?.asString(),

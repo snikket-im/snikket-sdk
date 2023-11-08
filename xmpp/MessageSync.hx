@@ -84,6 +84,8 @@ class MessageSync {
 			if (msg == null) return EventHandled;
 
 			msg.serverId = result.attr.get("id");
+			msg.serverIdBy = serviceJID;
+			msg.syncPoint = true;
 			msg.timestamp = timestamp;
 
 			messages.push(msg);

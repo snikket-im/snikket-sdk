@@ -21,6 +21,7 @@ class ChatMessage {
 	public var localId (default, set) : Null<String> = null;
 	public var serverId (default, set) : Null<String> = null;
 	public var serverIdBy : Null<String> = null;
+	public var syncPoint : Bool = false;
 
 	public var timestamp (default, set) : Null<String> = null;
 
