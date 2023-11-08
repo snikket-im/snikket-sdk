@@ -290,6 +290,7 @@ class DirectChat extends Chat {
 		if (readUpTo() == message.localId || readUpTo() == message.serverId) return;
 		final upTo = message.localId ?? message.serverId;
 		_unreadCount = 0; // TODO
+		if (upTo == null) return; // Can't mark as read with no id
 		for (recipient in getParticipants()) {
 			// TODO: extended addressing when relevant
 			final stanza = new Stanza("message", { to: recipient, id: ID.long() })
@@ -487,7 +488,8 @@ class Channel extends Chat {
 	public function markReadUpTo(message: ChatMessage) {
 		if (readUpTo() == message.serverId) return;
 		final upTo = message.serverId;
-		_unreadCount = 0;
+		_unreadCount = 0; // TODO
+		if (upTo == null) return; // Can't mark as read with no id
 		final stanza = new Stanza("message", { to: chatId, id: ID.long() })
 			.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo }).up();
 		if (message.threadId != null) {
