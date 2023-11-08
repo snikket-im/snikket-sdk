@@ -50,54 +50,12 @@ class Client extends xmpp.EventEmitter {
 		this.persistence = persistence;
 		stream = new Stream();
 		stream.on("status/online", this.onConnected);
-	}
-
-	public function accountId() {
-		return JID.parse(jid).asBare().asString();
-	}
-
-	public function displayName() {
-		return JID.parse(jid).node;
-	}
-
-	public function start() {
-		persistence.getChats(jid, (protoChats) -> {
-			for (protoChat in protoChats) {
-				chats.push(protoChat.toChat(this, stream, persistence));
-			}
-			persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
-				for (detail in details) {
-					var chat = getChat(detail.chatId);
-					if (chat != null) {
-						chat.setLastMessage(detail.message);
-						chat.setUnreadCount(detail.unreadCount);
-					}
-				}
-				chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
-				this.trigger("chats/update", chats);
-
-				persistence.getLogin(jid, (login) -> {
-					if (login.token == null) {
-						stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { jid: this.jid }));
-					} else {
-						stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: login.token }));
-					}
-					stream.connect(login.clientId == null ? jid : jid + "/" + login.clientId);
-				});
-			});
+		stream.on("sm/update", (data) -> {
+			persistence.storeStreamManagement(accountId(), data.id, data.outbound, data.inbound);
+			return EventHandled;
 		});
-	}
 
-	public function addChatMessageListener(handler:ChatMessage->Void):Void {
-		chatMessageHandlers.push(handler);
-	}
-
-	private function onConnected(data) {
-		if (data != null && data.jid != null) {
-			final jidp = JID.parse(data.jid);
-			if (!jidp.isBare()) persistence.storeLogin(jidp.asBare().asString(), jidp.resource, null);
-		}
-		this.stream.on("message", function(event) {
+		stream.on("message", function(event) {
 			final stanza:Stanza = event.stanza;
 			final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
 
@@ -199,7 +157,7 @@ class Client extends xmpp.EventEmitter {
 			return EventUnhandled; // Allow others to get this event as well
 		});
 
-		this.stream.onIq(Set, "jingle", "urn:xmpp:jingle:1", (stanza) -> {
+		stream.onIq(Set, "jingle", "urn:xmpp:jingle:1", (stanza) -> {
 			final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
 			final jingle = stanza.getChild("jingle", "urn:xmpp:jingle:1");
 			final chat = getDirectChat(from.asBare().asString());
@@ -249,12 +207,11 @@ class Client extends xmpp.EventEmitter {
 			return IqResult;
 		});
 
-
-		this.stream.onIq(Get, "query", "http://jabber.org/protocol/disco#info", (stanza) -> {
+		stream.onIq(Get, "query", "http://jabber.org/protocol/disco#info", (stanza) -> {
 			return IqResultElement(caps.discoReply());
 		});
 
-		this.stream.onIq(Set, "query", "jabber:iq:roster", (stanza) -> {
+		stream.onIq(Set, "query", "jabber:iq:roster", (stanza) -> {
 			if (
 				stanza.attr.get("from") != null &&
 				stanza.attr.get("from") != JID.parse(jid).domain
@@ -278,7 +235,7 @@ class Client extends xmpp.EventEmitter {
 			return IqResult;
 		});
 
-		this.stream.on("presence", function(event) {
+		stream.on("presence", function(event) {
 			final stanza:Stanza = event.stanza;
 			final c = stanza.getChild("c", "http://jabber.org/protocol/caps");
 			if (stanza.attr.get("from") != null && stanza.attr.get("type") == null) {
@@ -326,6 +283,58 @@ class Client extends xmpp.EventEmitter {
 
 			return EventUnhandled;
 		});
+	}
+
+	public function accountId() {
+		return JID.parse(jid).asBare().asString();
+	}
+
+	public function displayName() {
+		return JID.parse(jid).node;
+	}
+
+	public function start() {
+		persistence.getChats(jid, (protoChats) -> {
+			for (protoChat in protoChats) {
+				chats.push(protoChat.toChat(this, stream, persistence));
+			}
+			persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
+				for (detail in details) {
+					var chat = getChat(detail.chatId);
+					if (chat != null) {
+						chat.setLastMessage(detail.message);
+						chat.setUnreadCount(detail.unreadCount);
+					}
+				}
+				chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
+				this.trigger("chats/update", chats);
+
+				persistence.getStreamManagement(accountId(), (smId, smOut, smIn) -> {
+					persistence.getLogin(jid, (login) -> {
+						if (login.clientId != null) jid = JID.parse(jid).asBare().asString() + "/" + login.clientId;
+						if (login.token == null) {
+							stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { jid: this.jid }));
+						} else {
+							stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: login.token }));
+						}
+						stream.connect(jid, smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn });
+					});
+				});
+			});
+		});
+	}
+
+	public function addChatMessageListener(handler:ChatMessage->Void):Void {
+		chatMessageHandlers.push(handler);
+	}
+
+	private function onConnected(data) { // Fired on connect or reconnect
+		if (data != null && data.jid != null) {
+			final jidp = JID.parse(data.jid);
+			if (!jidp.isBare()) persistence.storeLogin(jidp.asBare().asString(), jidp.resource, null);
+		}
+
+		if (data.resumed) return EventHandled;
 
 		// Enable carbons
 		sendStanza(

@@ -299,6 +299,26 @@ exports.xmpp.persistence = {
 				if (token != null) store.put(token, "login:token:" + login).onerror = console.error;
 			},
 
+			storeStreamManagement: function(account, id, outbound, inbound) {
+				const tx = db.transaction(["keyvaluepairs"], "readwrite");
+				const store = tx.objectStore("keyvaluepairs");
+				store.put({ id: id, outbound: outbound, inbound: inbound }, "sm:" + account).onerror = console.error;
+			},
+
+			getStreamManagement: function(account, callback) {
+				const tx = db.transaction(["keyvaluepairs"], "readonly");
+				const store = tx.objectStore("keyvaluepairs");
+				promisifyRequest(store.get("sm:" + account)).then(
+					(v) => {
+						callback(v?.id, v?.outbound, v?.inbound);
+					},
+					(e) => {
+						console.error(e);
+						callback(null, -1, -1);
+					}
+				);
+			},
+
 			getLogin: function(login, callback) {
 				const tx = db.transaction(["keyvaluepairs"], "readonly");
 				const store = tx.objectStore("keyvaluepairs");

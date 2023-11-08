@@ -224,7 +224,7 @@ abstract class Chat {
 			final from = JID.parse(stanza.attr.get("from"));
 			if (from.asBare() != JID.parse(this.chatId)) return EventUnhandled;
 
-			final chatMessage = ChatMessage.fromStanza(stanza, this.client.jid);
+			final chatMessage = ChatMessage.fromStanza(stanza, client.jid);
 			if (chatMessage != null) handler(chatMessage);
 
 			return EventUnhandled; // Allow others to get this event as well
@@ -253,7 +253,7 @@ class DirectChat extends Chat {
 				var sync = new MessageSync(this.client, this.stream, filter);
 				sync.onMessages((messages) -> {
 					for (message in messages.messages) {
-						persistence.storeMessage(client.jid, message);
+						persistence.storeMessage(client.accountId(), message);
 					}
 					handler(messages.messages.filter((m) -> m.chatId() == chatId));
 				});
@@ -493,7 +493,7 @@ class Channel extends Chat {
 				sync.onMessages((messages) -> {
 					for (message in messages.messages) {
 						message = prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() }));
-						persistence.storeMessage(client.jid, message);
+						persistence.storeMessage(client.accountId(), message);
 					}
 					handler(messages.messages.filter((m) -> m.chatId() == chatId));
 				});

@@ -14,10 +14,13 @@ extern class XmppJsClient {
 	function start():Promise<Dynamic>;
 	function on(eventName:String, callback:(Dynamic)->Void):Void;
 	function send(stanza:XmppJsXml):Void;
+	var jid:XmppJsJID;
+	var status: String;
 	var iqCallee:{
 		get: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 		set: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 	};
+	var streamManagement: { id:String, outbound: Int, inbound: Int, enabled: Bool, allowResume: Bool };
 }
 
 @:jsRequire("@xmpp/jid", "jid")
@@ -78,6 +81,9 @@ class XmppJsStream extends GenericStream {
 	private var debug = true;
 	private var state:FSM;
 	private var pending:Array<XmppJsXml> = [];
+	private var pendingOnIq:Array<{type:IqRequestType,tag:String,xmlns:String,handler:(Stanza)->IqResult}> = [];
+	private var initialSM: Null<{id:String,outbound:Int,inbound:Int}> = null;
+	private var resumed = false;
 
 	override public function new() {
 		super();
@@ -139,15 +145,20 @@ class XmppJsStream extends GenericStream {
 				new XmppJsDebug(xmpp, true);
 			}
 
+			if (initialSM != null) {
+				xmpp.streamManagement.id = initialSM.id;
+				xmpp.streamManagement.outbound = initialSM.outbound;
+				xmpp.streamManagement.inbound = initialSM.inbound;
+				initialSM = null;
+			}
+
 			this.client = xmpp;
+			processPendingOnIq();
 
 			xmpp.on("online", function (jid) {
+				resumed = false;
 				this.jid = jid;
 				this.state.event("connection-success");
-				var item;
-				while ((item = pending.shift()) != null) {
-					client.send(item);
-				}
 			});
 
 			xmpp.on("offline", function (data) {
@@ -155,9 +166,22 @@ class XmppJsStream extends GenericStream {
 			});
 
 			xmpp.on("stanza", function (stanza) {
+				if (xmpp.status == "online" && this.state.can("connection-success")) {
+					resumed = xmpp.streamManagement.enabled && xmpp.streamManagement.id != null && xmpp.streamManagement.id != "";
+					if (xmpp.jid == null) {
+						xmpp.jid = this.jid;
+					} else {
+						this.jid = xmpp.jid;
+					}
+					this.state.event("connection-success");
+				}
 				this.onStanza(convertToStanza(stanza));
+				if (xmpp.streamManagement.enabled && xmpp.streamManagement.allowResume) {
+					this.trigger("sm/update", xmpp.streamManagement);
+				}
 			});
 
+			resumed = false;
 			xmpp.start().catchError(function (err) {
 				trace(err);
 			});
@@ -166,9 +190,10 @@ class XmppJsStream extends GenericStream {
 		this.trigger("auth/password-needed", {});
 	}
 
-	public function connect(jid:String) {
+	public function connect(jid:String, sm:Null<{id:String,outbound:Int,inbound:Int}>) {
 		this.state.event("connect-requested");
 		this.jid = new XmppJsJID(jid);
+		this.initialSM = sm;
 
 		resolveConnectionURI(this.jid.domain, this.connectWithURI);
 	}
@@ -207,6 +232,9 @@ class XmppJsStream extends GenericStream {
 			pending.push(convertFromStanza(stanza));
 		} else {
 			client.send(convertFromStanza(stanza));
+			if (client.streamManagement.enabled && client.streamManagement.allowResume) {
+				this.trigger("sm/update", client.streamManagement);
+			}
 		}
 	}
 
@@ -223,18 +251,33 @@ class XmppJsStream extends GenericStream {
 	}
 
 	public function onIq(type:IqRequestType, tag:String, xmlns:String, handler:(Stanza)->IqResult) {
-		switch (type) {
-		case Get:
-			client.iqCallee.get(xmlns, tag, (el) -> fromIqResult(handler(convertToStanza(el.stanza))));
-		case Set:
-			client.iqCallee.set(xmlns, tag, (el) -> fromIqResult(handler(convertToStanza(el.stanza))));
+		if (client == null) {
+			pendingOnIq.push({ type: type, tag: tag, xmlns: xmlns, handler: handler });
+		} else {
+			switch (type) {
+			case Get:
+				client.iqCallee.get(xmlns, tag, (el) -> fromIqResult(handler(convertToStanza(el.stanza))));
+			case Set:
+				client.iqCallee.set(xmlns, tag, (el) -> fromIqResult(handler(convertToStanza(el.stanza))));
+			}
+		}
+	}
+
+	private function processPendingOnIq() {
+		var item;
+		while ((item = pendingOnIq.shift()) != null) {
+			onIq(item.type, item.tag, item.xmlns, item.handler);
 		}
 	}
 
 	/* State handlers */
 
 	private function onOnline(event) {
-		trigger("status/online", { jid: jid.toString() });
+		var item;
+		while ((item = pending.shift()) != null) {
+			client.send(item);
+		}
+		trigger("status/online", { jid: jid.toString(), resumed: resumed });
 	}
 
 	private function onOffline(event) {

@@ -34,7 +34,7 @@ class MessageSync {
 		this.client = client;
 		this.stream = stream;
 		this.filter = Reflect.copy(filter);
-		this.serviceJID = serviceJID != null ? serviceJID : client.jid;
+		this.serviceJID = serviceJID != null ? serviceJID : client.accountId();
 	}
 
 	public function fetchNext():Void {
@@ -61,7 +61,7 @@ class MessageSync {
 		var query = new MAMQuery(filter, serviceJID);
 		var resultHandler = stream.on("message", function (event) {
 			var message:Stanza = event.stanza;
-			var from = message.attr.exists("from") ? message.attr.get("from") : client.jid;
+			var from = message.attr.exists("from") ? message.attr.get("from") : client.accountId();
 			if (from != serviceJID) { // Only listen for results from the JID we queried
 				return EventUnhandled;
 			}
