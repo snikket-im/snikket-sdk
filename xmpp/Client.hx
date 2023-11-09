@@ -18,6 +18,7 @@ import xmpp.queries.JabberIqGatewayGet;
 import xmpp.queries.PubsubGet;
 import xmpp.queries.Push2Enable;
 import xmpp.queries.RosterGet;
+import xmpp.queries.VcardTempGet;
 using Lambda;
 
 @:expose
@@ -249,7 +250,8 @@ class Client extends xmpp.EventEmitter {
 			final stanza:Stanza = event.stanza;
 			final c = stanza.getChild("c", "http://jabber.org/protocol/caps");
 			if (stanza.attr.get("from") != null && stanza.attr.get("type") == null) {
-				final chat = getChat(JID.parse(stanza.attr.get("from")).asBare().asString());
+				final from = JID.parse(stanza.attr.get("from"));
+				final chat = getChat(from.asBare().asString());
 				if (chat == null) {
 					trace("Presence for unknown JID: " + stanza.attr.get("from"));
 					return EventUnhandled;
@@ -275,6 +277,29 @@ class Client extends xmpp.EventEmitter {
 							if (chat.livePresence()) this.trigger("chats/update", [chat]);
 						}
 					});
+				}
+				if (from.isBare()) {
+					final avatarSha1Hex = stanza.findText("{vcard-temp:x:update}x/photo#");
+					if (avatarSha1Hex != null) {
+						final avatarSha1 = Bytes.ofHex(avatarSha1Hex).getData();
+						chat.setAvatarSha1(avatarSha1);
+						persistence.storeChat(accountId(), chat);
+						persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
+							if (uri == null) {
+								final vcardGet = new VcardTempGet(from);
+								vcardGet.onFinished(() -> {
+									final vcard = vcardGet.getResult();
+									if (vcard.photo == null) return;
+									persistence.storeMedia(vcard.photo.mime, vcard.photo.data.getData(), () -> {
+										this.trigger("chats/update", [chat]);
+									});
+								});
+								sendQuery(vcardGet);
+							} else {
+								this.trigger("chats/update", [chat]);
+							}
+						});
+					}
 				}
 				return EventHandled;
 			}

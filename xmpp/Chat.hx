@@ -75,7 +75,17 @@ abstract class Chat {
 	}
 
 	public function getPhoto(callback:(String)->Void) {
-		callback(Color.defaultPhoto(chatId, getDisplayName().charAt(0)));
+		if (avatarSha1 != null) {
+			persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
+				if (uri != null) {
+					callback(uri);
+				} else {
+					callback(Color.defaultPhoto(chatId, getDisplayName().charAt(0)));
+				}
+			});
+		} else {
+			callback(Color.defaultPhoto(chatId, getDisplayName().charAt(0)));
+		}
 	}
 
 	public function readUpTo() {
@@ -332,20 +342,6 @@ class DirectChat extends Chat {
 		uiState = Closed;
 		persistence.storeChat(client.accountId(), this);
 		client.trigger("chats/update", [this]);
-	}
-
-	override public function getPhoto(callback:(String)->Void) {
-		if (avatarSha1 != null) {
-			persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
-				if (uri != null) {
-					callback(uri);
-				} else {
-					callback(Color.defaultPhoto(chatId, getDisplayName().charAt(0)));
-				}
-			});
-		} else {
-			super.getPhoto(callback);
-		}
 	}
 }
 
