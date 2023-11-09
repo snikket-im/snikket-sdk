@@ -29,7 +29,7 @@ class Notification {
 		var imageUri = null;
 		final attachment = m.attachments[0];
 		if (attachment != null) {
-			imageUri = attachment.url;
+			imageUri = attachment.uris[0];
 		}
 		return new Notification(
 			"New Message",

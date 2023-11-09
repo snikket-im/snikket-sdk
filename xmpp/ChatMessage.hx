@@ -11,8 +11,11 @@ enum MessageDirection {
 }
 
 class ChatAttachment {
-	public var url(default, null):String = null;
-	public var description(default, null):String = null;
+	public final uris: Array<String>;
+
+	public function new(uris: Array<String>) {
+		this.uris = uris;
+	}
 }
 
 @:expose
@@ -143,9 +146,26 @@ class ChatMessage {
 			return null;
 		}
 
-		if (msg.text == null) return null;
+		for (ref in stanza.allTags("reference", "urn:xmpp:reference:0")) {
+			if (ref.attr.get("begin") == null && ref.attr.get("end") == null) {
+				final sims = ref.getChild("media-sharing", "urn:xmpp:sims:1");
+				if (sims != null) msg.attachSims(sims);
+			}
+		}
+
+		for (sims in stanza.allTags("media-sharing", "urn:xmpp:sims:1")) {
+			msg.attachSims(sims);
+		}
+
+		if (msg.text == null && msg.attachments.length < 1) return null;
 
 		return msg;
+	}
+
+	public function attachSims(sims: Stanza) {
+		final sources = sims.getChild("sources");
+		final uris = (sources?.allTags("reference", "urn:xmpp:reference:0") ?? []).map((ref) -> ref.attr.get("uri") ?? "").filter((uri) -> uri != "");
+		if (uris.length > 0) attachments.push(new ChatAttachment(uris));
 	}
 
 	public function set_localId(localId:String):String {
