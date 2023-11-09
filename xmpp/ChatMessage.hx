@@ -90,6 +90,7 @@ class ChatMessage {
 			}
 		}
 		msg.direction = (msg.to == null || msg.to.asBare().equals(localJidBare)) ? MessageReceived : MessageSent;
+		if (msg.from != null && msg.from.asBare().equals(localJidBare)) msg.direction = MessageSent;
 
 		final recipients: Map<String, Bool> = [];
 		final replyTo: Map<String, Bool> = [];
