@@ -152,7 +152,6 @@ abstract class Chat {
 		return this.trusted;
 	}
 
-
 	public function livePresence() {
 		return false;
 	}
