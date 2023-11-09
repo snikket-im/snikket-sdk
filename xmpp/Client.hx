@@ -321,13 +321,14 @@ class Client extends xmpp.EventEmitter {
 
 				persistence.getStreamManagement(accountId(), (smId, smOut, smIn) -> {
 					persistence.getLogin(jid, (login) -> {
-						if (login.clientId != null) jid = JID.parse(jid).asBare().asString() + "/" + login.clientId;
+						var ajid = jid;
+						if (login.clientId != null) ajid = JID.parse(jid).asBare().asString() + "/" + login.clientId;
 						if (login.token == null) {
 							stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { jid: this.jid }));
 						} else {
 							stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: login.token }));
 						}
-						stream.connect(jid, smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn });
+						stream.connect(ajid, smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn });
 					});
 				});
 			});
@@ -642,7 +643,7 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	private function sync(?callback: ()->Void) {
-		persistence.lastId(jid, null, (lastId) -> doSync(callback, lastId));
+		persistence.lastId(accountId(), null, (lastId) -> doSync(callback, lastId));
 	}
 
 	private function onMAMJMI(sid: String, stanza: Stanza) {
