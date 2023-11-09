@@ -21,7 +21,7 @@ class Color {
 		return
 			'data:image/svg+xml,<svg%20xmlns="http://www.w3.org/2000/svg"%20version="1.1"%20width="15"%20height="15"%20viewBox="0%200%2015%2015">' +
 			'<rect%20style="fill:%23' + hex + ';"%20width="15"%20height="15"%20x="0"%20y="0"%20/>' +
-			'<text%20style="fill:%23ffffff;font-size:8px;font-family:sans-serif;"%20text-anchor="middle"%20dominant-baseline="central"%20x="50%25"%20y="50%25">' + letter + '</text>' +
+			'<text%20style="fill:%23ffffff;font-size:8px;font-family:sans-serif;"%20text-anchor="middle"%20dominant-baseline="central"%20x="50%25"%20y="50%25">' + StringTools.urlEncode(letter) + '</text>' +
 			'</svg>';
 	}
 }
