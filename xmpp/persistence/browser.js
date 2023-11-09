@@ -74,7 +74,28 @@ exports.xmpp.persistence = {
 			message.text = value.text;
 			message.lang = value.lang;
 			message.direction = value.direction == "MessageReceived" ? xmpp.MessageDirection.MessageReceived : xmpp.MessageDirection.MessageSent;
+			message.versions = (value.versions || []).map(hydrateMessage);
 			return message;
+		}
+
+		function serializeMessage(account, message) {
+			return {
+				...message,
+				serverId: message.serverId || "",
+				serverIdBy: message.serverIdBy || "",
+				localId: message.localId || "",
+				syncPoint: !!message.syncPoint,
+				account: account,
+				chatId: message.chatId(),
+				to: message.to?.asString(),
+				from: message.from?.asString(),
+				sender: message.sender?.asString(),
+				recipients: message.recipients.map((r) => r.asString()),
+				replyTo: message.replyTo.map((r) => r.asString()),
+				timestamp: new Date(message.timestamp),
+				direction: message.direction.toString(),
+				versions: message.versions.map((m) => serializeMessage(account, m)),
+			}
 		}
 
 		return {
@@ -197,23 +218,30 @@ exports.xmpp.persistence = {
 				promisifyRequest(store.index("localId").get([account, message.chatId(), message.localId || []])).then((result) => {
 					if (result && !message.isIncoming() && result.direction === "MessageSent") return; // duplicate, we trust our own stanza ids
 
-					store.put({
-						...message,
-						serverId: message.serverId || "",
-						serverIdBy: message.serverIdBy || "",
-						localId: message.localId || "",
-						syncPoint: !!message.syncPoint,
-						account: account,
-						chatId: message.chatId(),
-						to: message.to?.asString(),
-						from: message.from?.asString(),
-						sender: message.sender?.asString(),
-						recipients: message.recipients.map((r) => r.asString()),
-						replyTo: message.replyTo.map((r) => r.asString()),
-						timestamp: new Date(message.timestamp),
-						direction: message.direction.toString()
-					});
+					store.put(serializeMessage(account, message));
 				});
+			},
+
+			correctMessage: function(account, localId, message, callback) {
+				const tx = db.transaction(["messages"], "readwrite");
+				const store = tx.objectStore("messages");
+				const cursor = store.index("localId").openCursor(IDBKeyRange.only([account, message.chatId(), localId]));
+				cursor.onsuccess = (event) => {
+					if (event.target.result?.value && event.target.result.value.sender == message.senderId()) {
+						// Note, this strategy loses the ids of the replacement messages
+						const withAnnotation = serializeMessage(account, message);
+						withAnnotation.serverIdBy = event.target.result.value.serverIdBy;
+						withAnnotation.serverId = event.target.result.value.serverId;
+						withAnnotation.localId = event.target.result.value.localId;
+						withAnnotation.versions = [{ ...event.target.result.value, versions: [] }].concat(event.target.result.value.versions || [])
+						event.target.result.update(withAnnotation);
+						callback(hydrateMessage(withAnnotation));
+					} else {
+						this.storeMessage(account, message);
+						callback(message);
+					}
+				};
+				cursor.onerror = console.error;
 			},
 
 			getMessages: function(account, chatId, beforeId, beforeTime, callback) {

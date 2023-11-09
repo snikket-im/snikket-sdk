@@ -108,13 +108,23 @@ class Client extends xmpp.EventEmitter {
 				var chat = getChat(chatMessage.chatId());
 				if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
 				if (chat != null) {
+					final updateChat = (chatMessage) -> {
+						if (chatMessage.versions.length < 1 || chat.lastMessageId() == chatMessage.serverId || chat.lastMessageId() == chatMessage.localId) {
+							chat.setLastMessage(chatMessage);
+							if (chatMessage.versions.length < 1) chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
+							chatActivity(chat);
+						}
+						for (handler in chatMessageHandlers) {
+							handler(chatMessage);
+						}
+					};
 					chatMessage = chat.prepareIncomingMessage(chatMessage, stanza);
-					chat.setLastMessage(chatMessage);
-					chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
-					if (chatMessage.serverId != null) persistence.storeMessage(accountId(), chatMessage);
-					chatActivity(chat);
-					for (handler in chatMessageHandlers) {
-						handler(chatMessage);
+					final replace = stanza.getChild("replace", "urn:xmpp:message-correct:0");
+					if (replace == null || replace.attr.get("id") == null) {
+						if (chatMessage.serverId != null) persistence.storeMessage(accountId(), chatMessage);
+						updateChat(chatMessage);
+					} else {
+						persistence.correctMessage(accountId(), replace.attr.get("id"), chatMessage, updateChat);
 					}
 				}
 			}

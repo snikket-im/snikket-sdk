@@ -39,6 +39,7 @@ class ChatMessage {
 	public var lang (default, null): Null<String> = null;
 
 	public var direction: MessageDirection = MessageReceived;
+	public var versions: Array<ChatMessage> = [];
 
 	public function new() { }
 
