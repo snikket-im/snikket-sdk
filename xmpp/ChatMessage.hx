@@ -60,6 +60,7 @@ class ChatMessage {
 		var msg = new ChatMessage();
 		msg.status = MessageDeliveredToDevice; // Delivered to us, a device
 		msg.timestamp = stanza.findText("{urn:xmpp:delay}delay@stamp") ?? Date.format(std.Date.now());
+		msg.threadId = stanza.getChildText("thread");
 		msg.lang = stanza.attr.get("xml:lang");
 		msg.text = stanza.getChildText("body");
 		if (msg.text != null && (msg.lang == null || msg.lang == "")) {
@@ -221,6 +222,7 @@ class ChatMessage {
 		if (to != null) attrs.set("to", to.asString());
 		if (localId != null) attrs.set("id", localId);
 		var stanza = new Stanza("message", attrs);
+		if (threadId != null) stanza.textTag("thread", threadId);
 		if (recipients.length > 1) {
 			final addresses = stanza.tag("addresses", { xmlns: "http://jabber.org/protocol/address" });
 			for (recipient in recipients) {
