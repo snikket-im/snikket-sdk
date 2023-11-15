@@ -20,7 +20,7 @@ extern class XmppJsClient {
 		get: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 		set: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 	};
-	var streamManagement: { id:String, outbound: Int, inbound: Int, enabled: Bool, allowResume: Bool };
+	var streamManagement: { id:String, outbound: Int, inbound: Int, outbound_q: Array<XmppJsXml>, enabled: Bool, allowResume: Bool };
 }
 
 @:jsRequire("@xmpp/jid", "jid")
@@ -46,6 +46,7 @@ extern class XmppJsXml {
 	function new();
 	@:overload(function(textContent:String):Void { })
 	function append(el:XmppJsXml):Void;
+	function toString():String;
 
 	var name:String;
 	var attrs:Dynamic;
@@ -82,7 +83,7 @@ class XmppJsStream extends GenericStream {
 	private var state:FSM;
 	private var pending:Array<XmppJsXml> = [];
 	private var pendingOnIq:Array<{type:IqRequestType,tag:String,xmlns:String,handler:(Stanza)->IqResult}> = [];
-	private var initialSM: Null<{id:String,outbound:Int,inbound:Int}> = null;
+	private var initialSM: Null<{id:String,outbound:Int,inbound:Int,outbound_q:Array<String>}> = null;
 	private var resumed = false;
 
 	override public function new() {
@@ -149,6 +150,7 @@ class XmppJsStream extends GenericStream {
 				xmpp.streamManagement.id = initialSM.id;
 				xmpp.streamManagement.outbound = initialSM.outbound;
 				xmpp.streamManagement.inbound = initialSM.inbound;
+				xmpp.streamManagement.outbound_q = (initialSM.outbound_q ?? []).map(XmppJsLtx.parse);
 				initialSM = null;
 			}
 
@@ -198,7 +200,7 @@ class XmppJsStream extends GenericStream {
 		this.trigger("auth/password-needed", {});
 	}
 
-	public function connect(jid:String, sm:Null<{id:String,outbound:Int,inbound:Int}>) {
+	public function connect(jid:String, sm:Null<{id:String,outbound:Int,inbound:Int,outbound_q:Array<String>}>) {
 		this.state.event("connect-requested");
 		this.jid = new XmppJsJID(jid);
 		this.initialSM = sm;

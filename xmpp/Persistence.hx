@@ -19,6 +19,6 @@ abstract class Persistence {
 	abstract public function getCaps(ver:String, callback: (Caps)->Void):Void;
 	abstract public function storeLogin(login:String, clientId:String, token:Null<String>):Void;
 	abstract public function getLogin(login:String, callback:({ ?clientId: String, ?token: String })->Void):Void;
-	abstract public function storeStreamManagement(accountId:String, smId:String, outboundCount:Int, inboundCount:Int):Void;
-	abstract public function getStreamManagement(accountId:String, callback: (smId:String, outboundCount:Int, inboundCount:Int)->Void):Void;
+	abstract public function storeStreamManagement(accountId:String, smId:String, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>):Void;
+	abstract public function getStreamManagement(accountId:String, callback: (smId:String, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>)->Void):Void;
 }

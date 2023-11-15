@@ -367,10 +367,10 @@ exports.xmpp.persistence = {
 				if (token != null) store.put(token, "login:token:" + login).onerror = console.error;
 			},
 
-			storeStreamManagement: function(account, id, outbound, inbound) {
+			storeStreamManagement: function(account, id, outbound, inbound, outbound_q) {
 				const tx = db.transaction(["keyvaluepairs"], "readwrite");
 				const store = tx.objectStore("keyvaluepairs");
-				store.put({ id: id, outbound: outbound, inbound: inbound }, "sm:" + account).onerror = console.error;
+				store.put({ id: id, outbound: outbound, inbound: inbound, outbound_q }, "sm:" + account).onerror = console.error;
 			},
 
 			getStreamManagement: function(account, callback) {
@@ -378,7 +378,7 @@ exports.xmpp.persistence = {
 				const store = tx.objectStore("keyvaluepairs");
 				promisifyRequest(store.get("sm:" + account)).then(
 					(v) => {
-						callback(v?.id, v?.outbound, v?.inbound);
+						callback(v?.id, v?.outbound, v?.inbound, v?.outbound_q || []);
 					},
 					(e) => {
 						console.error(e);

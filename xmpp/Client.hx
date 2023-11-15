@@ -53,7 +53,7 @@ class Client extends xmpp.EventEmitter {
 		stream = new Stream();
 		stream.on("status/online", this.onConnected);
 		stream.on("sm/update", (data) -> {
-			persistence.storeStreamManagement(accountId(), data.id, data.outbound, data.inbound);
+			persistence.storeStreamManagement(accountId(), data.id, data.outbound, data.inbound, data.outbound_q);
 			return EventHandled;
 		});
 
@@ -373,7 +373,7 @@ class Client extends xmpp.EventEmitter {
 				chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
 				this.trigger("chats/update", chats);
 
-				persistence.getStreamManagement(accountId(), (smId, smOut, smIn) -> {
+				persistence.getStreamManagement(accountId(), (smId, smOut, smIn, smOutQ) -> {
 					persistence.getLogin(jid, (login) -> {
 						var ajid = jid;
 						if (login.clientId != null) ajid = JID.parse(jid).asBare().asString() + "/" + login.clientId;
@@ -382,7 +382,7 @@ class Client extends xmpp.EventEmitter {
 						} else {
 							stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: login.token }));
 						}
-						stream.connect(ajid, smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn });
+						stream.connect(ajid, smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn, outbound_q: smOutQ });
 					});
 				});
 			});
