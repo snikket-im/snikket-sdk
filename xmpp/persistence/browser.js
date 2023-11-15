@@ -250,7 +250,7 @@ exports.xmpp.persistence = {
 				const tx = db.transaction(["messages"], "readwrite");
 				const store = tx.objectStore("messages");
 				promisifyRequest(store.index("localId").openCursor(IDBKeyRange.bound([account, localId], [account, localId, []]))).then((result) => {
-					if (result?.value && result.value.direction == "MessageSent") {
+					if (result?.value && result.value.direction === "MessageSent" && result.value.status !== "MessageDeliveredToDevice") {
 						const newStatus = { ...result.value, status: status.toString() };
 						result.update(newStatus);
 						callback(hydrateMessage(newStatus));
