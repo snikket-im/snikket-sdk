@@ -4,6 +4,7 @@ import haxe.Exception;
 using Lambda;
 
 import xmpp.JID;
+import xmpp.Identicon;
 
 enum MessageDirection {
 	MessageReceived;
@@ -214,6 +215,10 @@ class ChatMessage {
 
 	public function isIncoming():Bool {
 		return direction == MessageReceived;
+	}
+
+	public function threadIcon() {
+		return threadId == null ? null : Identicon.svg(threadId);
 	}
 
 	public function asStanza(?type: String):Stanza {
