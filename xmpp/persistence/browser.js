@@ -125,12 +125,6 @@ exports.xmpp.persistence = {
 		}
 
 		return {
-			test: function() {
-				//messages = upgradeDb.createObjectStore("messages", { keyPath: ["account", "serverIdBy", "serverId", "localId"] });
-				const tx = db.transaction(["messages"], "readonly");
-				const store = tx.objectStore("messages");
-				return promisifyRequest(store.get(["singpolyma@singpolyma.net", "singpolyma@singpolyma.net", "5a6398a2-d560-43b1-988c-8852edc59521", ""]));
-			},
 			lastId: function(account, jid, callback) {
 				const tx = db.transaction(["messages"], "readonly");
 				const store = tx.objectStore("messages");
