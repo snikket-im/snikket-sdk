@@ -212,12 +212,16 @@ exports.xmpp.persistence = {
 			storeMessage: function(account, message) {
 				const tx = db.transaction(["messages"], "readwrite");
 				const store = tx.objectStore("messages");
+				if (!message.chatId()) throw "Cannot store a message with no chatId";
 				if (!message.serverId && !message.localId) throw "Cannot store a message with no id";
 				if (!message.serverId && message.isIncoming()) throw "Cannot store an incoming message with no server id";
 				if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";
-				promisifyRequest(store.index("localId").get([account, message.chatId(), message.localId || []])).then((result) => {
-					if (result && !message.isIncoming() && result.direction === "MessageSent") return; // duplicate, we trust our own stanza ids
-
+				promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, message.chatId(), message.localId || []]))).then((result) => {
+					if (result?.value && !message.isIncoming() && result?.value.direction === "MessageSent") {
+						// Duplicate, we trust our own sent ids
+						return promisifyRequest(result.delete());
+					}
+				}).then(() => {
 					store.put(serializeMessage(account, message));
 				});
 			},

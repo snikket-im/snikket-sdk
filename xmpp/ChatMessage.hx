@@ -56,14 +56,14 @@ class ChatMessage {
 		if (msg.text != null && (msg.lang == null || msg.lang == "")) {
 			msg.lang = stanza.getChild("body")?.attr.get("xml:lang");
 		}
-		final to = stanza.attr.get("to");
-		msg.to = to == null ? null : JID.parse(to);
 		final from = stanza.attr.get("from");
 		msg.from = from == null ? null : JID.parse(from);
 		msg.sender = stanza.attr.get("type") == "groupchat" ? msg.from : msg.from?.asBare();
 		final localJid = JID.parse(localJidStr);
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;
+		final to = stanza.attr.get("to");
+		msg.to = to == null ? localJid : JID.parse(to);
 
 		if (msg.from != null && msg.from.equals(localJidBare)) {
 			var carbon = stanza.getChild("received", "urn:xmpp:carbons:2");
