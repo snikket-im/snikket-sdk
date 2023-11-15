@@ -12,11 +12,15 @@ exports.xmpp.persistence = {
 				if (!db.objectStoreNames.contains("messages")) {
 					const messages = upgradeDb.createObjectStore("messages", { keyPath: ["account", "serverIdBy", "serverId", "localId"] });
 					messages.createIndex("chats", ["account", "chatId", "timestamp"]);
-					messages.createIndex("localId", ["account", "chatId", "localId"]);
+					messages.createIndex("localId", ["account", "localId", "chatId"]);
 				}
 				const messages = event.target.transaction.objectStore("messages");
 				if (!messages.indexNames.contains("accounts")) {
 					messages.createIndex("accounts", ["account", "timestamp"]);
+				}
+				if (messages.index("localId").keyPath.toString() !== "account,localId,chatId") {
+					messages.deleteIndex("localId");
+					messages.createIndex("localId", ["account", "localId", "chatId"]);
 				}
 				if (!db.objectStoreNames.contains("keyvaluepairs")) {
 					upgradeDb.createObjectStore("keyvaluepairs");
@@ -34,6 +38,11 @@ exports.xmpp.persistence = {
 				}
 				const tx = db.transaction(["messages"], "readonly");
 				if (!tx.objectStore("messages").indexNames.contains("accounts")) {
+					db.close();
+					openDb(db.version + 1);
+					return;
+				}
+				if (tx.objectStore("messages").index("localId").keyPath.toString() !== "account,localId,chatId") {
 					db.close();
 					openDb(db.version + 1);
 					return;
@@ -74,6 +83,22 @@ exports.xmpp.persistence = {
 			message.text = value.text;
 			message.lang = value.lang;
 			message.direction = value.direction == "MessageReceived" ? xmpp.MessageDirection.MessageReceived : xmpp.MessageDirection.MessageSent;
+			switch (value.status) {
+				case "MessagePending":
+					message.status = xmpp.MessageStatus.MessagePending;
+					break;
+				case "MessageDeliveredToServer":
+					message.status = xmpp.MessageStatus.MessageDeliveredToServer;
+					break;
+				case "MessageDeliveredToDevice":
+					message.status = xmpp.MessageStatus.MessageDeliveredToDevice;
+					break;
+				case "MessageFailedToSend":
+					message.status = xmpp.MessageStatus.MessageFailedToSend;
+					break;
+				default:
+					message.status = message.serverId ? xmpp.MessageStatus.MessageDeliveredToServer : xmpp.MessageStatus.MessagePending;
+			}
 			message.versions = (value.versions || []).map(hydrateMessage);
 			return message;
 		}
@@ -94,6 +119,7 @@ exports.xmpp.persistence = {
 				replyTo: message.replyTo.map((r) => r.asString()),
 				timestamp: new Date(message.timestamp),
 				direction: message.direction.toString(),
+				status: message.status.toString(),
 				versions: message.versions.map((m) => serializeMessage(account, m)),
 			}
 		}
@@ -216,7 +242,7 @@ exports.xmpp.persistence = {
 				if (!message.serverId && !message.localId) throw "Cannot store a message with no id";
 				if (!message.serverId && message.isIncoming()) throw "Cannot store an incoming message with no server id";
 				if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";
-				promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, message.chatId(), message.localId || []]))).then((result) => {
+				promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, message.localId || [], message.chatId()]))).then((result) => {
 					if (result?.value && !message.isIncoming() && result?.value.direction === "MessageSent") {
 						// Duplicate, we trust our own sent ids
 						return promisifyRequest(result.delete());
@@ -226,26 +252,36 @@ exports.xmpp.persistence = {
 				});
 			},
 
+			updateMessageStatus: function(account, localId, status, callback) {
+				const tx = db.transaction(["messages"], "readwrite");
+				const store = tx.objectStore("messages");
+				promisifyRequest(store.index("localId").openCursor(IDBKeyRange.bound([account, localId], [account, localId, []]))).then((result) => {
+					if (result?.value && result.value.direction == "MessageSent") {
+						const newStatus = { ...result.value, status: status.toString() };
+						result.update(newStatus);
+						callback(hydrateMessage(newStatus));
+					}
+				});
+			},
+
 			correctMessage: function(account, localId, message, callback) {
 				const tx = db.transaction(["messages"], "readwrite");
 				const store = tx.objectStore("messages");
-				const cursor = store.index("localId").openCursor(IDBKeyRange.only([account, message.chatId(), localId]));
-				cursor.onsuccess = (event) => {
-					if (event.target.result?.value && event.target.result.value.sender == message.senderId()) {
+				promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, localId, message.chatId()]))).then((result) => {
+					if (result?.value && result.value.sender == message.senderId()) {
 						// Note, this strategy loses the ids of the replacement messages
 						const withAnnotation = serializeMessage(account, message);
-						withAnnotation.serverIdBy = event.target.result.value.serverIdBy;
-						withAnnotation.serverId = event.target.result.value.serverId;
-						withAnnotation.localId = event.target.result.value.localId;
-						withAnnotation.versions = [{ ...event.target.result.value, versions: [] }].concat(event.target.result.value.versions || [])
-						event.target.result.update(withAnnotation);
+						withAnnotation.serverIdBy = result.value.serverIdBy;
+						withAnnotation.serverId = result.value.serverId;
+						withAnnotation.localId = result.value.localId;
+						withAnnotation.versions = [{ ...result.value, versions: [] }].concat(result.value.versions || [])
+						result.update(withAnnotation);
 						callback(hydrateMessage(withAnnotation));
 					} else {
 						this.storeMessage(account, message);
 						callback(message);
 					}
-				};
-				cursor.onerror = console.error;
+				});
 			},
 
 			getMessages: function(account, chatId, beforeId, beforeTime, callback) {

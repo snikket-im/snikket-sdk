@@ -176,9 +176,17 @@ class XmppJsStream extends GenericStream {
 					this.state.event("connection-success");
 				}
 				this.onStanza(convertToStanza(stanza));
-				if (xmpp.streamManagement.enabled && xmpp.streamManagement.allowResume) {
-					this.trigger("sm/update", xmpp.streamManagement);
-				}
+				triggerSMupdate();
+			});
+
+			xmpp.on("stream-management/ack", (stanza) -> {
+				if (stanza.name == "message") this.trigger("sm/ack", { id: stanza.attrs.id });
+				triggerSMupdate();
+			});
+
+			xmpp.on("stream-management/fail", (stanza) -> {
+				if (stanza.name == "message") this.trigger("sm/fail", { id: stanza.attrs.id });
+				triggerSMupdate();
 			});
 
 			resumed = false;
@@ -232,14 +240,25 @@ class XmppJsStream extends GenericStream {
 			pending.push(convertFromStanza(stanza));
 		} else {
 			client.send(convertFromStanza(stanza));
-			if (client.streamManagement.enabled && client.streamManagement.allowResume) {
-				this.trigger("sm/update", client.streamManagement);
-			}
+			triggerSMupdate();
 		}
 	}
 
 	public function newId():String {
 		return XmppJsId.id();
+	}
+
+	private function triggerSMupdate() {
+		if (!client.streamManagement.enabled || !client.streamManagement.allowResume) return;
+		this.trigger(
+			"sm/update",
+			{
+				id: client.streamManagement.id,
+				outbound: client.streamManagement.outbound,
+				inbound: client.streamManagement.inbound,
+				outbound_q: (client.streamManagement.outbound_q ?? []).map((stanza) -> stanza.toString()),
+			}
+		);
 	}
 
 	private function fromIqResult(result: IqResult): Any {

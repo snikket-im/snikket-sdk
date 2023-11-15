@@ -6,6 +6,7 @@ import haxe.io.BytesData;
 import js.html.rtc.IceServer; // only typedefs, should be portable
 import xmpp.Caps;
 import xmpp.Chat;
+import xmpp.ChatMessage;
 import xmpp.EventEmitter;
 import xmpp.EventHandler;
 import xmpp.PubsubEvent;
@@ -53,6 +54,34 @@ class Client extends xmpp.EventEmitter {
 		stream.on("status/online", this.onConnected);
 		stream.on("sm/update", (data) -> {
 			persistence.storeStreamManagement(accountId(), data.id, data.outbound, data.inbound);
+			return EventHandled;
+		});
+
+		stream.on("sm/ack", (data) -> {
+			persistence.updateMessageStatus(
+				accountId(),
+				data.id,
+				MessageDeliveredToServer,
+				(chatMessage) -> {
+					for (handler in chatMessageHandlers) {
+						handler(chatMessage);
+					}
+				}
+			);
+			return EventHandled;
+		});
+
+		stream.on("sm/fail", (data) -> {
+			persistence.updateMessageStatus(
+				accountId(),
+				data.id,
+				MessageFailedToSend,
+				(chatMessage) -> {
+					for (handler in chatMessageHandlers) {
+						handler(chatMessage);
+					}
+				}
+			);
 			return EventHandled;
 		});
 

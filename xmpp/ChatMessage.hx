@@ -10,6 +10,13 @@ enum MessageDirection {
 	MessageSent;
 }
 
+enum MessageStatus {
+	MessagePending; // Message is waiting in client for sending
+	MessageDeliveredToServer; // Server acknowledged receipt of the message
+	MessageDeliveredToDevice; //The message has been delivered to at least one client device
+	MessageFailedToSend; // There was an error sending this message
+}
+
 class ChatAttachment {
 	public final uris: Array<String>;
 
@@ -42,6 +49,7 @@ class ChatMessage {
 	public var lang (default, null): Null<String> = null;
 
 	public var direction: MessageDirection = MessageReceived;
+	public var status: MessageStatus = MessagePending;
 	public var versions: Array<ChatMessage> = [];
 
 	public function new() { }
@@ -50,6 +58,7 @@ class ChatMessage {
 		if (stanza.attr.get("type") == "error") return null;
 
 		var msg = new ChatMessage();
+		msg.status = MessageDeliveredToDevice; // Delivered to us, a device
 		msg.timestamp = stanza.findText("{urn:xmpp:delay}delay@stamp") ?? Date.format(std.Date.now());
 		msg.lang = stanza.attr.get("xml:lang");
 		msg.text = stanza.getChildText("body");
