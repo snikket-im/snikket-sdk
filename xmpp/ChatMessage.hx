@@ -21,9 +21,11 @@ enum MessageStatus {
 }
 
 class ChatAttachment {
+	public final mime: String;
 	public final uris: Array<String>;
 
-	public function new(uris: Array<String>) {
+	public function new(mime: String, uris: Array<String>) {
+		this.mime = mime;
 		this.uris = uris;
 	}
 }
@@ -186,9 +188,12 @@ class ChatMessage {
 	}
 
 	public function attachSims(sims: Stanza) {
+		var mime = sims.findText("{urn:xmpp:jingle:apps:file-transfer:5}/media-type#");
+		if (mime == null) sims.findText("{urn:xmpp:jingle:apps:file-transfer:3}/media-type#");
+		if (mime == null) mime = "application/octet-stream";
 		final sources = sims.getChild("sources");
 		final uris = (sources?.allTags("reference", "urn:xmpp:reference:0") ?? []).map((ref) -> ref.attr.get("uri") ?? "").filter((uri) -> uri != "");
-		if (uris.length > 0) attachments.push(new ChatAttachment(uris));
+		if (uris.length > 0) attachments.push(new ChatAttachment(mime, uris));
 	}
 
 	public function set_localId(localId:String):String {
