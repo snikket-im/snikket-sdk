@@ -376,7 +376,7 @@ class Channel extends Chat {
 					final err = response.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
 					if (err.name == "service-unavailable" || err.name == "feature-not-implemented") return; // Error, success!
 					if (err.name == "remote-server-not-found" || err.name == "remote-server-timeout") return; // Timeout, retry later
-					if (err.name == "item-not-found") return; // Nick was changed?
+					//if (err.name == "item-not-found") return; // Nick was changed so change it back!
 					(shouldRefreshDisco ? refreshDisco : (cb)->cb())(() -> {
 						presence = {}; // About to ask for a fresh set
 						inSync = false;
