@@ -182,12 +182,12 @@ class XmppJsStream extends GenericStream {
 			});
 
 			xmpp.on("stream-management/ack", (stanza) -> {
-				if (stanza.name == "message") this.trigger("sm/ack", { id: stanza.attrs.id });
+				if (stanza.name == "message" && stanza.attrs.id != null) this.trigger("sm/ack", { id: stanza.attrs.id });
 				triggerSMupdate();
 			});
 
 			xmpp.on("stream-management/fail", (stanza) -> {
-				if (stanza.name == "message") this.trigger("sm/fail", { id: stanza.attrs.id });
+				if (stanza.name == "message" && stanza.attrs.id != null) this.trigger("sm/fail", { id: stanza.attrs.id });
 				triggerSMupdate();
 			});
 
