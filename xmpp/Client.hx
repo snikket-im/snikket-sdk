@@ -365,9 +365,13 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function setDisplayName(fn: String) {
-		// TODO: persist
-		// TODO: do self ping on all channels to maybe change nick
+		if (fn == null || fn == "" || fn == displayName()) return;
 		_displayName = fn;
+		persistence.storeLogin(jid.asBare().asString(), jid.resource, fn, null);
+		for (chat in getChats()) {
+			if (Std.isOfType(chat, Channel)) Std.downcast(chat, Channel)?.selfPing(false);
+		}
+		// TODO: should this path publish to server too? But we use it for notifications from server right now...
 	}
 
 	public function start() {
@@ -387,12 +391,13 @@ class Client extends xmpp.EventEmitter {
 				this.trigger("chats/update", chats);
 
 				persistence.getStreamManagement(accountId(), (smId, smOut, smIn, smOutQ) -> {
-					persistence.getLogin(accountId(), (login) -> {
-						if (login.clientId != null) jid = jid.withResource(login.clientId);
-						if (login.token == null) {
+					persistence.getLogin(accountId(), (clientId, token, displayName) -> {
+						setDisplayName(displayName);
+						if (clientId != null) jid = jid.withResource(clientId);
+						if (token == null) {
 							stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { accountId: accountId() }));
 						} else {
-							stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: login.token }));
+							stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: token }));
 						}
 						stream.connect(jid.asString(), smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn, outbound_q: smOutQ });
 					});

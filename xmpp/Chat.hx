@@ -456,8 +456,7 @@ class Channel extends Chat {
 	}
 
 	private function getFullJid() {
-		final jid = JID.parse(chatId);
-		return new JID(jid.node, jid.domain, client.displayName());
+		return JID.parse(chatId).withResource(client.displayName());
 	}
 
 	public function getParticipants() {

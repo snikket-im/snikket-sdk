@@ -356,10 +356,11 @@ exports.xmpp.persistence = {
 				}
 			},
 
-			storeLogin: function(login, clientId, token) {
+			storeLogin: function(login, clientId, displayName, token) {
 				const tx = db.transaction(["keyvaluepairs"], "readwrite");
 				const store = tx.objectStore("keyvaluepairs");
 				store.put(clientId, "login:clientId:" + login).onerror = console.error;
+				store.put(displayName, "fn:" + login).onerror = console.error;
 				if (token != null) store.put(token, "login:token:" + login).onerror = console.error;
 			},
 
@@ -388,14 +389,12 @@ exports.xmpp.persistence = {
 				const store = tx.objectStore("keyvaluepairs");
 				Promise.all([
 					promisifyRequest(store.get("login:clientId:" + login)),
-					promisifyRequest(store.get("login:token:" + login))
+					promisifyRequest(store.get("login:token:" + login)),
+					promisifyRequest(store.get("fn:" + login)),
 				]).then((result) => {
-					callback({
-						clientId: result[0],
-						token: result[1]
-					});
+					callback(result[0], result[1], result[2]);
 				}).catch((e) => {
-					callback({});
+					callback(null, null, null);
 				});
 			}
 		}
