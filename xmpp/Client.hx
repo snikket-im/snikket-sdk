@@ -36,6 +36,7 @@ class Client extends xmpp.EventEmitter {
 			"http://jabber.org/protocol/disco#info",
 			"http://jabber.org/protocol/caps",
 			"urn:xmpp:avatar:metadata+notify",
+			"http://jabber.org/protocol/nick+notify",
 			"urn:xmpp:jingle-message:0",
 			"urn:xmpp:jingle:1",
 			"urn:xmpp:jingle:apps:dtls:0",
@@ -45,10 +46,12 @@ class Client extends xmpp.EventEmitter {
 			"urn:xmpp:jingle:transports:ice-udp:1"
 		]
 	);
+	private var _displayName: String;
 
 	public function new(jid: String, persistence: Persistence) {
 		super();
 		this.jid = jid;
+		this._displayName = JID.parse(jid).node;
 		this.persistence = persistence;
 		stream = new Stream();
 		stream.on("status/online", this.onConnected);
@@ -192,6 +195,10 @@ class Client extends xmpp.EventEmitter {
 						this.trigger("chats/update", [chat]);
 					}
 				});
+			}
+
+			if (pubsubEvent != null && pubsubEvent.getFrom() != null && JID.parse(pubsubEvent.getFrom()).asBare().asString() == accountId() && pubsubEvent.getNode() == "http://jabber.org/protocol/nick" && pubsubEvent.getItems().length > 0) {
+				setDisplayName(pubsubEvent.getItems()[0].getChildText("nick", "http://jabber.org/protocol/nick"));
 			}
 
 			return EventUnhandled; // Allow others to get this event as well
@@ -354,7 +361,13 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function displayName() {
-		return JID.parse(jid).node;
+		return _displayName;
+	}
+
+	public function setDisplayName(fn: String) {
+		// TODO: persist
+		// TODO: do self ping on all channels to maybe change nick
+		_displayName = fn;
 	}
 
 	public function start() {
