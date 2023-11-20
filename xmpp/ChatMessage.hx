@@ -59,7 +59,6 @@ class ChatMessage {
 		if (stanza.attr.get("type") == "error") return null;
 
 		var msg = new ChatMessage();
-		msg.status = MessageDeliveredToDevice; // Delivered to us, a device
 		msg.timestamp = stanza.findText("{urn:xmpp:delay}delay@stamp") ?? Date.format(std.Date.now());
 		msg.threadId = stanza.getChildText("thread");
 		msg.lang = stanza.attr.get("xml:lang");
@@ -106,6 +105,7 @@ class ChatMessage {
 		}
 		msg.direction = (msg.to == null || msg.to.asBare().equals(localJidBare)) ? MessageReceived : MessageSent;
 		if (msg.from != null && msg.from.asBare().equals(localJidBare)) msg.direction = MessageSent;
+		msg.status = msg.direction == MessageReceived ? MessageDeliveredToDevice : MessageDeliveredToServer; // Delivered to us, a device
 
 		final recipients: Map<String, Bool> = [];
 		final replyTo: Map<String, Bool> = [];
