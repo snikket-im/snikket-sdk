@@ -203,7 +203,7 @@ exports.xmpp.persistence = {
 				const result = {};
 				var rowCount = 0;
 				cursor.onsuccess = (event) => {
-					if (event.target.result && rowCount < 1000) {
+					if (event.target.result && rowCount < 40000) {
 						rowCount++;
 						const value = event.target.result.value;
 						if (result[value.chatId]) {
