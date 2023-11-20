@@ -214,7 +214,7 @@ class XmppJsStream extends GenericStream {
 			for(child in el.children) {
 				switch(child) {
 					case Element(stanza): xml.append(convertFromStanza(stanza));
-					case CData(text): xml.append(text.serialize());
+					case CData(text): xml.append(text.content);
 				};
 			}
 		}

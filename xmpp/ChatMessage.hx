@@ -5,6 +5,8 @@ using Lambda;
 
 import xmpp.JID;
 import xmpp.Identicon;
+import xmpp.StringUtil;
+import xmpp.XEP0393;
 
 enum MessageDirection {
 	MessageReceived;
@@ -52,6 +54,7 @@ class ChatMessage {
 	public var direction: MessageDirection = MessageReceived;
 	public var status: MessageStatus = MessagePending;
 	public var versions: Array<ChatMessage> = [];
+	public var payloads: Array<Stanza> = [];
 
 	public function new() { }
 
@@ -170,6 +173,15 @@ class ChatMessage {
 
 		if (msg.text == null && msg.attachments.length < 1) return null;
 
+		for (fallback in stanza.allTags("fallback", "urn:xmpp:fallback:0")) {
+			msg.payloads.push(fallback);
+		}
+
+		final unstyled = stanza.getChild("unstyled", "urn:xmpp:styling:0");
+		if (unstyled != null) {
+			msg.payloads.push(unstyled);
+		}
+
 		return msg;
 	}
 
@@ -195,6 +207,23 @@ class ChatMessage {
 
 	public function set_timestamp(timestamp:String):String {
 		return this.timestamp = timestamp;
+	}
+
+	public function html():String {
+		var body = text ?? "";
+		// TODO: not every app will implement every feature. How should the app tell us what fallbacks to handle?
+		final fallback = payloads.find((p) -> p.attr.get("xmlns") == "urn:xmpp:fallback:0" && (p.attr.get("for") == "jabber:x:oob" || p.attr.get("for") == "urn:xmpp:sims:1"));
+		if (fallback != null) {
+			final bodyFallback = fallback.getChild("body");
+			if (bodyFallback != null) {
+				final codepoints = StringUtil.codepointArray(body);
+				final start = Std.parseInt(bodyFallback.attr.get("start") ?? "0") ?? 0;
+				final end = Std.parseInt(bodyFallback.attr.get("end") ?? Std.string(codepoints.length)) ?? codepoints.length;
+				codepoints.splice(start, (end - start));
+				body = codepoints.join("");
+			}
+		}
+		return payloads.find((p) -> p.attr.get("xmlns") == "urn:xmpp:styling:0" && p.name == "unstyled") == null ? XEP0393.parse(body).map((s) -> s.toString()).join("") : StringTools.htmlEscape(body);
 	}
 
 	public function chatId():String {

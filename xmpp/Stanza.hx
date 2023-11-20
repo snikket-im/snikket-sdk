@@ -18,14 +18,15 @@ private interface NodeInterface {
 }
 
 class TextNode implements NodeInterface {
-	private var content(default, null):String = "";
+	public var content(default, null):String = "";
 
 	public function new (content:String) {
 		this.content = content;
 	}
 
 	public function serialize():String {
-		return content;
+		// NOTE: using STringTools.htmlEscape breaks things if this is one half of a surrogate pair in an adjacent cdata
+		return StringTools.replace(StringTools.replace(StringTools.replace(content, "&", "&amp;"), "<", "&lt;"), ">", "&gt;");
 	}
 
 	public function clone():TextNode {
@@ -33,6 +34,7 @@ class TextNode implements NodeInterface {
 	}
 }
 
+@:expose
 class Stanza implements NodeInterface {
 	public var name(default, null):String = null;
 	public var attr(default, null):DynamicAccess<String> = null;
@@ -71,6 +73,10 @@ class Stanza implements NodeInterface {
 
 	public function toString():String {
 		return this.serialize();
+	}
+
+	public static function parse(s:String):Stanza {
+		return fromXml(Xml.parse(s));
 	}
 
 	public static function fromXml(el:Xml):Stanza {
@@ -132,6 +138,13 @@ class Stanza implements NodeInterface {
 		return this;
 	}
 
+	public function addChildNodes(children:Iterable<Node>) {
+		for (child in children) {
+			addDirectChild(child);
+		}
+		return this;
+	}
+
 	public function addChild(stanza:Stanza) {
 		this.last_added.children.push(Element(stanza));
 		return this;
@@ -179,7 +192,7 @@ class Stanza implements NodeInterface {
 			.filter((child) -> child.match(CData(_)))
 			.map(function (child:Node) {
 				return switch(child) {
-					case CData(c): c.serialize();
+					case CData(c): c.content;
 					case _: null;
 				};
 			});
@@ -273,7 +286,7 @@ class Stanza implements NodeInterface {
 			return null;
 		}
 		return switch(result) {
-			case CData(textNode): textNode.serialize();
+			case CData(textNode): textNode.content;
 			case _: null;
 		};
 	}

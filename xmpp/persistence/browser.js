@@ -100,6 +100,7 @@ exports.xmpp.persistence = {
 					message.status = message.serverId ? xmpp.MessageStatus.MessageDeliveredToServer : xmpp.MessageStatus.MessagePending;
 			}
 			message.versions = (value.versions || []).map(hydrateMessage);
+			message.payloads = (value.payloads || []).map(xmpp.Stanza.parse);
 			return message;
 		}
 
@@ -121,6 +122,7 @@ exports.xmpp.persistence = {
 				direction: message.direction.toString(),
 				status: message.status.toString(),
 				versions: message.versions.map((m) => serializeMessage(account, m)),
+				payloads: message.payloads.map((p) => p.toString()),
 			}
 		}
 
