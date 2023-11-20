@@ -60,7 +60,7 @@ class ChatMessage {
 
 	public function new() { }
 
-	public static function fromStanza(stanza:Stanza, localJidStr:String):Null<ChatMessage> {
+	public static function fromStanza(stanza:Stanza, localJid:JID):Null<ChatMessage> {
 		if (stanza.attr.get("type") == "error") return null;
 
 		var msg = new ChatMessage();
@@ -74,7 +74,6 @@ class ChatMessage {
 		final from = stanza.attr.get("from");
 		msg.from = from == null ? null : JID.parse(from);
 		msg.sender = stanza.attr.get("type") == "groupchat" ? msg.from : msg.from?.asBare();
-		final localJid = JID.parse(localJidStr);
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;
 		final to = stanza.attr.get("to");
@@ -85,7 +84,7 @@ class ChatMessage {
 			if (carbon == null) carbon = stanza.getChild("sent", "urn:xmpp:carbons:2");
 			if (carbon != null) {
 				var fwd = carbon.getChild("forwarded", "urn:xmpp:forward:0");
-				if(fwd != null) return fromStanza(fwd.getFirstChild(), localJidStr);
+				if(fwd != null) return fromStanza(fwd.getFirstChild(), localJid);
 			}
 		}
 

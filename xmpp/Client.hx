@@ -26,7 +26,7 @@ using Lambda;
 class Client extends xmpp.EventEmitter {
 	private var stream:GenericStream;
 	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
-	public var jid(default,null):String;
+	public var jid(default,null):JID;
 	private var chats: Array<Chat> = [];
 	private var persistence: Persistence;
 	private final caps = new Caps(
@@ -50,8 +50,8 @@ class Client extends xmpp.EventEmitter {
 
 	public function new(jid: String, persistence: Persistence) {
 		super();
-		this.jid = jid;
-		this._displayName = JID.parse(jid).node;
+		this.jid = JID.parse(jid);
+		this._displayName = this.jid.node;
 		this.persistence = persistence;
 		stream = new Stream();
 		stream.on("status/online", this.onConnected);
@@ -136,7 +136,7 @@ class Client extends xmpp.EventEmitter {
 				}
 			}
 
-			var chatMessage = ChatMessage.fromStanza(stanza, jid);
+			var chatMessage = ChatMessage.fromStanza(stanza, this.jid);
 			if (chatMessage != null) {
 				var chat = getChat(chatMessage.chatId());
 				if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
@@ -357,7 +357,7 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function accountId() {
-		return JID.parse(jid).asBare().asString();
+		return jid.asBare().asString();
 	}
 
 	public function displayName() {
@@ -371,7 +371,7 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function start() {
-		persistence.getChats(jid, (protoChats) -> {
+		persistence.getChats(accountId(), (protoChats) -> {
 			for (protoChat in protoChats) {
 				chats.push(protoChat.toChat(this, stream, persistence));
 			}
@@ -387,15 +387,14 @@ class Client extends xmpp.EventEmitter {
 				this.trigger("chats/update", chats);
 
 				persistence.getStreamManagement(accountId(), (smId, smOut, smIn, smOutQ) -> {
-					persistence.getLogin(jid, (login) -> {
-						var ajid = jid;
-						if (login.clientId != null) ajid = JID.parse(jid).asBare().asString() + "/" + login.clientId;
+					persistence.getLogin(accountId(), (login) -> {
+						if (login.clientId != null) jid = jid.withResource(login.clientId);
 						if (login.token == null) {
-							stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { jid: this.jid }));
+							stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { accountId: accountId() }));
 						} else {
 							stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: login.token }));
 						}
-						stream.connect(ajid, smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn, outbound_q: smOutQ });
+						stream.connect(jid.asString(), smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn, outbound_q: smOutQ });
 					});
 				});
 			});
@@ -408,8 +407,8 @@ class Client extends xmpp.EventEmitter {
 
 	private function onConnected(data) { // Fired on connect or reconnect
 		if (data != null && data.jid != null) {
-			final jidp = JID.parse(data.jid);
-			if (!jidp.isBare()) persistence.storeLogin(jidp.asBare().asString(), jidp.resource, null);
+			jid = JID.parse(data.jid);
+			if (!jid.isBare()) persistence.storeLogin(jid.asBare().asString(), jid.resource, displayName(), null);
 		}
 
 		if (data.resumed) return EventHandled;
@@ -490,7 +489,7 @@ class Client extends xmpp.EventEmitter {
 			}
 		}
 		final chat = new DirectChat(this, this.stream, this.persistence, chatId);
-		persistence.storeChat(jid, chat);
+		persistence.storeChat(accountId(), chat);
 		chats.unshift(chat);
 		if (triggerIfNew) this.trigger("chats/update", [chat]);
 		return chat;
@@ -610,7 +609,7 @@ class Client extends xmpp.EventEmitter {
 	public function enablePush(push_service: String, vapid_private_key: js.html.CryptoKey, endpoint: String, p256dh: BytesData, auth: BytesData) {
 		js.Browser.window.crypto.subtle.exportKey("pkcs8", vapid_private_key).then((vapid_private_pkcs8) -> {
 			sendQuery(new Push2Enable(
-				jid,
+				jid.asBare().asString(),
 				push_service,
 				endpoint,
 				Bytes.ofData(p256dh),
@@ -624,7 +623,7 @@ class Client extends xmpp.EventEmitter {
 	#end
 
 	public function getIceServers(callback: (Array<IceServer>)->Void) {
-		final extDiscoGet = new ExtDiscoGet(JID.parse(this.jid).domain);
+		final extDiscoGet = new ExtDiscoGet(jid.domain);
 		extDiscoGet.onFinished(() -> {
 			final servers = [];
 			for (service in extDiscoGet.getResult()) {
@@ -652,7 +651,7 @@ class Client extends xmpp.EventEmitter {
 				var chat = getDirectChat(item.jid, false);
 				chat.setTrusted(item.subscription == "both" || item.subscription == "from");
 				if (item.fn != null && item.fn != "") chat.setDisplayName(item.fn);
-				persistence.storeChat(jid, chat);
+				persistence.storeChat(accountId(), chat);
 			}
 			this.trigger("chats/update", chats);
 		});
@@ -738,7 +737,7 @@ class Client extends xmpp.EventEmitter {
 		sync.setNewestPageFirst(false);
 		sync.onMessages((messageList) -> {
 			for (message in messageList.messages) {
-				persistence.storeMessage(jid, message);
+				persistence.storeMessage(accountId(), message);
 			}
 			if (sync.hasMore()) {
 				sync.fetchNext();

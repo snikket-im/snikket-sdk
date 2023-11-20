@@ -20,7 +20,7 @@ function receive(data: String, persistence: Persistence) {
 	}
 	if (stanza.attr.get("to") == null) return null;
 	// Assume incoming message
-	final message = ChatMessage.fromStanza(stanza, JID.parse(stanza.attr.get("to")).asBare().asString());
+	final message = ChatMessage.fromStanza(stanza, JID.parse(stanza.attr.get("to")).asBare());
 	if (message != null) {
 		return Notification.fromChatMessage(message);
 	} else {

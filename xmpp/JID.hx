@@ -55,6 +55,10 @@ class JID {
 		return new JID(this.node, this.domain);
 	}
 
+	public function withResource(resource: String): JID {
+		return new JID(this.node, this.domain, resource);
+	}
+
 	public function isValid():Bool {
 		return domain.indexOf(".") >= 0;
 	}

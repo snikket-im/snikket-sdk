@@ -280,7 +280,7 @@ class DirectChat extends Chat {
 		client.chatActivity(this);
 		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
 		message.direction = MessageSent;
-		message.from = JID.parse(client.jid);
+		message.from = client.jid;
 		message.sender = message.from.asBare();
 		message.replyTo = [message.sender];
 		message.recipients = getParticipants().map((p) -> JID.parse(p));
@@ -512,7 +512,7 @@ class Channel extends Chat {
 		client.chatActivity(this);
 		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
 		message.direction = MessageSent;
-		message.from = JID.parse(client.jid);
+		message.from = client.jid;
 		message.sender = getFullJid();
 		message.replyTo = [message.sender];
 		message.to = JID.parse(chatId);
