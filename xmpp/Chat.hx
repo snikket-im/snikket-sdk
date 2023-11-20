@@ -147,7 +147,7 @@ abstract class Chat {
 	}
 
 	public function getResourceCaps(resource:String):Caps {
-		return presence[resource].caps;
+		return presence[resource]?.caps ?? new Caps("", [], []);
 	}
 
 	public function setAvatarSha1(sha1: BytesData) {
