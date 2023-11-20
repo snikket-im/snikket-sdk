@@ -581,6 +581,7 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function sendStanza(stanza:Stanza) {
+		if (stanza.attr.get("id") == null) stanza.attr.set("id", ID.long());
 		stream.sendStanza(stanza);
 	}
 
