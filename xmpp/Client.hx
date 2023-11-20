@@ -215,6 +215,7 @@ class Client extends xmpp.EventEmitter {
 					try {
 						chat.jingleSessions.set(session.sid, session.initiate(stanza));
 					} catch (e) {
+						trace("Bad session-inititate", e);
 						chat.jingleSessions.remove(session.sid);
 					}
 				} else {
