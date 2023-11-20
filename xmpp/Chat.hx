@@ -557,6 +557,7 @@ class Channel extends Chat {
 				.tag("publish", { node: "urn:xmpp:bookmarks:1" })
 				.tag("item", { id: chatId })
 				.tag("conference", { xmlns: "urn:xmpp:bookmarks:1", name: getDisplayName(), autojoin: uiState == Closed ? "false" : "true" })
+				.textTag("nick", client.displayName()) // Redundant but some other clients want it
 				.addChild(extensions)
 				.up().up()
 				.tag("publish-options")
