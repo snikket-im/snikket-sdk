@@ -38,13 +38,10 @@ class XEP0393 {
 				spans.push(parsed.span);
 				start = parsed.end;
 			} else if (styled.charAt(start) == "`") {
-				var end = start + 1;
-				while (end < styled.length && styled.charAt(end) != "`") {
-					if (StringTools.isSpace(styled, end)) end++; // the closing styling directive MUST NOT be preceeded by a whitespace character
-					end++;
-				}
-				spans.push(Element(new Stanza("tt").text(styled.substr(start + 1, (end - start - 1)))));
-				start = end + 1;
+				// parseSpan has a spcial case for us to not parse sub-spans
+				final parsed = parseSpan("tt", "`", styled, start);
+				spans.push(parsed.span);
+				start = parsed.end;
 			} else {
 				spans.push(CData(new TextNode(styled.charAt(start))));
 				start++;
@@ -59,7 +56,17 @@ class XEP0393 {
 			if (StringTools.isSpace(styled, end)) end++; // the closing styling directive MUST NOT be preceeded by a whitespace character
 			end++;
 		}
-		return { span: Element(new Stanza(tagName).addChildNodes(parseSpans(styled.substr(start + 1, (end - start - 1))))), end: end + 1 };
+		if (end == start + 1) {
+			// Matches of spans between two styling directives MUST contain some text between the two directives, otherwise neither directive is valid
+			return { span: CData(new TextNode(styled.substr(start, 2))), end: end + 1 };
+		} else if (styled.charAt(end) != marker) {
+			// No end marker, so not a span
+			return { span: CData(new TextNode(styled.substr(start, end - start))), end: end };
+		} else if (marker == "`") {
+			return { span: Element(new Stanza(tagName).text(styled.substr(start + 1, (end - start - 1)))), end: end + 1 };
+		} else {
+			return { span: Element(new Stanza(tagName).addChildNodes(parseSpans(styled.substr(start + 1, (end - start - 1))))), end: end + 1 };
+		}
 	}
 
 	public static function parseBlock(styled: String) {
