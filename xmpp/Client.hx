@@ -479,10 +479,15 @@ class Client extends xmpp.EventEmitter {
 	public function startChat(chatId:String, fn:Null<String>, caps:Caps):Chat {
 		final existingChat = getChat(chatId);
 		if (existingChat != null) {
-			if (existingChat.uiState == Closed) existingChat.uiState = Open;
-			Std.downcast(existingChat, Channel)?.selfPing();
-			this.trigger("chats/update", [existingChat]);
-			return existingChat;
+			final channel = Std.downcast(existingChat, Channel);
+			if (channel == null && caps.isChannel(chatId)) {
+				chats = chats.filter((chat) -> chat.chatId == chatId);
+			} else {
+				if (existingChat.uiState == Closed) existingChat.uiState = Open;
+				channel?.selfPing();
+				this.trigger("chats/update", [existingChat]);
+				return existingChat;
+			}
 		}
 
 		final chat = if (caps.isChannel(chatId)) {
