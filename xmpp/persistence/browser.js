@@ -361,7 +361,10 @@ exports.xmpp.persistence = {
 				const store = tx.objectStore("keyvaluepairs");
 				store.put(clientId, "login:clientId:" + login).onerror = console.error;
 				store.put(displayName, "fn:" + login).onerror = console.error;
-				if (token != null) store.put(token, "login:token:" + login).onerror = console.error;
+				if (token != null) {
+					store.put(token, "login:token:" + login).onerror = console.error;
+					store.put(0, "login:fastCount:" + login).onerror = console.error;
+				}
 			},
 
 			storeStreamManagement: function(account, id, outbound, inbound, outbound_q) {
@@ -385,15 +388,20 @@ exports.xmpp.persistence = {
 			},
 
 			getLogin: function(login, callback) {
-				const tx = db.transaction(["keyvaluepairs"], "readonly");
+				const tx = db.transaction(["keyvaluepairs"], "readwrite");
 				const store = tx.objectStore("keyvaluepairs");
 				Promise.all([
 					promisifyRequest(store.get("login:clientId:" + login)),
 					promisifyRequest(store.get("login:token:" + login)),
+					promisifyRequest(store.get("login:fastCount:" + login)),
 					promisifyRequest(store.get("fn:" + login)),
 				]).then((result) => {
-					callback(result[0], result[1], result[2]);
+					if (result[1]) {
+						store.put((result[2] || 0) + 1, "login:fastCount:" + login).onerror = console.error;
+					}
+					callback(result[0], result[1], result[2] || 0, result[3]);
 				}).catch((e) => {
+					console.error(e);
 					callback(null, null, null);
 				});
 			}

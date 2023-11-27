@@ -3,10 +3,17 @@ package xmpp.streams;
 import js.lib.Promise;
 import haxe.Http;
 import haxe.Json;
+using Lambda;
 
 import xmpp.FSM;
 import xmpp.GenericStream;
 import xmpp.Stanza;
+
+@:jsRequire("@xmpp/sasl-scram-sha-1")
+extern class XmppJsScramSha1 {
+	@:selfCall
+	function new(sasl: Dynamic);
+}
 
 @:jsRequire("@xmpp/client", "client")
 extern class XmppJsClient {
@@ -15,12 +22,14 @@ extern class XmppJsClient {
 	function on(eventName:String, callback:(Dynamic)->Void):Void;
 	function send(stanza:XmppJsXml):Void;
 	var jid:XmppJsJID;
+	var streamFrom:Null<XmppJsJID>;
 	var status: String;
 	var iqCallee:{
 		get: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 		set: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 	};
 	var streamManagement: { id:String, outbound: Int, inbound: Int, outbound_q: Array<XmppJsXml>, enabled: Bool, allowResume: Bool };
+	var sasl2: Dynamic;
 }
 
 @:jsRequire("@xmpp/jid", "jid")
@@ -133,71 +142,90 @@ class XmppJsStream extends GenericStream {
 		}
 		connectionURI = uri;
 
-		this.on("auth/password", function (event) {
-			var xmpp = new XmppJsClient({
-				service: connectionURI,
-				domain: jid.domain,
-				username: jid.local,
-				resource: jid.resource,
-				password: event.password,
+		final waitForCreds = new js.lib.Promise((resolve, reject) -> {
+			this.on("auth/password", (event: Dynamic) -> {
+				if (event.username == null) event.username = jid.local;
+				resolve(event);
+				return EventHandled;
 			});
-
-			if(this.debug) {
-				new XmppJsDebug(xmpp, true);
-			}
-
-			if (initialSM != null) {
-				xmpp.streamManagement.id = initialSM.id;
-				xmpp.streamManagement.outbound = initialSM.outbound;
-				xmpp.streamManagement.inbound = initialSM.inbound;
-				xmpp.streamManagement.outbound_q = (initialSM.outbound_q ?? []).map(XmppJsLtx.parse);
-				initialSM = null;
-			}
-
-			this.client = xmpp;
-			processPendingOnIq();
-
-			xmpp.on("online", function (jid) {
-				resumed = false;
-				this.jid = jid;
-				this.state.event("connection-success");
-			});
-
-			xmpp.on("offline", function (data) {
-				this.state.event("connection-closed");
-			});
-
-			xmpp.on("stanza", function (stanza) {
-				if (xmpp.status == "online" && this.state.can("connection-success")) {
-					resumed = xmpp.streamManagement.enabled && xmpp.streamManagement.id != null && xmpp.streamManagement.id != "";
-					if (xmpp.jid == null) {
-						xmpp.jid = this.jid;
-					} else {
-						this.jid = xmpp.jid;
-					}
-					this.state.event("connection-success");
-				}
-				this.onStanza(convertToStanza(stanza));
-				triggerSMupdate();
-			});
-
-			xmpp.on("stream-management/ack", (stanza) -> {
-				if (stanza.name == "message" && stanza.attrs.id != null) this.trigger("sm/ack", { id: stanza.attrs.id });
-				triggerSMupdate();
-			});
-
-			xmpp.on("stream-management/fail", (stanza) -> {
-				if (stanza.name == "message" && stanza.attrs.id != null) this.trigger("sm/fail", { id: stanza.attrs.id });
-				triggerSMupdate();
-			});
-
-			resumed = false;
-			xmpp.start().catchError(function (err) {
-				trace(err);
-			});
-			return EventHandled;
 		});
-		this.trigger("auth/password-needed", {});
+
+		final clientId = jid.resource;
+		final xmpp = new XmppJsClient({
+			service: connectionURI,
+			domain: jid.domain,
+			resource: jid.resource,
+			clientId: clientId,
+			credentials: (callback, mechanisms: Dynamic) -> {
+				this.clientId = Std.is(mechanisms, Array) ? clientId : null;
+				final mechs: Array<{name: String, canFast: Bool, canOther: Bool}> = Std.is(mechanisms, Array) ? mechanisms : [{ name: mechanisms, canFast: false, canOther: true }];
+				final mech = mechs.find((m) -> m.canOther)?.name;
+				this.trigger("auth/password-needed", { mechanisms: mechs });
+				return waitForCreds.then((creds) -> {
+					return callback(creds, creds.mechanism ?? mech);
+				});
+			}
+		});
+		new XmppJsScramSha1(xmpp.sasl2);
+		xmpp.streamFrom = this.jid;
+
+		if(this.debug) {
+			new XmppJsDebug(xmpp, true);
+		}
+
+		if (initialSM != null) {
+			xmpp.streamManagement.id = initialSM.id;
+			xmpp.streamManagement.outbound = initialSM.outbound;
+			xmpp.streamManagement.inbound = initialSM.inbound;
+			xmpp.streamManagement.outbound_q = (initialSM.outbound_q ?? []).map(XmppJsLtx.parse);
+			initialSM = null;
+		}
+
+		this.client = xmpp;
+		processPendingOnIq();
+
+		xmpp.on("online", function (jid) {
+			resumed = false;
+			this.jid = jid;
+			this.state.event("connection-success");
+		});
+
+		xmpp.on("offline", function (data) {
+			this.state.event("connection-closed");
+		});
+
+		xmpp.on("stanza", function (stanza) {
+			if (xmpp.status == "online" && this.state.can("connection-success")) {
+				resumed = xmpp.streamManagement.enabled && xmpp.streamManagement.id != null && xmpp.streamManagement.id != "";
+				if (xmpp.jid == null) {
+					xmpp.jid = this.jid;
+				} else {
+					this.jid = xmpp.jid;
+				}
+				this.state.event("connection-success");
+			}
+			this.onStanza(convertToStanza(stanza));
+			triggerSMupdate();
+		});
+
+		xmpp.on("stream-management/ack", (stanza) -> {
+			if (stanza.name == "message" && stanza.attrs.id != null) this.trigger("sm/ack", { id: stanza.attrs.id });
+			triggerSMupdate();
+		});
+
+		xmpp.on("stream-management/fail", (stanza) -> {
+			if (stanza.name == "message" && stanza.attrs.id != null) this.trigger("sm/fail", { id: stanza.attrs.id });
+			triggerSMupdate();
+		});
+
+		xmpp.on("fast-token", (tokenEl) -> {
+			this.trigger("fast-token", tokenEl.attrs);
+		});
+
+		resumed = false;
+		xmpp.start().catchError(function (err) {
+			trace(err);
+		});
 	}
 
 	public function connect(jid:String, sm:Null<{id:String,outbound:Int,inbound:Int,outbound_q:Array<String>}>) {

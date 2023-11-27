@@ -10,6 +10,7 @@ enum IqResult {
 }
 
 abstract class GenericStream extends EventEmitter {
+	public var clientId: Null<String> = null;
 
 	public function new() {
 		super();

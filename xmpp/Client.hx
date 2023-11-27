@@ -47,6 +47,7 @@ class Client extends xmpp.EventEmitter {
 		]
 	);
 	private var _displayName: String;
+	private var fastMechanism: Null<String> = null;
 
 	public function new(jid: String, persistence: Persistence) {
 		super();
@@ -55,6 +56,12 @@ class Client extends xmpp.EventEmitter {
 		this.persistence = persistence;
 		stream = new Stream();
 		stream.on("status/online", this.onConnected);
+
+		stream.on("fast-token", (data) -> {
+			persistence.storeLogin(this.jid.asBare().asString(), stream.clientId ?? this.jid.resource, displayName(), data.token);
+			return EventHandled;
+		});
+
 		stream.on("sm/update", (data) -> {
 			persistence.storeStreamManagement(accountId(), data.id, data.outbound, data.inbound, data.outbound_q);
 			return EventHandled;
@@ -366,13 +373,14 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function setDisplayName(fn: String) {
-		if (fn == null || fn == "" || fn == displayName()) return;
+		if (fn == null || fn == "" || fn == displayName()) return false;
 		_displayName = fn;
-		persistence.storeLogin(jid.asBare().asString(), jid.resource, fn, null);
+		persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, fn, null);
 		for (chat in getChats()) {
 			if (Std.isOfType(chat, Channel)) Std.downcast(chat, Channel)?.selfPing(false);
 		}
 		// TODO: should this path publish to server too? But we use it for notifications from server right now...
+		return true;
 	}
 
 	public function start() {
@@ -392,14 +400,20 @@ class Client extends xmpp.EventEmitter {
 				this.trigger("chats/update", chats);
 
 				persistence.getStreamManagement(accountId(), (smId, smOut, smIn, smOutQ) -> {
-					persistence.getLogin(accountId(), (clientId, token, displayName) -> {
-						setDisplayName(displayName);
-						if (clientId != null) jid = jid.withResource(clientId);
-						if (token == null) {
-							stream.on("auth/password-needed", (data)->this.trigger("auth/password-needed", { accountId: accountId() }));
-						} else {
-							stream.on("auth/password-needed", (data)->this.stream.trigger("auth/password", { password: token }));
+					persistence.getLogin(accountId(), (clientId, token, fastCount, displayName) -> {
+						stream.clientId = clientId ?? ID.long();
+						jid = jid.withResource(stream.clientId);
+						if (!setDisplayName(displayName) && clientId == null) {
+							persistence.storeLogin(jid.asBare().asString(), stream.clientId, this.displayName(), null);
 						}
+						stream.on("auth/password-needed", (data) -> {
+							fastMechanism = data.mechanisms.find((mech) -> mech.canFast)?.name;
+							if (token == null || fastMechanism == null) {
+								this.trigger("auth/password-needed", { accountId: accountId() });
+							} else {
+								this.stream.trigger("auth/password", { password: token, mechanism: fastMechanism, fastCount: fastCount });
+							}
+						});
 						stream.connect(jid.asString(), smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn, outbound_q: smOutQ });
 					});
 				});
@@ -414,7 +428,7 @@ class Client extends xmpp.EventEmitter {
 	private function onConnected(data) { // Fired on connect or reconnect
 		if (data != null && data.jid != null) {
 			jid = JID.parse(data.jid);
-			if (!jid.isBare()) persistence.storeLogin(jid.asBare().asString(), jid.resource, displayName(), null);
+			if (stream.clientId == null && !jid.isBare()) persistence.storeLogin(jid.asBare().asString(), jid.resource, displayName(), null);
 		}
 
 		if (data.resumed) return EventHandled;
@@ -452,7 +466,7 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function usePassword(password: String):Void {
-		this.stream.trigger("auth/password", { password: password });
+		this.stream.trigger("auth/password", { password: password, requestToken: fastMechanism });
 	}
 
 	/* Return array of chats, sorted by last activity */
