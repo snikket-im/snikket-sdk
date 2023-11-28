@@ -22,4 +22,26 @@ class StringUtil {
 		}
 		return result;
 	}
+
+	@:access(StringTools)
+	public static function rawCodepointArray(s: String) {
+		final result = [];
+		var offset = 0;
+		while (offset < s.length) {
+		#if utf16
+			final c = StringTools.utf16CodePointAt(s, offset);
+			if (c >= StringTools.MIN_SURROGATE_CODE_POINT) {
+				result.push(c);
+				offset++;
+			} else {
+				result.push(c);
+			}
+			offset++;
+		#else
+			result.push(s.charCodeAt(offset));
+			offset++;
+		#end
+		}
+		return result;
+	}
 }

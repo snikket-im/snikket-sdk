@@ -1,5 +1,6 @@
 package xmpp;
 
+import xmpp.Autolink;
 import xmpp.Stanza;
 
 class XEP0393 {
@@ -16,6 +17,7 @@ class XEP0393 {
 	public static function parseSpans(styled: String) {
 		final spans = [];
 		var start = 0;
+		var nextLink = null;
 		while (start < styled.length) {
 			if (StringTools.isSpace(styled, start + 1)) {
 				// The opening styling directive MUST NOT be followed by a whitespace character
@@ -43,8 +45,16 @@ class XEP0393 {
 				spans.push(parsed.span);
 				start = parsed.end;
 			} else {
-				spans.push(CData(new TextNode(styled.charAt(start))));
-				start++;
+				if (nextLink == null || start > nextLink.start) {
+					nextLink = Autolink.one(styled, start);
+				}
+				if (nextLink != null && nextLink.start == start && nextLink.span != null) {
+					spans.push(nextLink.span);
+					start = nextLink.end;
+				} else {
+					spans.push(CData(new TextNode(styled.charAt(start))));
+					start++;
+				}
 			}
 		}
 		return spans;
