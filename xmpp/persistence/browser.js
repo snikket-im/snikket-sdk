@@ -313,25 +313,27 @@ exports.xmpp.persistence = {
 			},
 
 			getMediaUri: function(hashAlgorithm, hash, callback) {
-				var niUrl;
-				if (hashAlgorithm == "sha-256") {
-					niUrl = mkNiUrl(hashAlgorithm, hash);
-				} else {
-					niUrl = localStorage.getItem(mkNiUrl(hashAlgorithm, hash));
-					if (!niUrl) {
-						callback(null);
-						return;
-					}
-				}
-				cache.match(niUrl).then((response) => {
-					if (response) {
-						response.blob().then((blob) => {
-							callback(URL.createObjectURL(blob));
-						});
+				(async function() {
+					var niUrl;
+					if (hashAlgorithm == "sha-256") {
+						niUrl = mkNiUrl(hashAlgorithm, hash);
 					} else {
-						callback(null);
+						const tx = db.transaction(["keyvaluepairs"], "readonly");
+						const store = tx.objectStore("keyvaluepairs");
+						niUrl = await promisifyRequest(store.get(mkNiUrl(hashAlgorithm, hash)));
+						if (!niUrl) {
+							return null;
+						}
 					}
-				});
+
+					const response = await cache.match(niUrl);
+					if (response) {
+						// NOTE: the application needs to call URL.revokeObjectURL on this when done
+					  return URL.createObjectURL(await response.blob());
+					}
+
+					return null;
+				})().then(callback);
 			},
 
 			storeMedia: function(mime, buffer, callback) {
@@ -341,22 +343,31 @@ exports.xmpp.persistence = {
 					const sha1 = await crypto.subtle.digest("SHA-1", buffer);
 					const sha256NiUrl = mkNiUrl("sha-256", sha256);
 					await cache.put(sha256NiUrl, new Response(buffer, { headers: { "Content-Type": mime } }));
-					localStorage.setItem(mkNiUrl("sha-1", sha1), sha256NiUrl);
-					localStorage.setItem(mkNiUrl("sha-512", sha512), sha256NiUrl);
+
+					const tx = db.transaction(["keyvaluepairs"], "readwrite");
+					const store = tx.objectStore("keyvaluepairs");
+				   await promisifyRequest(store.put(sha256NiUrl, mkNiUrl("sha-1", sha1)));
+				   await promisifyRequest(store.put(sha256NiUrl, mkNiUrl("sha-512", sha512)));
 				})().then(callback);
 			},
 
 			storeCaps: function(caps) {
-				localStorage.setItem("caps:" + caps.ver(), JSON.stringify(caps));
+				const tx = db.transaction(["keyvaluepairs"], "readwrite");
+				const store = tx.objectStore("keyvaluepairs");
+				store.put(caps, "caps:" + caps.ver()).onerror = console.error;
 			},
 
 			getCaps: function(ver, callback) {
-				const raw = JSON.parse(localStorage.getItem("caps:" + ver));
-				if (raw) {
-					callback(new xmpp.Caps(raw.node, raw.identities.map((identity) => new xmpp.Identity(identity.category, identity.type, identity.name)), raw.features));
-				} else {
-					callback(null);
-				}
+				(async function() {
+					const tx = db.transaction(["keyvaluepairs"], "readonly");
+					const store = tx.objectStore("keyvaluepairs");
+					const raw = await promisifyRequest(store.get("caps:" + ver));
+				   if (raw) {
+						return (new xmpp.Caps(raw.node, raw.identities.map((identity) => new xmpp.Identity(identity.category, identity.type, identity.name)), raw.features));
+					}
+
+               return null;
+				})().then(callback);
 			},
 
 			storeLogin: function(login, clientId, displayName, token) {
