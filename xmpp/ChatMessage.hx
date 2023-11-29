@@ -270,6 +270,7 @@ class ChatMessage {
 	}
 
 	public function asStanza(?type: String):Stanza {
+		var body = text;
 		var attrs: haxe.DynamicAccess<String> = { type: type ?? "chat" };
 		if (from != null) attrs.set("from", from.asString());
 		if (to != null) attrs.set("to", to.asString());
@@ -283,7 +284,44 @@ class ChatMessage {
 			}
 			addresses.up();
 		}
-		if (text != null) stanza.textTag("body", text);
+		for (attachment in attachments) {
+			stanza
+				.tag("reference", { xmlns: "urn:xmpp:reference:0", type: "data" })
+				.tag("media-sharing", { xmlns: "urn:xmpp:sims:1" });
+
+			stanza.tag("file", { xmlns: "urn:xmpp:jingle:apps:file-transfer:5" });
+			if (attachment.name != null) stanza.textTag("name", attachment.name);
+			stanza.textTag("media-type", attachment.mime);
+			if (attachment.size != null) stanza.textTag("size", Std.string(attachment.size));
+			for (hash in attachment.hashes) {
+				stanza.textTag("hash", Base64.encode(Bytes.ofData(hash.hash)), { xmlns: "urn:xmpp:hashes:2", algo: hash.algo });
+			}
+			stanza.up();
+
+			stanza.tag("sources");
+			for (uri in attachment.uris) {
+				stanza.tag("reference", { xmlns: "urn:xmpp:reference:0", type: "data", uri: uri }).up();
+			}
+
+			stanza.up().up().up();
+
+			if (attachment.uris.length > 0) {
+				stanza.tag("x", { xmlns: "jabber:x:oob" }).textTag("url", attachment.uris[0]).up();
+				if (body == null) body = "";
+				final codepoints = StringUtil.codepointArray(body);
+				final start = codepoints.length;
+				var end = start + attachment.uris[0].length; // Raw length is safe because uri should be ascii
+				if (body != "") {
+					body += "\n";
+					end++;
+				}
+				body += attachment.uris[0];
+				stanza
+					.tag("fallback", { xmlns: "urn:xmpp:fallback:0", "for": "jabber:x:oob" })
+					.tag("body", { start: Std.string(start), end: Std.string(end) }).up().up();
+			}
+		}
+		if (body != null) stanza.textTag("body", body);
 		return stanza;
 	}
 }
