@@ -1,5 +1,7 @@
 package xmpp;
 
+import sha.SHA256;
+
 import haxe.crypto.Base64;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
@@ -16,6 +18,7 @@ import xmpp.queries.DiscoInfoGet;
 import xmpp.queries.DiscoItemsGet;
 import xmpp.queries.ExtDiscoGet;
 import xmpp.queries.GenericQuery;
+import xmpp.queries.HttpUploadSlot;
 import xmpp.queries.JabberIqGatewayGet;
 import xmpp.queries.PubsubGet;
 import xmpp.queries.Push2Enable;
@@ -471,6 +474,45 @@ class Client extends xmpp.EventEmitter {
 
 	public function usePassword(password: String):Void {
 		this.stream.trigger("auth/password", { password: password, requestToken: fastMechanism });
+	}
+
+	public function prepareAttachment(source: js.html.File, callback: (Null<ChatAttachment>)->Void) { // TODO: abstract with filename, mime, and ability to convert to tink.io.Source
+		persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0", (services) -> {
+			final sha256 = new sha.SHA256();
+			tink.io.Source.ofJsFile(source.name, source).chunked().forEach((chunk) -> {
+				sha256.update(chunk);
+				return tink.streams.Stream.Handled.Resume;
+			}).handle((o) -> switch o {
+				case Depleted:
+					prepareAttachmentFor(source, services, [{ algo: "sha-256", hash: sha256.digest().getData() }], callback);
+				default:
+					trace("Error computing attachment hash", o);
+					callback(null);
+			});
+		});
+	}
+
+	private function prepareAttachmentFor(source: js.html.File, services: Array<{ serviceId: String }>, hashes: Array<{algo: String, hash: BytesData}>, callback: (Null<ChatAttachment>)->Void) {
+		if (services.length < 1) {
+			callback(null);
+			return;
+		}
+		final httpUploadSlot = new HttpUploadSlot(services[0].serviceId, source.name, source.size, source.type, hashes);
+		httpUploadSlot.onFinished(() -> {
+			final slot = httpUploadSlot.getResult();
+			if (slot == null) {
+				prepareAttachmentFor(source, services.slice(1), hashes, callback);
+			} else {
+				tink.http.Client.fetch(slot.put, { method: PUT, headers: slot.putHeaders, body: tink.io.Source.RealSourceTools.idealize(tink.io.Source.ofJsFile(source.name, source), (e) -> throw e) }).all()
+					.handle((o) -> switch o {
+						case Success(res) if (res.header.statusCode == 201):
+							callback(new ChatAttachment(source.name, source.type, source.size, [slot.get], hashes));
+						default:
+							prepareAttachmentFor(source, services.slice(1), hashes, callback);
+					});
+			}
+		});
+		sendQuery(httpUploadSlot);
 	}
 
 	/* Return array of chats, sorted by last activity */
