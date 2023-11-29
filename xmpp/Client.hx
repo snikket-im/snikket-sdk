@@ -388,28 +388,29 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function start() {
-		persistence.getChats(accountId(), (protoChats) -> {
-			for (protoChat in protoChats) {
-				chats.push(protoChat.toChat(this, stream, persistence));
-			}
-			persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
-				for (detail in details) {
-					var chat = getChat(detail.chatId);
-					if (chat != null) {
-						chat.setLastMessage(detail.message);
-						chat.setUnreadCount(detail.unreadCount);
-					}
+		persistence.getLogin(accountId(), (clientId, token, fastCount, displayName) -> {
+			persistence.getStreamManagement(accountId(), (smId, smOut, smIn, smOutQ) -> {
+				stream.clientId = clientId ?? ID.long();
+				jid = jid.withResource(stream.clientId);
+				if (!setDisplayName(displayName) && clientId == null) {
+					persistence.storeLogin(jid.asBare().asString(), stream.clientId, this.displayName(), null);
 				}
-				chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
-				this.trigger("chats/update", chats);
 
-				persistence.getStreamManagement(accountId(), (smId, smOut, smIn, smOutQ) -> {
-					persistence.getLogin(accountId(), (clientId, token, fastCount, displayName) -> {
-						stream.clientId = clientId ?? ID.long();
-						jid = jid.withResource(stream.clientId);
-						if (!setDisplayName(displayName) && clientId == null) {
-							persistence.storeLogin(jid.asBare().asString(), stream.clientId, this.displayName(), null);
+				persistence.getChats(accountId(), (protoChats) -> {
+					for (protoChat in protoChats) {
+						chats.push(protoChat.toChat(this, stream, persistence));
+					}
+					persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
+						for (detail in details) {
+							var chat = getChat(detail.chatId);
+							if (chat != null) {
+								chat.setLastMessage(detail.message);
+								chat.setUnreadCount(detail.unreadCount);
+							}
 						}
+						chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
+						this.trigger("chats/update", chats);
+
 						stream.on("auth/password-needed", (data) -> {
 							fastMechanism = data.mechanisms.find((mech) -> mech.canFast)?.name;
 							if (token == null || fastMechanism == null) {
