@@ -13,6 +13,7 @@ import xmpp.PubsubEvent;
 import xmpp.Stream;
 import xmpp.jingle.Session;
 import xmpp.queries.DiscoInfoGet;
+import xmpp.queries.DiscoItemsGet;
 import xmpp.queries.ExtDiscoGet;
 import xmpp.queries.GenericQuery;
 import xmpp.queries.JabberIqGatewayGet;
@@ -440,6 +441,9 @@ class Client extends xmpp.EventEmitter {
 				.up()
 		);
 
+		discoverServices(new JID(null, jid.domain), (service, caps) -> {
+			persistence.storeService(accountId(), service.jid.asString(), service.name, service.node, caps);
+		});
 		rosterGet();
 		bookmarksGet(() -> {
 			sync(() -> {
@@ -668,6 +672,20 @@ class Client extends xmpp.EventEmitter {
 			callback(servers);
 		});
 		sendQuery(extDiscoGet);
+	}
+
+	public function discoverServices(target: JID, ?node: String, callback: ({ jid: JID, name: Null<String>, node: Null<String> }, Caps)->Void) {
+		final itemsGet = new DiscoItemsGet(target.asString(), node);
+		itemsGet.onFinished(()-> {
+			for (item in itemsGet.getResult() ?? []) {
+				final infoGet = new DiscoInfoGet(item.jid.asString(), item.node);
+				infoGet.onFinished(() -> {
+					callback(item, infoGet.getResult());
+				});
+				sendQuery(infoGet);
+			}
+		});
+		sendQuery(itemsGet);
 	}
 
 	private function rosterGet() {

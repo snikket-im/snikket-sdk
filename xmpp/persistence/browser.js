@@ -28,10 +28,13 @@ exports.xmpp.persistence = {
 				if (!db.objectStoreNames.contains("chats")) {
 					upgradeDb.createObjectStore("chats", { keyPath: ["account", "chatId"] });
 				}
+				if (!db.objectStoreNames.contains("services")) {
+					upgradeDb.createObjectStore("services", { keyPath: ["account", "serviceId"] });
+				}
 			};
 			dbOpenReq.onsuccess = (event) => {
 				db = event.target.result;
-				if (!db.objectStoreNames.contains("messages") || !db.objectStoreNames.contains("keyvaluepairs") || !db.objectStoreNames.contains("chats")) {
+				if (!db.objectStoreNames.contains("messages") || !db.objectStoreNames.contains("keyvaluepairs") || !db.objectStoreNames.contains("chats") || !db.objectStoreNames.contains("services")) {
 					db.close();
 					openDb(db.version + 1);
 					return;
@@ -404,6 +407,45 @@ exports.xmpp.persistence = {
 					console.error(e);
 					callback(null, null, null);
 				});
+			},
+
+			storeService(account, serviceId, name, node, caps) {
+				this.storeCaps(caps);
+
+				const tx = db.transaction(["services"], "readwrite");
+				const store = tx.objectStore("services");
+
+				store.put({
+					account: account,
+					serviceId: serviceId,
+					name: name,
+					node: node,
+					caps: caps.ver(),
+				});
+			},
+
+			findServicesWithFeature(account, feature, callback) {
+				const tx = db.transaction(["services"], "readonly");
+				const store = tx.objectStore("services");
+
+				// Almost full scan shouldn't be too expensive, how many services are we aware of?
+				const cursor = store.openCursor(IDBKeyRange.bound([account], [account, []]));
+				const result = [];
+				cursor.onsuccess = (event) => {
+					if (event.target.result) {
+						const value = event.target.result.value;
+						this.getCaps(value.caps, (caps) => {
+							if (caps && caps.features.includes(feature)) result.push({ ...value, caps: caps });
+							event.target.result.continue();
+						});
+					} else {
+						callback(result);
+					}
+				}
+				cursor.onerror = (event) => {
+					console.error(event);
+					callback([]);
+				}
 			}
 		}
 	}

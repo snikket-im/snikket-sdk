@@ -21,4 +21,6 @@ abstract class Persistence {
 	abstract public function getLogin(login:String, callback:(clientId:String, token:Null<String>, fastCount: Int, displayName:String)->Void):Void;
 	abstract public function storeStreamManagement(accountId:String, smId:String, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>):Void;
 	abstract public function getStreamManagement(accountId:String, callback: (smId:String, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>)->Void):Void;
+	abstract public function storeService(accountId:String, serviceId:String, name:Null<String>, node:Null<String>, caps:Caps):Void;
+	abstract public function findServicesWithFeature(accountId:String, feature:String, callback:(Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>)->Void):Void;
 }
