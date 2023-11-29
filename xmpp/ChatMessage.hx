@@ -1,5 +1,8 @@
 package xmpp;
 
+import haxe.crypto.Base64;
+import haxe.io.Bytes;
+import haxe.io.BytesData;
 import haxe.Exception;
 using Lambda;
 
@@ -21,12 +24,18 @@ enum MessageStatus {
 }
 
 class ChatAttachment {
+	public final name: Null<String>;
 	public final mime: String;
+	public final size: Null<Int>;
 	public final uris: Array<String>;
+	public final hashes: Array<{algo:String, hash:BytesData}>;
 
-	public function new(mime: String, uris: Array<String>) {
+	public function new(name: Null<String>, mime: String, size: Null<Int>, uris: Array<String>, hashes: Array<{algo:String, hash:BytesData}>) {
+		this.name = name;
 		this.mime = mime;
+		this.size = size;
 		this.uris = uris;
+		this.hashes = hashes;
 	}
 }
 
@@ -188,11 +197,17 @@ class ChatMessage {
 
 	public function attachSims(sims: Stanza) {
 		var mime = sims.findText("{urn:xmpp:jingle:apps:file-transfer:5}/media-type#");
-		if (mime == null) sims.findText("{urn:xmpp:jingle:apps:file-transfer:3}/media-type#");
+		if (mime == null) mime = sims.findText("{urn:xmpp:jingle:apps:file-transfer:3}/media-type#");
 		if (mime == null) mime = "application/octet-stream";
+		var name = sims.findText("{urn:xmpp:jingle:apps:file-transfer:5}/name#");
+		if (name == null) name = sims.findText("{urn:xmpp:jingle:apps:file-transfer:3}/name#");
+		var size = sims.findText("{urn:xmpp:jingle:apps:file-transfer:5}/size#");
+		if (size == null) size = sims.findText("{urn:xmpp:jingle:apps:file-transfer:3}/size#");
+		final hashes = ((sims.getChild("file", "urn:xmpp:jingle:apps:file-transfer:5") ?? sims.getChild("file", "urn:xmpp:jingle:apps:file-transfer:3"))
+			?.allTags("hash", "urn:xmpp:hashes:2") ?? []).map((hash) -> { algo: hash.attr.get("algo") ?? "", hash: Base64.decode(hash.getText()).getData() });
 		final sources = sims.getChild("sources");
 		final uris = (sources?.allTags("reference", "urn:xmpp:reference:0") ?? []).map((ref) -> ref.attr.get("uri") ?? "").filter((uri) -> uri != "");
-		if (uris.length > 0) attachments.push(new ChatAttachment(mime, uris));
+		if (uris.length > 0) attachments.push(new ChatAttachment(name, mime, size == null ? null : Std.parseInt(size), uris, hashes));
 	}
 
 	public function set_localId(localId:String):String {
