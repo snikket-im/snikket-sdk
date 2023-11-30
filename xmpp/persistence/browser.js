@@ -351,8 +351,8 @@ exports.xmpp.persistence = {
 
 					const tx = db.transaction(["keyvaluepairs"], "readwrite");
 					const store = tx.objectStore("keyvaluepairs");
-				   await promisifyRequest(store.put(sha256NiUrl, mkNiUrl("sha-1", sha1)));
-				   await promisifyRequest(store.put(sha256NiUrl, mkNiUrl("sha-512", sha512)));
+					await promisifyRequest(store.put(sha256NiUrl, mkNiUrl("sha-1", sha1)));
+					await promisifyRequest(store.put(sha256NiUrl, mkNiUrl("sha-512", sha512)));
 				})().then(callback);
 			},
 
@@ -367,11 +367,11 @@ exports.xmpp.persistence = {
 					const tx = db.transaction(["keyvaluepairs"], "readonly");
 					const store = tx.objectStore("keyvaluepairs");
 					const raw = await promisifyRequest(store.get("caps:" + ver));
-				   if (raw) {
+					if (raw) {
 						return (new xmpp.Caps(raw.node, raw.identities.map((identity) => new xmpp.Identity(identity.category, identity.type, identity.name)), raw.features));
 					}
 
-               return null;
+					return null;
 				})().then(callback);
 			},
 
