@@ -558,7 +558,7 @@ class Channel extends Chat {
 		final upTo = message.serverId;
 		_unreadCount = 0; // TODO
 		if (upTo == null) return; // Can't mark as read with no id
-		final stanza = new Stanza("message", { to: chatId, id: ID.long() })
+		final stanza = new Stanza("message", { to: chatId, id: ID.long(), type: "groupchat" })
 			.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo }).up();
 		if (message.threadId != null) {
 			stanza.textTag("thread", message.threadId);
