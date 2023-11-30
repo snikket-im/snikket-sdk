@@ -76,11 +76,7 @@ class Client extends xmpp.EventEmitter {
 				accountId(),
 				data.id,
 				MessageDeliveredToServer,
-				(chatMessage) -> {
-					for (handler in chatMessageHandlers) {
-						handler(chatMessage);
-					}
-				}
+				notifyMessageHandlers
 			);
 			return EventHandled;
 		});
@@ -90,11 +86,7 @@ class Client extends xmpp.EventEmitter {
 				accountId(),
 				data.id,
 				MessageFailedToSend,
-				(chatMessage) -> {
-					for (handler in chatMessageHandlers) {
-						handler(chatMessage);
-					}
-				}
+				notifyMessageHandlers
 			);
 			return EventHandled;
 		});
@@ -158,9 +150,7 @@ class Client extends xmpp.EventEmitter {
 							if (chatMessage.versions.length < 1) chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
 							chatActivity(chat);
 						}
-						for (handler in chatMessageHandlers) {
-							handler(chatMessage);
-						}
+						notifyMessageHandlers(chatMessage);
 					};
 					chatMessage = chat.prepareIncomingMessage(chatMessage, stanza);
 					final replace = stanza.getChild("replace", "urn:xmpp:message-correct:0");
@@ -730,6 +720,12 @@ class Client extends xmpp.EventEmitter {
 			}
 		});
 		sendQuery(itemsGet);
+	}
+
+	public function notifyMessageHandlers(message: ChatMessage) {
+		for (handler in chatMessageHandlers) {
+			handler(message);
+		}
 	}
 
 	private function rosterGet() {

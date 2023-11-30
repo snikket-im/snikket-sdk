@@ -276,6 +276,7 @@ class ChatMessage {
 		if (to != null) attrs.set("to", to.asString());
 		if (localId != null) attrs.set("id", localId);
 		var stanza = new Stanza("message", attrs);
+		if (versions.length > 0) stanza.tag("replace", { xmlns: "urn:xmpp:message-correct:0", id: versions[versions.length-1].localId }).up();
 		if (threadId != null) stanza.textTag("thread", threadId);
 		if (recipients.length > 1) {
 			final addresses = stanza.tag("addresses", { xmlns: "http://jabber.org/protocol/address" });

@@ -273,11 +273,12 @@ exports.xmpp.persistence = {
 				const store = tx.objectStore("messages");
 				promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, localId, message.chatId()]))).then((result) => {
 					if (result?.value && result.value.sender == message.senderId()) {
-						// Note, this strategy loses the ids of the replacement messages
+						// NOTE: this strategy loses the ids and timestamp of the replacement messages
 						const withAnnotation = serializeMessage(account, message);
 						withAnnotation.serverIdBy = result.value.serverIdBy;
 						withAnnotation.serverId = result.value.serverId;
 						withAnnotation.localId = result.value.localId;
+						withAnnotation.timestamp = result.value.timestamp; // Edited version is not newer
 						withAnnotation.versions = [{ ...result.value, versions: [] }].concat(result.value.versions || [])
 						result.update(withAnnotation);
 						callback(hydrateMessage(withAnnotation));

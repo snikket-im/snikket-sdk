@@ -46,6 +46,8 @@ abstract class Chat {
 
 	abstract public function prepareIncomingMessage(message:ChatMessage, stanza:Stanza):ChatMessage;
 
+	abstract public function correctMessage(localId:String, message:ChatMessage):Void;
+
 	abstract public function sendMessage(message:ChatMessage):Void;
 
 	abstract public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
@@ -276,14 +278,35 @@ class DirectChat extends Chat {
 		return message;
 	}
 
-	public function sendMessage(message:ChatMessage):Void {
-		client.chatActivity(this);
+	private function prepareOutgoingMessage(message:ChatMessage) {
 		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
 		message.direction = MessageSent;
 		message.from = client.jid;
 		message.sender = message.from.asBare();
 		message.replyTo = [message.sender];
 		message.recipients = getParticipants().map((p) -> JID.parse(p));
+		return message;
+	}
+
+	public function correctMessage(localId:String, message:ChatMessage) {
+		message = prepareOutgoingMessage(message);
+		persistence.correctMessage(client.accountId(), localId, message, (corrected) -> {
+			message.versions = corrected.versions;
+			for (recipient in message.recipients) {
+				message.to = recipient;
+				client.sendStanza(message.asStanza());
+			}
+			if (localId == lastMessage?.localId) {
+				setLastMessage(corrected);
+				client.trigger("chats/update", [this]);
+			}
+			client.notifyMessageHandlers(corrected);
+		});
+	}
+
+	public function sendMessage(message:ChatMessage):Void {
+		client.chatActivity(this);
+		message = prepareOutgoingMessage(message);
 		persistence.storeMessage(client.accountId(), message);
 		for (recipient in message.recipients) {
 			message.to = recipient;
@@ -534,8 +557,7 @@ class Channel extends Chat {
 		return message;
 	}
 
-	public function sendMessage(message:ChatMessage):Void {
-		client.chatActivity(this);
+	private function prepareOutgoingMessage(message:ChatMessage) {
 		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
 		message.direction = MessageSent;
 		message.from = client.jid;
@@ -543,6 +565,25 @@ class Channel extends Chat {
 		message.replyTo = [message.sender];
 		message.to = JID.parse(chatId);
 		message.recipients = [message.to];
+		return message;
+	}
+
+	public function correctMessage(localId:String, message:ChatMessage) {
+		message = prepareOutgoingMessage(message);
+		persistence.correctMessage(client.accountId(), localId, message, (corrected) -> {
+			message.versions = corrected.versions;
+			client.sendStanza(message.asStanza("groupchat"));
+			if (localId == lastMessage?.localId) {
+				setLastMessage(corrected);
+				client.trigger("chats/update", [this]);
+			}
+			client.notifyMessageHandlers(corrected);
+		});
+	}
+
+	public function sendMessage(message:ChatMessage):Void {
+		client.chatActivity(this);
+		message = prepareOutgoingMessage(message);
 		persistence.storeMessage(client.accountId(), message);
 		client.sendStanza(message.asStanza("groupchat"));
 		setLastMessage(message);
