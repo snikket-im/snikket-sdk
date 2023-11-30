@@ -353,7 +353,6 @@ class Channel extends Chat {
 	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions = null, ?disco: Caps) {
 		super(client, stream, persistence, chatId, uiState, extensions);
 		if (disco != null) this.disco = disco;
-		selfPing(disco == null);
 	}
 
 	public function selfPing(shouldRefreshDisco = true) {
@@ -380,8 +379,9 @@ class Channel extends Chat {
 					(shouldRefreshDisco ? refreshDisco : (cb)->cb())(() -> {
 						presence = {}; // About to ask for a fresh set
 						inSync = false;
+						final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
 						client.sendPresence(
-							getFullJid().asString(),
+							desiredFullJid.asString(),
 							(stanza) -> {
 								stanza.tag("x", { xmlns: "http://jabber.org/protocol/muc" });
 								if (disco.features.contains("urn:xmpp:mam:2")) stanza.tag("history", { maxchars: "0" }).up();

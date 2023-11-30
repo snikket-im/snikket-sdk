@@ -381,9 +381,7 @@ class Client extends xmpp.EventEmitter {
 		if (fn == null || fn == "" || fn == displayName()) return false;
 		_displayName = fn;
 		persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, fn, null);
-		for (chat in getChats()) {
-			if (Std.isOfType(chat, Channel)) Std.downcast(chat, Channel)?.selfPing(false);
-		}
+		pingAllChannels();
 		// TODO: should this path publish to server too? But we use it for notifications from server right now...
 		return true;
 	}
@@ -466,6 +464,7 @@ class Client extends xmpp.EventEmitter {
 					this.trigger("chats/update", chats);
 					// Set self to online
 					sendPresence();
+					pingAllChannels();
 					this.trigger("status/online", {});
 				});
 			});
@@ -541,6 +540,7 @@ class Client extends xmpp.EventEmitter {
 		final chat = if (caps.isChannel(chatId)) {
 			final channel = new Channel(this, this.stream, this.persistence, chatId, Open, null, caps);
 			chats.unshift(channel);
+			channel.selfPing(false);
 			channel;
 		} else {
 			getDirectChat(chatId, false);
@@ -845,5 +845,12 @@ class Client extends xmpp.EventEmitter {
 			}
 		});
 		sync.fetchNext();
+	}
+
+	private function pingAllChannels() {
+		for (chat in getChats()) {
+			final channel = Std.downcast(chat, Channel);
+			channel?.selfPing(channel?.disco == null);
+		}
 	}
 }
