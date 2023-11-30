@@ -297,6 +297,7 @@ class Client extends xmpp.EventEmitter {
 		stream.on("presence", function(event) {
 			final stanza:Stanza = event.stanza;
 			final c = stanza.getChild("c", "http://jabber.org/protocol/caps");
+			final mucUser = stanza.getChild("x", "http://jabber.org/protocol/muc#user");
 			if (stanza.attr.get("from") != null && stanza.attr.get("type") == null) {
 				final from = JID.parse(stanza.attr.get("from"));
 				final chat = getChat(from.asBare().asString());
@@ -305,7 +306,7 @@ class Client extends xmpp.EventEmitter {
 					return EventUnhandled;
 				}
 				if (c == null) {
-					chat.setCaps(JID.parse(stanza.attr.get("from")).resource, null);
+					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(null, mucUser));
 					persistence.storeChat(jid, chat);
 					if (chat.livePresence()) this.trigger("chats/update", [chat]);
 				} else {
@@ -313,14 +314,14 @@ class Client extends xmpp.EventEmitter {
 						if (caps == null) {
 							final discoGet = new DiscoInfoGet(stanza.attr.get("from"), c.attr.get("node") + "#" + c.attr.get("ver"));
 							discoGet.onFinished(() -> {
-								chat.setCaps(JID.parse(stanza.attr.get("from")).resource, discoGet.getResult());
+								chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(discoGet.getResult(), mucUser));
 								if (discoGet.getResult() != null) persistence.storeCaps(discoGet.getResult());
 								persistence.storeChat(jid, chat);
 								if (chat.livePresence()) this.trigger("chats/update", [chat]);
 							});
 							sendQuery(discoGet);
 						} else {
-							chat.setCaps(JID.parse(stanza.attr.get("from")).resource, caps);
+							chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(caps, mucUser));
 							persistence.storeChat(jid, chat);
 							if (chat.livePresence()) this.trigger("chats/update", [chat]);
 						}

@@ -167,7 +167,7 @@ exports.xmpp.persistence = {
 					chatId: chat.chatId,
 					trusted: chat.trusted,
 					avatarSha1: chat.avatarSha1,
-					presence: chat.presence,
+					presence: Object.fromEntries(Object.entries(chat.presence || {}).map(([k, p]) => [k, { caps: p.caps?.ver(), mucUser: p.mucUser?.toString() }])),
 					displayName: chat.displayName,
 					uiState: chat.uiState?.toString(),
 					extensions: chat.extensions?.toString(),
@@ -177,20 +177,25 @@ exports.xmpp.persistence = {
 			},
 
 			getChats: function(account, callback) {
-				const tx = db.transaction(["chats"], "readonly");
-				const store = tx.objectStore("chats");
-				const range = IDBKeyRange.bound([account], [account, []]);
-				promisifyRequest(store.getAll(range)).then((result) => callback(result.map((r) => new xmpp.SerializedChat(
-					r.chatId,
-					r.trusted,
-					r.avatarSha1,
-					r.presence,
-					r.displayName,
-					r.uiState,
-					r.extensions,
-					r.disco,
-					r.class
-				))));
+				(async () => {
+					const tx = db.transaction(["chats"], "readonly");
+					const store = tx.objectStore("chats");
+					const range = IDBKeyRange.bound([account], [account, []]);
+					const result = await promisifyRequest(store.getAll(range));
+					return await Promise.all(result.map(async (r) => new xmpp.SerializedChat(
+						r.chatId,
+						r.trusted,
+						r.avatarSha1,
+						Object.fromEntries(await Promise.all(Object.entries(r.presence).map(
+							async ([k, p]) => [k, new xmpp.Presence(p.caps && await new Promise((resolve) => this.getCaps(p.caps, resolve)), p.mucUser && xmpp.Stanza.parse(p.mucUser))]
+						))),
+						r.displayName,
+						r.uiState,
+						r.extensions,
+						r.disco,
+						r.class
+					)));
+				})().then(callback);
 			},
 
 			getChatsUnreadDetails: function(account, chatsArray, callback) {

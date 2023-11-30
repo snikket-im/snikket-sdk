@@ -127,7 +127,7 @@ abstract class Chat {
 			presence.caps = caps;
 			setPresence(resource, presence);
 		} else {
-			setPresence(resource, new Presence(caps));
+			setPresence(resource, new Presence(caps, null));
 		}
 	}
 
@@ -398,7 +398,7 @@ class Channel extends Chat {
 
 	override public function setPresence(resource:String, presence:Presence) {
 		super.setPresence(resource, presence);
-		if (!inSync && resource == client.displayName()) {
+		if (!inSync && presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "110") != null) {
 			persistence.lastId(client.accountId(), chatId, doSync);
 		}
 	}
@@ -452,11 +452,29 @@ class Channel extends Chat {
 	}
 
 	override public function livePresence() {
-		return presence.exists(client.displayName());
+		for (nick => p in presence) {
+			for (status in p?.mucUser?.allTags("status") ?? []) {
+				if (status.attr.get("code") == "110") {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private function nickInUse() {
+		for (nick => p in presence) {
+			for (status in p?.mucUser?.allTags("status") ?? []) {
+				if (status.attr.get("code") == "110") {
+					return nick;
+				}
+			}
+		}
+		return client.displayName();
 	}
 
 	private function getFullJid() {
-		return JID.parse(chatId).withResource(client.displayName());
+		return JID.parse(chatId).withResource(nickInUse());
 	}
 
 	public function getParticipants() {
