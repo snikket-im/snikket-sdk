@@ -450,12 +450,10 @@ exports.xmpp.persistence = {
 				cursor.onsuccess = (event) => {
 					if (event.target.result) {
 						const value = event.target.result.value;
-						this.getCaps(value.caps, (caps) => {
-							if (caps && caps.features.includes(feature)) result.push({ ...value, caps: caps });
-							event.target.result.continue();
-						});
+						result.push(new Promise((resolve) => this.getCaps(value.caps, (caps) => resolve({ ...value, caps: caps }))));
+						event.target.result.continue();
 					} else {
-						callback(result);
+						Promise.all(result).then((items) => items.filter((item) => item.caps && item.caps.features.includes(feature))).then(callback);
 					}
 				}
 				cursor.onerror = (event) => {
