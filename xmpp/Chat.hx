@@ -483,6 +483,12 @@ class Channel extends Chat {
 		client.sendQuery(discoGet);
 	}
 
+
+	override public function preview() {
+		if (lastMessage == null) return super.preview();
+		return lastMessage.sender.resource + ": " + super.preview();
+	}
+
 	override public function livePresence() {
 		for (nick => p in presence) {
 			for (status in p?.mucUser?.allTags("status") ?? []) {
