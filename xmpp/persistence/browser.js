@@ -167,7 +167,7 @@ exports.xmpp.persistence = {
 					chatId: chat.chatId,
 					trusted: chat.trusted,
 					avatarSha1: chat.avatarSha1,
-					presence: Object.fromEntries(Object.entries(chat.presence || {}).map(([k, p]) => [k, { caps: p.caps?.ver(), mucUser: p.mucUser?.toString() }])),
+					presence: new Map([...chat.presence.entries()].map(([k, p]) => [k, { caps: p.caps?.ver(), mucUser: p.mucUser?.toString() }])),
 					displayName: chat.displayName,
 					uiState: chat.uiState?.toString(),
 					extensions: chat.extensions?.toString(),
@@ -186,7 +186,7 @@ exports.xmpp.persistence = {
 						r.chatId,
 						r.trusted,
 						r.avatarSha1,
-						Object.fromEntries(await Promise.all(Object.entries(r.presence).map(
+						new Map(await Promise.all((r.presence instanceof Map ? [...r.presence.entries()] : Object.entries(r.presence)).map(
 							async ([k, p]) => [k, new xmpp.Presence(p.caps && await new Promise((resolve) => this.getCaps(p.caps, resolve)), p.mucUser && xmpp.Stanza.parse(p.mucUser))]
 						))),
 						r.displayName,

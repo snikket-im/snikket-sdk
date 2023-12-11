@@ -29,8 +29,8 @@ class Push2Enable extends GenericQuery {
 		if (jwt_alg != null) {
 			send.textTag("jwt-alg", jwt_alg);
 			send.textTag("jwt-key", Base64.encode(jwt_key));
-			for (claim in jwt_claims.keyValueIterator()) {
-				send.textTag("jwt-claim", claim.value, { name: claim.key });
+			for (key => value in jwt_claims) {
+				send.textTag("jwt-claim", value, { name: key });
 			}
 		}
 		enable.up().up().up();

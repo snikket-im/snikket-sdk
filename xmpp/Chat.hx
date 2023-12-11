@@ -24,7 +24,7 @@ abstract class Chat {
 	private var stream:GenericStream;
 	private var persistence:Persistence;
 	private var avatarSha1:Null<BytesData> = null;
-	private var presence:haxe.DynamicAccess<Presence> = {};
+	private var presence:Map<String, Presence> = [];
 	private var trusted:Bool = false;
 	public var chatId(default, null):String;
 	public var jingleSessions: Map<String, xmpp.jingle.Session> = [];
@@ -400,7 +400,7 @@ class Channel extends Chat {
 					if (err.name == "remote-server-not-found" || err.name == "remote-server-timeout") return checkRename(); // Timeout, retry later
 					if (err.name == "item-not-found") return checkRename(); // Nick was changed?
 					(shouldRefreshDisco ? refreshDisco : (cb)->cb())(() -> {
-						presence = {}; // About to ask for a fresh set
+						presence = []; // About to ask for a fresh set
 						inSync = false;
 						final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
 						client.sendPresence(
@@ -517,7 +517,7 @@ class Channel extends Chat {
 
 	public function getParticipants() {
 		final jid = JID.parse(chatId);
-		return presence.keys().map((resource) -> new JID(jid.node, jid.domain, resource).asString());
+		return { iterator: () -> presence.keys() }.map((resource) -> new JID(jid.node, jid.domain, resource).asString());
 	}
 
 	public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void) {
@@ -688,14 +688,14 @@ class SerializedChat {
 	public final chatId:String;
 	public final trusted:Bool;
 	public final avatarSha1:Null<BytesData>;
-	public final presence:haxe.DynamicAccess<Presence>;
+	public final presence:Map<String, Presence>;
 	public final displayName:Null<String>;
 	public final uiState:String;
 	public final extensions:String;
 	public final disco:Null<Caps>;
 	public final klass:String;
 
-	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: haxe.DynamicAccess<Presence>, displayName: Null<String>, uiState: Null<String>, extensions: Null<String>, disco: Null<Caps>, klass: String) {
+	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<String>, extensions: Null<String>, disco: Null<Caps>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.avatarSha1 = avatarSha1;
