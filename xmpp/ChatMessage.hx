@@ -325,4 +325,17 @@ class ChatMessage {
 		if (body != null) stanza.textTag("body", body);
 		return stanza;
 	}
+
+	public function clone() {
+		final cls:Class<ChatMessage> = untyped Type.getClass(this);
+		final inst = Type.createEmptyInstance(cls);
+		final fields = Type.getInstanceFields(cls);
+		for (field in fields) {
+			final val:Dynamic = Reflect.field(this, field);
+			if (!Reflect.isFunction(val)) {
+				Reflect.setField(inst,field,val);
+			}
+		}
+		return inst;
+	}
 }
