@@ -37,7 +37,7 @@ class TextNode implements NodeInterface {
 @:expose
 class Stanza implements NodeInterface {
 	public var name(default, null):String = null;
-	public var attr(default, null):DynamicAccess<String> = null;
+	public var attr(default, null):DynamicAccess<String> = {};
 	public var children(default, null):Array<Node> = [];
 	private var last_added(null, null):Stanza;
 	private var last_added_stack(null, null):Array<Stanza> = [];
@@ -115,7 +115,7 @@ class Stanza implements NodeInterface {
 	}
 
 	public function textTag(tagName:String, textContent:String, ?attr:DynamicAccess<String>) {
-		this.last_added.addDirectChild(Element(new Stanza(tagName, attr).text(textContent)));
+		this.last_added.addDirectChild(Element(new Stanza(tagName, attr ?? {}).text(textContent)));
 		return this;
 	}
 
