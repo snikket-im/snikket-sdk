@@ -201,7 +201,7 @@ class Client extends xmpp.EventEmitter {
 			}
 
 			if (pubsubEvent != null && pubsubEvent.getFrom() != null && JID.parse(pubsubEvent.getFrom()).asBare().asString() == accountId() && pubsubEvent.getNode() == "http://jabber.org/protocol/nick" && pubsubEvent.getItems().length > 0) {
-				setDisplayName(pubsubEvent.getItems()[0].getChildText("nick", "http://jabber.org/protocol/nick"));
+				updateDisplayName(pubsubEvent.getItems()[0].getChildText("nick", "http://jabber.org/protocol/nick"));
 			}
 
 			return EventUnhandled; // Allow others to get this event as well
@@ -370,11 +370,24 @@ class Client extends xmpp.EventEmitter {
 	}
 
 	public function setDisplayName(fn: String) {
+		if (fn == null || fn == "" || fn == displayName()) return;
+
+		stream.sendIq(
+			new Stanza("iq", { type: "set" })
+				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
+				.tag("publish", { node: "http://jabber.org/protocol/nick" })
+				.tag("item")
+				.textTag("nick", fn, { xmlns: "http://jabber.org/protocol/nick" })
+				.up().up().up(),
+			(response) -> { }
+		);
+	}
+
+	private function updateDisplayName(fn: String) {
 		if (fn == null || fn == "" || fn == displayName()) return false;
 		_displayName = fn;
 		persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, fn, null);
 		pingAllChannels();
-		// TODO: should this path publish to server too? But we use it for notifications from server right now...
 		return true;
 	}
 
@@ -383,7 +396,7 @@ class Client extends xmpp.EventEmitter {
 			persistence.getStreamManagement(accountId(), (smId, smOut, smIn, smOutQ) -> {
 				stream.clientId = clientId ?? ID.long();
 				jid = jid.withResource(stream.clientId);
-				if (!setDisplayName(displayName) && clientId == null) {
+				if (!updateDisplayName(displayName) && clientId == null) {
 					persistence.storeLogin(jid.asBare().asString(), stream.clientId, this.displayName(), null);
 				}
 
