@@ -241,6 +241,12 @@ abstract class Chat {
 			return EventUnhandled; // Allow others to get this event as well
 		});
 	}
+
+	public function addReaction(m:ChatMessage, reaction:String) {
+		final toSend = m.reply();
+		toSend.text = reaction;
+		sendMessage(toSend);
+	}
 }
 
 @:expose
@@ -262,11 +268,20 @@ class DirectChat extends Chat {
 				var filter:MAMQueryParams = { with: this.chatId };
 				if (beforeId != null) filter.page = { before: beforeId };
 				var sync = new MessageSync(this.client, this.stream, filter);
-				sync.onMessages((messages) -> {
-					for (message in messages.messages) {
-						persistence.storeMessage(client.accountId(), message);
+				sync.onMessages((messageList) -> {
+					final chatMessages = [];
+					for (m in messageList.messages) {
+						switch (m) {
+							case ChatMessageStanza(message):
+								persistence.storeMessage(client.accountId(), message, (m)->{});
+								if (message.chatId() == chatId) chatMessages.push(message);
+							case ReactionUpdateStanza(update):
+								persistence.storeReaction(client.accountId(), update, (m)->{});
+							default:
+								// ignore
+						}
 					}
-					handler(messages.messages.filter((m) -> m.chatId() == chatId));
+					handler(chatMessages);
 				});
 				sync.fetchNext();
 			}
@@ -289,12 +304,15 @@ class DirectChat extends Chat {
 	}
 
 	public function correctMessage(localId:String, message:ChatMessage) {
+		final toSend = message.clone();
 		message = prepareOutgoingMessage(message);
-		persistence.correctMessage(client.accountId(), localId, message, (corrected) -> {
-			message.versions = corrected.versions;
+		message.versions = [toSend]; // This is a correction
+		message.localId = localId;
+		persistence.storeMessage(client.accountId(), message, (corrected) -> {
+			toSend.versions = corrected.versions;
 			for (recipient in message.recipients) {
 				message.to = recipient;
-				client.sendStanza(message.asStanza());
+				client.sendStanza(toSend.asStanza());
 			}
 			if (localId == lastMessage?.localId) {
 				setLastMessage(corrected);
@@ -307,13 +325,47 @@ class DirectChat extends Chat {
 	public function sendMessage(message:ChatMessage):Void {
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);
-		persistence.storeMessage(client.accountId(), message);
-		for (recipient in message.recipients) {
-			message.to = recipient;
-			client.sendStanza(message.asStanza());
+		final fromStanza = Message.fromStanza(message.asStanza(), client.jid);
+		switch (fromStanza) {
+			case ChatMessageStanza(_):
+				persistence.storeMessage(client.accountId(), message, (stored) -> {
+					for (recipient in message.recipients) {
+						message.to = recipient;
+						client.sendStanza(message.asStanza());
+					}
+					setLastMessage(message);
+					client.trigger("chats/update", [this]);
+					client.notifyMessageHandlers(stored);
+				});
+			case ReactionUpdateStanza(update):
+				persistence.storeReaction(client.accountId(), update, (stored) -> {
+					for (recipient in message.recipients) {
+						message.to = recipient;
+						client.sendStanza(message.asStanza());
+					}
+					if (stored != null) client.notifyMessageHandlers(stored);
+				});
+			default:
+				trace("Invalid message", fromStanza);
+				throw "Trying to send invalid message.";
 		}
-		setLastMessage(message);
-		client.trigger("chats/update", [this]);
+	}
+
+	public function removeReaction(m:ChatMessage, reaction:String) {
+		// NOTE: doing it this way means no fallback behaviour
+		final reactions = [];
+		for (areaction => senders in m.reactions) {
+			if (areaction != reaction && senders.contains(client.accountId())) reactions.push(areaction);
+		}
+		final update = new ReactionUpdate(ID.long(), null, m.localId, m.chatId(), Date.format(std.Date.now()), client.accountId(), reactions);
+		persistence.storeReaction(client.accountId(), update, (stored) -> {
+			final stanza = update.asStanza();
+			for (recipient in getParticipants()) {
+				stanza.attr.set("to", recipient);
+				client.sendStanza(stanza);
+			}
+			if (stored != null) client.notifyMessageHandlers(stored);
+		});
 	}
 
 	public function lastMessageId() {
@@ -446,15 +498,24 @@ class Channel extends Chat {
 			chatId
 		);
 		sync.setNewestPageFirst(false);
+		final chatMessages = [];
 		sync.onMessages((messageList) -> {
-			for (message in messageList.messages) {
-				persistence.storeMessage(client.accountId(), message);
+			for (m in messageList.messages) {
+				switch (m) {
+					case ChatMessageStanza(message):
+						persistence.storeMessage(client.accountId(), message, (m)->{});
+						if (message.chatId() == chatId) chatMessages.push(message);
+					case ReactionUpdateStanza(update):
+						persistence.storeReaction(client.accountId(), update, (m)->{});
+					default:
+						// ignore
+				}
 			}
 			if (sync.hasMore()) {
 				sync.fetchNext();
 			} else {
 				inSync = true;
-				final lastFromSync = messageList.messages[messageList.messages.length - 1];
+				final lastFromSync = chatMessages[chatMessages.length - 1];
 				if (lastFromSync != null && Reflect.compare(lastFromSync.timestamp, lastMessageTimestamp()) > 0) {
 					setLastMessage(lastFromSync);
 					client.trigger("chats/update", [this]);
@@ -540,12 +601,21 @@ class Channel extends Chat {
 				var filter:MAMQueryParams = {};
 				if (beforeId != null) filter.page = { before: beforeId };
 				var sync = new MessageSync(this.client, this.stream, filter, chatId);
-				sync.onMessages((messages) -> {
-					for (message in messages.messages) {
-						message = prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() }));
-						persistence.storeMessage(client.accountId(), message);
+				sync.onMessages((messageList) -> {
+					final chatMessages = [];
+					for (m in messageList.messages) {
+						switch (m) {
+							case ChatMessageStanza(message):
+								final chatMessage = prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() }));
+								persistence.storeMessage(client.accountId(), chatMessage, (m)->{});
+								if (message.chatId() == chatId) chatMessages.push(message);
+							case ReactionUpdateStanza(update):
+								persistence.storeReaction(client.accountId(), update, (m)->{});
+							default:
+								// ignore
+						}
 					}
-					handler(messages.messages.filter((m) -> m.chatId() == chatId));
+					handler(chatMessages);
 				});
 				sync.fetchNext();
 			}
@@ -553,7 +623,6 @@ class Channel extends Chat {
 	}
 
 	public function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
-		// TODO: mark type!=groupchat as whisper somehow
 		message.syncPoint = inSync;
 		message.sender = JID.parse(stanza.attr.get("from")); // MUC always needs full JIDs
 		if (message.senderId() == getFullJid().asString()) {
@@ -564,6 +633,7 @@ class Channel extends Chat {
 	}
 
 	private function prepareOutgoingMessage(message:ChatMessage) {
+		message.groupchat = true;
 		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
 		message.direction = MessageSent;
 		message.from = client.jid;
@@ -575,10 +645,13 @@ class Channel extends Chat {
 	}
 
 	public function correctMessage(localId:String, message:ChatMessage) {
+		final toSend = message.clone();
 		message = prepareOutgoingMessage(message);
-		persistence.correctMessage(client.accountId(), localId, message, (corrected) -> {
-			message.versions = corrected.versions;
-			client.sendStanza(message.asStanza("groupchat"));
+		message.versions = [toSend]; // This is a correction
+		message.localId = localId;
+		persistence.storeMessage(client.accountId(), message, (corrected) -> {
+			toSend.versions = corrected.versions;
+			client.sendStanza(toSend.asStanza());
 			if (localId == lastMessage?.localId) {
 				setLastMessage(corrected);
 				client.trigger("chats/update", [this]);
@@ -590,10 +663,43 @@ class Channel extends Chat {
 	public function sendMessage(message:ChatMessage):Void {
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);
-		persistence.storeMessage(client.accountId(), message);
-		client.sendStanza(message.asStanza("groupchat"));
-		setLastMessage(message);
-		client.trigger("chats/update", [this]);
+		final stanza = message.asStanza();
+		// Fake from as it will look on reflection for storage purposes
+		stanza.attr.set("from", getFullJid().asString());
+		final fromStanza = Message.fromStanza(stanza, client.jid);
+		stanza.attr.set("from", client.jid.asString());
+		switch (fromStanza) {
+			case ChatMessageStanza(_):
+				persistence.storeMessage(client.accountId(), message, (stored) -> {
+					client.sendStanza(stanza);
+					setLastMessage(stored);
+					client.trigger("chats/update", [this]);
+					client.notifyMessageHandlers(stored);
+				});
+			case ReactionUpdateStanza(update):
+				persistence.storeReaction(client.accountId(), update, (stored) -> {
+					client.sendStanza(stanza);
+					if (stored != null) client.notifyMessageHandlers(stored);
+				});
+			default:
+				trace("Invalid message", fromStanza);
+				throw "Trying to send invalid message.";
+		}
+	}
+
+	public function removeReaction(m:ChatMessage, reaction:String) {
+		// NOTE: doing it this way means no fallback behaviour
+		final reactions = [];
+		for (areaction => senders in m.reactions) {
+			if (areaction != reaction && senders.contains(getFullJid().asString())) reactions.push(areaction);
+		}
+		final update = new ReactionUpdate(ID.long(), m.serverId, null, m.chatId(), Date.format(std.Date.now()), client.accountId(), reactions);
+		persistence.storeReaction(client.accountId(), update, (stored) -> {
+			final stanza = update.asStanza();
+			stanza.attr.set("to", chatId);
+			client.sendStanza(stanza);
+			if (stored != null) client.notifyMessageHandlers(stored);
+		});
 	}
 
 	public function lastMessageId() {

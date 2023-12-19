@@ -139,28 +139,30 @@ class Client extends xmpp.EventEmitter {
 				}
 			}
 
-			var chatMessage = ChatMessage.fromStanza(stanza, this.jid);
-			if (chatMessage != null) {
-				var chat = getChat(chatMessage.chatId());
-				if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
-				if (chat != null) {
-					final updateChat = (chatMessage) -> {
-						if (chatMessage.versions.length < 1 || chat.lastMessageId() == chatMessage.serverId || chat.lastMessageId() == chatMessage.localId) {
-							chat.setLastMessage(chatMessage);
-							if (chatMessage.versions.length < 1) chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
-							chatActivity(chat);
+			switch (Message.fromStanza(stanza, this.jid)) {
+				case ChatMessageStanza(chatMessage):
+					var chat = getChat(chatMessage.chatId());
+					if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
+					if (chat != null) {
+						final updateChat = (chatMessage) -> {
+							if (chatMessage.versions.length < 1 || chat.lastMessageId() == chatMessage.serverId || chat.lastMessageId() == chatMessage.localId) {
+								chat.setLastMessage(chatMessage);
+								if (chatMessage.versions.length < 1) chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
+								chatActivity(chat);
+							}
+							notifyMessageHandlers(chatMessage);
+						};
+						chatMessage = chat.prepareIncomingMessage(chatMessage, stanza);
+						if (chatMessage.serverId == null) {
+							updateChat(chatMessage);
+						} else {
+							persistence.storeMessage(accountId(), chatMessage, updateChat);
 						}
-						notifyMessageHandlers(chatMessage);
-					};
-					chatMessage = chat.prepareIncomingMessage(chatMessage, stanza);
-					final replace = stanza.getChild("replace", "urn:xmpp:message-correct:0");
-					if (replace == null || replace.attr.get("id") == null) {
-						if (chatMessage.serverId != null) persistence.storeMessage(accountId(), chatMessage);
-						updateChat(chatMessage);
-					} else {
-						persistence.correctMessage(accountId(), replace.attr.get("id"), chatMessage, updateChat);
 					}
-				}
+				case ReactionUpdateStanza(update):
+					persistence.storeReaction(accountId(), update, (stored) -> if (stored != null) notifyMessageHandlers(stored));
+				default:
+					// ignore
 			}
 
 			final pubsubEvent = PubsubEvent.fromStanza(stanza);
@@ -820,8 +822,15 @@ class Client extends xmpp.EventEmitter {
 		);
 		sync.setNewestPageFirst(false);
 		sync.onMessages((messageList) -> {
-			for (message in messageList.messages) {
-				persistence.storeMessage(accountId(), message);
+			for (m in messageList.messages) {
+				switch (m) {
+					case ChatMessageStanza(message):
+						persistence.storeMessage(accountId(), message, (m)->{});
+					case ReactionUpdateStanza(update):
+					persistence.storeReaction(accountId(), update, (m)->{});
+					default:
+						// ignore
+				}
 			}
 			if (sync.hasMore()) {
 				sync.fetchNext();

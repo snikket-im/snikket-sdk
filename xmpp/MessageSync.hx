@@ -3,14 +3,14 @@ package xmpp;
 import haxe.Exception;
 
 import xmpp.Client;
-import xmpp.ChatMessage;
+import xmpp.Message;
 import xmpp.GenericStream;
 import xmpp.ResultSet;
 import xmpp.queries.MAMQuery;
 
 typedef MessageList = {
 	var sync : MessageSync;
-	var messages : Array<ChatMessage>;
+	var messages : Array<MessageStanza>;
 }
 
 typedef MessageListHandler = (MessageList)->Void;
@@ -44,7 +44,7 @@ class MessageSync {
 		if (complete) {
 			throw new Exception("Attempt to fetch messages, but already complete");
 		}
-		final messages:Array<ChatMessage> = [];
+		final messages:Array<MessageStanza> = [];
 		if (lastPage == null) {
 			if (newestPageFirst == true && (filter.page == null || filter.page.before == null)) {
 				if (filter.page == null) filter.page = {};
@@ -80,13 +80,15 @@ class MessageSync {
 				jmi.set(jmiChildren[0].attr.get("id"), originalMessage);
 			}
 
-			var msg = ChatMessage.fromStanza(originalMessage, client.jid);
-			if (msg == null) return EventHandled;
+			var msg = Message.fromStanza(originalMessage, client.jid, timestamp);
 
-			msg.serverId = result.attr.get("id");
-			msg.serverIdBy = serviceJID;
-			msg.syncPoint = true;
-			msg.timestamp = timestamp;
+			switch (msg) {
+				case ChatMessageStanza(chatMessage):
+					chatMessage.serverId = result.attr.get("id");
+					chatMessage.serverIdBy = serviceJID;
+					chatMessage.syncPoint = true;
+				default:
+			}
 
 			messages.push(msg);
 
