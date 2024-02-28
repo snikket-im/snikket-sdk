@@ -181,7 +181,58 @@ class Sqlite extends Persistence {
 
 	@HaxeCBridge.noemit
 	public function getChatsUnreadDetails(accountId: String, chats: Array<Chat>, callback: (Array<{ chatId: String, message: ChatMessage, unreadCount: Int }>)->Void) {
-		callback([]); // TODO
+		if (chats == null || chats.length < 1) {
+			callback([]);
+			return;
+		}
+
+		final subq = new StringBuf();
+		subq.add("SELECT chat_id, MAX(ROWID) AS row FROM messages WHERE account_id=");
+		db.addValue(subq, accountId);
+		subq.add(" AND chat_id IN (");
+		for (i => chat in chats) {
+			if (i != 0) subq.add(",");
+			db.addValue(subq, chat.chatId);
+		}
+		subq.add(") AND (mam_id IN (");
+		var didOne = false;
+		for (chat in chats) {
+			if (chat.readUpTo() != null) {
+				if (!didOne) subq.add(",");
+				db.addValue(subq, chat.readUpTo());
+				didOne = true;
+			}
+		}
+		subq.add(") OR stanza_id IN (");
+		didOne = false;
+		for (chat in chats) {
+			if (chat.readUpTo() != null) {
+				if (!didOne) subq.add(",");
+				db.addValue(subq, chat.readUpTo());
+				didOne = true;
+			}
+		}
+		subq.add(")) GROUP BY chat_id");
+
+		final q = new StringBuf();
+		q.add("SELECT chat_id as chatId, stanza, CASE WHEN subq.row IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, MAX(messages.created_at) ");
+		q.add("FROM messages LEFT JOIN (");
+		q.add(subq.toString());
+		q.add(") subq USING (chat_id) WHERE account_id=");
+		db.addValue(q, accountId);
+		q.add(" AND chat_id IN (");
+		for (i => chat in chats) {
+			if (i != 0) q.add(",");
+			db.addValue(q, chat.chatId);
+		}
+		q.add(") AND (subq.row IS NULL OR messages.ROWID >= subq.row) GROUP BY chat_id;");
+		final result = db.request(q.toString());
+		final details = [];
+		for (row in result) {
+			row.message = ChatMessage.fromStanza(Stanza.parse(row.stanza), JID.parse(accountId)); // TODO
+			details.push(row);
+		}
+		callback(details);
 	}
 
 	public function storeReaction(accountId: String, update: ReactionUpdate, callback: (Null<ChatMessage>)->Void) {
