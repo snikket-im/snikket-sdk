@@ -17,11 +17,11 @@ abstract class Persistence {
 	abstract public function getMediaUri(hashAlgorithm:String, hash:BytesData, callback: (uri:Null<String>)->Void):Void;
 	abstract public function storeMedia(mime:String, bytes:BytesData, callback: ()->Void):Void;
 	abstract public function storeCaps(caps:Caps):Void;
-	abstract public function getCaps(ver:String, callback: (Caps)->Void):Void;
+	abstract public function getCaps(ver:String, callback: (Null<Caps>)->Void):Void;
 	abstract public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>):Void;
-	abstract public function getLogin(login:String, callback:(clientId:String, token:Null<String>, fastCount: Int, displayName:String)->Void):Void;
+	abstract public function getLogin(login:String, callback:(clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String>)->Void):Void;
 	abstract public function storeStreamManagement(accountId:String, smId:String, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>):Void;
-	abstract public function getStreamManagement(accountId:String, callback: (smId:String, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>)->Void):Void;
+	abstract public function getStreamManagement(accountId:String, callback: (smId:Null<String>, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>)->Void):Void;
 	abstract public function storeService(accountId:String, serviceId:String, name:Null<String>, node:Null<String>, caps:Caps):Void;
 	abstract public function findServicesWithFeature(accountId:String, feature:String, callback:(Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>)->Void):Void;
 }

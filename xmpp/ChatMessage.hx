@@ -31,6 +31,7 @@ class ChatAttachment {
 
 @:expose
 @:nullSafety(Strict)
+@:build(HaxeCBridge.expose())
 class ChatMessage {
 	public var localId (default, set) : Null<String> = null;
 	public var serverId (default, set) : Null<String> = null;
@@ -42,12 +43,15 @@ class ChatMessage {
 	public var to: Null<JID> = null;
 	public var from: Null<JID> = null;
 	public var sender: Null<JID> = null;
+	@HaxeCBridge.noemit
 	public var recipients: Array<JID> = [];
+	@HaxeCBridge.noemit
 	public var replyTo: Array<JID> = [];
 
 	public var replyToMessage: Null<ChatMessage> = null;
 	public var threadId: Null<String> = null;
 
+	@HaxeCBridge.noemit
 	public var attachments: Array<ChatAttachment> = [];
 	public var reactions: Map<String, Array<String>> = [];
 
@@ -55,12 +59,20 @@ class ChatMessage {
 	public var lang: Null<String> = null;
 
 	public var groupchat: Bool = false; // Only really useful for distinguishing whispers
+	@HaxeCBridge.noemit
 	public var direction: MessageDirection = MessageReceived;
+	@HaxeCBridge.noemit
 	public var status: MessageStatus = MessagePending;
+	@HaxeCBridge.noemit
 	public var versions: Array<ChatMessage> = [];
+	@HaxeCBridge.noemit
 	public var payloads: Array<Stanza> = [];
 
 	public function new() { }
+
+	public function setText(t: String) {
+		text = t;
+	}
 
 	public static function fromStanza(stanza:Stanza, localJid:JID):Null<ChatMessage> {
 		switch Message.fromStanza(stanza, localJid) {

@@ -72,7 +72,7 @@ class Caps {
 		return stanza;
 	}
 
-	public function ver(): String {
+	public function verRaw(): Bytes {
 		features.sort((x, y) -> x == y ? 0 : (x < y ? -1 : 1));
 		identities.sort((x, y) -> x.ver() == y.ver() ? 0 : (x.ver() < y.ver() ? -1 : 1));
 		var s = "";
@@ -82,7 +82,11 @@ class Caps {
 		for (feature in features) {
 			s += feature + "<";
 		}
-		return Base64.encode(Sha1.make(Bytes.ofString(s)), true);
+		return Sha1.make(Bytes.ofString(s));
+	}
+
+	public function ver(): String {
+		return Base64.encode(verRaw(), true);
 	}
 }
 

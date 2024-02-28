@@ -1,5 +1,8 @@
 package xmpp;
 
+#if cpp
+import HaxeCBridge;
+#end
 import haxe.io.BytesData;
 import xmpp.Chat;
 import xmpp.ChatMessage;
@@ -19,22 +22,26 @@ enum UiState {
 	Closed; // Archived
 }
 
+@:build(HaxeCBridge.expose())
 abstract class Chat {
 	private var client:Client;
 	private var stream:GenericStream;
 	private var persistence:Persistence;
-	private var avatarSha1:Null<BytesData> = null;
+	@HaxeCBridge.noemit
+	public var avatarSha1:Null<BytesData> = null;
 	private var presence:Map<String, Presence> = [];
 	private var trusted:Bool = false;
 	public var chatId(default, null):String;
 	public var jingleSessions: Map<String, xmpp.jingle.Session> = [];
 	private var displayName:String;
+	@HaxeCBridge.noemit
 	public var uiState = Open;
-	private var extensions: Stanza;
+	public var extensions: Stanza;
 	private var _unreadCount = 0;
 	private var lastMessage: Null<ChatMessage>;
 
-	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null) {
+	@HaxeCBridge.noemit
+	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState:Dynamic = Open, extensions: Null<Stanza> = null) {
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
@@ -52,8 +59,10 @@ abstract class Chat {
 
 	abstract public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
 
+	@HaxeCBridge.noemit
 	abstract public function getParticipants():Array<String>;
 
+	@HaxeCBridge.noemit
 	abstract public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void):Void;
 
 	abstract public function bookmark():Void;
@@ -152,6 +161,7 @@ abstract class Chat {
 		return presence[resource]?.caps ?? new Caps("", [], []);
 	}
 
+	@HaxeCBridge.noemit
 	public function setAvatarSha1(sha1: BytesData) {
 		this.avatarSha1 = sha1;
 	}
@@ -190,6 +200,7 @@ abstract class Chat {
 		session.propose(audio, video);
 	}
 
+	@HaxeCBridge.noemit
 	public function addMedia(streams: Array<MediaStream>) {
 		if (callStatus() != "ongoing") throw "cannot add media when no call ongoing";
 		jingleSessions.iterator().next().addMedia(streams);
@@ -225,6 +236,7 @@ abstract class Chat {
 		return null;
 	}
 
+	@HaxeCBridge.noemit
 	public function videoTracks() {
 		return jingleSessions.flatMap((session) -> session.videoTracks());
 	}
@@ -250,16 +262,20 @@ abstract class Chat {
 }
 
 @:expose
+@:build(HaxeCBridge.expose())
 class DirectChat extends Chat {
-	public function getParticipants() {
+	@HaxeCBridge.noemit
+	public function getParticipants(): Array<String> {
 		return chatId.split("\n");
 	}
 
+	@HaxeCBridge.noemit
 	public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void) {
 		final chat = client.getDirectChat(participantId);
 		chat.getPhoto((photoUri) -> callback({ photoUri: photoUri, displayName: chat.getDisplayName() }));
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
 		persistence.getMessages(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
 			if (messages.length > 0) {
@@ -322,6 +338,7 @@ class DirectChat extends Chat {
 		});
 	}
 
+	@HaxeCBridge.noemit
 	public function sendMessage(message:ChatMessage):Void {
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);
@@ -594,10 +611,15 @@ class Channel extends Chat {
 	}
 
 	public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
+		trace("1");
+		return;
 		persistence.getMessages(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
+		trace("2");
 			if (messages.length > 0) {
+		trace("3");
 				handler(messages);
 			} else {
+		trace("4");
 				var filter:MAMQueryParams = {};
 				if (beforeId != null) filter.page = { before: beforeId };
 				var sync = new MessageSync(this.client, this.stream, filter, chatId);

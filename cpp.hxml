@@ -1,0 +1,14 @@
+--library datetime
+--library haxe-strings
+--library hsluv
+--library tink_http
+--library sha
+
+HaxeCBridge
+xmpp.Client
+xmpp.Push
+xmpp.persistence.Sqlite
+
+--cpp cpp
+-D HaxeCBridge.name=snikket
+-D dll_link

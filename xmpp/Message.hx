@@ -81,8 +81,9 @@ class Message {
 		if (msg.to != null) {
 			recipients[msg.to.asBare().asString()] = true;
 		}
-		if (msg.direction == MessageReceived && msg.from != null) {
-			replyTo[stanza.attr.get("type") == "groupchat" ? msg.from.asBare().asString() : msg.from.asString()] = true;
+		final from = msg.from;
+		if (msg.direction == MessageReceived && from != null) {
+			replyTo[stanza.attr.get("type") == "groupchat" ? from.asBare().asString() : from.asString()] = true;
 		} else if(msg.to != null) {
 			replyTo[msg.to.asString()] = true;
 		}

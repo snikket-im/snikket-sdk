@@ -4,13 +4,13 @@ import xmpp.ChatMessage;
 import xmpp.JID;
 import xmpp.Notification;
 import xmpp.Persistence;
-import xmpp.Stream;
+import xmpp.Stanza;
 
 // this code should expect to be called from a different context to the app
 
 @:expose
 function receive(data: String, persistence: Persistence) {
-	var stanza = Stream.parse(data);
+	var stanza = Stanza.parse(data);
 	if (stanza == null) return null;
 	if (stanza.name == "envelope" && stanza.attr.get("xmlns") == "urn:xmpp:sce:1") {
 		stanza = stanza.getChild("content").getFirstChild();

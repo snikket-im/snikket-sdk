@@ -14,7 +14,7 @@ interface Session {
 	public function terminate(): Void;
 	public function contentAdd(stanza: Stanza): Void;
 	public function contentAccept(stanza: Stanza): Void;
-	public function transportInfo(stanza: Stanza): Promise<Void>;
+	public function transportInfo(stanza: Stanza): Promise<Any>;
 	public function addMedia(streams: Array<MediaStream>): Void;
 	public function callStatus():String;
 	public function videoTracks():Array<MediaStreamTrack>;
@@ -503,7 +503,7 @@ class InitiatedSession implements Session {
 		})
 		.then((_) -> {
 			setupLocalDescription("session-accept");
-		}).then((_) -> {
+		}).then((x) -> {
 			peerDtlsSetup = localDescription.getDtlsSetup() == "active" ? "passive" : "active";
 			return;
 		});

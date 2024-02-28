@@ -1,14 +1,18 @@
 package xmpp;
 
+#if cpp
+import HaxeCBridge;
+#end
 import sha.SHA256;
 
 import haxe.crypto.Base64;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
-import js.html.rtc.IceServer; // only typedefs, should be portable
+import xmpp.jingle.IceServer;
 import xmpp.Caps;
 import xmpp.Chat;
 import xmpp.ChatMessage;
+import xmpp.Message;
 import xmpp.EventEmitter;
 import xmpp.EventHandler;
 import xmpp.PubsubEvent;
@@ -27,6 +31,7 @@ import xmpp.queries.VcardTempGet;
 using Lambda;
 
 @:expose
+@:build(HaxeCBridge.expose())
 class Client extends xmpp.EventEmitter {
 	private var stream:GenericStream;
 	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
@@ -416,7 +421,7 @@ class Client extends xmpp.EventEmitter {
 						this.trigger("chats/update", chats);
 
 						stream.on("auth/password-needed", (data) -> {
-							fastMechanism = data.mechanisms.find((mech) -> mech.canFast)?.name;
+							fastMechanism = data.mechanisms?.find((mech) -> mech.canFast)?.name;
 							if (token == null || fastMechanism == null) {
 								this.trigger("auth/password-needed", { accountId: accountId() });
 							} else {
@@ -432,6 +437,13 @@ class Client extends xmpp.EventEmitter {
 
 	public function addChatMessageListener(handler:ChatMessage->Void):Void {
 		chatMessageHandlers.push(handler);
+	}
+
+	public function addPasswordNeededListener(handler:String->Void) {
+		this.on("auth/password-needed", (data) -> {
+			handler(data.accountId);
+			return EventHandled;
+		});
 	}
 
 	private function onConnected(data) { // Fired on connect or reconnect
@@ -482,6 +494,7 @@ class Client extends xmpp.EventEmitter {
 		this.stream.trigger("auth/password", { password: password, requestToken: fastMechanism });
 	}
 
+	#if js
 	public function prepareAttachment(source: js.html.File, callback: (Null<ChatAttachment>)->Void) { // TODO: abstract with filename, mime, and ability to convert to tink.io.Source
 		persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0", (services) -> {
 			final sha256 = new sha.SHA256();
@@ -520,6 +533,7 @@ class Client extends xmpp.EventEmitter {
 		});
 		sendQuery(httpUploadSlot);
 	}
+	#end
 
 	/* Return array of chats, sorted by last activity */
 	public function getChats():Array<Chat> {
@@ -573,7 +587,8 @@ class Client extends xmpp.EventEmitter {
 		return chat;
 	}
 
-	public function findAvailableChats(q:String, callback:(q:String, results:Array<{ chatId: String, fn: String, note: String, caps: Caps }>) -> Void) {
+	@HaxeCBridge.noemit
+	public function findAvailableChats(q:String, callback:(String, Array<{ chatId: String, fn: String, note: String, caps: Caps }>) -> Void) {
 		var results = [];
 		final query = StringTools.trim(q);
 		final jid = JID.parse(query);
@@ -701,6 +716,7 @@ class Client extends xmpp.EventEmitter {
 	}
 	#end
 
+	@HaxeCBridge.noemit
 	public function getIceServers(callback: (Array<IceServer>)->Void) {
 		final extDiscoGet = new ExtDiscoGet(jid.domain);
 		extDiscoGet.onFinished(() -> {
@@ -723,6 +739,7 @@ class Client extends xmpp.EventEmitter {
 		sendQuery(extDiscoGet);
 	}
 
+	@HaxeCBridge.noemit
 	public function discoverServices(target: JID, ?node: String, callback: ({ jid: JID, name: Null<String>, node: Null<String> }, Caps)->Void) {
 		final itemsGet = new DiscoItemsGet(target.asString(), node);
 		itemsGet.onFinished(()-> {

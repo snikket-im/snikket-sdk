@@ -483,7 +483,7 @@ exports.xmpp.persistence = {
 					},
 					(e) => {
 						console.error(e);
-						callback(null, -1, -1);
+						callback(null, -1, -1, []);
 					}
 				);
 			},
@@ -503,7 +503,7 @@ exports.xmpp.persistence = {
 					callback(result[0], result[1], result[2] || 0, result[3]);
 				}).catch((e) => {
 					console.error(e);
-					callback(null, null, null);
+					callback(null, null, 0, null);
 				});
 			},
 
