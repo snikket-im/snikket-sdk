@@ -5,9 +5,9 @@
 --library sha
 
 HaxeCBridge
-xmpp.Client
-xmpp.Push
-xmpp.persistence.Sqlite
+snikket.Client
+snikket.Push
+snikket.persistence.Sqlite
 
 --cpp cpp
 -D HaxeCBridge.name=snikket

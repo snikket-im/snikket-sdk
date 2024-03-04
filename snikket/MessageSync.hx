@@ -1,0 +1,133 @@
+package snikket;
+
+import haxe.Exception;
+
+import snikket.Client;
+import snikket.Message;
+import snikket.GenericStream;
+import snikket.ResultSet;
+import snikket.queries.MAMQuery;
+
+typedef MessageList = {
+	var sync : MessageSync;
+	var messages : Array<MessageStanza>;
+}
+
+typedef MessageListHandler = (MessageList)->Void;
+
+typedef MessageFilter = MAMQueryParams;
+
+class MessageSync {
+	private var client:Client;
+	private var stream:GenericStream;
+	private var chatId:String;
+	private var filter:MessageFilter;
+	private var serviceJID:String;
+	private var handler:MessageListHandler;
+	private var errorHandler:(Stanza)->Void;
+	private var lastPage:ResultSetPageResult;
+	private var complete:Bool = false;
+	private var newestPageFirst:Bool = true;
+	public var jmi(default, null): Map<String, Stanza> = [];
+
+	public function new(client:Client, stream:GenericStream, filter:MessageFilter, ?serviceJID:String) {
+		this.client = client;
+		this.stream = stream;
+		this.filter = Reflect.copy(filter);
+		this.serviceJID = serviceJID != null ? serviceJID : client.accountId();
+	}
+
+	public function fetchNext():Void {
+		if (handler == null) {
+			throw new Exception("Attempt to fetch messages, but no handler has been set");
+		}
+		if (complete) {
+			throw new Exception("Attempt to fetch messages, but already complete");
+		}
+		final messages:Array<MessageStanza> = [];
+		if (lastPage == null) {
+			if (newestPageFirst == true && (filter.page == null || filter.page.before == null)) {
+				if (filter.page == null) filter.page = {};
+				filter.page.before = ""; // Request last page of results
+			}
+		} else {
+			if (filter.page == null) filter.page = {};
+			if (newestPageFirst == true) {
+				filter.page.before = lastPage.first;
+			} else {
+				filter.page.after = lastPage.last;
+			}
+		}
+		var query = new MAMQuery(filter, serviceJID);
+		var resultHandler = stream.on("message", function (event) {
+			var message:Stanza = event.stanza;
+			var from = message.attr.exists("from") ? message.attr.get("from") : client.accountId();
+			if (from != serviceJID) { // Only listen for results from the JID we queried
+				return EventUnhandled;
+			}
+			var result = message.getChild("result", query.xmlns);
+			if (result == null || result.attr.get("queryid") != query.queryId) { // Not (a|our) MAM result
+				return EventUnhandled;
+			}
+			var originalMessage = result.findChild("{urn:xmpp:forward:0}forwarded/{jabber:client}message");
+			if (originalMessage == null) { // No message, nothing for us to do
+				return EventHandled;
+			}
+			var timestamp = result.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
+
+			final jmiChildren = originalMessage.allTags(null, "urn:xmpp:jingle-message:0");
+			if (jmiChildren.length > 0) {
+				jmi.set(jmiChildren[0].attr.get("id"), originalMessage);
+			}
+
+			var msg = Message.fromStanza(originalMessage, client.jid, timestamp);
+
+			switch (msg) {
+				case ChatMessageStanza(chatMessage):
+					chatMessage.serverId = result.attr.get("id");
+					chatMessage.serverIdBy = serviceJID;
+					chatMessage.syncPoint = true;
+				default:
+			}
+
+			messages.push(msg);
+
+			return EventHandled;
+		});
+		query.onFinished(function () {
+			resultHandler.unsubscribe();
+			var result = query.getResult();
+			if (result == null) {
+				trace("Error from MAM, stopping sync");
+				complete = true;
+				if (errorHandler != null) errorHandler(query.responseStanza);
+			} else {
+				complete = result.complete;
+				lastPage = result.page;
+			}
+			if (result != null || errorHandler == null) {
+				handler({
+					sync: this,
+					messages: messages,
+				});
+			}
+		});
+		client.sendQuery(query);
+	}
+
+	public function hasMore():Bool {
+		return !complete;
+	}
+
+	public function onMessages(handler:MessageListHandler):Void {
+		this.handler = handler;
+	}
+
+	public function onError(handler:(Stanza)->Void) {
+		this.errorHandler = handler;
+	}
+
+	public function setNewestPageFirst(newestPageFirst:Bool):Void {
+		this.newestPageFirst = newestPageFirst;
+	}
+}
