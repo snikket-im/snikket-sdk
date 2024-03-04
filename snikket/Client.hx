@@ -9,6 +9,7 @@ import haxe.crypto.Base64;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
 import snikket.jingle.IceServer;
+import snikket.jingle.PeerConnection;
 import snikket.Caps;
 import snikket.Chat;
 import snikket.ChatMessage;
@@ -446,13 +447,63 @@ class Client extends EventEmitter {
 		});
 	}
 
-	public function addChatMessageListener(handler:ChatMessage->Void):Void {
-		chatMessageHandlers.push(handler);
-	}
 
 	public function addPasswordNeededListener(handler:String->Void) {
 		this.on("auth/password-needed", (data) -> {
 			handler(data.accountId);
+			return EventHandled;
+		});
+	}
+
+	public function addStatusOnlineListener(handler:()->Void):Void {
+		this.on("status/online", (data) -> {
+			handler();
+			return EventHandled;
+		});
+	}
+
+	public function addChatMessageListener(handler:ChatMessage->Void):Void {
+		chatMessageHandlers.push(handler);
+	}
+
+	public function addChatsUpdatedListener(handler:Array<Chat>->Void):Void {
+		this.on("chats/update", (data) -> {
+			handler(data);
+			return EventHandled;
+		});
+	}
+
+	public function addCallRingListener(handler:(Session,String)->Void):Void {
+		this.on("call/ring", (data) -> {
+			handler(data.session, data.chatId);
+			return EventHandled;
+		});
+	}
+
+	public function addCallRetractListener(handler:(String)->Void):Void {
+		this.on("call/retract", (data) -> {
+			handler(data.chatId);
+			return EventHandled;
+		});
+	}
+
+	public function addCallRingingListener(handler:(String)->Void):Void {
+		this.on("call/ringing", (data) -> {
+			handler(data.chatId);
+			return EventHandled;
+		});
+	}
+
+	public function addCallMediaListener(handler:(Session,Bool,Bool)->Void):Void {
+		this.on("call/media", (data) -> {
+			handler(data.session, data.audio, data.video);
+			return EventHandled;
+		});
+	}
+
+	public function addCallTrackListener(handler:(String,MediaStreamTrack,Array<MediaStream>)->Void):Void {
+		this.on("call/track", (data) -> {
+			handler(data.chatId, data.track, data.streams);
 			return EventHandled;
 		});
 	}

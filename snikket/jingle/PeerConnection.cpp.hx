@@ -1,11 +1,17 @@
 package snikket.jingle;
 
 typedef TODO = Dynamic;
-typedef MediaStreamTrack = TODO;
 typedef DTMFSender = TODO;
 typedef Transceiver = {
 	 receiver: Null<{ track: MediaStreamTrack }>,
 	 sender: Null<{ track: MediaStreamTrack, dtmf: DTMFSender }>
+}
+
+class MediaStreamTrack {
+	 public var muted: Bool;
+	 public var kind: String;
+
+	 public function stop() { }
 }
 
 class MediaStream {
