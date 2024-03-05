@@ -40,8 +40,11 @@ class ChatMessage {
 
 	public var timestamp (default, set) : Null<String> = null;
 
+	@HaxeCBridge.noemit
 	public var to: Null<JID> = null;
+	@HaxeCBridge.noemit
 	public var from: Null<JID> = null;
+	@HaxeCBridge.noemit
 	public var sender: Null<JID> = null;
 	@HaxeCBridge.noemit
 	public var recipients: Array<JID> = [];
