@@ -36,21 +36,21 @@ class ChatMessage {
 	public var localId (default, set) : Null<String> = null;
 	public var serverId (default, set) : Null<String> = null;
 	public var serverIdBy : Null<String> = null;
-	@HaxeCBridge.noemit
-	public var syncPoint : Bool = false;
+	@:allow(snikket)
+	private var syncPoint : Bool = false;
 
 	public var timestamp (default, set) : Null<String> = null;
 
-	@HaxeCBridge.noemit
-	public var to: Null<JID> = null;
-	@HaxeCBridge.noemit
-	public var from: Null<JID> = null;
-	@HaxeCBridge.noemit
-	public var sender: Null<JID> = null;
-	@HaxeCBridge.noemit
-	public var recipients: Array<JID> = [];
-	@HaxeCBridge.noemit
-	public var replyTo: Array<JID> = [];
+	@:allow(snikket)
+	private var to: Null<JID> = null;
+	@:allow(snikket)
+	private var from: Null<JID> = null;
+	@:allow(snikket)
+	private var sender: Null<JID> = null;
+	@:allow(snikket)
+	private var recipients: Array<JID> = [];
+	@:allow(snikket)
+	private var replyTo: Array<JID> = [];
 
 	public var replyToMessage: Null<ChatMessage> = null;
 	public var threadId: Null<String> = null;
@@ -69,8 +69,8 @@ class ChatMessage {
 	public var status: MessageStatus = MessagePending;
 	@HaxeCBridge.noemit
 	public var versions: Array<ChatMessage> = [];
-	@HaxeCBridge.noemit
-	public var payloads: Array<Stanza> = [];
+	@:allow(snikket)
+	private var payloads: Array<Stanza> = [];
 
 	public function new() { }
 
@@ -78,8 +78,8 @@ class ChatMessage {
 		text = t;
 	}
 
-	@HaxeCBridge.noemit
-	public static function fromStanza(stanza:Stanza, localJid:JID):Null<ChatMessage> {
+	@:allow(snikket)
+	private static function fromStanza(stanza:Stanza, localJid:JID):Null<ChatMessage> {
 		switch Message.fromStanza(stanza, localJid) {
 			case ChatMessageStanza(message):
 				return message;
@@ -88,8 +88,8 @@ class ChatMessage {
 		}
 	}
 
-	@HaxeCBridge.noemit
-	public function attachSims(sims: Stanza) {
+	@:allow(snikket)
+	private function attachSims(sims: Stanza) {
 		var mime = sims.findText("{urn:xmpp:jingle:apps:file-transfer:5}/media-type#");
 		if (mime == null) mime = sims.findText("{urn:xmpp:jingle:apps:file-transfer:3}/media-type#");
 		if (mime == null) mime = "application/octet-stream";
@@ -168,8 +168,8 @@ class ChatMessage {
 		return threadId == null ? null : Identicon.svg(threadId);
 	}
 
-	@HaxeCBridge.noemit
-	public function asStanza():Stanza {
+	@:allow(snikket)
+	private function asStanza():Stanza {
 		var body = text;
 		var attrs: haxe.DynamicAccess<String> = { type: isGroupchat ? "groupchat" : "chat" };
 		if (from != null) attrs.set("from", from.asString());

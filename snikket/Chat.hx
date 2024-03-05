@@ -27,8 +27,8 @@ abstract class Chat {
 	private var client:Client;
 	private var stream:GenericStream;
 	private var persistence:Persistence;
-	@HaxeCBridge.noemit
-	public var avatarSha1:Null<BytesData> = null;
+	@:allow(snikket)
+	private var avatarSha1:Null<BytesData> = null;
 	private var presence:Map<String, Presence> = [];
 	private var trusted:Bool = false;
 	public var chatId(default, null):String;
@@ -40,8 +40,8 @@ abstract class Chat {
 	private var _unreadCount = 0;
 	private var lastMessage: Null<ChatMessage>;
 
-	@HaxeCBridge.noemit
-	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState:Dynamic = Open, extensions: Null<Stanza> = null) {
+	@:allow(snikket)
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState:Dynamic = Open, extensions: Null<Stanza> = null) {
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
@@ -161,8 +161,8 @@ abstract class Chat {
 		return presence[resource]?.caps ?? new Caps("", [], []);
 	}
 
-	@HaxeCBridge.noemit
-	public function setAvatarSha1(sha1: BytesData) {
+	@:allow(snikket)
+	private function setAvatarSha1(sha1: BytesData) {
 		this.avatarSha1 = sha1;
 	}
 
@@ -264,12 +264,12 @@ abstract class Chat {
 @:expose
 @:build(HaxeCBridge.expose())
 class DirectChat extends Chat {
-	@HaxeCBridge.noemit
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipants(): Array<String> {
 		return chatId.split("\n");
 	}
 
-	@HaxeCBridge.noemit
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void) {
 		final chat = client.getDirectChat(participantId);
 		chat.getPhoto((photoUri) -> callback({ photoUri: photoUri, displayName: chat.getDisplayName() }));
@@ -338,7 +338,7 @@ class DirectChat extends Chat {
 		});
 	}
 
-	@HaxeCBridge.noemit
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function sendMessage(message:ChatMessage):Void {
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);

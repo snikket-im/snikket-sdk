@@ -712,38 +712,6 @@ class Client extends EventEmitter {
 		}
 	}
 
-	public function chatActivity(chat: Chat, trigger = true) {
-		if (chat.uiState == Closed) {
-			chat.uiState = Open;
-			persistence.storeChat(accountId(), chat);
-		}
-		var idx = chats.indexOf(chat);
-		if (idx > 0) {
-			chats.splice(idx, 1);
-			chats.unshift(chat);
-			if (trigger) this.trigger("chats/update", [chat]);
-		}
-	}
-
-	/* Internal-ish methods */
-	public function sendQuery(query:GenericQuery) {
-		this.stream.sendIq(query.getQueryStanza(), query.handleResponse);
-	}
-
-	public function sendStanza(stanza:Stanza) {
-		if (stanza.attr.get("id") == null) stanza.attr.set("id", ID.long());
-		stream.sendStanza(stanza);
-	}
-
-	public function sendPresence(?to: String, ?augment: (Stanza)->Stanza) {
-		sendStanza(
-			(augment ?? (s)->s)(
-				caps.addC(new Stanza("presence", to == null ? {} : { to: to }))
-					.textTag("nick", displayName(), { xmlns: "http://jabber.org/protocol/nick" })
-			)
-		);
-	}
-
 	#if js
 	public function subscribePush(reg: js.html.ServiceWorkerRegistration, push_service: String, vapid_key: { publicKey: js.html.CryptoKey, privateKey: js.html.CryptoKey}) {
 		js.Browser.window.crypto.subtle.exportKey("raw", vapid_key.publicKey).then((vapid_public_raw) -> {
@@ -778,8 +746,43 @@ class Client extends EventEmitter {
 	}
 	#end
 
-	@HaxeCBridge.noemit
-	public function getIceServers(callback: (Array<IceServer>)->Void) {
+	@:allow(snikket)
+	private function chatActivity(chat: Chat, trigger = true) {
+		if (chat.uiState == Closed) {
+			chat.uiState = Open;
+			persistence.storeChat(accountId(), chat);
+		}
+		var idx = chats.indexOf(chat);
+		if (idx > 0) {
+			chats.splice(idx, 1);
+			chats.unshift(chat);
+			if (trigger) this.trigger("chats/update", [chat]);
+		}
+	}
+
+	@:allow(snikket)
+	private function sendQuery(query:GenericQuery) {
+		this.stream.sendIq(query.getQueryStanza(), query.handleResponse);
+	}
+
+	@:allow(snikket)
+	private function sendStanza(stanza:Stanza) {
+		if (stanza.attr.get("id") == null) stanza.attr.set("id", ID.long());
+		stream.sendStanza(stanza);
+	}
+
+	@:allow(snikket)
+	private function sendPresence(?to: String, ?augment: (Stanza)->Stanza) {
+		sendStanza(
+			(augment ?? (s)->s)(
+				caps.addC(new Stanza("presence", to == null ? {} : { to: to }))
+					.textTag("nick", displayName(), { xmlns: "http://jabber.org/protocol/nick" })
+			)
+		);
+	}
+
+	@:allow(snikket)
+	private function getIceServers(callback: (Array<IceServer>)->Void) {
 		final extDiscoGet = new ExtDiscoGet(jid.domain);
 		extDiscoGet.onFinished(() -> {
 			final servers = [];
@@ -801,8 +804,8 @@ class Client extends EventEmitter {
 		sendQuery(extDiscoGet);
 	}
 
-	@HaxeCBridge.noemit
-	public function discoverServices(target: JID, ?node: String, callback: ({ jid: JID, name: Null<String>, node: Null<String> }, Caps)->Void) {
+	@:allow(snikket)
+	private function discoverServices(target: JID, ?node: String, callback: ({ jid: JID, name: Null<String>, node: Null<String> }, Caps)->Void) {
 		final itemsGet = new DiscoItemsGet(target.asString(), node);
 		itemsGet.onFinished(()-> {
 			for (item in itemsGet.getResult() ?? []) {
@@ -816,7 +819,8 @@ class Client extends EventEmitter {
 		sendQuery(itemsGet);
 	}
 
-	public function notifyMessageHandlers(message: ChatMessage) {
+	@:allow(snikket)
+	private function notifyMessageHandlers(message: ChatMessage) {
 		for (handler in chatMessageHandlers) {
 			handler(message);
 		}
