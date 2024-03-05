@@ -655,7 +655,7 @@ class Channel extends Chat {
 	}
 
 	private function prepareOutgoingMessage(message:ChatMessage) {
-		message.groupchat = true;
+		message.isGroupchat = true;
 		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
 		message.direction = MessageSent;
 		message.from = client.jid;

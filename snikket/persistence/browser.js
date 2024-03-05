@@ -79,7 +79,7 @@ exports.xmpp.persistence = {
 			message.reactions = value.reactions;
 			message.text = value.text;
 			message.lang = value.lang;
-			message.groupchat = value.groupchat;
+			message.isGroupchat = value.isGroupchat || value.groupchat;
 			message.direction = value.direction == "MessageReceived" ? xmpp.MessageDirection.MessageReceived : xmpp.MessageDirection.MessageSent;
 			switch (value.status) {
 				case "MessagePending":
@@ -335,7 +335,7 @@ exports.xmpp.persistence = {
 					}).then((done) => {
 						if (!done) {
 							// There may be reactions already if we are paging backwards
-							const cursor = tx.objectStore("reactions").index("senders").openCursor(IDBKeyRange.bound([account, message.chatId(), (message.groupchat ? message.serverId : message.localId) || ""], [account, message.chatId(), (message.groupchat ? message.serverId : message.localId) || "", []]), "prev");
+							const cursor = tx.objectStore("reactions").index("senders").openCursor(IDBKeyRange.bound([account, message.chatId(), (message.isGroupchat ? message.serverId : message.localId) || ""], [account, message.chatId(), (message.isGroupchat ? message.serverId : message.localId) || "", []]), "prev");
 							const reactions = new Map();
 							const reactionTimes = new Map();
 							cursor.onsuccess = (event) => {

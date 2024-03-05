@@ -62,7 +62,7 @@ class ChatMessage {
 	public var text: Null<String> = null;
 	public var lang: Null<String> = null;
 
-	public var groupchat: Bool = false; // Only really useful for distinguishing whispers
+	public var isGroupchat: Bool = false; // Only really useful for distinguishing whispers
 	@HaxeCBridge.noemit
 	public var direction: MessageDirection = MessageReceived;
 	@HaxeCBridge.noemit
@@ -104,7 +104,7 @@ class ChatMessage {
 
 	public function reply() {
 		final m = new ChatMessage();
-		m.groupchat = groupchat;
+		m.isGroupchat = isGroupchat;
 		m.threadId = threadId ?? ID.long();
 		m.replyToMessage = this;
 		return m;
@@ -168,7 +168,7 @@ class ChatMessage {
 
 	public function asStanza():Stanza {
 		var body = text;
-		var attrs: haxe.DynamicAccess<String> = { type: groupchat ? "groupchat" : "chat" };
+		var attrs: haxe.DynamicAccess<String> = { type: isGroupchat ? "groupchat" : "chat" };
 		if (from != null) attrs.set("from", from.asString());
 		if (to != null) attrs.set("to", to.asString());
 		if (localId != null) attrs.set("id", localId);
@@ -201,7 +201,7 @@ class ChatMessage {
 			}
 			final reaction = EmojiUtil.isEmoji(StringTools.trim(body)) ? StringTools.trim(body) : null;
 			body = quoteText + "\n" + body;
-			final replyId = replyToM.groupchat ? replyToM.serverId : replyToM.localId;
+			final replyId = replyToM.isGroupchat ? replyToM.serverId : replyToM.localId;
 			if (replyId != null) {
 				final codepoints = StringUtil.codepointArray(quoteText);
 				if (reaction != null) {

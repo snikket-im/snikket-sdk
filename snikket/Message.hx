@@ -37,7 +37,7 @@ class Message {
 		}
 		final from = stanza.attr.get("from");
 		msg.from = from == null ? null : JID.parse(from);
-		msg.groupchat = stanza.attr.get("type") == "groupchat";
+		msg.isGroupchat = stanza.attr.get("type") == "groupchat";
 		msg.sender = stanza.attr.get("type") == "groupchat" ? msg.from : msg.from?.asBare();
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;
@@ -174,9 +174,9 @@ class Message {
 			if (replyToID != null) {
 				// Reply stub
 				final replyToMessage = new ChatMessage();
-				replyToMessage.groupchat = msg.groupchat;
+				replyToMessage.isGroupchat = msg.isGroupchat;
 				replyToMessage.from = replyToJid == null ? null : JID.parse(replyToJid);
-				if (msg.groupchat) {
+				if (msg.isGroupchat) {
 					replyToMessage.serverId = replyToID;
 				} else {
 					replyToMessage.localId = replyToID;
