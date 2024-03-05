@@ -78,6 +78,7 @@ class ChatMessage {
 		text = t;
 	}
 
+	@HaxeCBridge.noemit
 	public static function fromStanza(stanza:Stanza, localJid:JID):Null<ChatMessage> {
 		switch Message.fromStanza(stanza, localJid) {
 			case ChatMessageStanza(message):
@@ -87,6 +88,7 @@ class ChatMessage {
 		}
 	}
 
+	@HaxeCBridge.noemit
 	public function attachSims(sims: Stanza) {
 		var mime = sims.findText("{urn:xmpp:jingle:apps:file-transfer:5}/media-type#");
 		if (mime == null) mime = sims.findText("{urn:xmpp:jingle:apps:file-transfer:3}/media-type#");
@@ -166,6 +168,7 @@ class ChatMessage {
 		return threadId == null ? null : Identicon.svg(threadId);
 	}
 
+	@HaxeCBridge.noemit
 	public function asStanza():Stanza {
 		var body = text;
 		var attrs: haxe.DynamicAccess<String> = { type: isGroupchat ? "groupchat" : "chat" };
