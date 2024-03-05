@@ -1564,7 +1564,7 @@ class CConverterContext {
 
 					Thread-safety: can be called on any thread.
 
-					@param objPtr a handle to an arbitrary haxe object returned from a haxe function'),
+					@param objPtr a handle to an arbitrary SDK object returned from an SDK function'),
 				kind: Function({
 					name: functionIdent,
 					args: [{name: 'objPtr', type: Ident("const void*")}],
