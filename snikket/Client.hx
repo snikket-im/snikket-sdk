@@ -604,7 +604,7 @@ class Client extends EventEmitter {
 
 	// We can ask for caps here because presumably they looked this up
 	// via findAvailableChats
-	public function startChat(chatId:String, fn:Null<String>, caps:Caps):Chat {
+	public function startChat(chatId:String, displayName:Null<String>, caps:Caps):Chat {
 		final existingChat = getChat(chatId);
 		if (existingChat != null) {
 			final channel = Std.downcast(existingChat, Channel);
@@ -626,7 +626,7 @@ class Client extends EventEmitter {
 		} else {
 			getDirectChat(chatId, false);
 		}
-		if (fn != null) chat.setDisplayName(fn);
+		if (displayName != null) chat.setDisplayName(displayName);
 		persistence.storeChat(accountId(), chat);
 		this.trigger("chats/update", [chat]);
 		return chat;
