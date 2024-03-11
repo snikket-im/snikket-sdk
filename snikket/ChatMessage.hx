@@ -61,7 +61,6 @@ class ChatMessage {
 	public var replyToMessage: Null<ChatMessage> = null;
 	public var threadId: Null<String> = null;
 
-	@HaxeCBridge.noemit
 	public var attachments: Array<ChatAttachment> = [];
 	public var reactions: Map<String, Array<String>> = [];
 
@@ -69,11 +68,8 @@ class ChatMessage {
 	public var lang: Null<String> = null;
 
 	public var isGroupchat: Bool = false; // Only really useful for distinguishing whispers
-	@HaxeCBridge.noemit
 	public var direction: MessageDirection = MessageReceived;
-	@HaxeCBridge.noemit
 	public var status: MessageStatus = MessagePending;
-	@HaxeCBridge.noemit
 	public var versions: Array<ChatMessage> = [];
 	@:allow(snikket)
 	private var payloads: Array<Stanza> = [];

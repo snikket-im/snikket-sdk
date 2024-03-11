@@ -379,7 +379,7 @@ class Client extends EventEmitter {
 	/**
 		Get the account ID for this Client
 
-		@return account id
+		@returns account id
 	**/
 	public function accountId() {
 		return jid.asBare().asString();
@@ -600,19 +600,19 @@ class Client extends EventEmitter {
 	}
 	#end
 
-	/* Return array of chats, sorted by last activity */
+	/**
+		@returns array of chats, sorted by last activity
+	 */
 	public function getChats():Array<Chat> {
 		return chats.filter((chat) -> chat.uiState != Closed);
 	}
 
-	// We can ask for caps here because presumably they looked this up
-	// via findAvailableChats
-	public function startChat(chatId:String, displayName:Null<String>, caps:Caps):Chat {
-		final existingChat = getChat(chatId);
+	public function startChat(availableChat: AvailableChat):Chat {
+		final existingChat = getChat(availableChat.chatId);
 		if (existingChat != null) {
 			final channel = Std.downcast(existingChat, Channel);
-			if (channel == null && caps.isChannel(chatId)) {
-				chats = chats.filter((chat) -> chat.chatId == chatId);
+			if (channel == null && availableChat.isChannel()) {
+				chats = chats.filter((chat) -> chat.chatId != availableChat.chatId);
 			} else {
 				if (existingChat.uiState == Closed) existingChat.uiState = Open;
 				channel?.selfPing();
@@ -621,15 +621,15 @@ class Client extends EventEmitter {
 			}
 		}
 
-		final chat = if (caps.isChannel(chatId)) {
-			final channel = new Channel(this, this.stream, this.persistence, chatId, Open, null, caps);
+		final chat = if (availableChat.isChannel()) {
+			final channel = new Channel(this, this.stream, this.persistence, availableChat.chatId, Open, null, availableChat.caps);
 			chats.unshift(channel);
 			channel.selfPing(false);
 			channel;
 		} else {
-			getDirectChat(chatId, false);
+			getDirectChat(availableChat.chatId, false);
 		}
-		if (displayName != null) chat.setDisplayName(displayName);
+		if (availableChat.displayName != null) chat.setDisplayName(availableChat.displayName);
 		persistence.storeChat(accountId(), chat);
 		this.trigger("chats/update", [chat]);
 		return chat;
@@ -652,8 +652,7 @@ class Client extends EventEmitter {
 		return chat;
 	}
 
-	@HaxeCBridge.noemit
-	public function findAvailableChats(q:String, callback:(String, Array<{ chatId: String, fn: String, note: String, caps: Caps }>) -> Void) {
+	public function findAvailableChats(q:String, callback:(String, Array<AvailableChat>) -> Void) {
 		var results = [];
 		final query = StringTools.trim(q);
 		final jid = JID.parse(query);
@@ -664,14 +663,14 @@ class Client extends EventEmitter {
 				if (resultCaps == null) {
 					final err = discoGet.responseStanza?.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
 					if (err == null || err?.name == "service-unavailable" || err?.name == "feature-not-implemented") {
-						results.push({ chatId: jid.asString(), fn: query, note: jid.asString(), caps: new Caps("", [], []) });
+						results.push(new AvailableChat(jid.asString(), query, jid.asString(), new Caps("", [], [])));
 					}
 				} else {
 					persistence.storeCaps(resultCaps);
 					final identity = resultCaps.identities[0];
-					final fn = identity?.name ?? query;
+					final displayName = identity?.name ?? query;
 					final note = jid.asString() + (identity == null ? "" : " (" + identity.type + ")");
-					results.push({ chatId: jid.asString(), fn: fn, note: note, caps: resultCaps });
+					results.push(new AvailableChat(jid.asString(), displayName, note, resultCaps));
 				}
 				callback(q, results);
 			});

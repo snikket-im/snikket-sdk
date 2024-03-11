@@ -182,7 +182,7 @@ class HaxeCBridge {
 				case FFun(fun):
 					var wrapper = {
 						name: field.name + "__fromC",
-						doc: null,
+						doc: field.doc,
 						meta: [{name: "HaxeCBridge.wrapper", params: [], pos: Context.currentPos()}],
 						access: field.access.filter(a -> a != AAbstract),
 						kind: null,
@@ -191,6 +191,7 @@ class HaxeCBridge {
 					};
 					var args = [];
 					var passArgs = [];
+					var outPtr = false;
 					for (arg in fun.args) {
 						switch arg.type {
 						case TFunction(taargs, aret):
@@ -214,23 +215,42 @@ class HaxeCBridge {
 					}
 					switch (fun.ret) {
 					case TPath(path) if (path.name == "Array"):
-						wrapper.ret = TPath({name: "HaxeArray", pack: [], params: path.params.map(t -> convertSecondaryTP(t))});
+						outPtr = true;
+						args.push({name: "outPtr", type: TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({name: "HaxeArray", pack: [], params: path.params.map(t -> convertSecondaryTP(t))}))]})});
+						wrapper.ret = TPath({name: "SizeT", pack: ["cpp"]});
 					default:
 					}
 					if (args.length > fun.args.length || fun.ret != wrapper.ret || field.access.contains(AAbstract)) {
-						wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro return $i{field.name}($a{passArgs}), args: args});
+						if (outPtr) {
+							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro { final out = $i{field.name}($a{passArgs}); if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(out); } return out.length; }, args: args});
+						} else {
+							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro return $i{field.name}($a{passArgs}), args: args});
+						}
 						fields.push(wrapper);
 						field.meta.push({name: "HaxeCBridge.noemit", pos: Context.currentPos()});
 					}
 			case FVar(t, e):
-					fields.push({
-						name: field.name + "__fromC",
-						doc: null,
-						meta: [{name: "HaxeCBridge.wrapper", params: [], pos: Context.currentPos()}],
-						access: field.access,
-						pos: Context.currentPos(),
-						kind: FFun({ret: t, params: [], args: [], expr: macro return $i{field.name}})
-					});
+					switch (t) {
+					case TPath(path) if (path.name == "Array"):
+						final ptrT = TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({name: "HaxeArray", pack: [], params: path.params.map(t -> convertSecondaryTP(t))}))]});
+						fields.push({
+							name: field.name + "__fromC",
+							doc: null,
+							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: Context.currentPos()}],
+							access: field.access,
+							pos: Context.currentPos(),
+							kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrT}], expr: macro { if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref($i{field.name}); } return $i{field.name}.length; } })
+						});
+					default:
+						fields.push({
+							name: field.name + "__fromC",
+							doc: null,
+							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: Context.currentPos()}],
+							access: field.access,
+							pos: Context.currentPos(),
+							kind: FFun({ret: t, params: [], args: [], expr: macro return $i{field.name}})
+						});
+					}
 				default:
 				}
 			}
@@ -253,7 +273,7 @@ class HaxeCBridge {
 		case TInst(_.get().name => "Array", tps):
 			[
 				TPath({name: "HaxeArray", pack: [], params: tps.map((tp) -> convertSecondaryTP(TPType(Context.toComplexType(tp))))}),
-				TPath({name: "Int", pack: []})
+				TPath({name: "SizeT", pack: ["cpp"]})
 			];
 		case TInst(_.get().name => "String", _):
 			[TPath({name: "ConstCharStar", pack: ["cpp"], params: []})];
@@ -454,7 +474,7 @@ class HaxeCBridge {
 				');
 			} else '')
 
-			+ 'typedef void (* SnikketPanicCallback) (const char* exceptionInfo);\n'
+			+ 'typedef void (*snikket_panic_callback) (const char *info);\n'
 			+ (if (ctx.supportTypeDeclarations.length > 0) ctx.supportTypeDeclarations.map(d -> CPrinter.printDeclaration(d, true)).join(';\n') + ';\n\n'; else '')
 			+ (if (ctx.typeDeclarations.length > 0) ctx.typeDeclarations.map(d -> CPrinter.printDeclaration(d, true)).join(';\n') + ';\n'; else '')
 
@@ -472,7 +492,7 @@ class HaxeCBridge {
 				 * @param panicCallback a callback to execute if the SDK panics. The SDK will continue processing events after a panic and you may want to stop it after receiving this callback. Use `NULL` for no callback
 				 * @returns `NULL` if the thread initializes successfully or a null-terminated C string if an error occurs during initialization
 				 */
-				$prefix const char *${namespace}_setup(SnikketPanicCallback panicCallback);
+				$prefix const char *${namespace}_setup(snikket_panic_callback panic_callback);
 
 				/**
 				 * Stops the SDK, blocking until the main thread has completed. Once ended, it cannot be restarted (this is because static variable state will be retained from the last run).
@@ -483,9 +503,9 @@ class HaxeCBridge {
 				 * 
 				 * Thread-safety: Can be called safely called on any thread.
 				 *
-				 * @param waitOnScheduledEvents If `true`, this function will wait for all events scheduled to execute in the future on the SDK thread to complete. If `false`, immediate pending events will be finished and the SDK stopped without executing events scheduled in the future
+				 * @param wait If `true`, this function will wait for all events scheduled to execute in the future on the SDK thread to complete. If `false`, immediate pending events will be finished and the SDK stopped without executing events scheduled in the future
 				 */
-				$prefix void ${namespace}_stop(bool waitOnScheduledEvents);
+				$prefix void ${namespace}_stop(bool wait);
 
 		')
 		+ indent(1, ctx.supportFunctionDeclarations.map(fn -> CPrinter.printDeclaration(fn, true, prefix)).join(';\n\n') + ';\n\n')
@@ -578,7 +598,7 @@ class HaxeCBridge {
 				std::atomic<bool> staticsInitialized = { false };
 
 				struct HaxeThreadData {
-					SnikketPanicCallback haxeExceptionCallback;
+					snikket_panic_callback haxeExceptionCallback;
 					const char* initExceptionInfo;
 				};
 
@@ -632,7 +652,7 @@ class HaxeCBridge {
 				threadData->initExceptionInfo = nullptr;
 
 				// copy out callback
-				SnikketPanicCallback haxeExceptionCallback = threadData->haxeExceptionCallback;
+				snikket_panic_callback haxeExceptionCallback = threadData->haxeExceptionCallback;
 
 				bool firstRun = !HaxeCBridgeInternal::staticsInitialized;
 
@@ -663,7 +683,7 @@ class HaxeCBridge {
 			}
 			
 			HAXE_C_BRIDGE_LINKAGE
-			const char* ${namespace}_setup(SnikketPanicCallback unhandledExceptionCallback) {
+			const char* ${namespace}_setup(snikket_panic_callback unhandledExceptionCallback) {
 				HaxeCBridgeInternal::HaxeThreadData threadData;
 				threadData.haxeExceptionCallback = unhandledExceptionCallback == nullptr ? HaxeCBridgeInternal::defaultExceptionHandler : unhandledExceptionCallback;
 				threadData.initExceptionInfo = nullptr;
@@ -1050,7 +1070,7 @@ class CPrinter {
 		var name = signature.name;
 		var args = signature.args;
 		var ret = signature.ret;
-		return '${printType(ret)} $name(${args.map(arg -> '${printType(arg.type, arg.name)}').join(', ')})'.replace(" * ", " *").replace("(* ", "(*").replace("* ", " *");
+		return '${printType(ret)} $name(${args.map(arg -> '${printType(arg.type, arg.name)}').join(', ')})'.replace(" * ", " *").replace("(* ", "(*").replace("* ", " *").replace("** ", " **");
 	}
 
 	public static function printDoc(doc: String) {
@@ -1473,7 +1493,8 @@ class CConverterContext {
 	}
 
 	function getEnumCType(type: Type, allowNonTrivial: Bool, pos: Position): CType {
-		var ident = safeIdent(declarationPrefix + '_' + typeDeclarationIdent(type, false));
+		//var ident = safeIdent(declarationPrefix + '_' + typeDeclarationIdent(type, false));
+		final ident = hx.strings.Strings.toLowerUnderscore(safeIdent(typeDeclarationIdent(type, false)));
 
 		// `enum ident` is considered non-trivial
 		if (!allowNonTrivial) {
@@ -1659,7 +1680,7 @@ class CConverterContext {
 		"auto", "double", "int", "struct", "break", "else", "long", "switch", "case", "enum", "register", "typedef", "char", "extern", "return", "union", "const", "float", "short", "unsigned", "continue", "for", "signed", "void", "default", "goto", "sizeof", "volatile", "do", "if", "static", "while",
 		"size_t", "int64_t", "uint64_t",
 		// HaxeCBridge types
-		"HaxeObject", "SnikketPanicCallback",
+		"HaxeObject", "snikket_panic_callback",
 		// hxcpp
 		"Int", "String", "Float", "Dynamic", "Bool",
 	];
@@ -1748,6 +1769,16 @@ abstract HaxeObject<T>(cpp.RawPointer<cpp.Void>) from cpp.RawPointer<cpp.Void> t
 }
 
 abstract HaxeArray<T>(cpp.RawPointer<cpp.RawPointer<cpp.Void>>) from cpp.RawPointer<cpp.RawPointer<cpp.Void>> to cpp.RawPointer<cpp.RawPointer<cpp.Void>> {
+	@:from
+	public static inline function fromArrayString(x: Array<String>): HaxeArray<cpp.ConstCharStar> {
+		final arr: Array<cpp.SizeT> = cpp.NativeArray.create(x.length);
+		for (i => el in x) {
+			final ptr = cpp.ConstCharStar.fromString(el);
+			arr[i] = untyped untyped __cpp__('reinterpret_cast<size_t>({0})', ptr);
+		}
+		return cast HaxeCBridge.retainHaxeArray(arr);
+	}
+
 	@:from
 	public static inline function fromArrayT<T>(x: Array<T>): HaxeArray<HaxeObject<T>> {
 		return HaxeCBridge.retainHaxeArray(x);

@@ -2,17 +2,35 @@ package snikket;
 
 using Lambda;
 
-enum MessageDirection {
-	MessageReceived;
-	MessageSent;
+enum abstract MessageDirection(Int) {
+	var MessageReceived;
+	var MessageSent;
 }
 
-enum MessageStatus {
-	MessagePending; // Message is waiting in client for sending
-	MessageDeliveredToServer; // Server acknowledged receipt of the message
-	MessageDeliveredToDevice; //The message has been delivered to at least one client device
-	MessageFailedToSend; // There was an error sending this message
+#if js
+@:expose("MessageDirection")
+class MessageDirectionImpl {
+	static public final MessageReceived = MessageDirection.MessageReceived;
+	static public final MessageSent = MessageDirection.MessageSent;
 }
+#end
+
+enum abstract MessageStatus(Int) {
+	var MessagePending; // Message is waiting in client for sending
+	var MessageDeliveredToServer; // Server acknowledged receipt of the message
+	var MessageDeliveredToDevice; //The message has been delivered to at least one client device
+	var MessageFailedToSend; // There was an error sending this message
+}
+
+#if js
+@:expose("MessageStatus")
+class MessageStatusImpl {
+	static public final MessagePending = MessageStatus.MessagePending;
+	static public final MessageDeliveredToServer = MessageStatus.MessageDeliveredToServer;
+	static public final MessageDeliveredToDevice = MessageStatus.MessageDeliveredToDevice;
+	static public final MessageFailedToSend = MessageStatus.MessageFailedToSend;
+}
+#end
 
 enum MessageStanza {
 	ErrorMessageStanza(stanza: Stanza);

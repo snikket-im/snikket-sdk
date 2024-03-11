@@ -1,7 +1,7 @@
 // This example persistence driver is written in JavaScript
 // so that SDK users can easily see how to write their own
 
-exports.xmpp.persistence = {
+exports.snikket.persistence = {
 	browser: (dbname) => {
 		var db = null;
 		function openDb(version) {
@@ -62,17 +62,17 @@ exports.xmpp.persistence = {
 			const store = tx.objectStore("messages");
 			let replyToMessage = value.replyToMessage && await hydrateMessage((await promisifyRequest(store.openCursor(IDBKeyRange.only(value.replyToMessage))))?.value);
 
-			const message = new xmpp.ChatMessage();
+			const message = new snikket.ChatMessage();
 			message.localId = value.localId ? value.localId : null;
 			message.serverId = value.serverId ? value.serverId : null;
 			message.serverIdBy = value.serverIdBy ? value.serverIdBy : null;
 			message.syncPoint = !!value.syncPoint;
 			message.timestamp = value.timestamp && value.timestamp.toISOString();
-			message.to = value.to && xmpp.JID.parse(value.to);
-			message.from = value.from && xmpp.JID.parse(value.from);
-			message.sender = value.sender && xmpp.JID.parse(value.sender);
-			message.recipients = value.recipients.map((r) => xmpp.JID.parse(r));
-			message.replyTo = value.replyTo.map((r) => xmpp.JID.parse(r));
+			message.to = value.to && snikket.JID.parse(value.to);
+			message.from = value.from && snikket.JID.parse(value.from);
+			message.sender = value.sender && snikket.JID.parse(value.sender);
+			message.recipients = value.recipients.map((r) => snikket.JID.parse(r));
+			message.replyTo = value.replyTo.map((r) => snikket.JID.parse(r));
 			message.replyToMessage = replyToMessage;
 			message.threadId = value.threadId;
 			message.attachments = value.attachments;
@@ -80,25 +80,8 @@ exports.xmpp.persistence = {
 			message.text = value.text;
 			message.lang = value.lang;
 			message.isGroupchat = value.isGroupchat || value.groupchat;
-			message.direction = value.direction == "MessageReceived" ? xmpp.MessageDirection.MessageReceived : xmpp.MessageDirection.MessageSent;
-			switch (value.status) {
-				case "MessagePending":
-					message.status = xmpp.MessageStatus.MessagePending;
-					break;
-				case "MessageDeliveredToServer":
-					message.status = xmpp.MessageStatus.MessageDeliveredToServer;
-					break;
-				case "MessageDeliveredToDevice":
-					message.status = xmpp.MessageStatus.MessageDeliveredToDevice;
-					break;
-				case "MessageFailedToSend":
-					message.status = xmpp.MessageStatus.MessageFailedToSend;
-					break;
-				default:
-					message.status = message.serverId ? xmpp.MessageStatus.MessageDeliveredToServer : xmpp.MessageStatus.MessagePending;
-			}
 			message.versions = await Promise.all((value.versions || []).map(hydrateMessage));
-			message.payloads = (value.payloads || []).map(xmpp.Stanza.parse);
+			message.payloads = (value.payloads || []).map(snikket.Stanza.parse);
 			return message;
 		}
 
@@ -118,8 +101,6 @@ exports.xmpp.persistence = {
 				replyTo: message.replyTo.map((r) => r.asString()),
 				timestamp: new Date(message.timestamp),
 				replyToMessage: message.replyToMessage && [account, message.replyToMessage.serverId || "", message.replyToMessage.serverIdBy || "", message.replyToMessage.localId || ""],
-				direction: message.direction.toString(),
-				status: message.status.toString(),
 				versions: message.versions.map((m) => serializeMessage(account, m)),
 				payloads: message.payloads.map((p) => p.toString()),
 			}
@@ -199,10 +180,10 @@ exports.xmpp.persistence = {
 					avatarSha1: chat.avatarSha1,
 					presence: new Map([...chat.presence.entries()].map(([k, p]) => [k, { caps: p.caps?.ver(), mucUser: p.mucUser?.toString() }])),
 					displayName: chat.displayName,
-					uiState: chat.uiState?.toString(),
+					uiState: chat.uiState,
 					extensions: chat.extensions?.toString(),
 					disco: chat.disco,
-					class: chat instanceof xmpp.DirectChat ? "DirectChat" : (chat instanceof xmpp.Channel ? "Channel" : "Chat")
+					class: chat instanceof snikket.DirectChat ? "DirectChat" : (chat instanceof snikket.Channel ? "Channel" : "Chat")
 				});
 			},
 
@@ -212,12 +193,12 @@ exports.xmpp.persistence = {
 					const store = tx.objectStore("chats");
 					const range = IDBKeyRange.bound([account], [account, []]);
 					const result = await promisifyRequest(store.getAll(range));
-					return await Promise.all(result.map(async (r) => new xmpp.SerializedChat(
+					return await Promise.all(result.map(async (r) => new snikket.SerializedChat(
 						r.chatId,
 						r.trusted,
 						r.avatarSha1,
 						new Map(await Promise.all((r.presence instanceof Map ? [...r.presence.entries()] : Object.entries(r.presence)).map(
-							async ([k, p]) => [k, new xmpp.Presence(p.caps && await new Promise((resolve) => this.getCaps(p.caps, resolve)), p.mucUser && xmpp.Stanza.parse(p.mucUser))]
+							async ([k, p]) => [k, new snikket.Presence(p.caps && await new Promise((resolve) => this.getCaps(p.caps, resolve)), p.mucUser && snikket.Stanza.parse(p.mucUser))]
 						))),
 						r.displayName,
 						r.uiState,
@@ -363,7 +344,7 @@ exports.xmpp.persistence = {
 				const store = tx.objectStore("messages");
 				promisifyRequest(store.index("localId").openCursor(IDBKeyRange.bound([account, localId], [account, localId, []]))).then((result) => {
 					if (result?.value && result.value.direction === "MessageSent" && result.value.status !== "MessageDeliveredToDevice") {
-						const newStatus = { ...result.value, status: status.toString() };
+						const newStatus = { ...result.value, status: status };
 						result.update(newStatus);
 						hydrateMessage(newStatus).then(callback);
 					}
@@ -450,7 +431,7 @@ exports.xmpp.persistence = {
 					const store = tx.objectStore("keyvaluepairs");
 					const raw = await promisifyRequest(store.get("caps:" + ver));
 					if (raw) {
-						return (new xmpp.Caps(raw.node, raw.identities.map((identity) => new xmpp.Identity(identity.category, identity.type, identity.name)), raw.features));
+						return (new snikket.Caps(raw.node, raw.identities.map((identity) => new snikket.Identity(identity.category, identity.type, identity.name)), raw.features));
 					}
 
 					return null;

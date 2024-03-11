@@ -13,6 +13,5 @@ run-nodejs: test.node.js
 browser.js:
 	haxe browser.hxml
 	echo "var exports = {};" > browser.js
-	sed -e 's/hxEnums\["snikket.EventResult"\] = {/hxEnums["snikket.EventResult"] = $$hx_exports.snikket.EventResult = {/' < browser.haxe.js | sed -e 's/hxEnums\["snikket.MessageDirection"\] = {/hxEnums["snikket.MessageDirection"] = $$hx_exports.snikket.MessageDirection = {/' | sed -e 's/hxEnums\["snikket.UiState"\] = {/hxEnums["snikket.UiState"] = $$hx_exports.snikket.UiState = {/' | sed -e 's/hxEnums\["snikket.MessageStatus"\] = {/hxEnums["snikket.MessageStatus"] = $$hx_exports.snikket.MessageStatus = {/' >> browser.js
 	cat snikket/persistence/*.js >> browser.js
 	echo "export const { snikket } = exports;" >> browser.js

@@ -17,11 +17,20 @@ using Lambda;
 import HaxeCBridge;
 #end
 
-enum UiState {
-	Pinned;
-	Open; // or Unspecified
-	Closed; // Archived
+enum abstract UiState(Int) {
+	var Pinned;
+	var Open; // or Unspecified
+	var Closed; // Archived
 }
+
+#if js
+@:expose("UiState")
+class UiStateImpl {
+	static public final Pinned = UiState.Pinned;
+	static public final Open = UiState.Open;
+	static public final Closed = UiState.Closed;
+}
+#end
 
 #if cpp
 @:build(HaxeCBridge.expose())
@@ -35,16 +44,17 @@ abstract class Chat {
 	private var presence:Map<String, Presence> = [];
 	private var trusted:Bool = false;
 	public var chatId(default, null):String;
-	public var jingleSessions: Map<String, snikket.jingle.Session> = [];
+	@:allow(snikket)
+	private var jingleSessions: Map<String, snikket.jingle.Session> = [];
 	private var displayName:String;
-	@HaxeCBridge.noemit
 	public var uiState = Open;
-	public var extensions: Stanza;
+	@:allow(snikket)
+	private var extensions: Stanza;
 	private var _unreadCount = 0;
 	private var lastMessage: Null<ChatMessage>;
 
 	@:allow(snikket)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState:Dynamic = Open, extensions: Null<Stanza> = null) {
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null) {
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
@@ -54,19 +64,20 @@ abstract class Chat {
 		this.displayName = chatId;
 	}
 
-	abstract public function prepareIncomingMessage(message:ChatMessage, stanza:Stanza):ChatMessage;
+	@:allow(snikket)
+	abstract private function prepareIncomingMessage(message:ChatMessage, stanza:Stanza):ChatMessage;
 
 	abstract public function correctMessage(localId:String, message:ChatMessage):Void;
 
 	abstract public function sendMessage(message:ChatMessage):Void;
 
+	abstract public function removeReaction(m:ChatMessage, reaction:String):Void;
+
 	abstract public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
 
-	@HaxeCBridge.noemit
 	abstract public function getParticipants():Array<String>;
 
-	@HaxeCBridge.noemit
-	abstract public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void):Void;
+	abstract public function getParticipantDetails(participantId:String, callback:(String, String)->Void):Void;
 
 	abstract public function bookmark():Void;
 
@@ -111,7 +122,8 @@ abstract class Chat {
 		return _unreadCount;
 	}
 
-	public function setUnreadCount(count:Int) {
+	@:allow(snikket)
+	private function setUnreadCount(count:Int) {
 		_unreadCount = count;
 	}
 
@@ -119,7 +131,8 @@ abstract class Chat {
 		return lastMessage?.text ?? "";
 	}
 
-	public function setLastMessage(message:Null<ChatMessage>) {
+	@:allow(snikket)
+	private function setLastMessage(message:Null<ChatMessage>) {
 		lastMessage = message;
 	}
 
@@ -131,11 +144,13 @@ abstract class Chat {
 		return this.displayName;
 	}
 
-	public function setPresence(resource:String, presence:Presence) {
+	@:allow(snikket)
+	private function setPresence(resource:String, presence:Presence) {
 		this.presence.set(resource, presence);
 	}
 
-	public function setCaps(resource:String, caps:Caps) {
+	@:allow(snikket)
+	private function setCaps(resource:String, caps:Caps) {
 		final presence = presence.get(resource);
 		if (presence != null) {
 			presence.caps = caps;
@@ -145,11 +160,13 @@ abstract class Chat {
 		}
 	}
 
-	public function removePresence(resource:String) {
+	@:allow(snikket)
+	private function removePresence(resource:String) {
 		presence.remove(resource);
 	}
 
-	public function getCaps():KeyValueIterator<String, Caps> {
+	@:allow(snikket)
+	private function getCaps():KeyValueIterator<String, Caps> {
 		final iter = presence.keyValueIterator();
 		return {
 			hasNext: iter.hasNext,
@@ -160,7 +177,8 @@ abstract class Chat {
 		};
 	}
 
-	public function getResourceCaps(resource:String):Caps {
+	@:allow(snikket)
+	private function getResourceCaps(resource:String):Caps {
 		return presence[resource]?.caps ?? new Caps("", [], []);
 	}
 
@@ -177,7 +195,8 @@ abstract class Chat {
 		return this.trusted;
 	}
 
-	public function livePresence() {
+	@:allow(snikket)
+	private function livePresence() {
 		return false;
 	}
 
@@ -239,8 +258,7 @@ abstract class Chat {
 		return null;
 	}
 
-	@HaxeCBridge.noemit
-	public function videoTracks() {
+	public function videoTracks(): Array<MediaStreamTrack> {
 		return jingleSessions.flatMap((session) -> session.videoTracks());
 	}
 
@@ -275,9 +293,9 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void) {
+	public function getParticipantDetails(participantId:String, callback:(String, String)->Void) {
 		final chat = client.getDirectChat(participantId);
-		chat.getPhoto((photoUri) -> callback({ photoUri: photoUri, displayName: chat.getDisplayName() }));
+		chat.getPhoto((photoUri) -> callback(photoUri, chat.getDisplayName()));
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -309,7 +327,8 @@ class DirectChat extends Chat {
 		});
 	}
 
-	public function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
+	@:allow(snikket)
+	private function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
 		message.syncPoint = true; // TODO: if client is done initial MAM. right now it always is
 		return message;
 	}
@@ -373,6 +392,7 @@ class DirectChat extends Chat {
 		}
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function removeReaction(m:ChatMessage, reaction:String) {
 		// NOTE: doing it this way means no fallback behaviour
 		final reactions = [];
@@ -390,10 +410,12 @@ class DirectChat extends Chat {
 		});
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function lastMessageId() {
 		return lastMessage?.localId ?? lastMessage?.serverId;
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function markReadUpTo(message: ChatMessage) {
 		if (readUpTo() == message.localId || readUpTo() == message.serverId) return;
 		final upTo = message.localId ?? message.serverId;
@@ -420,6 +442,7 @@ class DirectChat extends Chat {
 		client.trigger("chats/update", [this]);
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function bookmark() {
 		stream.sendIq(
 			new Stanza("iq", { type: "set" })
@@ -434,6 +457,7 @@ class DirectChat extends Chat {
 		);
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function close() {
 		// Should this remove from roster?
 		uiState = Closed;
@@ -443,11 +467,16 @@ class DirectChat extends Chat {
 }
 
 @:expose
+#if cpp
+@:build(HaxeCBridge.expose())
+#end
 class Channel extends Chat {
-	public var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"]);
+	@:allow(snikket)
+	private var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"]);
 	private var inSync = true;
 
-	public function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions = null, ?disco: Caps) {
+	@:allow(snikket)
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions = null, ?disco: Caps) {
 		super(client, stream, persistence, chatId, uiState, extensions);
 		if (disco != null) this.disco = disco;
 	}
@@ -572,7 +601,8 @@ class Channel extends Chat {
 		return lastMessage.sender.resource + ": " + super.preview();
 	}
 
-	override public function livePresence() {
+	@:allow(snikket)
+	override private function livePresence() {
 		for (nick => p in presence) {
 			for (status in p?.mucUser?.allTags("status") ?? []) {
 				if (status.attr.get("code") == "110") {
@@ -598,33 +628,32 @@ class Channel extends Chat {
 		return JID.parse(chatId).withResource(nickInUse());
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipants() {
 		final jid = JID.parse(chatId);
 		return { iterator: () -> presence.keys() }.map((resource) -> new JID(jid.node, jid.domain, resource).asString());
 	}
 
-	public function getParticipantDetails(participantId:String, callback:({photoUri:String, displayName:String})->Void) {
+	@HaxeCBridge.noemit // on superclass as abstract
+	public function getParticipantDetails(participantId:String, callback:(String, String)->Void) {
 		if (participantId == getFullJid().asString()) {
 			client.getDirectChat(client.accountId(), false).getPhoto((photoUri) -> {
-				callback({ photoUri: photoUri, displayName: client.displayName() });
+				callback(photoUri, client.displayName());
 			});
 		} else {
 			final nick = JID.parse(participantId).resource;
 			final photoUri = Color.defaultPhoto(participantId, nick == null ? " " : nick.charAt(0));
-			callback({ photoUri: photoUri, displayName: nick });
+			callback(photoUri, nick);
 		}
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
-		trace("1");
 		return;
 		persistence.getMessages(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
-		trace("2");
 			if (messages.length > 0) {
-		trace("3");
 				handler(messages);
 			} else {
-		trace("4");
 				var filter:MAMQueryParams = {};
 				if (beforeId != null) filter.page = { before: beforeId };
 				var sync = new MessageSync(this.client, this.stream, filter, chatId);
@@ -649,7 +678,8 @@ class Channel extends Chat {
 		});
 	}
 
-	public function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
+	@:allow(snikket)
+	private function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
 		message.syncPoint = inSync;
 		message.sender = JID.parse(stanza.attr.get("from")); // MUC always needs full JIDs
 		if (message.senderId() == getFullJid().asString()) {
@@ -671,6 +701,7 @@ class Channel extends Chat {
 		return message;
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function correctMessage(localId:String, message:ChatMessage) {
 		final toSend = message.clone();
 		message = prepareOutgoingMessage(message);
@@ -687,6 +718,7 @@ class Channel extends Chat {
 		});
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function sendMessage(message:ChatMessage):Void {
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);
@@ -714,6 +746,7 @@ class Channel extends Chat {
 		}
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function removeReaction(m:ChatMessage, reaction:String) {
 		// NOTE: doing it this way means no fallback behaviour
 		final reactions = [];
@@ -729,10 +762,12 @@ class Channel extends Chat {
 		});
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function lastMessageId() {
 		return lastMessage?.serverId;
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function markReadUpTo(message: ChatMessage) {
 		if (readUpTo() == message.serverId) return;
 		final upTo = message.serverId;
@@ -757,6 +792,7 @@ class Channel extends Chat {
 		client.trigger("chats/update", [this]);
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function bookmark() {
 		stream.sendIq(
 			new Stanza("iq", { type: "set" })
@@ -807,12 +843,37 @@ class Channel extends Chat {
 		);
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function close() {
 		uiState = Closed;
 		persistence.storeChat(client.accountId(), this);
 		selfPing(false);
 		bookmark(); // TODO: what if not previously bookmarked?
 		client.trigger("chats/update", [this]);
+	}
+}
+
+@:expose
+#if cpp
+@:build(HaxeCBridge.expose())
+#end
+class AvailableChat {
+	public final chatId: String;
+	public final displayName: Null<String>;
+	public final note: String;
+	@:allow(snikket)
+	private final caps: Caps;
+
+	public function isChannel() {
+		return caps.isChannel(chatId);
+	}
+
+	@:allow(snikket)
+	private function new(chatId: String, displayName: Null<String>, note: String, caps: Caps) {
+		this.chatId = chatId;
+		this.displayName = displayName;
+		this.note = note;
+		this.caps = caps;
 	}
 }
 
