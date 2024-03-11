@@ -6,6 +6,10 @@ import haxe.io.BytesData;
 import haxe.Exception;
 using Lambda;
 
+#if cpp
+import HaxeCBridge;
+#end
+
 import snikket.JID;
 import snikket.Identicon;
 import snikket.StringUtil;
@@ -32,7 +36,6 @@ class ChatAttachment {
 @:expose
 @:nullSafety(Strict)
 #if cpp
-import HaxeCBridge;
 @:build(HaxeCBridge.expose())
 #end
 class ChatMessage {

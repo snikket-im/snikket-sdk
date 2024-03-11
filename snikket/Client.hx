@@ -28,9 +28,12 @@ import snikket.queries.RosterGet;
 import snikket.queries.VcardTempGet;
 using Lambda;
 
-@:expose
 #if cpp
 import HaxeCBridge;
+#end
+
+@:expose
+#if cpp
 @:build(HaxeCBridge.expose())
 #end
 class Client extends EventEmitter {

@@ -13,6 +13,10 @@ import snikket.queries.DiscoInfoGet;
 import snikket.queries.MAMQuery;
 using Lambda;
 
+#if cpp
+import HaxeCBridge;
+#end
+
 enum UiState {
 	Pinned;
 	Open; // or Unspecified
@@ -20,7 +24,6 @@ enum UiState {
 }
 
 #if cpp
-import HaxeCBridge;
 @:build(HaxeCBridge.expose())
 #end
 abstract class Chat {
