@@ -1,8 +1,5 @@
 package snikket;
 
-#if cpp
-import HaxeCBridge;
-#end
 import haxe.io.BytesData;
 import snikket.Chat;
 import snikket.ChatMessage;
@@ -22,7 +19,10 @@ enum UiState {
 	Closed; // Archived
 }
 
+#if cpp
+import HaxeCBridge;
 @:build(HaxeCBridge.expose())
+#end
 abstract class Chat {
 	private var client:Client;
 	private var stream:GenericStream;
@@ -262,7 +262,9 @@ abstract class Chat {
 }
 
 @:expose
+#if cpp
 @:build(HaxeCBridge.expose())
+#end
 class DirectChat extends Chat {
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipants(): Array<String> {

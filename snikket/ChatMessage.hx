@@ -31,7 +31,10 @@ class ChatAttachment {
 
 @:expose
 @:nullSafety(Strict)
+#if cpp
+import HaxeCBridge;
 @:build(HaxeCBridge.expose())
+#end
 class ChatMessage {
 	public var localId (default, set) : Null<String> = null;
 	public var serverId (default, set) : Null<String> = null;

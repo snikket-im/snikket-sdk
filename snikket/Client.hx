@@ -1,8 +1,5 @@
 package snikket;
 
-#if cpp
-import HaxeCBridge;
-#end
 import sha.SHA256;
 
 import haxe.crypto.Base64;
@@ -32,7 +29,10 @@ import snikket.queries.VcardTempGet;
 using Lambda;
 
 @:expose
+#if cpp
+import HaxeCBridge;
 @:build(HaxeCBridge.expose())
+#end
 class Client extends EventEmitter {
 	private var stream:GenericStream;
 	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
