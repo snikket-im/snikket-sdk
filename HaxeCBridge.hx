@@ -201,14 +201,18 @@ class HaxeCBridge {
 						switch arg.type {
 						case TFunction(taargs, aret):
 							final aargs = taargs.map(convertSecondaryType);
-							aret = convertSecondaryType(aret)[0];
-							args.push({name: arg.name, type: TPath({name: "Callable", pack: ["cpp"], params: [TPType(TFunction(Lambda.flatten(aargs).concat([TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]})]), aret))]})});
+							aret = convertSecondaryType(aret).args[0];
+							args.push({name: arg.name, type: TPath({name: "Callable", pack: ["cpp"], params: [TPType(TFunction(Lambda.flatten(aargs.map(aarg -> aarg.args)).concat([TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]})]), aret))]})});
 							args.push({name: arg.name + "__context", type: TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]})});
 							final lambdaargs = Lambda.flatten(aargs.mapi((i, a) ->
-								if (a.length < 2) {
-									[macro $i{"a" + i}];
-								} else {
+								if (a.retainType == "Array") {
 									[macro $i{"a" + i}, macro $i{"a" + i}.length];
+								} else if (a.retainType == "String") {
+									[macro HaxeCBridge.retainHaxeString($i{"a" + i})];
+								} else if (a.retainType == "Object") {
+									[macro HaxeCBridge.retainHaxeObject($i{"a" + i})];
+								} else {
+									[macro $i{"a" + i}];
 								}
 							)).concat([macro $i{arg.name + "__context"}]);
 							final lambdafargs = aargs.mapi((i, a) ->  {name: "a" + i, meta: null, opt: false, type: null, value: null});
@@ -317,32 +321,32 @@ class HaxeCBridge {
 	static function convertSecondaryTP(tp: TypeParam) {
 		return switch tp {
 		case TPType(t):
-			TPType(convertSecondaryType(t)[0]);
+			TPType(convertSecondaryType(t).args[0]);
 		default:
 			throw "Cannot converty TypeParam: " + tp;
 		}
 	}
 
-	static function convertSecondaryType(t: ComplexType) {
+	static function convertSecondaryType(t: ComplexType): {retainType: String, args: Array<haxe.macro.ComplexType>} {
 		return switch TypeTools.follow(Context.resolveType(t, Context.currentPos()), false) {
 		case TInst(_.get().name => "Array", tps):
-			[
+			{retainType: "Array", args: [
 				TPath({name: "HaxeArray", pack: [], params: tps.map((tp) -> convertSecondaryTP(TPType(Context.toComplexType(tp))))}),
 				TPath({name: "SizeT", pack: ["cpp"]})
-			];
+			]};
 		case TInst(_.get().name => "String", _):
-			[TPath({name: "ConstCharStar", pack: ["cpp"], params: []})];
+			{retainType: "String", args: [TPath({name: "ConstCharStar", pack: ["cpp"], params: []})]};
 		case type = TInst(_):
 			var keyCType = new CConverterContext().tryConvertKeyType(type, false, false, Context.currentPos());
 			if (keyCType != null) {
-				[t];
+				{retainType: null, args: [t]};
 			} else {
-				[TPath({name: "HaxeObject", pack: [], params: [TPType(t)]})];
+				{retainType:"Object", args: [TPath({name: "HaxeObject", pack: [], params: [TPType(t)]})]};
 			}
 		case TAnonymous(_):
 			Context.error("Cannot expose anonymous struct to C", Context.currentPos());
 		default:
-			[t];
+			{retainType: null, args: [t]};
 		}
 	}
 
@@ -1958,7 +1962,7 @@ class HaxeCBridge {
 		return cast ptr;
 	}
 
-	static public inline function retainHaxeObject(haxeObject: Dynamic): HaxeObject<{}> {
+	static public inline function retainHaxeObject<T>(haxeObject: Dynamic): HaxeObject<T> {
 		// need to get pointer to object
 		var ptr: cpp.RawPointer<cpp.Void> = untyped __cpp__('{0}.mPtr', haxeObject);
 		// we can convert the ptr to int64
