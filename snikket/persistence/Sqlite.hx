@@ -25,6 +25,13 @@ class Sqlite implements Persistence {
 	final db: Connection;
 	final blobpath: String;
 
+	/**
+		Create a basic persistence layer based on sqlite
+
+		@param dbfile path to sqlite database
+		@params blobpath path to directory for blob storage
+		@returns new persistence layer
+	**/
 	public function new(dbfile: String, blobpath: String) {
 		this.blobpath = blobpath;
 		db = sys.db.Sqlite.open(dbfile);
@@ -73,6 +80,7 @@ class Sqlite implements Persistence {
 		}
 	}
 
+	@HaxeCBridge.noemit
 	public function lastId(accountId: String, chatId: Null<String>, callback:(Null<String>)->Void):Void {
 		final q = new StringBuf();
 		q.add("SELECT mam_id FROM messages WHERE mam_id IS NOT NULL AND sync_point AND account_id=");
@@ -89,6 +97,7 @@ class Sqlite implements Persistence {
 		}
 	}
 
+	@HaxeCBridge.noemit
 	public function storeChat(accountId: String, chat: Chat) {
 		// TODO: presence
 		// TODO: disco
@@ -133,6 +142,7 @@ class Sqlite implements Persistence {
 		callback(chats);
 	}
 
+	@HaxeCBridge.noemit
 	public function storeMessage(accountId: String, message: ChatMessage, callback: (ChatMessage)->Void) {
 		final q = new StringBuf();
 		q.add("INSERT OR REPLACE INTO messages VALUES (");
@@ -235,6 +245,7 @@ class Sqlite implements Persistence {
 		callback(details);
 	}
 
+	@HaxeCBridge.noemit
 	public function storeReaction(accountId: String, update: ReactionUpdate, callback: (Null<ChatMessage>)->Void) {
 		callback(null); // TODO
 	}
@@ -289,6 +300,7 @@ class Sqlite implements Persistence {
 		callback();
 	}
 
+	@HaxeCBridge.noemit
 	public function storeCaps(caps:Caps) {
 		final q = new StringBuf();
 		q.add("INSERT OR IGNORE INTO caps VALUES (X");
@@ -299,6 +311,7 @@ class Sqlite implements Persistence {
 		db.request(q.toString());
 	}
 
+	@HaxeCBridge.noemit
 	public function getCaps(ver:String, callback: (Caps)->Void) {
 		final q = new StringBuf();
 		q.add("SELECT json(caps) AS caps FROM caps WHERE sha1=X");
@@ -313,10 +326,12 @@ class Sqlite implements Persistence {
 		callback(null);
 	}
 
+	@HaxeCBridge.noemit
 	public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>) {
 		// TODO
 	}
 
+	@HaxeCBridge.noemit
 	public function getLogin(login:String, callback:(Null<String>, Null<String>, Int, Null<String>)->Void) {
 		// TODO
 		callback(null, null, 0, null);
@@ -332,6 +347,7 @@ class Sqlite implements Persistence {
 		callback(null, -1, -1, []); // TODO
 	}
 
+	@HaxeCBridge.noemit
 	public function storeService(accountId:String, serviceId:String, name:Null<String>, node:Null<String>, caps:Caps) {
 		storeCaps(caps);
 
