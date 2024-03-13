@@ -1,0 +1,13 @@
+--library haxe-strings
+--library hxtsdgen
+--library hsluv
+--library tink_http
+--library sha
+
+snikket.Client
+snikket.Push
+
+-D js-es=6
+-D hxtsdgen_enums_ts
+-D hxtsdgen_namespaced
+--js browser.haxe.js
