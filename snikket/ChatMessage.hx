@@ -39,12 +39,24 @@ class ChatAttachment {
 @:build(HaxeCBridge.expose())
 #end
 class ChatMessage {
+	/**
+		The ID as set by the creator of this message
+	**/
 	public var localId (default, set) : Null<String> = null;
+	/**
+		The ID as set by the authoritative server
+	**/
 	public var serverId (default, set) : Null<String> = null;
+	/**
+		The ID of the server which set the serverId
+	**/
 	public var serverIdBy : Null<String> = null;
 	@:allow(snikket)
 	private var syncPoint : Bool = false;
 
+	/**
+		The timestamp of this message, in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
+	**/
 	public var timestamp (default, set) : Null<String> = null;
 
 	@:allow(snikket)
@@ -58,27 +70,59 @@ class ChatMessage {
 	@:allow(snikket)
 	private var replyTo: Array<JID> = [];
 
+	/**
+		Message this one is in reply to, or NULL
+	**/
 	public var replyToMessage: Null<ChatMessage> = null;
+	/**
+		ID of the thread this message is in, or NULL
+	**/
 	public var threadId: Null<String> = null;
 
+	/**
+		Array of attachments to this message
+	**/
 	public var attachments: Array<ChatAttachment> = [];
+	/**
+		Map of reactions to this message
+	**/
 	public var reactions: Map<String, Array<String>> = [];
 
+	/**
+		Body text of this message or NULL
+	**/
 	public var text: Null<String> = null;
+	/**
+		Language code for the body text
+	**/
 	public var lang: Null<String> = null;
 
+	/**
+		Is this a Group Chat message?
+
+		If the message is in the context of a Channel but this is false,
+		then it is a private message
+	**/
 	public var isGroupchat: Bool = false; // Only really useful for distinguishing whispers
+	/**
+		Direction of this message
+	**/
 	public var direction: MessageDirection = MessageReceived;
+	/**
+		Status of this message
+	**/
 	public var status: MessageStatus = MessagePending;
+	/**
+		Array of past versions of this message, if it has been edited
+	**/
 	public var versions: Array<ChatMessage> = [];
 	@:allow(snikket)
 	private var payloads: Array<Stanza> = [];
 
+	/**
+		@returns a new blank ChatMessage
+	**/
 	public function new() { }
-
-	public function setText(t: String) {
-		text = t;
-	}
 
 	@:allow(snikket)
 	private static function fromStanza(stanza:Stanza, localJid:JID):Null<ChatMessage> {
@@ -106,6 +150,9 @@ class ChatMessage {
 		if (uris.length > 0) attachments.push(new ChatAttachment(name, mime, size == null ? null : Std.parseInt(size), uris, hashes));
 	}
 
+	/**
+		Create a new ChatMessage in reply to this one
+	**/
 	public function reply() {
 		final m = new ChatMessage();
 		m.isGroupchat = isGroupchat;
@@ -114,24 +161,27 @@ class ChatMessage {
 		return m;
 	}
 
-	public function set_localId(localId:String):String {
+	private function set_localId(localId:Null<String>) {
 		if(this.localId != null) {
 			throw new Exception("Message already has a localId set");
 		}
 		return this.localId = localId;
 	}
 
-	public function set_serverId(serverId:String):String {
+	private function set_serverId(serverId:Null<String>) {
 		if(this.serverId != null && this.serverId != serverId) {
 			throw new Exception("Message already has a serverId set");
 		}
 		return this.serverId = serverId;
 	}
 
-	public function set_timestamp(timestamp:String):String {
+	private function set_timestamp(timestamp:Null<String>) {
 		return this.timestamp = timestamp;
 	}
 
+	/**
+		Get HTML version of the message body
+	**/
 	public function html():String {
 		final codepoints = StringUtil.codepointArray(text ?? "");
 		// TODO: not every app will implement every feature. How should the app tell us what fallbacks to handle?
@@ -146,6 +196,9 @@ class ChatMessage {
 		return payloads.find((p) -> p.attr.get("xmlns") == "urn:xmpp:styling:0" && p.name == "unstyled") == null ? XEP0393.parse(body).map((s) -> s.toString()).join("") : StringTools.htmlEscape(body);
 	}
 
+	/**
+		The ID of the Chat this message is associated with
+	**/
 	public function chatId():String {
 		if (isIncoming()) {
 			return replyTo.map((r) -> r.asBare().asString()).join("\n");
@@ -154,18 +207,30 @@ class ChatMessage {
 		}
 	}
 
+	/**
+		The ID of the sender of this message
+	**/
 	public function senderId():String {
 		return sender?.asString() ?? throw "sender is null";
 	}
 
+	/**
+		The ID of the account associated with this message
+	**/
 	public function account():String {
 		return (!isIncoming() ? from?.asBare()?.asString() : to?.asBare()?.asString()) ?? throw "from or to is null";
 	}
 
+	/**
+		Is this an incoming message?
+	**/
 	public function isIncoming():Bool {
 		return direction == MessageReceived;
 	}
 
+	/**
+		The URI of an icon for the thread associated with this message, or NULL
+	**/
 	public function threadIcon() {
 		return threadId == null ? null : Identicon.svg(threadId);
 	}
@@ -272,6 +337,9 @@ class ChatMessage {
 		return stanza;
 	}
 
+	/**
+		Duplicate this ChatMessage
+	**/
 	public function clone() {
 		final cls:Class<ChatMessage> = untyped Type.getClass(this);
 		final inst = Type.createEmptyInstance(cls);

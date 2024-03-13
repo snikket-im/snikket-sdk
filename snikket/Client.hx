@@ -39,7 +39,8 @@ import HaxeCBridge;
 class Client extends EventEmitter {
 	private var stream:GenericStream;
 	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
-	public var jid(default,null):JID;
+	@:allow(snikket)
+	private var jid(default,null):JID;
 	private var chats: Array<Chat> = [];
 	private var persistence: Persistence;
 	private final caps = new Caps(
@@ -377,40 +378,8 @@ class Client extends EventEmitter {
 	}
 
 	/**
-		Get the account ID for this Client
-
-		@returns account id
+		Start this client running and trying to connect to the server
 	**/
-	public function accountId() {
-		return jid.asBare().asString();
-	}
-
-	public function displayName() {
-		return _displayName;
-	}
-
-	public function setDisplayName(fn: String) {
-		if (fn == null || fn == "" || fn == displayName()) return;
-
-		stream.sendIq(
-			new Stanza("iq", { type: "set" })
-				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
-				.tag("publish", { node: "http://jabber.org/protocol/nick" })
-				.tag("item")
-				.textTag("nick", fn, { xmlns: "http://jabber.org/protocol/nick" })
-				.up().up().up(),
-			(response) -> { }
-		);
-	}
-
-	private function updateDisplayName(fn: String) {
-		if (fn == null || fn == "" || fn == displayName()) return false;
-		_displayName = fn;
-		persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, fn, null);
-		pingAllChannels();
-		return true;
-	}
-
 	public function start() {
 		persistence.getLogin(accountId(), (clientId, token, fastCount, displayName) -> {
 			persistence.getStreamManagement(accountId(), (smId, smOut, smIn, smOutQ) -> {
@@ -450,65 +419,58 @@ class Client extends EventEmitter {
 		});
 	}
 
+	/**
+		Sets the password to be used in response to the password needed event
 
-	public function addPasswordNeededListener(handler:String->Void) {
-		this.on("auth/password-needed", (data) -> {
-			handler(data.accountId);
-			return EventHandled;
-		});
+		@param password
+	**/
+	public function usePassword(password: String):Void {
+		this.stream.trigger("auth/password", { password: password, requestToken: fastMechanism });
 	}
 
-	public function addStatusOnlineListener(handler:()->Void):Void {
-		this.on("status/online", (data) -> {
-			handler();
-			return EventHandled;
-		});
+	/**
+		Get the account ID for this Client
+
+		@returns account id
+	**/
+	public function accountId() {
+		return jid.asBare().asString();
 	}
 
-	public function addChatMessageListener(handler:ChatMessage->Void):Void {
-		chatMessageHandlers.push(handler);
+	/**
+		Get the current display name for this account
+
+		@returns display name or NULL
+	**/
+	public function displayName() {
+		return _displayName;
 	}
 
-	public function addChatsUpdatedListener(handler:Array<Chat>->Void):Void {
-		this.on("chats/update", (data) -> {
-			handler(data);
-			return EventHandled;
-		});
+	/**
+		Set the current display name for this account on the server
+
+		@param display name to set (ignored if empty or NULL)
+	**/
+	public function setDisplayName(displayName: String) {
+		if (displayName == null || displayName == "" || displayName == this.displayName()) return;
+
+		stream.sendIq(
+			new Stanza("iq", { type: "set" })
+				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
+				.tag("publish", { node: "http://jabber.org/protocol/nick" })
+				.tag("item")
+				.textTag("nick", displayName, { xmlns: "http://jabber.org/protocol/nick" })
+				.up().up().up(),
+			(response) -> { }
+		);
 	}
 
-	public function addCallRingListener(handler:(Session,String)->Void):Void {
-		this.on("call/ring", (data) -> {
-			handler(data.session, data.chatId);
-			return EventHandled;
-		});
-	}
-
-	public function addCallRetractListener(handler:(String)->Void):Void {
-		this.on("call/retract", (data) -> {
-			handler(data.chatId);
-			return EventHandled;
-		});
-	}
-
-	public function addCallRingingListener(handler:(String)->Void):Void {
-		this.on("call/ringing", (data) -> {
-			handler(data.chatId);
-			return EventHandled;
-		});
-	}
-
-	public function addCallMediaListener(handler:(Session,Bool,Bool)->Void):Void {
-		this.on("call/media", (data) -> {
-			handler(data.session, data.audio, data.video);
-			return EventHandled;
-		});
-	}
-
-	public function addCallTrackListener(handler:(String,MediaStreamTrack,Array<MediaStream>)->Void):Void {
-		this.on("call/track", (data) -> {
-			handler(data.chatId, data.track, data.streams);
-			return EventHandled;
-		});
+	private function updateDisplayName(fn: String) {
+		if (fn == null || fn == "" || fn == displayName()) return false;
+		_displayName = fn;
+		persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, fn, null);
+		pingAllChannels();
+		return true;
 	}
 
 	private function onConnected(data) { // Fired on connect or reconnect
@@ -555,10 +517,6 @@ class Client extends EventEmitter {
 		return EventHandled;
 	}
 
-	public function usePassword(password: String):Void {
-		this.stream.trigger("auth/password", { password: password, requestToken: fastMechanism });
-	}
-
 	#if js
 	public function prepareAttachment(source: js.html.File, callback: (Null<ChatAttachment>)->Void) { // TODO: abstract with filename, mime, and ability to convert to tink.io.Source
 		persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0", (services) -> {
@@ -601,57 +559,18 @@ class Client extends EventEmitter {
 	#end
 
 	/**
-		@returns array of chats, sorted by last activity
-	 */
+		@returns array of open chats, sorted by last activity
+	**/
 	public function getChats():Array<Chat> {
 		return chats.filter((chat) -> chat.uiState != Closed);
 	}
 
-	public function startChat(availableChat: AvailableChat):Chat {
-		final existingChat = getChat(availableChat.chatId);
-		if (existingChat != null) {
-			final channel = Std.downcast(existingChat, Channel);
-			if (channel == null && availableChat.isChannel()) {
-				chats = chats.filter((chat) -> chat.chatId != availableChat.chatId);
-			} else {
-				if (existingChat.uiState == Closed) existingChat.uiState = Open;
-				channel?.selfPing();
-				this.trigger("chats/update", [existingChat]);
-				return existingChat;
-			}
-		}
+	/**
+		Search for chats the user can start or join
 
-		final chat = if (availableChat.isChannel()) {
-			final channel = new Channel(this, this.stream, this.persistence, availableChat.chatId, Open, null, availableChat.caps);
-			chats.unshift(channel);
-			channel.selfPing(false);
-			channel;
-		} else {
-			getDirectChat(availableChat.chatId, false);
-		}
-		if (availableChat.displayName != null) chat.setDisplayName(availableChat.displayName);
-		persistence.storeChat(accountId(), chat);
-		this.trigger("chats/update", [chat]);
-		return chat;
-	}
-
-	public function getChat(chatId:String):Null<Chat> {
-		return chats.find((chat) -> chat.chatId == chatId);
-	}
-
-	public function getDirectChat(chatId:String, triggerIfNew:Bool = true):DirectChat {
-		for (chat in chats) {
-			if (Std.isOfType(chat, DirectChat) && chat.chatId == chatId) {
-				return Std.downcast(chat, DirectChat);
-			}
-		}
-		final chat = new DirectChat(this, this.stream, this.persistence, chatId);
-		persistence.storeChat(accountId(), chat);
-		chats.unshift(chat);
-		if (triggerIfNew) this.trigger("chats/update", [chat]);
-		return chat;
-	}
-
+		@param q the search query to use
+		@param callback takes two arguments, the query that was used and the array of results
+	**/
 	public function findAvailableChats(q:String, callback:(String, Array<AvailableChat>) -> Void) {
 		var results = [];
 		final query = StringTools.trim(q);
@@ -714,6 +633,62 @@ class Client extends EventEmitter {
 		}
 	}
 
+	/**
+		Start or join a chat from the search results
+
+		@returns the chat that was started
+	**/
+	public function startChat(availableChat: AvailableChat):Chat {
+		final existingChat = getChat(availableChat.chatId);
+		if (existingChat != null) {
+			final channel = Std.downcast(existingChat, Channel);
+			if (channel == null && availableChat.isChannel()) {
+				chats = chats.filter((chat) -> chat.chatId != availableChat.chatId);
+			} else {
+				if (existingChat.uiState == Closed) existingChat.uiState = Open;
+				channel?.selfPing();
+				this.trigger("chats/update", [existingChat]);
+				return existingChat;
+			}
+		}
+
+		final chat = if (availableChat.isChannel()) {
+			final channel = new Channel(this, this.stream, this.persistence, availableChat.chatId, Open, null, availableChat.caps);
+			chats.unshift(channel);
+			channel.selfPing(false);
+			channel;
+		} else {
+			getDirectChat(availableChat.chatId, false);
+		}
+		if (availableChat.displayName != null) chat.setDisplayName(availableChat.displayName);
+		persistence.storeChat(accountId(), chat);
+		this.trigger("chats/update", [chat]);
+		return chat;
+	}
+
+	/**
+		Find a chat by id
+
+		@returns the chat if known, or NULL
+	**/
+	public function getChat(chatId:String):Null<Chat> {
+		return chats.find((chat) -> chat.chatId == chatId);
+	}
+
+	@:allow(snikket)
+	private function getDirectChat(chatId:String, triggerIfNew:Bool = true):DirectChat {
+		for (chat in chats) {
+			if (Std.isOfType(chat, DirectChat) && chat.chatId == chatId) {
+				return Std.downcast(chat, DirectChat);
+			}
+		}
+		final chat = new DirectChat(this, this.stream, this.persistence, chatId);
+		persistence.storeChat(accountId(), chat);
+		chats.unshift(chat);
+		if (triggerIfNew) this.trigger("chats/update", [chat]);
+		return chat;
+	}
+
 	#if js
 	public function subscribePush(reg: js.html.ServiceWorkerRegistration, push_service: String, vapid_key: { publicKey: js.html.CryptoKey, privateKey: js.html.CryptoKey}) {
 		js.Browser.window.crypto.subtle.exportKey("raw", vapid_key.publicKey).then((vapid_public_raw) -> {
@@ -747,6 +722,116 @@ class Client extends EventEmitter {
 		});
 	}
 	#end
+
+	/**
+		Event fired when client needs a password for authentication
+
+		@param handler takes one argument, the Client that needs a password
+	**/
+	public function addPasswordNeededListener(handler:Client->Void) {
+		this.on("auth/password-needed", (data) -> {
+			handler(this);
+			return EventHandled;
+		});
+	}
+
+	/**
+		Event fired when client is connected and fully synchronized
+
+		@param handler takes no arguments
+	**/
+	public function addStatusOnlineListener(handler:()->Void):Void {
+		this.on("status/online", (data) -> {
+			handler();
+			return EventHandled;
+		});
+	}
+
+	/**
+		Event fired when a new ChatMessage comes in on any Chat
+		Also fires when status of a ChatMessage changes,
+		when a ChatMessage is edited, or when a reaction is added
+
+		@param handler takes one argument, the ChatMessage
+	**/
+	public function addChatMessageListener(handler:ChatMessage->Void):Void {
+		chatMessageHandlers.push(handler);
+	}
+
+	/**
+		Event fired when a Chat's metadata is updated, or when a new Chat is added
+
+		@param handler takes one argument, an array of Chats that were updated
+	**/
+	public function addChatsUpdatedListener(handler:Array<Chat>->Void):Void {
+		this.on("chats/update", (data) -> {
+			handler(data);
+			return EventHandled;
+		});
+	}
+
+	/**
+		Event fired when a new call comes in
+
+		@param handler takes two arguments, the call Session and the associated Chat ID
+	**/
+	public function addCallRingListener(handler:(Session,String)->Void):Void {
+		this.on("call/ring", (data) -> {
+			handler(data.session, data.chatId);
+			return EventHandled;
+		});
+	}
+
+	/**
+		Event fired when a call is retracted or hung up
+
+		@param handler takes one argument, the associated Chat ID
+	**/
+	public function addCallRetractListener(handler:(String)->Void):Void {
+		this.on("call/retract", (data) -> {
+			handler(data.chatId);
+			return EventHandled;
+		});
+	}
+
+	/**
+		Event fired when an outgoing call starts ringing
+
+		@param handler takes one argument, the associated Chat ID
+	**/
+	public function addCallRingingListener(handler:(String)->Void):Void {
+		this.on("call/ringing", (data) -> {
+			handler(data.chatId);
+			return EventHandled;
+		});
+	}
+
+	/**
+		Event fired when a call is asking for media to send
+
+		@param handler takes three arguments, the call Session,
+		       a boolean indicating if audio is desired,
+		       and a boolean indicating if video is desired
+	**/
+	public function addCallMediaListener(handler:(Session,Bool,Bool)->Void):Void {
+		this.on("call/media", (data) -> {
+			handler(data.session, data.audio, data.video);
+			return EventHandled;
+		});
+	}
+
+	/**
+		Event fired when call has a new MediaStreamTrack to play
+
+		@param handler takes three arguments, the associated Chat ID,
+		       the new MediaStreamTrack, and an array of any associated MediaStreams
+	**/
+	public function addCallTrackListener(handler:(String,MediaStreamTrack,Array<MediaStream>)->Void):Void {
+		this.on("call/track", (data) -> {
+			handler(data.chatId, data.track, data.streams);
+			return EventHandled;
+		});
+	}
 
 	@:allow(snikket)
 	private function chatActivity(chat: Chat, trigger = true) {

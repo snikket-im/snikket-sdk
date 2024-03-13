@@ -43,11 +43,18 @@ abstract class Chat {
 	private var avatarSha1:Null<BytesData> = null;
 	private var presence:Map<String, Presence> = [];
 	private var trusted:Bool = false;
+	/**
+		ID of this Chat
+	**/
 	public var chatId(default, null):String;
 	@:allow(snikket)
 	private var jingleSessions: Map<String, snikket.jingle.Session> = [];
 	private var displayName:String;
-	public var uiState = Open;
+	/**
+		Current state of this chat
+	**/
+	@:allow(snikket)
+	public var uiState(default, null): UiState = Open;
 	@:allow(snikket)
 	private var extensions: Stanza;
 	private var _unreadCount = 0;
@@ -67,31 +74,99 @@ abstract class Chat {
 	@:allow(snikket)
 	abstract private function prepareIncomingMessage(message:ChatMessage, stanza:Stanza):ChatMessage;
 
-	abstract public function correctMessage(localId:String, message:ChatMessage):Void;
+	/**
+		Fetch a page of messages before some point
 
-	abstract public function sendMessage(message:ChatMessage):Void;
-
-	abstract public function removeReaction(m:ChatMessage, reaction:String):Void;
-
+		@param beforeId id of the message to look before
+		@param beforeTime timestamp of the message to look before,
+		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
+		@param handler takes one argument, an array of ChatMessage that are found
+	**/
 	abstract public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
 
-	abstract public function getParticipants():Array<String>;
+	/**
+		Send a ChatMessage to this Chat
 
-	abstract public function getParticipantDetails(participantId:String, callback:(String, String)->Void):Void;
+		@param message the ChatMessage to send
+	**/
+	abstract public function sendMessage(message:ChatMessage):Void;
 
-	abstract public function bookmark():Void;
+	/**
+		Signals that all messages up to and including this one have probably
+		been displayed to the user
 
-	abstract public function close():Void;
-
+		@param message the ChatMessage most recently displayed
+	**/
 	abstract public function markReadUpTo(message: ChatMessage):Void;
 
+	/**
+		Save this Chat on the server
+	**/
+	abstract public function bookmark():Void;
+
+	/**
+		Get the list of IDs of participants in this Chat
+
+		@returns array of IDs
+	**/
+	abstract public function getParticipants():Array<String>;
+
+	/**
+		Get the details for one participant in this Chat
+
+		@param participantId the ID of the participant to look up
+		@param callback takes two arguments, the display name and the photo URI
+	**/
+	abstract public function getParticipantDetails(participantId:String, callback:(String, String)->Void):Void;
+
+	/**
+		Correct an already-send message by replacing it with a new one
+
+		@param localId the localId of the message to correct
+		       must be the localId of the first version ever sent, not a subsequent correction
+		@param message the new ChatMessage to replace it with
+	**/
+	abstract public function correctMessage(localId:String, message:ChatMessage):Void;
+
+	/**
+		Add new reaction to a message in this Chat
+
+		@param m ChatMessage to react to
+		@param reaction emoji of the reaction
+	**/
+	public function addReaction(m:ChatMessage, reaction:String) {
+		final toSend = m.reply();
+		toSend.text = reaction;
+		sendMessage(toSend);
+	}
+
+	/**
+		Remove an already-sent reaction from a message
+
+		@param m ChatMessage to remove the reaction from
+		@param reaction the emoji to remove
+	**/
+	abstract public function removeReaction(m:ChatMessage, reaction:String):Void;
+
+	/**
+		Archive this chat
+	**/
+	abstract public function close():Void;
+
+	/**
+		An ID of the most recent message in this chat
+	**/
 	abstract public function lastMessageId():Null<String>;
 
+	/**
+		The timestamp of the most recent message in this chat
+	**/
 	public function lastMessageTimestamp():Null<String> {
 		return lastMessage?.timestamp;
 	}
 
-	public function updateFromBookmark(item: Stanza) {
+	@:allow(snikket)
+	private function updateFromBookmark(item: Stanza) {
 		final conf = item.getChild("conference", "urn:xmpp:bookmarks:1");
 		final fn = conf.attr.get("name");
 		if (fn != null) setDisplayName(fn);
@@ -99,6 +174,11 @@ abstract class Chat {
 		extensions = conf.getChild("extensions") ?? new Stanza("extensions", { xmlns: "urn:xmpp:bookmarks:1" });
 	}
 
+	/**
+		Get an image to represent this Chat
+
+		@param callback takes one argument, the URI to the image
+	**/
 	public function getPhoto(callback:(String)->Void) {
 		if (avatarSha1 != null) {
 			persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
@@ -113,11 +193,17 @@ abstract class Chat {
 		}
 	}
 
+	/**
+		An ID of the last message displayed to the user
+	**/
 	public function readUpTo() {
 		final displayed = extensions.getChild("displayed", "urn:xmpp:chat-markers:0");
 		return displayed?.attr?.get("id");
 	}
 
+	/**
+		The number of message that have not yet been displayed to the user
+	**/
 	public function unreadCount() {
 		return _unreadCount;
 	}
@@ -127,6 +213,9 @@ abstract class Chat {
 		_unreadCount = count;
 	}
 
+	/**
+		A preview of the chat, such as the most recent message body
+	**/
 	public function preview() {
 		return lastMessage?.text ?? "";
 	}
@@ -136,10 +225,14 @@ abstract class Chat {
 		lastMessage = message;
 	}
 
-	public function setDisplayName(fn:String) {
+	@:allow(snikket)
+	private function setDisplayName(fn:String) {
 		this.displayName = fn;
 	}
 
+	/**
+		The display name of this Chat
+	**/
 	public function getDisplayName() {
 		return this.displayName;
 	}
@@ -187,10 +280,14 @@ abstract class Chat {
 		this.avatarSha1 = sha1;
 	}
 
-	public function setTrusted(trusted:Bool) {
+	@:allow(snikket)
+	private function setTrusted(trusted:Bool) {
 		this.trusted = trusted;
 	}
 
+	/**
+		Is this a chat with an entity we trust to see our online status?
+	**/
 	public function isTrusted():Bool {
 		return this.trusted;
 	}
@@ -200,6 +297,9 @@ abstract class Chat {
 		return false;
 	}
 
+	/**
+		Can audio calls be started in this Chat?
+	**/
 	public function canAudioCall():Bool {
 		for (resource => p in presence) {
 			if (p.caps?.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false) return true;
@@ -208,6 +308,9 @@ abstract class Chat {
 		return false;
 	}
 
+	/**
+		Can video calls be started in this Chat?
+	**/
 	public function canVideoCall():Bool {
 		for (resource => p in presence) {
 			if (p.caps?.features?.contains("urn:xmpp:jingle:apps:rtp:video") ?? false) return true;
@@ -216,6 +319,12 @@ abstract class Chat {
 		return false;
 	}
 
+	/**
+		Start a new call in this Chat
+
+		@param audio do we want audio in this call
+		@param video do we want video in this call
+	**/
 	public function startCall(audio: Bool, video: Bool) {
 		final session = new OutgoingProposedSession(client, JID.parse(chatId));
 		jingleSessions.set(session.sid, session);
@@ -228,12 +337,18 @@ abstract class Chat {
 		jingleSessions.iterator().next().addMedia(streams);
 	}
 
+	/**
+		Accept any incoming calls in this Chat
+	**/
 	public function acceptCall() {
 		for (session in jingleSessions) {
 			session.accept();
 		}
 	}
 
+	/**
+		Hangup or reject any calls in this chat
+	**/
 	public function hangup() {
 		for (session in jingleSessions) {
 			session.hangup();
@@ -241,6 +356,9 @@ abstract class Chat {
 		}
 	}
 
+	/**
+		The current status of a call in this chat
+	**/
 	public function callStatus() {
 		for (session in jingleSessions) {
 			return session.callStatus();
@@ -249,6 +367,9 @@ abstract class Chat {
 		return "none";
 	}
 
+	/**
+		A DTMFSender for a call in this chat, or NULL
+	**/
 	public function dtmf() {
 		for (session in jingleSessions) {
 			final dtmf = session.dtmf();
@@ -258,27 +379,11 @@ abstract class Chat {
 		return null;
 	}
 
+	/**
+		All video tracks in all active calls in this chat
+	**/
 	public function videoTracks(): Array<MediaStreamTrack> {
 		return jingleSessions.flatMap((session) -> session.videoTracks());
-	}
-
-	public function onMessage(handler:ChatMessage->Void):Void {
-		this.stream.on("message", function(event) {
-			final stanza:Stanza = event.stanza;
-			final from = JID.parse(stanza.attr.get("from"));
-			if (from.asBare() != JID.parse(this.chatId)) return EventUnhandled;
-
-			final chatMessage = ChatMessage.fromStanza(stanza, client.jid);
-			if (chatMessage != null) handler(chatMessage);
-
-			return EventUnhandled; // Allow others to get this event as well
-		});
-	}
-
-	public function addReaction(m:ChatMessage, reaction:String) {
-		final toSend = m.reply();
-		toSend.text = reaction;
-		sendMessage(toSend);
 	}
 }
 
@@ -287,6 +392,11 @@ abstract class Chat {
 @:build(HaxeCBridge.expose())
 #end
 class DirectChat extends Chat {
+	@:allow(snikket)
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null) {
+		super(client, stream, persistence, chatId, uiState, extensions);
+	}
+
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipants(): Array<String> {
 		return chatId.split("\n");
@@ -343,6 +453,7 @@ class DirectChat extends Chat {
 		return message;
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
 	public function correctMessage(localId:String, message:ChatMessage) {
 		final toSend = message.clone();
 		message = prepareOutgoingMessage(message);
@@ -481,7 +592,8 @@ class Channel extends Chat {
 		if (disco != null) this.disco = disco;
 	}
 
-	public function selfPing(shouldRefreshDisco = true) {
+	@:allow(snikket)
+	private function selfPing(shouldRefreshDisco = true) {
 		if (uiState == Closed){
 			client.sendPresence(
 				getFullJid().asString(),
@@ -582,7 +694,8 @@ class Channel extends Chat {
 		sync.fetchNext();
 	}
 
-	public function refreshDisco(?callback: ()->Void) {
+	@:allow(snikket)
+	private function refreshDisco(?callback: ()->Void) {
 		final discoGet = new DiscoInfoGet(chatId);
 		discoGet.onFinished(() -> {
 			if (discoGet.getResult() != null) {
@@ -594,7 +707,6 @@ class Channel extends Chat {
 		});
 		client.sendQuery(discoGet);
 	}
-
 
 	override public function preview() {
 		if (lastMessage == null) return super.preview();
@@ -858,12 +970,24 @@ class Channel extends Chat {
 @:build(HaxeCBridge.expose())
 #end
 class AvailableChat {
+	/**
+		The ID of the Chat this search result represents
+	**/
 	public final chatId: String;
+	/**
+		The display name of this search result
+	**/
 	public final displayName: Null<String>;
+	/**
+		A human-readable note associated with this search result
+	**/
 	public final note: String;
 	@:allow(snikket)
 	private final caps: Caps;
 
+	/**
+		Is this search result a channel?
+	**/
 	public function isChannel() {
 		return caps.isChannel(chatId);
 	}
