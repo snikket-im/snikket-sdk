@@ -510,8 +510,16 @@ class HaxeCBridge {
 		var prefix = isDynamicLink() ? 'API_PREFIX' : '';
 
 		return code('
+			/**
+			 * snikket.h the Snikket SDK for C
+			 *
+			 * Everything returned from an SDK procedure or passed to a function
+			 * pointer, both strings and opaque types, must be passed to
+			 * snikket_release when you are done with it.
+			 */
+
 			#ifndef __${hx.strings.Strings.toUpperUnderscore(namespace)}_H
-			#define __${hx.strings.Strings.toUpperUnderscore(namespace)}_h
+			#define __${hx.strings.Strings.toUpperUnderscore(namespace)}_H
 			')
 			+ (if (includes.length > 0) includes.map(CPrinter.printInclude).join('\n') + '\n\n'; else '')
 			+ (if (ctx.macros.length > 0) ctx.macros.join('\n') + '\n' else '')
@@ -539,32 +547,32 @@ class HaxeCBridge {
 			extern "C" {
 			#endif
 
-				/**
-				 * Initializes the SDK
-				 * 
-				 * This must be first before calling SDK functions (otherwise those calls will hang waiting for a response).
-				 * 
-				 * @param panicCallback a callback to execute if the SDK panics. The SDK will continue processing events after a panic and you may want to stop it after receiving this callback. Use `NULL` for no callback
-				 * @returns `NULL` if the thread initializes successfully or a null-terminated C string if an error occurs during initialization
-				 */
-				$prefix const char *${namespace}_setup(snikket_panic_callback panic_callback);
+			/**
+			 * Initializes the SDK
+			 *
+			 * This must be first before calling SDK functions (otherwise those calls will hang waiting for a response).
+			 *
+			 * @param panicCallback a callback to execute if the SDK panics. The SDK will continue processing events after a panic and you may want to stop it after receiving this callback. Use `NULL` for no callback
+			 * @returns `NULL` if the thread initializes successfully or a null-terminated C string if an error occurs during initialization
+			 */
+			$prefix const char *${namespace}_setup(snikket_panic_callback panic_callback);
 
-				/**
-				 * Stops the SDK, blocking until the main thread has completed. Once ended, it cannot be restarted (this is because static variable state will be retained from the last run).
-				 *
-				 * It can be safely called any number of times – if the SDK is not running this function will just return.
-				 * 
-				 * After executing no more calls to SDK functions can be made (as these will hang waiting for a response).
-				 * 
-				 * Thread-safety: Can be called safely called on any thread.
-				 *
-				 * @param wait If `true`, this function will wait for all events scheduled to execute in the future on the SDK thread to complete. If `false`, immediate pending events will be finished and the SDK stopped without executing events scheduled in the future
-				 */
-				$prefix void ${namespace}_stop(bool wait);
+			/**
+			 * Stops the SDK, blocking until the main thread has completed. Once ended, it cannot be restarted (this is because static variable state will be retained from the last run).
+			 *
+			 * It can be safely called any number of times – if the SDK is not running this function will just return.
+			 *
+			 * After executing no more calls to SDK functions can be made (as these will hang waiting for a response).
+			 *
+			 * Thread-safety: Can be called safely called on any thread.
+			 *
+			 * @param wait If `true`, this function will wait for all events scheduled to execute in the future on the SDK thread to complete. If `false`, immediate pending events will be finished and the SDK stopped without executing events scheduled in the future
+			 */
+			$prefix void ${namespace}_stop(bool wait);
 
 		')
-		+ indent(1, ctx.supportFunctionDeclarations.map(fn -> CPrinter.printDeclaration(fn, true, prefix)).join(';\n\n') + ';\n\n')
-		+ indent(1, ctx.functionDeclarations.map(fn -> CPrinter.printDeclaration(fn, true, prefix)).join(';\n\n') + ';\n\n')
+		+ indent(0, ctx.supportFunctionDeclarations.map(fn -> CPrinter.printDeclaration(fn, true, prefix)).join(';\n\n') + ';\n\n')
+		+ indent(0, ctx.functionDeclarations.map(fn -> CPrinter.printDeclaration(fn, true, prefix)).join(';\n\n') + ';\n\n')
 
 		+ code('
 			#ifdef __cplusplus
