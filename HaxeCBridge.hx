@@ -185,10 +185,10 @@ class HaxeCBridge {
 					var wrapper = {
 						name: field.name + "__fromC",
 						doc: field.doc,
-						meta: [{name: "HaxeCBridge.wrapper", params: [], pos: Context.currentPos()}],
+						meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
 						access: field.access.filter(a -> a != AAbstract),
 						kind: null,
-						pos: Context.currentPos(),
+						pos: field.pos,
 						ret: fun.ret
 					};
 					var args = [];
@@ -209,7 +209,7 @@ class HaxeCBridge {
 								}
 							)).concat([macro $i{arg.name + "__context"}]);
 							final lambdafargs = aargs.mapi((i, a) ->  {name: "a" + i, meta: null, opt: false, type: null, value: null});
-							passArgs.push({expr: EFunction(null, { args: lambdafargs, expr: macro return $i{arg.name}($a{lambdaargs}) }), pos: Context.currentPos()});
+							passArgs.push({expr: EFunction(null, { args: lambdafargs, expr: macro return $i{arg.name}($a{lambdaargs}) }), pos: field.pos});
 						default:
 							passArgs.push(macro $i{arg.name});
 							args.push(arg);
@@ -230,7 +230,42 @@ class HaxeCBridge {
 						}
 						fields.insert(insertTo, wrapper);
 						insertTo++;
-						field.meta.push({name: "HaxeCBridge.noemit", pos: Context.currentPos()});
+						field.meta.push({name: "HaxeCBridge.noemit", pos: field.pos});
+					}
+			case FProp(get, set, t, e):
+					switch (t) {
+					case TPath(path) if (path.name == "Array"):
+						final ptrT = TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({name: "HaxeArray", pack: [], params: path.params.map(t -> convertSecondaryTP(t))}))]});
+						fields.insert(insertTo, {
+							name: field.name + "__fromC",
+							doc: field.doc,
+							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
+							access: field.access,
+							pos: field.pos,
+							kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrT}], expr: macro { if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref($i{field.name}); } return $i{field.name}.length; } })
+						});
+						insertTo++;
+					default:
+						fields.insert(insertTo, {
+							name: field.name + "__fromC",
+							doc: field.doc,
+							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
+							access: field.access,
+							pos: field.pos,
+							kind: FFun({ret: t, params: [], args: [], expr: macro return $i{field.name}})
+						});
+						insertTo++;
+						if (set != "null") {
+							fields.insert(insertTo, {
+								name: "set_" + field.name + "__fromC",
+								doc: field.doc,
+								meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
+								access: field.access,
+								pos: field.pos,
+								kind: FFun({ret: TPath({name: "Void", pack: []}), params: [], args: [{name: "value", type: t}], expr: macro $i{field.name} = value})
+							});
+							insertTo++;
+						}
 					}
 			case FVar(t, e):
 					switch (t) {
@@ -238,23 +273,35 @@ class HaxeCBridge {
 						final ptrT = TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({name: "HaxeArray", pack: [], params: path.params.map(t -> convertSecondaryTP(t))}))]});
 						fields.insert(insertTo, {
 							name: field.name + "__fromC",
-							doc: null,
-							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: Context.currentPos()}],
+							doc: field.doc,
+							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
 							access: field.access,
-							pos: Context.currentPos(),
+							pos: field.pos,
 							kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrT}], expr: macro { if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref($i{field.name}); } return $i{field.name}.length; } })
 						});
 						insertTo++;
 					default:
 						fields.insert(insertTo, {
 							name: field.name + "__fromC",
-							doc: null,
-							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: Context.currentPos()}],
+							doc: field.doc,
+							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
 							access: field.access,
-							pos: Context.currentPos(),
+							pos: field.pos,
 							kind: FFun({ret: t, params: [], args: [], expr: macro return $i{field.name}})
 						});
 						insertTo++;
+
+						if (!field.access.contains(AFinal)) {
+							fields.insert(insertTo, {
+								name: "set_" + field.name + "__fromC",
+								doc: field.doc,
+								meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
+								access: field.access,
+								pos: field.pos,
+								kind: FFun({ret: TPath({name: "Void", pack: []}), params: [], args: [{name: "value", type: t}], expr: macro $i{field.name} = value})
+							});
+							insertTo++;
+						}
 					}
 				default:
 				}
