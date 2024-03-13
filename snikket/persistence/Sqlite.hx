@@ -21,7 +21,7 @@ import snikket.Message;
 
 @:expose
 @:build(HaxeCBridge.expose())
-class Sqlite extends Persistence {
+class Sqlite implements Persistence {
 	final db: Connection;
 	final blobpath: String;
 
