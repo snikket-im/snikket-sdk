@@ -179,6 +179,9 @@ class HaxeCBridge {
 		var insertTo = 0;
 		for (field in forloop) {
 			insertTo++;
+			if (field.access.contains(AOverride)) {
+				field.meta.push({name: "HaxeCBridge.noemit", pos: field.pos});
+			}
 			if (field.access.contains(APublic) && !field.access.contains(AOverride) && !field.meta.exists((m) -> m.name == "HaxeCBridge.noemit")) {
 				switch field.kind {
 				case FFun(fun):
