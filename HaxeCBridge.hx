@@ -176,7 +176,9 @@ class HaxeCBridge {
 		}
 
 		final forloop = fields.slice(0);
+		var insertTo = 0;
 		for (field in forloop) {
+			insertTo++;
 			if (field.access.contains(APublic) && !field.access.contains(AOverride) && !field.meta.exists((m) -> m.name == "HaxeCBridge.noemit")) {
 				switch field.kind {
 				case FFun(fun):
@@ -226,14 +228,15 @@ class HaxeCBridge {
 						} else {
 							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro return $i{field.name}($a{passArgs}), args: args});
 						}
-						fields.push(wrapper);
+						fields.insert(insertTo, wrapper);
+						insertTo++;
 						field.meta.push({name: "HaxeCBridge.noemit", pos: Context.currentPos()});
 					}
 			case FVar(t, e):
 					switch (t) {
 					case TPath(path) if (path.name == "Array"):
 						final ptrT = TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({name: "HaxeArray", pack: [], params: path.params.map(t -> convertSecondaryTP(t))}))]});
-						fields.push({
+						fields.insert(insertTo, {
 							name: field.name + "__fromC",
 							doc: null,
 							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: Context.currentPos()}],
@@ -241,8 +244,9 @@ class HaxeCBridge {
 							pos: Context.currentPos(),
 							kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrT}], expr: macro { if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref($i{field.name}); } return $i{field.name}.length; } })
 						});
+						insertTo++;
 					default:
-						fields.push({
+						fields.insert(insertTo, {
 							name: field.name + "__fromC",
 							doc: null,
 							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: Context.currentPos()}],
@@ -250,6 +254,7 @@ class HaxeCBridge {
 							pos: Context.currentPos(),
 							kind: FFun({ret: t, params: [], args: [], expr: macro return $i{field.name}})
 						});
+						insertTo++;
 					}
 				default:
 				}
@@ -402,11 +407,11 @@ class HaxeCBridge {
 		if (cls.constructor != null) {
 			convertFunction(cls.constructor.get(), Constructor);
 		}
-		for (f in cls.fields.get()) {
-			convertFunction(f, Member);
-		}
 		for (f in cls.statics.get()) {
 			convertFunction(f, Static);
+		}
+		for (f in cls.fields.get()) {
+			convertFunction(f, Member);
 		}
 	}
 
@@ -453,7 +458,7 @@ class HaxeCBridge {
 		});
 
 		var prefix = isDynamicLink() ? 'API_PREFIX' : '';
-		
+
 		return code('
 			#ifndef __${hx.strings.Strings.toUpperUnderscore(namespace)}_H
 			#define __${hx.strings.Strings.toUpperUnderscore(namespace)}_h
@@ -474,9 +479,9 @@ class HaxeCBridge {
 				');
 			} else '')
 
-			+ 'typedef void (*snikket_panic_callback) (const char *info);\n'
-			+ (if (ctx.supportTypeDeclarations.length > 0) ctx.supportTypeDeclarations.map(d -> CPrinter.printDeclaration(d, true)).join(';\n') + ';\n\n'; else '')
-			+ (if (ctx.typeDeclarations.length > 0) ctx.typeDeclarations.map(d -> CPrinter.printDeclaration(d, true)).join(';\n') + ';\n'; else '')
+			+ 'typedef void (*snikket_panic_callback) (const char *info);\n\n'
+			+ (if (ctx.supportTypeDeclarations.length > 0) ctx.supportTypeDeclarations.map(d -> CPrinter.printDeclaration(d, true)).join(';\n\n') + ';\n\n'; else '')
+			+ (if (ctx.typeDeclarations.length > 0) ctx.typeDeclarations.map(d -> CPrinter.printDeclaration(d, true)).join(';\n\n') + ';\n'; else '')
 
 			+ code('
 
@@ -740,13 +745,13 @@ class HaxeCBridge {
 			}
 			
 			HAXE_C_BRIDGE_LINKAGE
-			void ${namespace}_release(const void* objPtr) {
+			void ${namespace}_release(const void* ptr) {
 				struct Callback {
 					static void run(void* data) {
 						HaxeCBridge::releaseHaxePtr(data);
 					}
 				};
-				HaxeCBridgeInternal::runInMainThread(Callback::run, (void*)objPtr);
+				HaxeCBridgeInternal::runInMainThread(Callback::run, (void*)ptr);
 			}
 		')
 		+ ctx.functionDeclarations.map(d -> generateFunctionImplementation(namespace, d)).join('\n') + '\n'
@@ -1585,10 +1590,10 @@ class CConverterContext {
 
 					Thread-safety: can be called on any thread.
 
-					@param objPtr a handle to an arbitrary SDK object returned from an SDK function'),
+					@param ptr a handle to an arbitrary SDK object returned from an SDK function'),
 				kind: Function({
 					name: functionIdent,
-					args: [{name: 'objPtr', type: Ident("const void*")}],
+					args: [{name: 'ptr', type: Ident("const void*")}],
 					ret: Ident('void')
 				})
 			});
