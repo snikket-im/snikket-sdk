@@ -237,7 +237,7 @@ class HaxeCBridge {
 						}
 						fields.insert(insertTo, wrapper);
 						insertTo++;
-						field.meta.push({name: "HaxeCBridge.noemit", pos: field.pos});
+						field.meta.push({name: "HaxeCBridge.noemit", params: [{ pos: field.pos, expr: EConst(CString("wrapped")) }], pos: field.pos});
 					}
 			case FProp(get, set, t, e):
 					switch (t) {
