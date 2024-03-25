@@ -35,6 +35,7 @@ import HaxeCBridge;
 @:expose
 #if cpp
 @:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
 #end
 class Client extends EventEmitter {
 	private var stream:GenericStream;
@@ -440,7 +441,7 @@ class Client extends EventEmitter {
 	/**
 		Get the current display name for this account
 
-		@returns display name or NULL
+		@returns display name
 	**/
 	public function displayName() {
 		return _displayName;

@@ -5,6 +5,9 @@ import snikket.jingle.PeerConnection;
 import snikket.jingle.SessionDescription;
 using Lambda;
 
+#if cpp
+@:build(HaxeSwiftBridge.expose())
+#end
 interface Session {
 	public var sid (get, null): String;
 	public function initiate(stanza: Stanza): InitiatedSession;

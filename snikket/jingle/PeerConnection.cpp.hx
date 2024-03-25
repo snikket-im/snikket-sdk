@@ -1,12 +1,26 @@
 package snikket.jingle;
 
+#if cpp
+import HaxeCBridge;
+#end
+
 typedef TODO = Dynamic;
-typedef DTMFSender = TODO;
 typedef Transceiver = {
 	 receiver: Null<{ track: MediaStreamTrack }>,
 	 sender: Null<{ track: MediaStreamTrack, dtmf: DTMFSender }>
 }
 
+#if cpp
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
+class DTMFSender {
+}
+
+#if cpp
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
 class MediaStreamTrack {
 	 public var muted: Bool;
 	 public var kind: String;
@@ -14,8 +28,12 @@ class MediaStreamTrack {
 	 public function stop() { }
 }
 
+#if cpp
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
 class MediaStream {
-	 public function getTracks() {
+	 public function getTracks(): Array<MediaStreamTrack> {
 		  return [];
 	 }
 }

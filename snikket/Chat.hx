@@ -34,6 +34,7 @@ class UiStateImpl {
 
 #if cpp
 @:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
 #end
 abstract class Chat {
 	private var client:Client;
@@ -390,6 +391,7 @@ abstract class Chat {
 @:expose
 #if cpp
 @:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
 #end
 class DirectChat extends Chat {
 	@:allow(snikket)
@@ -580,6 +582,7 @@ class DirectChat extends Chat {
 @:expose
 #if cpp
 @:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
 #end
 class Channel extends Chat {
 	@:allow(snikket)
@@ -968,6 +971,7 @@ class Channel extends Chat {
 @:expose
 #if cpp
 @:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
 #end
 class AvailableChat {
 	/**

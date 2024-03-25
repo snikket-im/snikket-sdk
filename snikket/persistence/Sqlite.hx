@@ -20,7 +20,10 @@ import snikket.Message;
 // TODO: consider doing background threads for operations
 
 @:expose
+#if cpp
 @:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
 class Sqlite implements Persistence {
 	final db: Connection;
 	final blobpath: String;

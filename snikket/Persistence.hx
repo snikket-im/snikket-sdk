@@ -5,10 +5,14 @@ import snikket.Chat;
 import snikket.ChatMessage;
 import snikket.Message;
 
+#if cpp
+@:build(HaxeSwiftBridge.expose())
+#end
 interface Persistence {
 	public function lastId(accountId: String, chatId: Null<String>, callback:(serverId:Null<String>)->Void):Void;
 	public function storeChat(accountId: String, chat: Chat):Void;
 	public function getChats(accountId: String, callback: (chats:Array<SerializedChat>)->Void):Void;
+	@HaxeCBridge.noemit
 	public function getChatsUnreadDetails(accountId: String, chats: Array<Chat>, callback: (details:Array<{ chatId: String, message: ChatMessage, unreadCount: Int }>)->Void):Void;
 	public function storeReaction(accountId: String, update: ReactionUpdate, callback: (Null<ChatMessage>)->Void):Void;
 	public function storeMessage(accountId: String, message: ChatMessage, callback: (ChatMessage)->Void):Void;
@@ -23,5 +27,6 @@ interface Persistence {
 	public function storeStreamManagement(accountId:String, smId:String, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>):Void;
 	public function getStreamManagement(accountId:String, callback: (smId:Null<String>, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>)->Void):Void;
 	public function storeService(accountId:String, serviceId:String, name:Null<String>, node:Null<String>, caps:Caps):Void;
+	@HaxeCBridge.noemit
 	public function findServicesWithFeature(accountId:String, feature:String, callback:(Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>)->Void):Void;
 }

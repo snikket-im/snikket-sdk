@@ -17,14 +17,22 @@ import snikket.XEP0393;
 import snikket.EmojiUtil;
 import snikket.Message;
 
+@:expose
+@:nullSafety(Strict)
+#if cpp
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
 class ChatAttachment {
 	public final name: Null<String>;
 	public final mime: String;
 	public final size: Null<Int>;
 	public final uris: Array<String>;
+	@HaxeCBridge.noemit
 	public final hashes: Array<{algo:String, hash:BytesData}>;
 
-	public function new(name: Null<String>, mime: String, size: Null<Int>, uris: Array<String>, hashes: Array<{algo:String, hash:BytesData}>) {
+	@:allow(snikket)
+	private function new(name: Null<String>, mime: String, size: Null<Int>, uris: Array<String>, hashes: Array<{algo:String, hash:BytesData}>) {
 		this.name = name;
 		this.mime = mime;
 		this.size = size;
@@ -37,6 +45,7 @@ class ChatAttachment {
 @:nullSafety(Strict)
 #if cpp
 @:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
 #end
 class ChatMessage {
 	/**
@@ -82,10 +91,11 @@ class ChatMessage {
 	/**
 		Array of attachments to this message
 	**/
-	public var attachments: Array<ChatAttachment> = [];
+	public var attachments (default, null): Array<ChatAttachment> = [];
 	/**
 		Map of reactions to this message
 	**/
+	@HaxeCBridge.noemit
 	public var reactions: Map<String, Array<String>> = [];
 
 	/**
@@ -115,7 +125,8 @@ class ChatMessage {
 	/**
 		Array of past versions of this message, if it has been edited
 	**/
-	public var versions: Array<ChatMessage> = [];
+	@:allow(snikket)
+	public var versions (default, null): Array<ChatMessage> = [];
 	@:allow(snikket)
 	private var payloads: Array<Stanza> = [];
 
