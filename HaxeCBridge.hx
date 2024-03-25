@@ -1110,7 +1110,7 @@ class CPrinter {
 				case Typedef(type, declarators):
 					'typedef ${printType(type)}' + (declarators.length > 0 ? ' ${declarators.join(', ')}' :'');
 				case Enum(name, fields):
-					'enum $name {\n'
+					'enum\n#ifdef __clang__\n__attribute__((enum_extensibility(closed)))\n#endif\n$name {\n'
 					+ fields.map(f -> '\t' + f.name + (f.value != null ? ' = ${f.value}' : '')).join(',\n') + '\n'
 					+ '}';
 				case Struct(name, {fields: fields}):
