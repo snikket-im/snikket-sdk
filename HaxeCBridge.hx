@@ -1840,14 +1840,17 @@ abstract HaxeArray<T>(cpp.RawPointer<cpp.RawPointer<cpp.Void>>) from cpp.RawPoin
 	public static inline function fromArrayString(x: Array<String>): HaxeArray<cpp.ConstCharStar> {
 		final arr: Array<cpp.SizeT> = cpp.NativeArray.create(x.length);
 		for (i => el in x) {
-			final ptr = cpp.ConstCharStar.fromString(el);
-			arr[i] = untyped untyped __cpp__('reinterpret_cast<size_t>({0})', ptr);
+			final ptr = HaxeCBridge.retainHaxeString(el);
+			arr[i] = untyped __cpp__('reinterpret_cast<size_t>({0})', ptr);
 		}
 		return cast HaxeCBridge.retainHaxeArray(arr);
 	}
 
 	@:from
 	public static inline function fromArrayT<T>(x: Array<T>): HaxeArray<HaxeObject<T>> {
+		for (el in x) {
+			HaxeCBridge.retainHaxeObject(x);
+		}
 		return HaxeCBridge.retainHaxeArray(x);
 	}
 }
