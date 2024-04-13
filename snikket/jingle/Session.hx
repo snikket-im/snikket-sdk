@@ -4,6 +4,11 @@ import snikket.ID;
 import snikket.jingle.PeerConnection;
 import snikket.jingle.SessionDescription;
 using Lambda;
+using thenshim.PromiseTools;
+
+#if cpp
+import HaxeCBridge;
+#end
 
 #if cpp
 @:build(HaxeSwiftBridge.expose())
@@ -211,6 +216,10 @@ class OutgoingProposedSession implements Session {
 	}
 }
 
+#if cpp
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
 class InitiatedSession implements Session {
 	public var sid (get, null): String;
 	private final client: Client;
@@ -352,7 +361,7 @@ class InitiatedSession implements Session {
 			return Promise.resolve(null);
 		}
 
-		return Promise.all(IceCandidate.fromStanza(stanza).map((candidate) -> {
+		return thenshim.PromiseTools.all(IceCandidate.fromStanza(stanza).map((candidate) -> {
 			final index = remoteDescription.identificationTags.indexOf(candidate.sdpMid);
 			return pc.addIceCandidate(untyped {
 				candidate: candidate.toSdp(),
@@ -363,7 +372,7 @@ class InitiatedSession implements Session {
 		})).then((_) -> {});
 	}
 
-	public function addMedia(streams: Array<MediaStream>) {
+	public function addMedia(streams: Array<MediaStream>): Void {
 		if (pc == null) throw "tried to add media before PeerConnection exists";
 
 		final oldMids = localDescription.media.map((m) -> m.mid);
@@ -380,7 +389,7 @@ class InitiatedSession implements Session {
 		return "ongoing";
 	}
 
-	public function videoTracks() {
+	public function videoTracks(): Array<MediaStreamTrack> {
 		if (pc == null) return [];
 		return pc.getTransceivers()
 			.filter((t) -> t.receiver != null && t.receiver.track != null && t.receiver.track.kind == "video" && !t.receiver.track.muted)
@@ -427,7 +436,7 @@ class InitiatedSession implements Session {
 		client.sendStanza(transportInfo);
 	}
 
-	public function supplyMedia(streams: Array<MediaStream>) {
+	public function supplyMedia(streams: Array<MediaStream>): Void {
 		setupPeerConnection(() -> {
 			for (stream in streams) {
 				for (track in stream.getTracks()) {

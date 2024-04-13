@@ -465,16 +465,17 @@ class Media {
 		return content;
 	}
 
-	public function getUfragPwd() {
-		final ufrag = attributes.find((attr) -> attr.key == "ice-ufrag");
-		final pwd = attributes.find((attr) -> attr.key == "ice-pwd");
+	public function getUfragPwd(sessionAttributes: Null<Array<Attribute>> = null) {
+		final allAttributes = attributes.concat(sessionAttributes ?? []);
+		final ufrag = allAttributes.find((attr) -> attr.key == "ice-ufrag");
+		final pwd = allAttributes.find((attr) -> attr.key == "ice-pwd");
 		if (ufrag == null || pwd == null) throw "transport is missing ufrag or pwd";
 		return { ufrag: ufrag.value, pwd: pwd.value };
 	}
 
 	public function toTransportElement(sessionAttributes: Array<Attribute>) {
 		final transportAttr: DynamicAccess<String> = { xmlns: "urn:xmpp:jingle:transports:ice-udp:1" };
-		final ufragPwd = getUfragPwd();
+		final ufragPwd = getUfragPwd(sessionAttributes);
 		transportAttr.set("ufrag", ufragPwd.ufrag);
 		transportAttr.set("pwd", ufragPwd.pwd);
 		final transport = new Stanza("transport", transportAttr);
@@ -597,8 +598,20 @@ class IceCandidate {
 			priority + " " +
 			connectionAddress + " " +
 			port;
+		// https://github.com/paullouisageneau/libdatachannel/issues/1143
+		if (parameters.exists("typ")) {
+			result += " typ " + parameters["typ"];
+		}
+		if (parameters.exists("raddr")) {
+			result += " raddr " + parameters["raddr"];
+		}
+		if (parameters.exists("rport")) {
+			result += " rport " + parameters["rport"];
+		}
 		for (entry in parameters.keyValueIterator()) {
-			result += " " + entry.key + " " + entry.value;
+			if (entry.key != "typ" && entry.key != "raddr" && entry.key != "rport") {
+				result += " " + entry.key + " " + entry.value;
+			}
 		}
 		return result;
 	}
