@@ -135,7 +135,7 @@ class HaxeSwiftBridge {
 			return "String";
 		case TInst(_.get().name => "Array", [param]):
 			return "Array<" + getSwiftType(param, arg) + ">";
-		case TInst(_.get() => t, []):
+		case TInst(_.get() => t, params):
 			return t.name;
 		case TAbstract(_.get().name => "Null", [param]):
 			return getSwiftType(param) + "?";
@@ -151,6 +151,8 @@ class HaxeSwiftBridge {
 				knownEnums[t.name] = hx.strings.Strings.toLowerUnderscore(safeIdent(TypeTools.toString(type)));
 			}
 			return t.name;
+		case TAbstract(_.get() => t, params):
+			return getSwiftType(TypeTools.followWithAbstracts(type, false), arg);
 		case TFun(args, ret):
 			final builder = new hx.strings.StringBuilder(arg ? "@escaping (" : "(");
 			for (i => arg in args) {
@@ -202,7 +204,7 @@ class HaxeSwiftBridge {
 					"return __r;" +
 					"}()";
 			}
-		case TInst(_.get() => t, []):
+		case TInst(_.get() => t, params):
 			final wrapper = t.isInterface ? 'Any${t.name}' : t.name;
 			if (canNull) {
 				return "(" + item + ").map({ " + wrapper + "($0) })";
@@ -213,6 +215,8 @@ class HaxeSwiftBridge {
 			return castToSwift(item, param, true);
 		case TAbstract(_.get() => t, []):
 			return item;
+		case TAbstract(_.get() => t, params):
+			return castToSwift(item, TypeTools.followWithAbstracts(type, false), canNull, isRet);
 		case TType(_.get() => t, params):
 			return castToSwift(item, TypeTools.follow(type, true), canNull);
 		default:
@@ -447,7 +451,7 @@ class HaxeSwiftBridge {
 							Context.fatalError('Swift bridging for statics not implemented yet', f.pos);
 					}
 
-				default: Context.fatalError('Internal error: Expected function expression', f.pos);
+				default: Context.fatalError('Internal error: Expected function expression for ${f.name} got: ' + f.type, f.pos);
 			}
 		}
 
@@ -456,7 +460,7 @@ class HaxeSwiftBridge {
 		}
 
 		for (f in cls.statics.get()) {
-			convertFunction(f, Static);
+			// TODO: this also includes everything on an abstract?
 		}
 
 		for (f in cls.fields.get()) {
