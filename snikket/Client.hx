@@ -874,7 +874,7 @@ class Client extends EventEmitter {
 		final extDiscoGet = new ExtDiscoGet(jid.domain);
 		extDiscoGet.onFinished(() -> {
 			final servers = [];
-			for (service in extDiscoGet.getResult()) {
+			for (service in extDiscoGet.getResult() ?? []) {
 				if (!["stun", "stuns", "turn", "turns"].contains(service.attr.get("type"))) continue;
 				final host = service.attr.get("host");
 				if (host == null || host == "") continue;
