@@ -3,6 +3,7 @@
 --library hsluv
 --library tink_http
 --library sha
+--library thenshim
 
 HaxeCBridge
 snikket.Client
@@ -10,5 +11,6 @@ snikket.Push
 snikket.persistence.Sqlite
 
 --cpp cpp
+-D HXCPP_NO_CPP11
 -D HaxeCBridge.name=snikket
 -D dll_link
