@@ -581,7 +581,6 @@ class Client extends EventEmitter {
 	public function findAvailableChats(q:String, callback:(String, Array<AvailableChat>) -> Void) {
 		var results = [];
 		final query = StringTools.trim(q);
-		final jid = JID.parse(query);
 		final checkAndAdd = (jid) -> {
 			final discoGet = new DiscoInfoGet(jid.asString());
 			discoGet.onFinished(() -> {
@@ -602,8 +601,13 @@ class Client extends EventEmitter {
 			});
 			sendQuery(discoGet);
 		};
-		if (jid.isValid()) {
-			checkAndAdd(jid);
+		if (StringTools.startsWith(query, "xmpp:")) {
+			checkAndAdd(JID.parse(query.substr(5)));
+		} else {
+			final jid = JID.parse(query);
+			if (jid.isValid()) {
+				checkAndAdd(jid);
+			}
 		}
 		for (chat in chats) {
 			if (chat.isTrusted()) {
