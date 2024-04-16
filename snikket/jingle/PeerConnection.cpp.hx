@@ -133,7 +133,9 @@ extern class RtpMap {
 extern class DescriptionMedia {
 	public function mid():StdString;
 	public function type():StdString;
+	public function payloadTypes(): StdVector<Int>;
 	public function rtpMap(payloadType: Int): cpp.RawPointer<RtpMap>;
+	public function addSSRC(ssrc: cpp.UInt32, cname: cpp.StdString): Void;
 }
 
 @:native("rtc::Description::Audio")
@@ -164,8 +166,32 @@ extern class Track {
 	public function description(): DescriptionMedia;
 	public function mid(): StdString;
 	public function close(): Void;
+	public function isOpen(): Bool;
 	public function isClosed(): Bool;
 	public function setMediaHandler<T>(handler: SharedPtr<T>): Void;
+	public function send(data: cpp.Pointer<Byte>, size: cpp.SizeT): Void;
+}
+
+@:include("rtc/rtc.hpp")
+@:native("rtc::RtpPacketizationConfig")
+@:unreflective
+@:structAccess
+extern class RtpPacketizationConfig {
+	public var payloadType: cpp.UInt8;
+	public var clockRate: cpp.UInt32;
+	public var timestamp: cpp.UInt32;
+
+	@:native("std::make_shared<rtc::RtpPacketizationConfig>")
+	public static function makeShared(ssrc: cpp.UInt32, cname: cpp.StdString, payloadType: cpp.UInt8, clockRate: cpp.UInt32): SharedPtr<RtpPacketizationConfig>;
+}
+
+@:include("rtc/rtc.hpp")
+@:native("rtc::RtpPacketizer")
+@:unreflective
+@:structAccess
+extern class RtpPacketizer {
+	@:native("std::make_shared<rtc::RtpPacketizer>")
+	public static function makeShared(config: SharedPtr<RtpPacketizationConfig>): SharedPtr<RtpPacketizer>;
 }
 
 @:include("rtc/rtc.hpp")
@@ -197,12 +223,34 @@ class DTMFSender {
 
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
+class AudioFormat {
+	@:allow(snikket)
+	private final format: String;
+	@:allow(snikket)
+	private final payloadType: cpp.UInt8;
+	public final clockRate: Int;
+	public final channels: Int;
+	public function new(format: String, payloadType: cpp.UInt8, clockRate: Int, channels: Int) {
+		this.format = format;
+		this.payloadType = payloadType;
+		this.clockRate = clockRate;
+		this.channels = channels;
+	}
+}
+
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
 class MediaStreamTrack {
 	public var id (get, never): String;
 	public var muted (get, never): Bool;
 	public var kind (get, never): String;
+	public var supportedAudioFormats (get, never): Array<AudioFormat>;
 	private var pcmCallback: Null<(Array<cpp.Int16>,Int,Int)->Void> = null;
+	private var readyForPCMCallback: Null<()->Void> = null;
 	private var opus: cpp.Struct<OpusDecoder>;
+	private var rtpPacketizationConfig: SharedPtr<RtpPacketizationConfig>;
+	private var eventLoop: Null<sys.thread.EventLoop> = null;
+	private var alive = true;
 
 	@:allow(snikket)
 	private var media(get, default): StdOptional<DescriptionMedia>;
@@ -238,6 +286,24 @@ class MediaStreamTrack {
 	private function get_kind() { return get_media().value().type(); }
 	private function get_muted() { return false; }
 
+	private function get_supportedAudioFormats() {
+		final maybeMedia = media;
+		if (!maybeMedia.has_value()) return [];
+		final m = maybeMedia.value();
+		final codecs = [];
+		final payloadTypes = m.payloadTypes();
+		for (i in 0...payloadTypes.size()) {
+			final rtp: RtpMap = cpp.Pointer.fromRaw(m.rtpMap(payloadTypes.at(i))).ref;
+			codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), rtp.clockRate, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
+			if (rtp.format == "opus") { // We can encode opus from 8k or 16k too, it's just 48k internal
+				codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), 16000, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
+				codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), 8000, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
+			}
+		}
+
+		return codecs;
+	}
+
 	private function set_track(newTrack: SharedPtr<Track>) {
 		if (untyped __cpp__("!track")) {
 			if (kind == "audio") {
@@ -245,8 +311,19 @@ class MediaStreamTrack {
 				final depacket = RtpDepacketizer.makeShared();
 				final rtcp = RtcpReceivingSession.makeShared();
 				depacket.ref.addToChain(rtcp);
+				rtpPacketizationConfig = RtpPacketizationConfig.makeShared(
+					0, // TODO: allocate an SSRC
+					cpp.StdString.ofString("audio"),
+					0,
+					8000
+				);
+				final packet = RtpPacketizer.makeShared(rtpPacketizationConfig);
+				depacket.ref.addToChain(packet);
 				track.ref.setMediaHandler(depacket);
 				untyped __cpp__("{0}->onFrame([this](rtc::binary msg, rtc::FrameInfo frame_info) { this->onFrame(msg, frame_info); });", track);
+				alive = true;
+				eventLoop = sys.thread.Thread.createWithEventLoop(() -> while(alive) { sys.thread.Thread.processEvents(); sys.thread.Thread.current().events.wait(); }).events;
+				untyped __cpp__("{0}->onOpen([this]() { this->notifyReadyForData(true); });", track);
 			}
 			untyped __cpp__("{0}->onClosed([this]() { this->stop(); });", track);
 		} else {
@@ -265,7 +342,27 @@ class MediaStreamTrack {
 		pcmCallback = callback;
 	}
 
-	final ULAW_DECODE: Array<cpp.Int16> = [-32124, -31100, -30076, -29052, -28028, -27004, -25980, -24956, -23932, -22908, -21884, -20860, -19836, -18812, -17788, -16764, -15996, -15484, -14972, -14460, -13948, -13436, -12924, -12412, -11900, -11388, -10876, -10364, -9852, -9340, -8828, -8316, -7932, -7676, -7420, -7164, -6908, -6652, -6396, -6140, -5884, -5628, -5372, -5116, -4860, -4604, -4348, -4092, -3900, -3772, -3644, -3516, -3388, -3260, -3132, -3004, -2876, -2748, -2620, -2492, -2364, -2236, -2108, -1980, -1884, -1820, -1756, -1692, -1628, -1564, -1500, -1436, -1372, -1308, -1244, -1180, -1116, -1052, -988, -924, -876, -844, -812, -780, -748, -716, -684, -652, -620, -588, -556, -524, -492, -460, -428, -396, -372, -356, -340, -324, -308, -292, -276, -260, -244, -228, -212, -196, -180, -164, -148, -132, -120, -112, -104, -96, -88, -80, -72, -64, -56, -48, -40, -32, -24, -16, -8, 0, 32124, 31100, 30076, 29052, 28028, 27004, 25980, 24956, 23932, 22908, 21884, 20860, 19836, 18812, 17788, 16764, 15996, 15484, 14972, 14460, 13948, 13436, 12924, 12412, 11900, 11388, 10876, 10364, 9852, 9340, 8828, 8316, 7932, 7676, 7420, 7164, 6908, 6652, 6396, 6140, 5884, 5628, 5372, 5116, 4860, 4604, 4348, 4092, 3900, 3772, 3644, 3516, 3388, 3260, 3132, 3004, 2876, 2748, 2620, 2492, 2364, 2236, 2108, 1980, 1884, 1820, 1756, 1692, 1628, 1564, 1500, 1436, 1372, 1308, 1244, 1180, 1116, 1052, 988, 924, 876, 844, 812, 780, 748, 716, 684, 652, 620, 588, 556, 524, 492, 460, 428, 396, 372, 356, 340, 324, 308, 292, 276, 260, 244, 228, 212, 196, 180, 164, 148, 132, 120, 112, 104, 96, 88, 80, 72, 64, 56, 48, 40, 32, 24, 16, 8, 0];
+	static final ULAW_DECODE: Array<cpp.Int16> = [-32124, -31100, -30076, -29052, -28028, -27004, -25980, -24956, -23932, -22908, -21884, -20860, -19836, -18812, -17788, -16764, -15996, -15484, -14972, -14460, -13948, -13436, -12924, -12412, -11900, -11388, -10876, -10364, -9852, -9340, -8828, -8316, -7932, -7676, -7420, -7164, -6908, -6652, -6396, -6140, -5884, -5628, -5372, -5116, -4860, -4604, -4348, -4092, -3900, -3772, -3644, -3516, -3388, -3260, -3132, -3004, -2876, -2748, -2620, -2492, -2364, -2236, -2108, -1980, -1884, -1820, -1756, -1692, -1628, -1564, -1500, -1436, -1372, -1308, -1244, -1180, -1116, -1052, -988, -924, -876, -844, -812, -780, -748, -716, -684, -652, -620, -588, -556, -524, -492, -460, -428, -396, -372, -356, -340, -324, -308, -292, -276, -260, -244, -228, -212, -196, -180, -164, -148, -132, -120, -112, -104, -96, -88, -80, -72, -64, -56, -48, -40, -32, -24, -16, -8, 0, 32124, 31100, 30076, 29052, 28028, 27004, 25980, 24956, 23932, 22908, 21884, 20860, 19836, 18812, 17788, 16764, 15996, 15484, 14972, 14460, 13948, 13436, 12924, 12412, 11900, 11388, 10876, 10364, 9852, 9340, 8828, 8316, 7932, 7676, 7420, 7164, 6908, 6652, 6396, 6140, 5884, 5628, 5372, 5116, 4860, 4604, 4348, 4092, 3900, 3772, 3644, 3516, 3388, 3260, 3132, 3004, 2876, 2748, 2620, 2492, 2364, 2236, 2108, 1980, 1884, 1820, 1756, 1692, 1628, 1564, 1500, 1436, 1372, 1308, 1244, 1180, 1116, 1052, 988, 924, 876, 844, 812, 780, 748, 716, 684, 652, 620, 588, 556, 524, 492, 460, 428, 396, 372, 356, 340, 324, 308, 292, 276, 260, 244, 228, 212, 196, 180, 164, 148, 132, 120, 112, 104, 96, 88, 80, 72, 64, 56, 48, 40, 32, 24, 16, 8, 0];
+	static final ULAW_EXP: Array<cpp.UInt8> = [0,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7];
+
+	private static function pcmToUlaw(sample: cpp.Int16): cpp.UInt8 {
+		final sign = if (sample < 0) {
+			sample = -sample;
+			0x80;
+		} else {
+			0;
+		}
+
+		// Clip the sample if it exceeds the maximum value
+		if (sample > 32635) {
+			sample = 32635;
+		}
+
+		sample += 0x84; // ulaw bias
+		final exponent = ULAW_EXP[(sample >> 8) & 0x7F];
+		final mantissa = (sample >> (exponent + 3)) & 0x0F;
+		return ~(sign | (exponent << 4) | mantissa);
+	}
 
 	private function onFrame(msg: StdVector<CppByte>, frameInfo: FrameInfo) {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
@@ -291,7 +388,52 @@ class MediaStreamTrack {
 		untyped __cpp__("hx::SetTopOfStack((int*)0, true);"); // unregister with GC
 	}
 
+	/**
+		Event fired when ready for next outbound audio frame
+
+		@param callback
+	**/
+	public function addReadyForPCMListener(callback: ()->Void) {
+		readyForPCMCallback = callback;
+		if (untyped __cpp__("track") && track.ref.isOpen()) {
+			notifyReadyForData(false);
+		}
+	}
+
+	private function notifyReadyForData(fromCPP: Bool) {
+		untyped __cpp__("if (fromCPP) { int base = 0; hx::SetTopOfStack(&base, true); }"); // allow running haxe code on foreign thread
+		if (readyForPCMCallback != null) {
+			eventLoop.run(() -> readyForPCMCallback());
+		}
+		untyped __cpp__("if (fromCPP) { hx::SetTopOfStack((int*)0, true); }"); // unregister with GC
+	}
+
+	/**
+		Send new audio to this track
+
+		@param pcm 16-bit signed linear PCM data (interleaved)
+		@param clockRate the sampling rate of the data
+		@param channels the number of audio channels
+	**/
+	public function writePCM(pcm: Array<cpp.Int16>, clockRate: Int, channels: Int) {
+		final format = Lambda.find(supportedAudioFormats, format -> format.clockRate == clockRate && format.channels == channels);
+		if (format == null) throw "Unsupported audo format: " + clockRate + "/" + channels;
+		eventLoop.run(() -> {
+			if (track.ref.isClosed()) return;
+			if (format.format == "PCMU") {
+				rtpPacketizationConfig.ref.payloadType = format.payloadType;
+				rtpPacketizationConfig.ref.clockRate = clockRate;
+				rtpPacketizationConfig.ref.timestamp = rtpPacketizationConfig.ref.timestamp + pcm.length; // timestamp is in samples
+				track.ref.send(cpp.Pointer.ofArray(pcm.map(pcmToUlaw)).reinterpret(), pcm.length);
+			} else {
+				trace("Ignoring audio meant to go out as", format.format, format.clockRate, format.channels);
+			}
+			notifyReadyForData(false);
+		});
+	}
+
 	public function stop() {
+		alive = false;
 		if (!track.ref.isClosed()) track.ref.close();
 		if (untyped __cpp__("opus")) {
 			OpusDecoder.destroy(opus);
@@ -471,7 +613,6 @@ class PeerConnection {
 	public function addTrack(track : MediaStreamTrack, stream : MediaStream) {
 		track.track = pc.ref.addTrack(track.media.value());
 		tracks[track.id] = track;
-		untyped __cpp__('{0}->onOpen([=]{ std::cout << "\\n\\n" << {0}->description().hasPayloadType(107) << "    " << {0}->description().hasPayloadType(0) << "\\n\\n"; });', track.track);
 	}
 
 	public function getTransceivers(): Array<Transceiver> {
