@@ -286,7 +286,6 @@ class InitiatedSession implements Session {
 				.up().up().up()
 		);
 		terminate();
-		client.trigger("call/retract", { chatId: counterpart.asBare().asString() });
 	}
 
 	public function initiate(stanza: Stanza) {
@@ -303,6 +302,7 @@ class InitiatedSession implements Session {
 			}
 		}
 		pc = null;
+		client.trigger("call/retract", { chatId: counterpart.asBare().asString() });
 	}
 
 	public function contentAdd(stanza: Stanza) {
