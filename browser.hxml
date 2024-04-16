@@ -3,6 +3,7 @@
 --library hsluv
 --library tink_http
 --library sha
+--library thenshim
 
 snikket.Client
 snikket.Push

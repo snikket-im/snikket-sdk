@@ -3,16 +3,7 @@ package snikket.persistence;
 #if cpp
 import HaxeCBridge;
 #end
-import datetime.DateTime;
-import haxe.Json;
-import haxe.crypto.Base64;
-import haxe.crypto.Sha1;
-import haxe.crypto.Sha256;
-import haxe.io.Bytes;
 import haxe.io.BytesData;
-import sys.FileSystem;
-import sys.db.Connection;
-import sys.io.File;
 import snikket.Caps;
 import snikket.Chat;
 import snikket.Message;
