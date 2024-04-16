@@ -444,8 +444,12 @@ class MediaStreamTrack {
 			if (format.format == "PCMU") {
 				track.ref.send(cpp.Pointer.ofArray(pcm.map(pcmToUlaw)).reinterpret(), pcm.length);
 			} else if (format.format == "opus") {
-				final encoder = opusEncoder;
-				if (untyped __cpp__("!encoder")) opusEncoder = OpusEncoder.create(clockRate, channels, untyped __cpp__("OPUS_APPLICATION_VOIP"), null); // assume only one opus clockRate+channels for this track
+				if (untyped __cpp__("!{0}", opusEncoder)) {
+					opusEncoder = OpusEncoder.create(clockRate, channels, untyped __cpp__("OPUS_APPLICATION_VOIP"), null); // assume only one opus clockRate+channels for this track
+					untyped __cpp__("opus_encoder_ctl({0}, OPUS_SET_BITRATE(24))", opusEncoder);
+					untyped __cpp__("opus_encoder_ctl({0}, OPUS_SET_PACKET_LOSS_PERC(5))", opusEncoder);
+					untyped __cpp__("opus_encoder_ctl({0}, OPUS_SET_INBAND_FEC(1))", opusEncoder);
+				}
 				final rawOpus = new haxe.ds.Vector(pcm.length * 2).toData(); // Shoudn't be bigger than the input
 				final encoded = OpusEncoder.encode(opusEncoder, cpp.Pointer.ofArray(pcm), Std.int(pcm.length / channels), cpp.Pointer.ofArray(rawOpus), rawOpus.length);
 				rawOpus.resize(encoded);
