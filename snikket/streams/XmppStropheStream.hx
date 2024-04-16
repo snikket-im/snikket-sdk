@@ -149,6 +149,8 @@ class XmppStropheStream extends GenericStream {
 	extern private var ctx:StropheCtx;
 	extern private var conn:StropheConn;
 	private var iqHandlers: Map<IqRequestType, Map<String, Stanza->IqResult>> = [IqRequestType.Get => [], IqRequestType.Set => []];
+	private final pending: Array<Stanza> = [];
+	private var ready = false;
 
 	override public function new() {
 		super();
@@ -220,6 +222,10 @@ class XmppStropheStream extends GenericStream {
 	public static function strophe_connect(conn:StropheConn, event:StropheConnEvent, error:cpp.Int32, stream_error:StropheStreamError, userdata:RawPointer<Void>) {
 		var stream: XmppStropheStream = untyped __cpp__("static_cast<hx::Object*>(userdata)");
 		if (event == untyped __cpp__("XMPP_CONN_CONNECT")) {
+			stream.ready = true;
+			while (stream.pending.length > 0) {
+				stream.sendStanza(stream.pending.shift());
+			}
 			stream.trigger("status/online", {});
 		}
 		if (event == untyped __cpp__("XMPP_CONN_DISCONNECT")) {
@@ -313,7 +319,11 @@ class XmppStropheStream extends GenericStream {
 	}
 
 	public function sendStanza(stanza:Stanza) {
-		StropheConn.send(conn, convertFromStanza(stanza));
+		if (ready) {
+			StropheConn.send(conn, convertFromStanza(stanza));
+		} else {
+			pending.push(stanza);
+		}
 	}
 
 	public function finalize() {
