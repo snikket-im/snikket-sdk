@@ -7,6 +7,7 @@ typedef Transceiver = {
 	receiver: Null<{ track: MediaStreamTrack }>,
 	sender: Null<{ track: MediaStreamTrack, dtmf: DTMFSender }>
 }
+
 @:buildXml("
 <target id='haxe'>
   <lib name='-lopus'/>
@@ -21,6 +22,22 @@ extern class OpusDecoder {
 	public static function destroy(decoder: OpusDecoder): Void;
 	@:native("opus_decode")
 	public static function decode(decoder: OpusDecoder, data: cpp.Pointer<cpp.UInt8>, len: cpp.Int32, pcm: cpp.Pointer<cpp.Int16>, frameSize: Int, decodeFec: Bool): Int;
+}
+
+@:buildXml("
+<target id='haxe'>
+  <lib name='-lopus'/>
+</target>
+")
+@:include("opus/opus.h")
+@:native("OpusEncoder*")
+extern class OpusEncoder {
+	@:native("opus_encoder_create")
+	public static function create(clockRate: cpp.Int32, channels: Int, application: Int, error: cpp.Pointer<Int>): OpusEncoder;
+	@:native("opus_encoder_destroy")
+	public static function destroy(encoder: OpusEncoder): Void;
+	@:native("opus_encode")
+	public static function encode(encoder: OpusEncoder, pcm: cpp.Pointer<cpp.Int16>, frameSize: Int, data: cpp.Pointer<cpp.UInt8>, maxDataBytes: cpp.Int32): cpp.Int32;
 }
 
 @:include("fstream")
@@ -248,6 +265,7 @@ class MediaStreamTrack {
 	private var pcmCallback: Null<(Array<cpp.Int16>,Int,Int)->Void> = null;
 	private var readyForPCMCallback: Null<()->Void> = null;
 	private var opus: cpp.Struct<OpusDecoder>;
+	private var opusEncoder: cpp.Struct<OpusEncoder>;
 	private var rtpPacketizationConfig: SharedPtr<RtpPacketizationConfig>;
 	private var eventLoop: Null<sys.thread.EventLoop> = null;
 	private var alive = true;
@@ -420,11 +438,18 @@ class MediaStreamTrack {
 		if (format == null) throw "Unsupported audo format: " + clockRate + "/" + channels;
 		eventLoop.run(() -> {
 			if (track.ref.isClosed()) return;
+			rtpPacketizationConfig.ref.payloadType = format.payloadType;
+			rtpPacketizationConfig.ref.clockRate = clockRate;
+			rtpPacketizationConfig.ref.timestamp = rtpPacketizationConfig.ref.timestamp + Std.int(pcm.length / channels); // timestamp is in samples
 			if (format.format == "PCMU") {
-				rtpPacketizationConfig.ref.payloadType = format.payloadType;
-				rtpPacketizationConfig.ref.clockRate = clockRate;
-				rtpPacketizationConfig.ref.timestamp = rtpPacketizationConfig.ref.timestamp + pcm.length; // timestamp is in samples
 				track.ref.send(cpp.Pointer.ofArray(pcm.map(pcmToUlaw)).reinterpret(), pcm.length);
+			} else if (format.format == "opus") {
+				final encoder = opusEncoder;
+				if (untyped __cpp__("!encoder")) opusEncoder = OpusEncoder.create(clockRate, channels, untyped __cpp__("OPUS_APPLICATION_VOIP"), null); // assume only one opus clockRate+channels for this track
+				final rawOpus = new haxe.ds.Vector(pcm.length * 2).toData(); // Shoudn't be bigger than the input
+				final encoded = OpusEncoder.encode(opusEncoder, cpp.Pointer.ofArray(pcm), Std.int(pcm.length / channels), cpp.Pointer.ofArray(rawOpus), rawOpus.length);
+				rawOpus.resize(encoded);
+				track.ref.send(cpp.Pointer.ofArray(rawOpus).reinterpret(), rawOpus.length);
 			} else {
 				trace("Ignoring audio meant to go out as", format.format, format.clockRate, format.channels);
 			}
