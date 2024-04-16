@@ -8,6 +8,7 @@
 HaxeCBridge
 snikket.Client
 snikket.Push
+snikket.persistence.Dummy
 snikket.persistence.Sqlite
 
 --cpp cpp
