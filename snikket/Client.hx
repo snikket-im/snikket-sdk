@@ -38,6 +38,10 @@ import HaxeCBridge;
 @:build(HaxeSwiftBridge.expose())
 #end
 class Client extends EventEmitter {
+	/**
+		Set to false to suppress sending available presence
+	**/
+	public var sendAvailable(null, default): Bool = true;
 	private var stream:GenericStream;
 	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
 	@:allow(snikket)
@@ -508,8 +512,10 @@ class Client extends EventEmitter {
 					chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
 					this.trigger("chats/update", chats);
 					// Set self to online
-					sendPresence();
-					pingAllChannels();
+					if (sendAvailable) {
+						sendPresence();
+						pingAllChannels();
+					}
 					this.trigger("status/online", {});
 				});
 			});
@@ -607,6 +613,9 @@ class Client extends EventEmitter {
 				}
 				for (resource in Caps.withFeature(chat.getCaps(), "jabber:iq:gateway")) {
 					resources[resource] = true;
+				}
+				if (!sendAvailable && JID.parse(chat.chatId).isDomain()) {
+					resources[null] = true;
 				}
 				for (resource in resources.keys()) {
 					final bareJid = JID.parse(chat.chatId);
