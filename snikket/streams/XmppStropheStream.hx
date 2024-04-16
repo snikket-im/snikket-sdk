@@ -155,7 +155,10 @@ class XmppStropheStream extends GenericStream {
 	override public function new() {
 		super();
 		StropheCtx.initialize(); // TODO: shutdown?
-		untyped __cpp__("xmpp_log_t *logger = xmpp_get_default_logger(XMPP_LEVEL_DEBUG);");
+		untyped __cpp__("xmpp_log_t *logger = NULL;");
+		if (Sys.getEnv("SNIKKET_XMPP_DEBUG") != null) {
+			untyped __cpp__("logger = xmpp_get_default_logger(XMPP_LEVEL_DEBUG);");
+		}
 		ctx = StropheCtx.create(null, untyped __cpp__("logger"));
 		conn = StropheConn.create(ctx);
 		StropheConn.handler_add(
