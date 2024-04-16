@@ -396,7 +396,9 @@ class PeerConnection {
 	final mainLoop: sys.thread.EventLoop;
 
 	public function new(?configuration : Configuration, ?constraints : Dynamic){
-		//untyped __cpp__("rtc::InitLogger(rtc::LogLevel::Verbose);");
+		if (Sys.getEnv("SNIKKET_WEBRTC_DEBUG") != null) {
+			untyped __cpp__("rtc::InitLogger(rtc::LogLevel::Verbose);");
+		}
 		mainLoop = sys.thread.Thread.current().events;
 		_pc = PC.makeShared();
 		pc = cpp.Pointer.fromRaw(untyped __cpp__("{0}.get()", _pc));
