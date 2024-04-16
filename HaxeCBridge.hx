@@ -261,15 +261,17 @@ class HaxeCBridge {
 						});
 						insertTo++;
 					default:
-						fields.insert(insertTo, {
-							name: field.name + "__fromC",
-							doc: field.doc,
-							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
-							access: field.access,
-							pos: field.pos,
-							kind: FFun({ret: t, params: [], args: [], expr: macro { return $i{field.name} }})
-						});
-						insertTo++;
+						if (get != "null" && get != "never") {
+							fields.insert(insertTo, {
+								name: field.name + "__fromC",
+								doc: field.doc,
+								meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
+								access: field.access,
+								pos: field.pos,
+								kind: FFun({ret: t, params: [], args: [], expr: macro { return $i{field.name} }})
+							});
+							insertTo++;
+						}
 						if (set != "null" && set != "never") {
 							fields.insert(insertTo, {
 								name: "set_" + field.name + "__fromC",
