@@ -440,7 +440,6 @@ class MediaStreamTrack {
 			if (track.ref.isClosed()) return;
 			rtpPacketizationConfig.ref.payloadType = format.payloadType;
 			rtpPacketizationConfig.ref.clockRate = clockRate;
-			rtpPacketizationConfig.ref.timestamp = rtpPacketizationConfig.ref.timestamp + Std.int(pcm.length / channels); // timestamp is in samples
 			if (format.format == "PCMU") {
 				track.ref.send(cpp.Pointer.ofArray(pcm.map(pcmToUlaw)).reinterpret(), pcm.length);
 			} else if (format.format == "opus") {
@@ -457,6 +456,7 @@ class MediaStreamTrack {
 			} else {
 				trace("Ignoring audio meant to go out as", format.format, format.clockRate, format.channels);
 			}
+			rtpPacketizationConfig.ref.timestamp = rtpPacketizationConfig.ref.timestamp + Std.int(pcm.length / channels); // timestamp is in samples
 			notifyReadyForData(false);
 		});
 	}
