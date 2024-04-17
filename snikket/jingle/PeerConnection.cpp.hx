@@ -233,8 +233,87 @@ extern class RtcpReceivingSession {
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 class DTMFSender {
-	public function new(track: MediaStreamTrack) {
+	private final track: MediaStreamTrack;
+	private var timer: haxe.Timer;
+	private final tones: Array<cpp.UInt8> = [];
 
+	/**
+		Create a new DTMFSender for a track
+
+		@param track to attach this DTMFSender to
+	**/
+	public function new(track: MediaStreamTrack) {
+		this.track = track;
+		track.onAudioLoop(() -> {
+			timer = new haxe.Timer(570); // This timer will stop when the audioloop for this track stops
+			timer.run = () -> {
+				final tone = tones.shift();
+				if (tone != null && tone != 0xFF) insertOneTone(tone);
+			};
+		});
+	}
+
+	private static final TONES: Map<String, cpp.UInt8> = [
+		"0" => 0,
+		"1" => 1,
+		"2" => 2,
+		"3" => 3,
+		"4" => 4,
+		"5" => 5,
+		"6" => 6,
+		"7" => 7,
+		"8" => 8,
+		"9" => 9,
+		"*" => 10,
+		"#" => 11,
+		"A" => 12,
+		"B" => 13,
+		"C" => 14,
+		"D" => 15,
+		"a" => 12,
+		"b" => 13,
+		"c" => 14,
+		"d" => 15
+	];
+
+	/**
+		Schedule DTMF events to be sent
+
+		@param tones can be any number of 0123456789#*ABCD,
+	**/
+	public function insertDTMF(tones: String) {
+		track.onAudioLoop(() -> {
+			for (i in 0...tones.length) {
+				if (tones.charAt(i) == ",") {
+					// Wait about 2 seconds
+					this.tones.push(0xFF);
+					this.tones.push(0xFF);
+					this.tones.push(0xFF);
+					this.tones.push(0xFF);
+				} else {
+					final tone = TONES[tones.charAt(i)];
+					if (tone != null) this.tones.push(tone);
+				}
+			}
+		});
+	}
+
+	private function insertOneTone(tone: cpp.UInt8) {
+		final format = Lambda.find(track.supportedAudioFormats, af -> af.format == "telephone-event");
+		final payload: Array<cpp.UInt8> = [tone, 0, 0, 160];
+		for (i in 1...25) {
+			final duration = 160 * i;
+			payload[2] = (duration >> 8) & 0xFF;
+			payload[3] = duration & 0xFF;
+			// 1 << 7 for marker bit on first packet
+			track.write(payload, i == 1 ? format.payloadType | (1 << 7) : format.payloadType, format.clockRate);
+		}
+		for (i in 0...3) {
+			payload[2] = 15;
+			payload[3] = 160;
+			payload[1] = 128;
+			track.write(payload, format.payloadType, format.clockRate);
+		}
 	}
 }
 
@@ -267,7 +346,7 @@ class MediaStreamTrack {
 	private var opus: cpp.Struct<OpusDecoder>;
 	private var opusEncoder: cpp.Struct<OpusEncoder>;
 	private var rtpPacketizationConfig: SharedPtr<RtpPacketizationConfig>;
-	private var eventLoop: Null<sys.thread.EventLoop> = null;
+	private final eventLoop: sys.thread.EventLoop;
 	private var alive = true;
 
 	@:allow(snikket)
@@ -284,7 +363,9 @@ class MediaStreamTrack {
 	}
 
 	@:allow(snikket)
-	private function new() { }
+	private function new() {
+		eventLoop = sys.thread.Thread.createWithEventLoop(() -> while(alive) { sys.thread.Thread.processEvents(); sys.thread.Thread.current().events.wait(); }).events;
+	}
 
 	private function get_media() {
 		if (untyped __cpp__("!track")) {
@@ -339,8 +420,6 @@ class MediaStreamTrack {
 				depacket.ref.addToChain(packet);
 				track.ref.setMediaHandler(depacket);
 				untyped __cpp__("{0}->onFrame([this](rtc::binary msg, rtc::FrameInfo frame_info) { this->onFrame(msg, frame_info); });", track);
-				alive = true;
-				eventLoop = sys.thread.Thread.createWithEventLoop(() -> while(alive) { sys.thread.Thread.processEvents(); sys.thread.Thread.current().events.wait(); }).events;
 				untyped __cpp__("{0}->onOpen([this]() { this->notifyReadyForData(true); });", track);
 			}
 			untyped __cpp__("{0}->onClosed([this]() { this->stop(); });", track);
@@ -438,10 +517,8 @@ class MediaStreamTrack {
 		if (format == null) throw "Unsupported audo format: " + clockRate + "/" + channels;
 		eventLoop.run(() -> {
 			if (track.ref.isClosed()) return;
-			rtpPacketizationConfig.ref.payloadType = format.payloadType;
-			rtpPacketizationConfig.ref.clockRate = clockRate;
 			if (format.format == "PCMU") {
-				track.ref.send(cpp.Pointer.ofArray(pcm.map(pcmToUlaw)).reinterpret(), pcm.length);
+				write(pcm.map(pcmToUlaw), format.payloadType, clockRate);
 			} else if (format.format == "opus") {
 				if (untyped __cpp__("!{0}", opusEncoder)) {
 					opusEncoder = OpusEncoder.create(clockRate, channels, untyped __cpp__("OPUS_APPLICATION_VOIP"), null); // assume only one opus clockRate+channels for this track
@@ -452,13 +529,32 @@ class MediaStreamTrack {
 				final rawOpus = new haxe.ds.Vector(pcm.length * 2).toData(); // Shoudn't be bigger than the input
 				final encoded = OpusEncoder.encode(opusEncoder, cpp.Pointer.ofArray(pcm), Std.int(pcm.length / channels), cpp.Pointer.ofArray(rawOpus), rawOpus.length);
 				rawOpus.resize(encoded);
-				track.ref.send(cpp.Pointer.ofArray(rawOpus).reinterpret(), rawOpus.length);
+				write(rawOpus, format.payloadType, clockRate);
 			} else {
 				trace("Ignoring audio meant to go out as", format.format, format.clockRate, format.channels);
 			}
-			rtpPacketizationConfig.ref.timestamp = rtpPacketizationConfig.ref.timestamp + Std.int(pcm.length / channels); // timestamp is in samples
+			advanceTimestamp(Std.int(pcm.length / channels));
 			notifyReadyForData(false);
 		});
+	}
+
+	@:allow(snikket)
+	private function onAudioLoop(callback: ()->Void) {
+		eventLoop.run(callback);
+	}
+
+	@:allow(snikket)
+	private function write(payload: Array<cpp.UInt8>, payloadType: cpp.UInt8, clockRate: Int) {
+		rtpPacketizationConfig.ref.payloadType = payloadType;
+		rtpPacketizationConfig.ref.clockRate = clockRate;
+		track.ref.send(cpp.Pointer.ofArray(payload).reinterpret(), payload.length);
+		// Don't forget to advanceTimestamp after!
+		// some payloads all occur at the same timestamp, so this is up to the caller
+	}
+
+	@:allow(snikket)
+	private function advanceTimestamp(samples: Int) {
+		rtpPacketizationConfig.ref.timestamp = rtpPacketizationConfig.ref.timestamp + samples;
 	}
 
 	public function stop() {
