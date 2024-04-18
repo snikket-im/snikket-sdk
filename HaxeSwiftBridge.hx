@@ -283,7 +283,7 @@ class HaxeSwiftBridge {
 				.concat(safeIdent(classPrefix.join('.')) != libName ? classPrefix : [])
 				.filter(s -> s != '');
 
-		final builder = new hx.strings.StringBuilder(cls.isInterface ? "protocol " : "class ");
+		final builder = new hx.strings.StringBuilder(cls.isInterface ? "public protocol " : "public class ");
 		builder.add(cls.name);
 		final superClass = if (cls.superClass == null) {
 			null;
@@ -308,7 +308,8 @@ class HaxeSwiftBridge {
 
 		builder.add(" {\n");
 		if (!cls.isInterface && superClass == null) {
-			builder.add("\tinternal let o: UnsafeMutableRawPointer\n\n\tinternal init(_ ptr: UnsafeMutableRawPointer) {\n\t\to = ptr\n\t}\n\n");
+			// We don't want this to be public, but it needs to be for the protocol, hmm
+			builder.add("\tpublic let o: UnsafeMutableRawPointer\n\n\tinternal init(_ ptr: UnsafeMutableRawPointer) {\n\t\to = ptr\n\t}\n\n");
 		}
 
 		function convertVar(f: ClassField, read: VarAccess, write: VarAccess) {
@@ -316,6 +317,7 @@ class HaxeSwiftBridge {
 			var isConvertibleMethod = f.isPublic && !f.isExtern && (noemit == null || (noemit.params != null && noemit.params.length > 0));
 			if (!isConvertibleMethod) return;
 			if (cls.isInterface) return;
+			if (read != AccNormal && read != AccCall) return; // Swift doesn't allow write-only
 
 			final cNameMeta = getCNameMeta(f.meta);
 
@@ -323,9 +325,9 @@ class HaxeSwiftBridge {
 			final cFuncNameSet = hx.strings.Strings.toLowerUnderscore(functionPrefix.concat(["set", f.name]).join('_'));
 
 			final cleanDoc = f.doc != null ? StringTools.trim(removeIndentation(f.doc)) : null;
-			if (cleanDoc != null) builder.add('\t/**\n${cleanDoc.split('\n').map(l -> '\t * ' + l).join('\n')}\n\t */\n');
+			if (cleanDoc != null) builder.add('\t/**\n${cleanDoc.split('\n').map(l -> '\t ' + l).join('\n')}\n\t */\n');
 
-			builder.add("\tvar ");
+			builder.add("\tpublic var ");
 			builder.add(f.name);
 			builder.add(": ");
 			builder.add(getSwiftType(f.type));
@@ -375,10 +377,10 @@ class HaxeSwiftBridge {
 
 					final cleanDoc = f.doc != null ? StringTools.trim(removeIndentation(f.doc)) : null;
 
-					if (cleanDoc != null) builder.add('\t/**\n${cleanDoc.split('\n').map(l -> '\t * ' + l).join('\n')}\n\t */\n');
+					if (cleanDoc != null) builder.add('\t/**\n${cleanDoc.split('\n').map(l -> '\t ' + l).join('\n')}\n\t */\n');
 					switch kind {
 						case Constructor:
-							builder.add("\tinit(");
+							builder.add("\tpublic init(");
 							convertArgs(builder, targs);
 							builder.add(") {\n\t\to = c_");
 							builder.add(libName);
@@ -391,7 +393,7 @@ class HaxeSwiftBridge {
 							}
 							builder.add(")\n\t}\n\n");
 						case Member:
-							builder.add("\tfunc ");
+							builder.add("\tpublic func ");
 							builder.add(funcName);
 							builder.add("(");
 							convertArgs(builder, targs);
@@ -494,12 +496,12 @@ class HaxeSwiftBridge {
 
 		if (cls.isInterface) {
 			// TODO: extension with defaults for all exposed methods
-			builder.add("\nclass Any");
+			builder.add("\npublic class Any");
 			builder.add(cls.name);
 			builder.add(": ");
 			builder.add(cls.name);
 			builder.add(" {\n");
-			builder.add("\tinternal let o: UnsafeMutableRawPointer\n\n\tinternal init(_ ptr: UnsafeMutableRawPointer) {\n\t\to = ptr\n\t}\n\n");
+			builder.add("\tpublic let o: UnsafeMutableRawPointer\n\n\tinternal init(_ ptr: UnsafeMutableRawPointer) {\n\t\to = ptr\n\t}\n\n");
 			builder.add("\tdeinit {\n\t\tc_");
 			builder.add(libName);
 			builder.add(".");
@@ -552,7 +554,7 @@ class HaxeSwiftBridge {
 				c_' + libName + '.' + libName + '_stop(wait)
 			}
 
-			internal protocol SDKObject {
+			public protocol SDKObject {
 				var o: UnsafeMutableRawPointer {get}
 			}
 
@@ -572,7 +574,7 @@ class HaxeSwiftBridge {
 
 		')
 		+ queuedClasses.map(c -> convertQueuedClass(c.cls, c.namespace)).join("\n") + "\n"
-		+ { iterator: () -> knownEnums.keyValueIterator() }.map(e -> "typealias " + e.key + " = " + e.value + "\n").join("\n")
+		+ { iterator: () -> knownEnums.keyValueIterator() }.map(e -> "public typealias " + e.key + " = " + e.value + "\n").join("\n")
 		;
 	}
 
