@@ -222,7 +222,7 @@ class HaxeCBridge {
 						case TPath(path) if (path.name == "Array"):
 							wrap = true;
 							passArgs.push(macro $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).copy());
-							args.push({ name: arg.name, type: TPath({name: "Pointer", pack: ["cpp"], params: path.params.map(tp -> convertSecondaryTP(tp))}) });
+							args.push({ name: arg.name, type: TPath({name: "ConstPointer", pack: ["cpp"], params: path.params.map(tp -> convertSecondaryTP(tp))}) });
 							args.push({ name: arg.name + "__len", type: TPath({name: "SizeT", pack: ["cpp"]}) });
 						default:
 							passArgs.push(macro $i{arg.name});
