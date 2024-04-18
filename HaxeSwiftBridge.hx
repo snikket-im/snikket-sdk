@@ -187,17 +187,22 @@ class HaxeSwiftBridge {
 		case TInst(_.get().name => "String", params):
 			return "useString(" + item + ")" + (canNull ? "" : "!");
 		case TInst(_.get().name => "Array", [param]):
+			final ptrType = switch getSwiftType(param) {
+				case "String": "UnsafePointer<CChar>?";
+				case "Int16": "Int16";
+				default: "UnsafeMutableRawPointer?";
+			}
 			if (isRet) {
 				return
 					"{" +
-					"var __ret: UnsafeMutablePointer<UnsafeMutableRawPointer?>? = nil;" +
+					"var __ret: UnsafeMutablePointer<" + ptrType + ">? = nil;" +
 					"let __ret_length = " + ~/\)$/.replace(item, ", &__ret);") +
 					"return " + castToSwift("__ret", type, canNull, false) + ";" +
 					"}()";
 			} else {
 				return
 					"{" +
-					"let __r = UnsafeMutableBufferPointer<UnsafeMutableRawPointer?>(start: " + item + ", count: " + item + "_length).map({" +
+					"let __r = UnsafeMutableBufferPointer<" + ptrType + ">(start: " + item + ", count: " + item + "_length).map({" +
 					castToSwift("$0", param) +
 					"});" +
 					"c_" + libName + "." + libName + "_release(" + item + ");" +
@@ -228,7 +233,9 @@ class HaxeSwiftBridge {
 		return switch type {
 		case TInst(_.get().name => "String", params):
 			return item;
-		case TInst(_.get().name => "Array", params):
+		case TInst(_.get().name => "Array", [TInst(_)]):
+			return item + ".map { $0.o }";
+		case TInst(_.get().name => "Array", [param]):
 			return item;
 		case TInst(_.get() => t, []):
 			return item + (canNull ? "?" : "") + ".o";
@@ -440,6 +447,10 @@ class HaxeSwiftBridge {
 									ibuilder.add("\n\t\t\t},\n\t\t\t__");
 									ibuilder.add(arg.name);
 									ibuilder.add("_ptr");
+								case TInst(_.get().name => "Array", [param]):
+									ibuilder.add(castToC(arg.name, arg.t));
+									ibuilder.add(", ");
+									ibuilder.add(arg.name + ".count");
 								default:
 									ibuilder.add(castToC(arg.name, arg.t));
 								}
