@@ -237,12 +237,8 @@ class DTMFSender {
 	private var timer: haxe.Timer;
 	private final tones: Array<cpp.UInt8> = [];
 
-	/**
-		Create a new DTMFSender for a track
-
-		@param track to attach this DTMFSender to
-	**/
-	public function new(track: MediaStreamTrack) {
+	@:allow(snikket)
+	private function new(track: MediaStreamTrack) {
 		this.track = track;
 		track.onAudioLoop(() -> {
 			timer = new haxe.Timer(570); // This timer will stop when the audioloop for this track stops

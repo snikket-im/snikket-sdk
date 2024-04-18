@@ -79,7 +79,8 @@ class Stanza implements NodeInterface {
 		return fromXml(Xml.parse(s));
 	}
 
-	public static function fromXml(el:Xml):Stanza {
+	@:allow(snikket)
+	private static function fromXml(el:Xml):Stanza {
 		if(el.nodeType == XmlType.Document) {
 			return fromXml(el.firstElement());
 		}

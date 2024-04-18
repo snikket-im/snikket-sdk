@@ -12,7 +12,8 @@ class Caps {
 	public final features : Array<String>;
 	// TODO: data forms
 
-	public static function withIdentity(caps:KeyValueIterator<String, Null<Caps>>, category:Null<String>, type:Null<String>):Array<String> {
+	@:allow(snikket)
+	private static function withIdentity(caps:KeyValueIterator<String, Null<Caps>>, category:Null<String>, type:Null<String>):Array<String> {
 		final result = [];
 		for (cap in caps) {
 			if (cap.value != null) {
@@ -26,7 +27,8 @@ class Caps {
 		return result;
 	}
 
-	public static function withFeature(caps:KeyValueIterator<String, Null<Caps>>, feature:String):Array<String> {
+	@:allow(snikket)
+	private static function withFeature(caps:KeyValueIterator<String, Null<Caps>>, feature:String):Array<String> {
 		final result = [];
 		for (cap in caps) {
 			if (cap.value != null) {

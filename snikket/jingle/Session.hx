@@ -15,14 +15,21 @@ import HaxeCBridge;
 #end
 interface Session {
 	public var sid (get, null): String;
-	public function initiate(stanza: Stanza): InitiatedSession;
-	public function accept(): Void;
+	@:allow(snikket)
+	private function initiate(stanza: Stanza): InitiatedSession;
+	@:allow(snikket)
+	private function accept(): Void;
 	public function hangup(): Void;
-	public function retract(): Void;
-	public function terminate(): Void;
-	public function contentAdd(stanza: Stanza): Void;
-	public function contentAccept(stanza: Stanza): Void;
-	public function transportInfo(stanza: Stanza): Promise<Any>;
+	@:allow(snikket)
+	private function retract(): Void;
+	@:allow(snikket)
+	private function terminate(): Void;
+	@:allow(snikket)
+	private function contentAdd(stanza: Stanza): Void;
+	@:allow(snikket)
+	private function contentAccept(stanza: Stanza): Void;
+	@:allow(snikket)
+	private function transportInfo(stanza: Stanza): Promise<Any>;
 	public function addMedia(streams: Array<MediaStream>): Void;
 	public function callStatus():String;
 	public function videoTracks():Array<MediaStreamTrack>;
@@ -237,7 +244,8 @@ class InitiatedSession implements Session {
 	private var candidatesDone: Null<()->Void> = null;
 	private final caps: Caps;
 
-	public function new(client: Client, counterpart: JID, sid: String, remoteDescription: Null<SessionDescription>) {
+	@:allow(snikket)
+	private function new(client: Client, counterpart: JID, sid: String, remoteDescription: Null<SessionDescription>) {
 		this.client = client;
 		this.counterpart = counterpart;
 		this._sid = sid;
@@ -246,7 +254,8 @@ class InitiatedSession implements Session {
 		this.caps = client.getDirectChat(counterpart.asBare().asString()).getResourceCaps(counterpart.resource);
 	}
 
-	public static function fromSessionInitiate(client: Client, stanza: Stanza): InitiatedSession {
+	@:allow(snikket)
+	private static function fromSessionInitiate(client: Client, stanza: Stanza): InitiatedSession {
 		final jingle = stanza.getChild("jingle", "urn:xmpp:jingle:1");
 		final session = new InitiatedSession(
 			client,
@@ -258,19 +267,22 @@ class InitiatedSession implements Session {
 		return session;
 	}
 
-	public function get_sid() {
+	private function get_sid() {
 		return _sid;
 	}
 
-	public function ring() {
+	@:allow(snikket)
+	private function ring() {
 		client.trigger("call/ring", { chatId: counterpart.asBare().asString(), session: this });
 	}
 
-	public function retract() {
+	@:allow(snikket)
+	private function retract() {
 		trace("Tried to retract session in wrong state: " + sid, this);
 	}
 
-	public function accept() {
+	@:allow(snikket)
+	private function accept() {
 		if (accepted || remoteDescription == null) return;
 		accepted = true;
 		final audio = remoteDescription.media.find((m) -> m.media == "audio") != null;
@@ -288,12 +300,14 @@ class InitiatedSession implements Session {
 		terminate();
 	}
 
-	public function initiate(stanza: Stanza) {
+	@:allow(snikket)
+	private function initiate(stanza: Stanza) {
 		trace("Trying to initiate already initiated session: " + sid);
 		return throw "already initiated";
 	}
 
-	public function terminate() {
+	@:allow(snikket)
+	private function terminate() {
 		if (pc == null) return;
 		pc.close();
 		for (tranceiver in pc.getTransceivers()) {
@@ -305,7 +319,8 @@ class InitiatedSession implements Session {
 		client.trigger("call/retract", { chatId: counterpart.asBare().asString() });
 	}
 
-	public function contentAdd(stanza: Stanza) {
+	@:allow(snikket)
+	private function contentAdd(stanza: Stanza) {
 		if (remoteDescription == null) throw "Got content-add before session-accept";
 
 		final addThis = SessionDescription.fromStanza(stanza, initiator, remoteDescription);
@@ -343,7 +358,8 @@ class InitiatedSession implements Session {
 		});
 	}
 
-	public function contentAccept(stanza: Stanza) {
+	@:allow(snikket)
+	private function contentAccept(stanza: Stanza) {
 		if (remoteDescription == null) throw "Got content-accept before session-accept";
 		// TODO: check if matches a content-add we sent?
 
@@ -355,7 +371,8 @@ class InitiatedSession implements Session {
 		pc.setRemoteDescription({ type: SdpType.ANSWER, sdp: remoteDescription.toSdp() });
 	}
 
-	public function transportInfo(stanza: Stanza) {
+	@:allow(snikket)
+	private function transportInfo(stanza: Stanza) {
 		if (pc == null || remoteDescription == null) {
 			queuedInboundTransportInfo.push(stanza);
 			return Promise.resolve(null);
