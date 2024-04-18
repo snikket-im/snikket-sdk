@@ -536,7 +536,7 @@ class HaxeCBridge {
 
 		return code('
 			/**
-			 * snikket.h the Snikket SDK for C
+			 * \\file snikket.h the Snikket SDK for C
 			 *
 			 * Everything returned from an SDK procedure or passed to a function
 			 * pointer, both strings and opaque types, must be passed to
@@ -545,6 +545,8 @@ class HaxeCBridge {
 
 			#ifndef __${hx.strings.Strings.toUpperUnderscore(namespace)}_H
 			#define __${hx.strings.Strings.toUpperUnderscore(namespace)}_H
+
+			#ifndef MKDOCS
 			')
 			+ (if (includes.length > 0) includes.map(CPrinter.printInclude).join('\n') + '\n\n'; else '')
 			+ (if (ctx.macros.length > 0) ctx.macros.join('\n') + '\n' else '')
@@ -562,7 +564,7 @@ class HaxeCBridge {
 				');
 			} else '')
 
-			+ 'typedef void (*snikket_panic_callback) (const char *info);\n\n'
+			+ '#endif\n\ntypedef void (*snikket_panic_callback) (const char *info);\n\n'
 			+ (if (ctx.supportTypeDeclarations.length > 0) ctx.supportTypeDeclarations.map(d -> CPrinter.printDeclaration(d, true)).join(';\n\n') + ';\n\n'; else '')
 			+ (if (ctx.typeDeclarations.length > 0) ctx.typeDeclarations.map(d -> CPrinter.printDeclaration(d, true)).join(';\n\n') + ';\n'; else '')
 
