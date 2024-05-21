@@ -992,7 +992,7 @@ class Client extends EventEmitter {
 	}
 
 	private function sync(?callback: ()->Void) {
-		if (Std.is(persistence, snikket.persistence.Dummy)) {
+		if (Std.isOfType(persistence, snikket.persistence.Dummy)) {
 			callback(); // No reason to sync if we're not storing anyway
 		} else {
 			persistence.lastId(accountId(), null, (lastId) -> doSync(callback, lastId));
