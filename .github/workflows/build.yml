@@ -25,6 +25,7 @@ jobs:
         haxelib install tink_http
         haxelib install sha
         haxelib install thenshim
+        haxelib install hxtsdgen
         haxelib install utest
 
     - name: Tests
