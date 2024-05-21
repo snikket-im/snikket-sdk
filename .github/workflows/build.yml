@@ -15,7 +15,9 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Dependencies
-      run: apt install haxe libstrophe-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y haxe libstrophe-dev
 
     - name: Tests
       run: make test
