@@ -18,6 +18,13 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y haxe libstrophe-dev
+        haxelib /usr/share/haxe/lib
+        sudo haxelib install datetime
+        sudo haxelib install haxe-strings
+        sudo haxelib install hsluv
+        sudo haxelib install tink_http
+        sudo haxelib install sha
+        sudo haxelib install thenshim
 
     - name: Tests
       run: make test
