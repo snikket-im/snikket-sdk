@@ -14,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Dependencies
+    - name: System Dependencies
       run: |
         sudo sh -c 'echo deb https://www.deb-multimedia.org sid main non-free > /etc/apt/sources.list.d/dm.list'
         sudo apt-get update -oAcquire::AllowInsecureRepositories=true
@@ -22,6 +22,22 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y haxe libstrophe-dev libopus-dev libdatachannel-dev
         haxelib setup ~/haxe
+
+    - name: Cache node modules
+      id: cache-npm
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-haxelib
+      with:
+        path: ~/haxe
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/build.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
+
+    - name: Haxe Dependencies
+      run: |
         haxelib --quiet install datetime
         haxelib --quiet install haxe-strings
         haxelib --quiet install hsluv
@@ -37,3 +53,21 @@ jobs:
 
     - name: Build
       run: make
+
+    - name: libsnikket Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: libsnikket
+        path: |
+          libsnikket.so
+          cpp/snikket.h
+
+    - name: JS Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: browser.js
+        path: |
+          browser.js
+          browser.haxe.d.ts
+          browser.haxe-enums.ts
+            
