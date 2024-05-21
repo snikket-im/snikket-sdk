@@ -1,8 +1,11 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 
-.PHONY: all cpp/output.dso browser.js
+.PHONY: all test cpp/output.dso browser.js
 
 all: browser.js libsnikket.so
+
+test:
+	haxe test.hxml
 
 browser.js:
 	haxe browser.hxml
