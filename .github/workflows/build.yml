@@ -16,18 +16,19 @@ jobs:
 
     - name: Dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y haxe libstrophe-dev
+        sudo sh -c 'echo deb https://www.deb-multimedia.org sid main non-free > /etc/apt/sources.list.d/dm.list'
+        sudo apt-get update -oAcquire::AllowInsecureRepositories=true
+        sudo apt-get install -y haxe libstrophe-dev libopus-dev libdatachannel-dev
         haxelib setup ~/haxe
-        haxelib install datetime
-        haxelib install haxe-strings
-        haxelib install hsluv
-        haxelib install tink_http
-        haxelib install sha
-        haxelib install thenshim
-        haxelib install hxcpp
-        haxelib install hxtsdgen
-        haxelib install utest
+        haxelib --quiet install datetime
+        haxelib --quiet install haxe-strings
+        haxelib --quiet install hsluv
+        haxelib --quiet install tink_http
+        haxelib --quiet install sha
+        haxelib --quiet install thenshim
+        haxelib --quiet install hxcpp
+        haxelib --quiet install hxtsdgen
+        haxelib --quiet install utest
 
     - name: Tests
       run: make test
