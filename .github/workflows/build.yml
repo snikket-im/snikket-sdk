@@ -18,6 +18,8 @@ jobs:
       run: |
         sudo sh -c 'echo deb https://www.deb-multimedia.org sid main non-free > /etc/apt/sources.list.d/dm.list'
         sudo apt-get update -oAcquire::AllowInsecureRepositories=true
+        sudo apt-get install --allow-unauthenticated deb-multimedia-keyring
+        sudo apt-get update
         sudo apt-get install -y haxe libstrophe-dev libopus-dev libdatachannel-dev
         haxelib setup ~/haxe
         haxelib --quiet install datetime
