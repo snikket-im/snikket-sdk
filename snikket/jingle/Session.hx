@@ -17,8 +17,7 @@ interface Session {
 	public var sid (get, null): String;
 	@:allow(snikket)
 	private function initiate(stanza: Stanza): InitiatedSession;
-	@:allow(snikket)
-	private function accept(): Void;
+	public function accept(): Void;
 	public function hangup(): Void;
 	@:allow(snikket)
 	private function retract(): Void;
@@ -281,8 +280,7 @@ class InitiatedSession implements Session {
 		trace("Tried to retract session in wrong state: " + sid, this);
 	}
 
-	@:allow(snikket)
-	private function accept() {
+	public function accept() {
 		if (accepted || remoteDescription == null) return;
 		accepted = true;
 		final audio = remoteDescription.media.find((m) -> m.media == "audio") != null;
