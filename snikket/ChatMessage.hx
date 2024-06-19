@@ -161,6 +161,10 @@ class ChatMessage {
 		if (uris.length > 0) attachments.push(new ChatAttachment(name, mime, size == null ? null : Std.parseInt(size), uris, hashes));
 	}
 
+	public function addAttachment(attachment: ChatAttachment) {
+		attachments.push(attachment);
+	}
+
 	/**
 		Create a new ChatMessage in reply to this one
 	**/
