@@ -15,11 +15,11 @@ npm/snikket.js:
 	sed -i 's/snikket\.MessageDirection/enums.MessageDirection/g' npm/snikket.d.ts
 	sed -i '1ivar exports = {};' npm/snikket.js
 	echo "export const snikket = exports.snikket;" >> npm/snikket.js
-	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums -d index.ts
-	sed -i '1iimport { snikket as enums } from "./snikket-enums";' npm/index.js
 
 npm: npm/snikket.js snikket/persistence/browser.js
 	cp snikket/persistence/browser.js npm
+	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums -d index.ts
+	sed -i '1iimport { snikket as enums } from "./snikket-enums";' npm/index.js
 
 cpp/output.dso:
 	haxe cpp.hxml
