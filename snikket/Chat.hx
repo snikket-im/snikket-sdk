@@ -407,7 +407,7 @@ class DirectChat extends Chat {
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipantDetails(participantId:String, callback:(String, String)->Void) {
 		final chat = client.getDirectChat(participantId);
-		chat.getPhoto((photoUri) -> callback(photoUri, chat.getDisplayName()));
+		chat.getPhoto((photoUri) -> callback(chat.getDisplayName(), photoUri));
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -753,7 +753,7 @@ class Channel extends Chat {
 	public function getParticipantDetails(participantId:String, callback:(String, String)->Void) {
 		if (participantId == getFullJid().asString()) {
 			client.getDirectChat(client.accountId(), false).getPhoto((photoUri) -> {
-				callback(photoUri, client.displayName());
+				callback(client.displayName(), photoUri);
 			});
 		} else {
 			final nick = JID.parse(participantId).resource;
