@@ -6,8 +6,9 @@ class EventEmitter {
 	private var eventHandlers:Map<String,Array<EventHandler>> = [];
 
 	private function new() { }
-	
-	public function on(eventName:String, callback:EventCallback):EventHandler {
+
+	@:allow(snikket)
+	private function on(eventName:String, callback:EventCallback):EventHandler {
 		var handlers = eventHandlers.get(eventName);
 		if(handlers == null) {
 			handlers = [];
