@@ -827,7 +827,7 @@ class Client extends EventEmitter {
 		       a boolean indicating if audio is desired,
 		       and a boolean indicating if video is desired
 	**/
-	public function addCallMediaListener(handler:(Session,Bool,Bool)->Void):Void {
+	public function addCallMediaListener(handler:(InitiatedSession,Bool,Bool)->Void):Void {
 		this.on("call/media", (data) -> {
 			handler(data.session, data.audio, data.video);
 			return EventHandled;
