@@ -45,8 +45,13 @@ jobs:
         haxelib --quiet install sha
         haxelib --quiet install thenshim
         haxelib --quiet install hxcpp
-        haxelib --quiet install hxtsdgen
+        haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
         haxelib --quiet install utest
+
+    - name: NPM Dependencies
+      run: |
+        cd npm
+        npm i
 
     - name: Tests
       run: make test
@@ -62,12 +67,12 @@ jobs:
           libsnikket.so
           cpp/snikket.h
 
+    - name: NPM Tarball
+      run: tar -cjf npm.tar.gz npm/
+
     - name: JS Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: browser.js
+        name: npm.tar.gz
         path: |
-          browser.js
-          browser.haxe.d.ts
-          browser.haxe-enums.ts
-            
+          npm.tar.gz

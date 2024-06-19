@@ -1,0 +1,21 @@
+{
+  "name": "snikket-sdk",
+  "version": "0.0.0",
+  "description": "Chat SDK",
+  "main": "index.js",
+  "files": [
+    "*.js",
+    "*.ts"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "sasl-scram-sha-1": "github:singpolyma/js-sasl-scram-sha-1"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

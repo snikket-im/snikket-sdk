@@ -23,15 +23,6 @@ enum abstract UiState(Int) {
 	var Closed; // Archived
 }
 
-#if js
-@:expose("UiState")
-class UiStateImpl {
-	static public final Pinned = UiState.Pinned;
-	static public final Open = UiState.Open;
-	static public final Closed = UiState.Closed;
-}
-#end
-
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
