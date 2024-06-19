@@ -133,14 +133,16 @@ class Stanza implements NodeInterface {
 		return this;
 	}
 
-	public function addChildren(children:Iterable<Stanza>) {
+	@:allow(snikket)
+	private function addChildren(children:Iterable<Stanza>) {
 		for (child in children) {
 			addChild(child);
 		}
 		return this;
 	}
 
-	public function addChildNodes(children:Iterable<Node>) {
+	@:allow(snikket)
+	private function addChildNodes(children:Iterable<Node>) {
 		for (child in children) {
 			addDirectChild(child);
 		}
