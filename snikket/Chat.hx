@@ -749,7 +749,7 @@ class Channel extends Chat {
 		} else {
 			final nick = JID.parse(participantId).resource;
 			final photoUri = Color.defaultPhoto(participantId, nick == null ? " " : nick.charAt(0));
-			callback(photoUri, nick);
+			callback(nick, photoUri);
 		}
 	}
 
