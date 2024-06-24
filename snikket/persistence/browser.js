@@ -69,8 +69,8 @@ const browser = (dbname) => {
 		message.serverId = value.serverId ? value.serverId : null;
 		message.serverIdBy = value.serverIdBy ? value.serverIdBy : null;
 		message.syncPoint = !!value.syncPoint;
-      message.direction = value.direction;
-      message.status = value.status;
+		message.direction = value.direction;
+		message.status = value.status;
 		message.timestamp = value.timestamp && value.timestamp.toISOString();
 		message.to = value.to && snikket.JID.parse(value.to);
 		message.from = value.from && snikket.JID.parse(value.from);
@@ -230,14 +230,17 @@ const browser = (dbname) => {
 					rowCount++;
 					const value = event.target.result.value;
 					if (result[value.chatId]) {
-						if (!result[value.chatId].foundAll) {
-							const readUpTo = chats[value.chatId]?.readUpTo();
-							if (readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.MessageDirection.MessageSent) {
-								result[value.chatId].foundAll = true;
-							} else {
-								result[value.chatId] = result[value.chatId].then((details) => { details.unreadCount++; return details; });
+						result[value.chatId] = result[value.chatId].then((details) => {
+							if (!details.foundAll) {
+								const readUpTo = chats[value.chatId]?.readUpTo();
+								if (readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.MessageDirection.MessageSent) {
+									details.foundAll = true;
+								} else {
+									details.unreadCount++;
+								}
 							}
-						}
+							return details;
+						});
 					} else {
 						const readUpTo = chats[value.chatId]?.readUpTo();
 						const haveRead = readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.MessageDirection.MessageSent;
