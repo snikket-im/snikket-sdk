@@ -755,7 +755,6 @@ class Channel extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
-		return;
 		persistence.getMessages(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
 			if (messages.length > 0) {
 				handler(messages);
