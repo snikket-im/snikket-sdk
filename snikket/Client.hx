@@ -56,6 +56,8 @@ class Client extends EventEmitter {
 			"http://jabber.org/protocol/caps",
 			"urn:xmpp:avatar:metadata+notify",
 			"http://jabber.org/protocol/nick+notify",
+			"urn:xmpp:bookmarks:1+notify",
+			"urn:xmpp:mds:displayed:0+notify",
 			"urn:xmpp:jingle-message:0",
 			"urn:xmpp:jingle:1",
 			"urn:xmpp:jingle:apps:dtls:0",
@@ -223,6 +225,23 @@ class Client extends EventEmitter {
 
 			if (pubsubEvent != null && pubsubEvent.getFrom() != null && JID.parse(pubsubEvent.getFrom()).asBare().asString() == accountId() && pubsubEvent.getNode() == "http://jabber.org/protocol/nick" && pubsubEvent.getItems().length > 0) {
 				updateDisplayName(pubsubEvent.getItems()[0].getChildText("nick", "http://jabber.org/protocol/nick"));
+			}
+
+			if (pubsubEvent != null && pubsubEvent.getFrom() != null && JID.parse(pubsubEvent.getFrom()).asBare().asString() == accountId() && pubsubEvent.getNode() == "urn:xmpp:mds:displayed:0" && pubsubEvent.getItems().length > 0) {
+				for (item in pubsubEvent.getItems()) {
+					if (item.attr.get("id") != null) {
+						final upTo = item.getChild("displayed", "urn:xmpp:mds:displayed:0")?.getChild("stanza-id", "urn:xmpp:sid:0");
+						final chat = getChat(item.attr.get("id"));
+						if (chat == null) {
+							startChatWith(item.attr.get("id"), (caps) -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
+						} else {
+							chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by"), () -> {
+								persistence.storeChat(accountId(), chat);
+								this.trigger("chats/update", [chat]);
+							});
+						}
+					}
+				}
 			}
 
 			return EventUnhandled; // Allow others to get this event as well
@@ -941,45 +960,74 @@ class Client extends EventEmitter {
 		sendQuery(rosterGet);
 	}
 
+	private function startChatWith(jid: String, handleCaps: (Caps)->UiState, handleChat: (Chat)->Void) {
+		final discoGet = new DiscoInfoGet(jid);
+		discoGet.onFinished(() -> {
+			final resultCaps = discoGet.getResult();
+			if (resultCaps == null) {
+				final err = discoGet.responseStanza?.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
+				if (err == null || err?.name == "service-unavailable" || err?.name == "feature-not-implemented") {
+					final chat = getDirectChat(jid, false);
+					handleChat(chat);
+					persistence.storeChat(accountId(), chat);
+				}
+			} else {
+				persistence.storeCaps(resultCaps);
+				final uiState = handleCaps(resultCaps);
+				if (resultCaps.isChannel(jid)) {
+					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, null, resultCaps);
+					handleChat(chat);
+					chats.unshift(chat);
+					persistence.storeChat(accountId(), chat);
+				} else {
+					final chat = getDirectChat(jid, false);
+					handleChat(chat);
+					persistence.storeChat(accountId(), chat);
+				}
+			}
+		});
+		sendQuery(discoGet);
+	}
+
 	// This is called right before we're going to trigger for all chats anyway, so don't bother with single triggers
 	private function bookmarksGet(callback: ()->Void) {
+		final mdsGet = new PubsubGet(null, "urn:xmpp:mds:displayed:0");
+		mdsGet.onFinished(() -> {
+			for (item in mdsGet.getResult()) {
+				if (item.attr.get("id") != null) {
+					final upTo = item.getChild("displayed", "urn:xmpp:mds:displayed:0")?.getChild("stanza-id", "urn:xmpp:sid:0");
+					final chat = getChat(item.attr.get("id"));
+					if (chat == null) {
+						startChatWith(item.attr.get("id"), (caps) -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
+					} else {
+						chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by"));
+						persistence.storeChat(accountId(), chat);
+					}
+				}
+			}
+		});
+		sendQuery(mdsGet);
+
 		final pubsubGet = new PubsubGet(null, "urn:xmpp:bookmarks:1");
 		pubsubGet.onFinished(() -> {
 			for (item in pubsubGet.getResult()) {
 				if (item.attr.get("id") != null) {
 					final chat = getChat(item.attr.get("id"));
 					if (chat == null) {
-						final discoGet = new DiscoInfoGet(item.attr.get("id"));
-						discoGet.onFinished(() -> {
-							final resultCaps = discoGet.getResult();
-							if (resultCaps == null) {
-								final err = discoGet.responseStanza?.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
-								if (err == null || err?.name == "service-unavailable" || err?.name == "feature-not-implemented") {
-									final chat = getDirectChat(item.attr.get("id"), false);
-									chat.updateFromBookmark(item);
-									persistence.storeChat(accountId(), chat);
-								}
-							} else {
-								persistence.storeCaps(resultCaps);
-								final identity = resultCaps.identities[0];
+						startChatWith(
+							item.attr.get("id"),
+							(caps) -> {
+								final identity = caps.identities[0];
 								final conf = item.getChild("conference", "urn:xmpp:bookmarks:1");
 								if (conf.attr.get("name") == null) {
 									conf.attr.set("name", identity?.name);
 								}
-								if (resultCaps.isChannel(item.attr.get("id"))) {
-									final uiState = (conf.attr.get("autojoin") == "1" || conf.attr.get("autojoin") == "true") ? Open : Closed;
-									final chat = new Channel(this, this.stream, this.persistence, item.attr.get("id"), uiState, null, resultCaps);
-									chat.updateFromBookmark(item);
-									chats.unshift(chat);
-									persistence.storeChat(accountId(), chat);
-								} else {
-									final chat = getDirectChat(item.attr.get("id"), false);
-									chat.updateFromBookmark(item);
-									persistence.storeChat(accountId(), chat);
-								}
+								return (conf.attr.get("autojoin") == "1" || conf.attr.get("autojoin") == "true" || !caps.isChannel(item.attr.get("id"))) ? Open : Closed;
+							},
+							(chat) -> {
+								chat.updateFromBookmark(item);
 							}
-						});
-						sendQuery(discoGet);
+						);
 					} else {
 						chat.updateFromBookmark(item);
 						persistence.storeChat(accountId(), chat);

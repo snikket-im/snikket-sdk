@@ -51,15 +51,20 @@ abstract class Chat {
 	private var extensions: Stanza;
 	private var _unreadCount = 0;
 	private var lastMessage: Null<ChatMessage>;
+	private var readUpToId: Null<String>;
+	@:allow(snikket)
+	private var readUpToBy: Null<String>;
 
 	@:allow(snikket)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null) {
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
 		this.chatId = chatId;
 		this.uiState = uiState;
 		this.extensions = extensions ?? new Stanza("extensions", { xmlns: "urn:xmpp:bookmarks:1" });
+		this.readUpToId = readUpToId;
+		this.readUpToBy = readUpToBy;
 		this.displayName = chatId;
 	}
 
@@ -189,8 +194,7 @@ abstract class Chat {
 		An ID of the last message displayed to the user
 	**/
 	public function readUpTo() {
-		final displayed = extensions.getChild("displayed", "urn:xmpp:chat-markers:0");
-		return displayed?.attr?.get("id");
+		return readUpToId;
 	}
 
 	/**
@@ -377,6 +381,68 @@ abstract class Chat {
 	public function videoTracks(): Array<MediaStreamTrack> {
 		return jingleSessions.flatMap((session) -> session.videoTracks());
 	}
+
+	@:allow(snikket)
+	private function markReadUpToId(upTo: String, upToBy: String, ?callback: ()->Void) {
+		if (upTo == null) return;
+
+		readUpToId = upTo;
+		readUpToBy = upToBy;
+		persistence.storeChat(client.accountId(), this);
+		persistence.getMessages(client.accountId(), chatId, null, null, (messages) -> {
+			var i = messages.length;
+			while (--i >= 0) {
+				if (messages[i].serverId == readUpToId) break;
+			}
+			if (i > 0) _unreadCount = messages.length - (i + 1);
+			if (callback != null) callback();
+		});
+	}
+
+	private function publishMds() {
+		stream.sendIq(
+			new Stanza("iq", { type: "set" })
+				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
+				.tag("publish", { node: "urn:xmpp:mds:displayed:0" })
+				.tag("item", { id: chatId })
+				.tag("displayed", { xmlns: "urn:xmpp:mds:displayed:0"})
+				.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", id: readUpTo(), by: readUpToBy })
+				.up().up().up()
+				.tag("publish-options")
+				.tag("x", { xmlns: "jabber:x:data", type: "submit" })
+				.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
+				.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
+				.tag("field", { "var": "pubsub#max_items" }).textTag("value", "max").up()
+				.tag("field", { "var": "pubsub#send_last_published_item" }).textTag("value", "never").up()
+				.tag("field", { "var": "pubsub#access_model" }).textTag("value", "whitelist").up()
+				.up().up(),
+			(response) -> {
+				if (response.attr.get("type") == "error") {
+					final preconditionError = response.getChild("error")?.getChild("precondition-not-met", "http://jabber.org/protocol/pubsub#errors");
+					if (preconditionError != null) {
+						// publish options failed, so force them to be right, what a silly workflow
+						stream.sendIq(
+							new Stanza("iq", { type: "set" })
+								.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub#owner" })
+								.tag("configure", { node: "urn:xmpp:mds:displayed:0" })
+								.tag("x", { xmlns: "jabber:x:data", type: "submit" })
+								.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
+								.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
+								.tag("field", { "var": "pubsub#max_items" }).textTag("value", "max").up()
+								.tag("field", { "var": "pubsub#send_last_published_item" }).textTag("value", "never").up()
+								.tag("field", { "var": "pubsub#access_model" }).textTag("value", "whitelist").up()
+								.up().up().up(),
+							(response) -> {
+								if (response.attr.get("type") == "result") {
+									publishMds();
+								}
+							}
+						);
+					}
+				}
+			}
+		);
+	}
 }
 
 @:expose
@@ -386,8 +452,8 @@ abstract class Chat {
 #end
 class DirectChat extends Chat {
 	@:allow(snikket)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null) {
-		super(client, stream, persistence, chatId, uiState, extensions);
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
+		super(client, stream, persistence, chatId, uiState, extensions, readUpToId, readUpToBy);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -523,7 +589,6 @@ class DirectChat extends Chat {
 	public function markReadUpTo(message: ChatMessage) {
 		if (readUpTo() == message.localId || readUpTo() == message.serverId) return;
 		final upTo = message.localId ?? message.serverId;
-		_unreadCount = 0; // TODO
 		if (upTo == null) return; // Can't mark as read with no id
 		for (recipient in getParticipants()) {
 			// TODO: extended addressing when relevant
@@ -535,15 +600,10 @@ class DirectChat extends Chat {
 			client.sendStanza(stanza);
 		}
 
-		var displayed = extensions.getChild("displayed", "urn:xmpp:chat-markers:0");
-		if (displayed == null) {
-			displayed = new Stanza("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo });
-			extensions.addChild(displayed);
-		} else {
-			displayed.attr.set("id", upTo);
-		}
-		persistence.storeChat(client.accountId(), this);
-		client.trigger("chats/update", [this]);
+		markReadUpToId(message.serverId, message.serverIdBy, () -> {
+			publishMds();
+			client.trigger("chats/update", [this]);
+		});
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -581,8 +641,8 @@ class Channel extends Chat {
 	private var inSync = true;
 
 	@:allow(snikket)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions = null, ?disco: Caps) {
-		super(client, stream, persistence, chatId, uiState, extensions);
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions = null, readUpToId = null, readUpToBy = null, ?disco: Caps) {
+		super(client, stream, persistence, chatId, uiState, extensions, readUpToId, readUpToBy);
 		if (disco != null) this.disco = disco;
 	}
 
@@ -876,7 +936,6 @@ class Channel extends Chat {
 	public function markReadUpTo(message: ChatMessage) {
 		if (readUpTo() == message.serverId) return;
 		final upTo = message.serverId;
-		_unreadCount = 0; // TODO
 		if (upTo == null) return; // Can't mark as read with no id
 		final stanza = new Stanza("message", { to: chatId, id: ID.long(), type: "groupchat" })
 			.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo }).up();
@@ -885,16 +944,10 @@ class Channel extends Chat {
 		}
 		client.sendStanza(stanza);
 
-		var displayed = extensions.getChild("displayed", "urn:xmpp:chat-markers:0");
-		if (displayed == null) {
-			displayed = new Stanza("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo });
-			extensions.addChild(displayed);
-		} else {
-			displayed.attr.set("id", upTo);
-		}
-		persistence.storeChat(client.accountId(), this);
-		bookmark(); // TODO: what if not previously bookmarked?
-		client.trigger("chats/update", [this]);
+		markReadUpToId(upTo, message.serverIdBy, () -> {
+			publishMds();
+			client.trigger("chats/update", [this]);
+		});
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -1004,10 +1057,12 @@ class SerializedChat {
 	public final displayName:Null<String>;
 	public final uiState:String;
 	public final extensions:String;
+	public final readUpToId:Null<String>;
+	public final readUpToBy:Null<String>;
 	public final disco:Null<Caps>;
 	public final klass:String;
 
-	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<String>, extensions: Null<String>, disco: Null<Caps>, klass: String) {
+	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<String>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, disco: Null<Caps>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.avatarSha1 = avatarSha1;
@@ -1015,6 +1070,8 @@ class SerializedChat {
 		this.displayName = displayName;
 		this.uiState = uiState ?? "Open";
 		this.extensions = extensions ?? "<extensions xmlns='urn:app:bookmarks:1' />";
+		this.readUpToId = readUpToId;
+		this.readUpToBy = readUpToBy;
 		this.disco = disco;
 		this.klass = klass;
 	}
@@ -1029,9 +1086,9 @@ class SerializedChat {
 		final extensionsStanza = Stanza.fromXml(Xml.parse(extensions));
 
 		final chat = if (klass == "DirectChat") {
-			new DirectChat(client, stream, persistence, chatId, uiStateEnum, extensionsStanza);
+			new DirectChat(client, stream, persistence, chatId, uiStateEnum, extensionsStanza, readUpToId, readUpToBy);
 		} else if (klass == "Channel") {
-			final channel = new Channel(client, stream, persistence, chatId, uiStateEnum, extensionsStanza);
+			final channel = new Channel(client, stream, persistence, chatId, uiStateEnum, extensionsStanza, readUpToId, readUpToBy);
 			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"]);
 			channel;
 		} else {

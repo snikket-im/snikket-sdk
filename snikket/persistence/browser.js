@@ -186,6 +186,8 @@ const browser = (dbname) => {
 				displayName: chat.displayName,
 				uiState: chat.uiState,
 				extensions: chat.extensions?.toString(),
+				readUpToId: chat.readUpToId,
+				readUpToBy: chat.readUpToBy,
 				disco: chat.disco,
 				class: chat instanceof snikket.DirectChat ? "DirectChat" : (chat instanceof snikket.Channel ? "Channel" : "Chat")
 			});
@@ -207,6 +209,8 @@ const browser = (dbname) => {
 					r.displayName,
 					r.uiState,
 					r.extensions,
+					r.readUpToId,
+					r.readUpToBy,
 					r.disco,
 					r.class
 				)));
