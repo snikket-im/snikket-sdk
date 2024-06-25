@@ -377,7 +377,7 @@ class Client extends EventEmitter {
 								});
 								sendQuery(vcardGet);
 							} else {
-								this.trigger("chats/update", [chat]);
+								if (chat.livePresence()) this.trigger("chats/update", [chat]);
 							}
 						});
 					}
