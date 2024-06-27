@@ -705,13 +705,13 @@ class Channel extends Chat {
 	}
 
 	private function doSync(lastId: Null<String>) {
-		var thirtyDaysAgo = Date.format(
+		var threeDaysAgo = Date.format(
 			DateTools.delta(std.Date.now(), DateTools.days(-3))
 		);
 		var sync = new MessageSync(
 			client,
 			stream,
-			lastId == null ? { startTime: thirtyDaysAgo } : { page: { after: lastId } },
+			lastId == null ? { startTime: threeDaysAgo } : { page: { after: lastId } },
 			chatId
 		);
 		sync.setNewestPageFirst(false);
