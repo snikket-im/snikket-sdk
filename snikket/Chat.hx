@@ -735,6 +735,7 @@ class Channel extends Chat {
 				final lastFromSync = chatMessages[chatMessages.length - 1];
 				if (lastFromSync != null && (lastMessageTimestamp() == null || Reflect.compare(lastFromSync.timestamp, lastMessageTimestamp()) > 0)) {
 					setLastMessage(lastFromSync);
+					client.sortChats();
 					client.trigger("chats/update", [this]);
 				}
 			}

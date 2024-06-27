@@ -442,7 +442,7 @@ class Client extends EventEmitter {
 								chat.setUnreadCount(detail.unreadCount);
 							}
 						}
-						chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
+						sortChats();
 						this.trigger("chats/update", chats);
 
 						stream.on("auth/password-needed", (data) -> {
@@ -545,7 +545,7 @@ class Client extends EventEmitter {
 							chatActivity(chat, false);
 						}
 					}
-					chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
+					sortChats();
 					this.trigger("chats/update", chats);
 					// Set self to online
 					if (sendAvailable) {
@@ -895,6 +895,11 @@ class Client extends EventEmitter {
 			chats.unshift(chat);
 			if (trigger) this.trigger("chats/update", [chat]);
 		}
+	}
+
+	@:allow(snikket)
+	private function sortChats() {
+		chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
 	}
 
 	@:allow(snikket)
