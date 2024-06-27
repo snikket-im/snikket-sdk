@@ -12,6 +12,10 @@ abstract Map<K,V>(NativeMap<K,V>) {
 		this.set(k, v);
 	}
 
+	public inline function get(k:K):Null<V> {
+		return this.get(k);
+	}
+
 	public inline function exists(k:K):Bool {
 		return this.has(k);
 	}

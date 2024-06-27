@@ -69,6 +69,7 @@ class Client extends EventEmitter {
 	);
 	private var _displayName: String;
 	private var fastMechanism: Null<String> = null;
+	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
 
 	/**
 		Create a new Client to connect to a particular account
@@ -342,20 +343,36 @@ class Client extends EventEmitter {
 					persistence.storeChat(accountId(), chat);
 					if (chat.livePresence()) this.trigger("chats/update", [chat]);
 				} else {
+					final handleCaps = (caps) -> {
+						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(caps, mucUser));
+						persistence.storeChat(accountId(), chat);
+						return chat;
+					};
+
 					persistence.getCaps(c.attr.get("ver"), (caps) -> {
 						if (caps == null) {
-							final discoGet = new DiscoInfoGet(stanza.attr.get("from"), c.attr.get("node") + "#" + c.attr.get("ver"));
-							discoGet.onFinished(() -> {
-								chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(discoGet.getResult(), mucUser));
-								if (discoGet.getResult() != null) persistence.storeCaps(discoGet.getResult());
-								persistence.storeChat(accountId(), chat);
+							final pending = pendingCaps.get(c.attr.get("ver"));
+							if (pending == null) {
+								pendingCaps.set(c.attr.get("ver"), [handleCaps]);
+								final discoGet = new DiscoInfoGet(stanza.attr.get("from"), c.attr.get("node") + "#" + c.attr.get("ver"));
+								discoGet.onFinished(() -> {
+									final chatsToUpdate: Map<String, Chat> = [];
+									final handlers = pendingCaps.get(c.attr.get("ver")) ?? [];
+									pendingCaps.remove(c.attr.get("ver"));
+									if (discoGet.getResult() != null) persistence.storeCaps(discoGet.getResult());
+									for (handler in handlers) {
+										final c = handler(discoGet.getResult());
+										if (c.livePresence()) chatsToUpdate.set(c.chatId, c);
+									}
+									this.trigger("chats/update", Lambda.array({ iterator: () -> chatsToUpdate.iterator() }));
+								});
+								sendQuery(discoGet);
+							} else {
+								pending.push(handleCaps);
 								if (chat.livePresence()) this.trigger("chats/update", [chat]);
-							});
-							sendQuery(discoGet);
+							}
 						} else {
-							chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(caps, mucUser));
-							persistence.storeChat(accountId(), chat);
-							if (chat.livePresence()) this.trigger("chats/update", [chat]);
+							handleCaps(caps);
 						}
 					});
 				}
