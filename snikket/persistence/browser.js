@@ -317,7 +317,7 @@ const browser = (dbname) => {
 				const tx = db.transaction(["messages", "reactions"], "readwrite");
 				const store = tx.objectStore("messages");
 				return promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, message.localId || [], message.chatId()]))).then((result) => {
-					if (result?.value && !message.isIncoming() && result?.value.direction === enums.MessageDirection.MessageSent) {
+					if (result?.value && !message.isIncoming() && result?.value.direction === enums.MessageDirection.MessageSent && message.versions.length < 1) {
 						// Duplicate, we trust our own sent ids
 						return promisifyRequest(result.delete());
 					} else if (result?.value && result.value.sender == message.senderId() && (message.versions.length > 0 || (result.value.versions || []).length > 0)) {

@@ -514,8 +514,9 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function correctMessage(localId:String, message:ChatMessage) {
-		final toSend = message.clone();
+		final toSend = prepareOutgoingMessage(message.clone());
 		message = prepareOutgoingMessage(message);
+		message.resetLocalId();
 		message.versions = [toSend]; // This is a correction
 		message.localId = localId;
 		persistence.storeMessage(client.accountId(), message, (corrected) -> {
@@ -869,8 +870,9 @@ class Channel extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function correctMessage(localId:String, message:ChatMessage) {
-		final toSend = message.clone();
+		final toSend = prepareOutgoingMessage(message.clone());
 		message = prepareOutgoingMessage(message);
+		message.resetLocalId();
 		message.versions = [toSend]; // This is a correction
 		message.localId = localId;
 		persistence.storeMessage(client.accountId(), message, (corrected) -> {

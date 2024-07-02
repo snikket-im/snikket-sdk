@@ -194,6 +194,11 @@ class ChatMessage {
 		return this.timestamp = timestamp;
 	}
 
+	@:allow(snikket)
+	private function resetLocalId() {
+		Reflect.setField(this, "localId", null);
+	}
+
 	/**
 		Get HTML version of the message body
 	**/
