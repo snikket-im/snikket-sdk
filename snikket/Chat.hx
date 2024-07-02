@@ -591,14 +591,19 @@ class DirectChat extends Chat {
 		if (readUpTo() == message.localId || readUpTo() == message.serverId) return;
 		final upTo = message.localId ?? message.serverId;
 		if (upTo == null) return; // Can't mark as read with no id
-		for (recipient in getParticipants()) {
-			// TODO: extended addressing when relevant
-			final stanza = new Stanza("message", { to: recipient, id: ID.long() })
-				.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo }).up();
-			if (message.threadId != null) {
-				stanza.textTag("thread", message.threadId);
+
+		// Only send markers for others messages,
+		// it's obvious we've read our own
+		if (message.isIncoming()) {
+			for (recipient in getParticipants()) {
+				// TODO: extended addressing when relevant
+				final stanza = new Stanza("message", { to: recipient, id: ID.long() })
+					.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo }).up();
+				if (message.threadId != null) {
+					stanza.textTag("thread", message.threadId);
+				}
+				client.sendStanza(stanza);
 			}
-			client.sendStanza(stanza);
 		}
 
 		markReadUpToId(message.serverId, message.serverIdBy, () -> {
