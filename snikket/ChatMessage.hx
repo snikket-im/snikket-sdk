@@ -283,14 +283,14 @@ class ChatMessage {
 			for (line in lines) {
 				if (!~/^(?:> ?){3,}/.match(line)) {
 					if (line.charAt(0) == ">") {
-						quoteText += ">" + line;
+						quoteText += ">" + line + "\n";
 					} else {
-						quoteText += "> " + line;
+						quoteText += "> " + line + "\n";
 					}
 				}
 			}
 			final reaction = EmojiUtil.isEmoji(StringTools.trim(body)) ? StringTools.trim(body) : null;
-			body = quoteText + "\n" + body;
+			body = quoteText + body;
 			final replyId = replyToM.isGroupchat ? replyToM.serverId : replyToM.localId;
 			if (replyId != null) {
 				final codepoints = StringUtil.codepointArray(quoteText);
