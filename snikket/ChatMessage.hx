@@ -206,7 +206,7 @@ class ChatMessage {
 		final codepoints = StringUtil.codepointArray(text ?? "");
 		// TODO: not every app will implement every feature. How should the app tell us what fallbacks to handle?
 		final fallbacks: Array<{start: Int, end: Int}> = cast payloads.filter(
-			(p) -> p.attr.get("xmlns") == "urn:xmpp:fallback:0" && (p.attr.get("for") == "jabber:x:oob" || p.attr.get("for") == "urn:xmpp:sims:1" || (replyToMessage != null && p.attr.get("for") == "urn:xmpp:reply:0"))
+			(p) -> p.attr.get("xmlns") == "urn:xmpp:fallback:0" && (p.attr.get("for") == "jabber:x:oob" || p.attr.get("for") == "urn:xmpp:sims:1" || (replyToMessage != null && p.attr.get("for") == "urn:xmpp:reply:0") || p.attr.get("for") == "http://jabber.org/protocol/address")
 		).map((p) -> p.getChild("body")).map((b) -> b == null ? null : { start: Std.parseInt(b.attr.get("start") ?? "0") ?? 0, end: Std.parseInt(b.attr.get("end") ?? Std.string(codepoints.length)) ?? codepoints.length }).filter((b) -> b != null);
 		fallbacks.sort((x, y) -> x.start - y.start);
 		for (fallback in fallbacks) {
