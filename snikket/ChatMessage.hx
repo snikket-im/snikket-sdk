@@ -311,7 +311,7 @@ class ChatMessage {
 						.tag("body").up().up();
 				}
 				stanza.tag("fallback", { xmlns: "urn:xmpp:fallback:0", "for": "urn:xmpp:reply:0" })
-						.tag("body", { start: "0", end: Std.string(codepoints.length + 1) }).up().up();
+						.tag("body", { start: "0", end: Std.string(codepoints.length) }).up().up();
 				stanza.tag("reply", { xmlns: "urn:xmpp:reply:0", to: replyToM.from?.asString(), id: replyId }).up();
 			}
 		}
