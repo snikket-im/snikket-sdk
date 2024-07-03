@@ -115,7 +115,6 @@ class XmppJsStream extends GenericStream {
 			state_handlers: [
 				"online" => this.onOnline,
 				"offline" => this.onOffline,
-				
 			],
 		}, "offline");
 	}
