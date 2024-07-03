@@ -76,6 +76,14 @@ extern class XmppJsId {
 	static function id():String;
 }
 
+@:jsRequire("@xmpp/error")
+extern class XmppJsError {
+	public final name: String;
+	public final condition: String;
+	public final text: String;
+	public final application: String;
+}
+
 typedef HostMetaRecord = {
 	rel : String,
 	href : String,
@@ -224,7 +232,13 @@ class XmppJsStream extends GenericStream {
 
 		resumed = false;
 		xmpp.start().catchError(function (err) {
-			trace(err);
+			this.state.event("connection-error");
+			final xmppError = Std.downcast(err, XmppJsError);
+			if (xmppError?.name == "SASLError") {
+				this.trigger("auth/fail", xmppError);
+			} else {
+				trace(err);
+			}
 		});
 	}
 

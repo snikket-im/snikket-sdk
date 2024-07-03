@@ -473,6 +473,15 @@ class Client extends EventEmitter {
 								this.stream.trigger("auth/password", { password: token, mechanism: fastMechanism, fastCount: fastCount });
 							}
 						});
+						stream.on("auth/fail", (data) -> {
+							if (token != null) {
+								token = null;
+								stream.connect(jid.asString(), smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn, outbound_q: smOutQ });
+							} else {
+								this.trigger("auth/fail", data);
+							}
+							return EventHandled;
+						});
 						stream.connect(jid.asString(), smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn, outbound_q: smOutQ });
 					});
 				});
