@@ -119,6 +119,15 @@ class Client extends EventEmitter {
 			final stanza:Stanza = event.stanza;
 			final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
 
+			var fwd = null;
+			if (from != null && from.asBare().asString() == accountId()) {
+				var carbon = stanza.getChild("received", "urn:xmpp:carbons:2");
+				if (carbon == null) carbon = stanza.getChild("sent", "urn:xmpp:carbons:2");
+				if (carbon != null) {
+					fwd = carbon.getChild("forwarded", "urn:xmpp:forward:0")?.getFirstChild();
+				}
+			}
+
 			final jmiP = stanza.getChild("propose", "urn:xmpp:jingle-message:0");
 			if (jmiP != null && jmiP.attr.get("id") != null) {
 				final session = new IncomingProposedSession(this, from, jmiP.attr.get("id"));
@@ -134,6 +143,17 @@ class Client extends EventEmitter {
 			if (jmiR != null && jmiR.attr.get("id") != null) {
 				final chat = getDirectChat(from.asBare().asString());
 				final session = chat.jingleSessions.get(jmiR.attr.get("id"));
+				if (session != null) {
+					session.retract();
+					chat.jingleSessions.remove(session.sid);
+				}
+			}
+
+			// Another resource picked this up
+			final jmiProFwd = fwd?.getChild("proceed", "urn:xmpp:jingle-message:0");
+			if (jmiProFwd != null && jmiProFwd.attr.get("id") != null) {
+				final chat = getDirectChat(JID.parse(fwd.attr.get("to")).asBare().asString());
+				final session = chat.jingleSessions.get(jmiProFwd.attr.get("id"));
 				if (session != null) {
 					session.retract();
 					chat.jingleSessions.remove(session.sid);
