@@ -124,6 +124,12 @@ class Client extends EventEmitter {
 			final stanza:Stanza = event.stanza;
 			final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
 
+			if (stanza.attr.get("type") == "error" && from != null) {
+				final chat = getChat(from.asBare().asString());
+				final channel = Std.downcast(chat, Channel);
+				if (channel != null) channel.selfPing();
+			}
+
 			var fwd = null;
 			if (from != null && from.asBare().asString() == accountId()) {
 				var carbon = stanza.getChild("received", "urn:xmpp:carbons:2");
