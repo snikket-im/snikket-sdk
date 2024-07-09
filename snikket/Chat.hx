@@ -709,8 +709,13 @@ class Channel extends Chat {
 
 	override public function setPresence(resource:String, presence:Presence) {
 		super.setPresence(resource, presence);
-		if (!inSync && presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "110") != null) {
+		final oneTen = presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "110");
+		final tripleThree = presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "333");
+		if (!inSync && oneTen != null) {
 			persistence.lastId(client.accountId(), chatId, doSync);
+		}
+		if (oneTen != null && tripleThree != null) {
+			selfPing();
 		}
 	}
 
