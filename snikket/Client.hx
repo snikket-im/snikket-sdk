@@ -70,6 +70,8 @@ class Client extends EventEmitter {
 	private var _displayName: String;
 	private var fastMechanism: Null<String> = null;
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
+	@:allow(snikket)
+	private var inSync(default, null) = false;
 
 	/**
 		Create a new Client to connect to a particular account
@@ -549,7 +551,11 @@ class Client extends EventEmitter {
 			if (stream.clientId == null && !jid.isBare()) persistence.storeLogin(jid.asBare().asString(), jid.resource, displayName(), null);
 		}
 
-		if (data.resumed) return EventHandled;
+		if (data.resumed) {
+			inSync = true;
+			this.trigger("status/online", {});
+			return EventHandled;
+		}
 
 		// Enable carbons
 		sendStanza(
@@ -564,6 +570,7 @@ class Client extends EventEmitter {
 		rosterGet();
 		bookmarksGet(() -> {
 			sync(() -> {
+				inSync = true;
 				persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
 					for (detail in details) {
 						var chat = getChat(detail.chatId) ?? getDirectChat(detail.chatId, false);

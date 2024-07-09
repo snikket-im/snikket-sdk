@@ -290,7 +290,11 @@ abstract class Chat {
 
 	@:allow(snikket)
 	private function livePresence() {
-		return false;
+		return true;
+	}
+
+	public function syncing() {
+		return !client.inSync;
 	}
 
 	/**
@@ -498,7 +502,7 @@ class DirectChat extends Chat {
 
 	@:allow(snikket)
 	private function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
-		message.syncPoint = true; // TODO: if client is done initial MAM. right now it always is
+		message.syncPoint = !syncing();
 		return message;
 	}
 
@@ -786,6 +790,10 @@ class Channel extends Chat {
 		return false;
 	}
 
+	override public function syncing() {
+		return !inSync && livePresence();
+	}
+
 	private function nickInUse() {
 		for (nick => p in presence) {
 			for (status in p?.mucUser?.allTags("status") ?? []) {
@@ -852,7 +860,7 @@ class Channel extends Chat {
 
 	@:allow(snikket)
 	private function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
-		message.syncPoint = inSync;
+		message.syncPoint = !syncing();
 		message.sender = JID.parse(stanza.attr.get("from")); // MUC always needs full JIDs
 		if (message.senderId() == getFullJid().asString()) {
 			message.recipients = message.replyTo;
