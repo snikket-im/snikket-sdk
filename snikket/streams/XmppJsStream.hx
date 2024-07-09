@@ -229,9 +229,17 @@ class XmppJsStream extends GenericStream {
 			this.trigger("fast-token", tokenEl.attrs);
 		});
 
+		xmpp.on("status", (status) -> {
+			if (status == "disconnect") {
+				if (this.state.can("connection-closed")) this.state.event("connection-closed");
+			} else if(status == "connecting") {
+				if (this.state.can("connect-requested")) this.state.event("connect-requested");
+			}
+		});
+
 		resumed = false;
 		xmpp.start().catchError(function (err) {
-			this.state.event("connection-error");
+			if (this.state.can("connection-error")) this.state.event("connection-error");
 			final xmppError = Std.downcast(err, XmppJsError);
 			if (xmppError?.name == "SASLError") {
 				this.trigger("auth/fail", xmppError);

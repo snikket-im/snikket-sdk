@@ -86,6 +86,9 @@ class Client extends EventEmitter {
 		this.persistence = persistence;
 		stream = new Stream();
 		stream.on("status/online", this.onConnected);
+		stream.on("status/offline", (data) -> {
+			this.trigger("status/offline", {});
+		});
 
 		stream.on("fast-token", (data) -> {
 			persistence.storeLogin(this.jid.asBare().asString(), stream.clientId ?? this.jid.resource, displayName(), data.token);
@@ -828,6 +831,18 @@ class Client extends EventEmitter {
 	**/
 	public function addStatusOnlineListener(handler:()->Void):Void {
 		this.on("status/online", (data) -> {
+			handler();
+			return EventHandled;
+		});
+	}
+
+	/**
+		Event fired when client is disconnected
+
+		@param handler takes no arguments
+	**/
+	public function addStatusOfflineListener(handler:()->Void):Void {
+		this.on("status/offline", (data) -> {
 			handler();
 			return EventHandled;
 		});
