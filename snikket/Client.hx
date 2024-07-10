@@ -69,6 +69,7 @@ class Client extends EventEmitter {
 	);
 	private var _displayName: String;
 	private var fastMechanism: Null<String> = null;
+	private var token: Null<String> = null;
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
 	@:allow(snikket)
 	private var inSync(default, null) = false;
@@ -91,7 +92,8 @@ class Client extends EventEmitter {
 		});
 
 		stream.on("fast-token", (data) -> {
-			persistence.storeLogin(this.jid.asBare().asString(), stream.clientId ?? this.jid.resource, displayName(), data.token);
+			token = data.token;
+			persistence.storeLogin(this.jid.asBare().asString(), stream.clientId ?? this.jid.resource, displayName(), token);
 			return EventHandled;
 		});
 
@@ -453,7 +455,8 @@ class Client extends EventEmitter {
 		Start this client running and trying to connect to the server
 	**/
 	public function start() {
-		persistence.getLogin(accountId(), (clientId, token, fastCount, displayName) -> {
+		persistence.getLogin(accountId(), (clientId, loadedToken, fastCount, displayName) -> {
+			token = loadedToken;
 			persistence.getStreamManagement(accountId(), (smId, smOut, smIn, smOutQ) -> {
 				stream.clientId = clientId ?? ID.long();
 				jid = jid.withResource(stream.clientId);
