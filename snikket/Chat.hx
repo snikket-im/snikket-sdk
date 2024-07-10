@@ -681,6 +681,7 @@ class Channel extends Chat {
 					(shouldRefreshDisco ? refreshDisco : (cb)->cb())(() -> {
 						presence = []; // About to ask for a fresh set
 						inSync = false;
+						client.trigger("chats/update", [this]);
 						final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
 						client.sendPresence(
 							desiredFullJid.asString(),
@@ -751,8 +752,8 @@ class Channel extends Chat {
 				if (lastFromSync != null && (lastMessageTimestamp() == null || Reflect.compare(lastFromSync.timestamp, lastMessageTimestamp()) > 0)) {
 					setLastMessage(lastFromSync);
 					client.sortChats();
-					client.trigger("chats/update", [this]);
 				}
+				client.trigger("chats/update", [this]);
 			}
 		});
 		sync.onError((stanza) -> {
@@ -796,7 +797,7 @@ class Channel extends Chat {
 	}
 
 	override public function syncing() {
-		return !inSync && livePresence();
+		return !inSync || !livePresence();
 	}
 
 	private function nickInUse() {
