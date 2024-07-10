@@ -28,6 +28,7 @@ extern class XmppJsClient {
 		get: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 		set: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 	};
+	var streamFeatures: { use:(String,String,({}, ()->Void, XmppJsXml)->Void)->Void };
 	var streamManagement: { id:String, outbound: Int, inbound: Int, outbound_q: Array<XmppJsXml>, enabled: Bool, allowResume: Bool };
 	var sasl2: Dynamic;
 }
@@ -175,6 +176,11 @@ class XmppJsStream extends GenericStream {
 		});
 		new XmppJsScramSha1(xmpp.sasl2);
 		xmpp.streamFrom = this.jid;
+
+		xmpp.streamFeatures.use("csi", "urn:xmpp:csi:0", (ctx, next, feature) -> {
+			csi = true;
+			return next();
+		});
 
 		if(this.debug) {
 			new XmppJsDebug(xmpp, true);

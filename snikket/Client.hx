@@ -943,6 +943,22 @@ class Client extends EventEmitter {
 		});
 	}
 
+	/**
+		Let the SDK know the UI is in the foreground
+	**/
+	public function setInForeground() {
+		if (!stream.csi) return;
+		stream.sendStanza(new Stanza("active", { xmlns: "urn:xmpp:csi:0" }));
+	}
+
+	/**
+		Let the SDK know the UI is in the foreground
+	**/
+	public function setNotInForeground() {
+		if (!stream.csi) return;
+		stream.sendStanza(new Stanza("inactive", { xmlns: "urn:xmpp:csi:0" }));
+	}
+
 	@:allow(snikket)
 	private function chatActivity(chat: Chat, trigger = true) {
 		if (chat.uiState == Closed) {
