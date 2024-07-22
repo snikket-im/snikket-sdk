@@ -1168,13 +1168,18 @@ class Client extends EventEmitter {
 			lastId == null ? { startTime: thirtyDaysAgo } : { page: { after: lastId } }
 		);
 		sync.setNewestPageFirst(false);
+		final promises = [];
 		sync.onMessages((messageList) -> {
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
-						persistence.storeMessage(accountId(), message, (m)->{});
+						promises.push(new thenshim.Promise((resolve, reject) -> {
+							persistence.storeMessage(accountId(), message, resolve);
+						}));
 					case ReactionUpdateStanza(update):
-					persistence.storeReaction(accountId(), update, (m)->{});
+						promises.push(new thenshim.Promise((resolve, reject) -> {
+							persistence.storeReaction(accountId(), update, (m)->{});
+						}));
 					default:
 						// ignore
 				}
@@ -1185,7 +1190,7 @@ class Client extends EventEmitter {
 				for (sid => stanza in sync.jmi) {
 					onMAMJMI(sid, stanza);
 				}
-				if (callback != null) callback();
+				if (callback != null) thenshim.PromiseTools.all(promises).then((_) -> callback());
 			}
 		});
 		sync.onError((stanza) -> {
