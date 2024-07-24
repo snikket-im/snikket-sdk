@@ -81,6 +81,14 @@ class Sqlite implements Persistence {
 				caps BLOB NOT NULL,
 				PRIMARY KEY (account_id, service_id)
 			);");
+			db.request("CREATE TABLE logins (
+				login TEXT NOT NULL,
+				client_id TEXT NOT NULL,
+				display_name TEXT,
+				token TEXT,
+				fast_count INTEGER NOT NULL DEFAULT 0,
+				PRIMARY KEY (login)
+			);");
 			db.request("PRAGMA user_version = 1;");
 		}
 	}
@@ -337,12 +345,52 @@ class Sqlite implements Persistence {
 
 	@HaxeCBridge.noemit
 	public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>) {
-		// TODO
+		final q = new StringBuf();
+		q.add("INSERT INTO logins (login, client_id, display_name");
+		if (token != null) {
+			q.add(", token, fast_count");
+		}
+		q.add(") VALUES (");
+		db.addValue(q, login);
+		q.add(",");
+		db.addValue(q, clientId);
+		q.add(",");
+		db.addValue(q, displayName);
+		if (token != null) {
+			q.add(",");
+			db.addValue(q, token);
+			q.add(",0"); // reset count to zero on new token
+		}
+		q.add(") ON CONFLICT DO UPDATE SET client_id=");
+		db.addValue(q, clientId);
+		q.add(", display_name=");
+		db.addValue(q, displayName);
+		if (token != null) {
+			q.add(", token=");
+			db.addValue(q, token);
+			q.add(", fast_count=0"); // reset count to zero on new token
+		}
+		db.request(q.toString());
 	}
 
 	@HaxeCBridge.noemit
 	public function getLogin(login:String, callback:(Null<String>, Null<String>, Int, Null<String>)->Void) {
-		// TODO
+		final q = new StringBuf();
+		q.add("SELECT client_id, display_name, token, fast_count FROM logins WHERE login=");
+		db.addValue(q, login);
+		q.add(" LIMIT 1");
+		final result = db.request(q.toString());
+		for (row in result) {
+			if (row.token != null) {
+				final update = new StringBuf();
+				update.add("UPDATE logins SET fast_count=fast_count+1 WHERE login=");
+				db.addValue(update, login);
+				db.request(update.toString());
+			}
+			callback(row.client_id, row.token, row.fast_count ?? 0, row.display_name);
+			return;
+		}
+
 		callback(null, null, 0, null);
 	}
 
