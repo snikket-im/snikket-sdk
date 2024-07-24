@@ -217,7 +217,7 @@ class Sqlite implements Persistence {
 		var didOne = false;
 		for (chat in chats) {
 			if (chat.readUpTo() != null) {
-				if (!didOne) subq.add(",");
+				if (didOne) subq.add(",");
 				db.addValue(subq, chat.readUpTo());
 				didOne = true;
 			}
@@ -226,7 +226,7 @@ class Sqlite implements Persistence {
 		didOne = false;
 		for (chat in chats) {
 			if (chat.readUpTo() != null) {
-				if (!didOne) subq.add(",");
+				if (didOne) subq.add(",");
 				db.addValue(subq, chat.readUpTo());
 				didOne = true;
 			}
