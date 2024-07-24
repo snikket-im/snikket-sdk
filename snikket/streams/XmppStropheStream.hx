@@ -232,9 +232,16 @@ class XmppStropheStream extends GenericStream {
 			stream.trigger("status/online", {});
 		}
 		if (event == untyped __cpp__("XMPP_CONN_DISCONNECT")) {
-			stream.trigger("status/offline", {});
+			if (!stream.ready) {
+				// Never connected, auth failure
+				stream.trigger("auth/fail", {});
+			} else {
+				stream.ready = false;
+				stream.trigger("status/offline", {});
+			}
 		}
 		if (event == untyped __cpp__("XMPP_CONN_FAIL")) {
+			stream.ready = false;
 			stream.trigger("status/offline", {});
 		}
 	}

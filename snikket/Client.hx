@@ -481,7 +481,7 @@ class Client extends EventEmitter {
 
 						stream.on("auth/password-needed", (data) -> {
 							fastMechanism = data.mechanisms?.find((mech) -> mech.canFast)?.name;
-							if (token == null || fastMechanism == null) {
+							if (token == null || (fastMechanism == null && data.mechanimsms != null)) {
 								this.trigger("auth/password-needed", { accountId: accountId() });
 							} else {
 								this.stream.trigger("auth/password", { password: token, mechanism: fastMechanism, fastCount: fastCount });
