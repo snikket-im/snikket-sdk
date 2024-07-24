@@ -68,6 +68,7 @@ extern class StdVector<T> {
 	public function size(): cpp.SizeT;
 	public function at(idx: cpp.SizeT): T;
 	public function data(): cpp.Pointer<T>;
+	public function push_back(v:T): Void;
 }
 
 @:native("std::string")
@@ -624,6 +625,22 @@ extern class Candidate {
 	public function mid(): StdString;
 }
 
+@:native("rtc::IceServer")
+@:unreflective
+@:structAccess
+extern class PCIceServer {
+	public function new(url: cpp.StdString);
+	public var username: cpp.StdString;
+	public var password: cpp.StdString;
+}
+
+@:native("rtc::Configuration")
+@:unreflective
+@:structAccess
+extern class PCConfiguration {
+	public var iceServers: StdVector<PCIceServer>;
+}
+
 @:buildXml("
 <target id='haxe'>
   <lib name='-ldatachannel'/>
@@ -635,7 +652,7 @@ extern class Candidate {
 @:unreflective
 extern class PC {
 	@:native("std::make_shared<rtc::PeerConnection>")
-	public static function makeShared(): SharedPtr<PC>; // TODO: config option
+	public static function makeShared(config: PCConfiguration): SharedPtr<PC>;
 	public function localDescription():StdOptional<Description>;
 	public function setLocalDescription(sdpType: DescriptionType):Void;
 	public function onLocalDescription(callback: cpp.Callable<Description->Void>):Void;
@@ -663,7 +680,22 @@ class PeerConnection {
 			untyped __cpp__("rtc::InitLogger(rtc::LogLevel::Verbose);");
 		}
 		mainLoop = sys.thread.Thread.current().events;
-		_pc = PC.makeShared();
+		untyped __cpp__("rtc::Configuration configRaw;");
+		final config: cpp.Pointer<PCConfiguration> = untyped __cpp__("&configRaw");
+		if (configuration != null && configuration.iceServers != null) {
+			for (server in configuration.iceServers) {
+				if (server.urls != null && server.urls.length == 1 && server.urls[0].indexOf("stuns") != 0) {
+					final url: cpp.StdString = cpp.StdString.ofString(server.urls[0]);
+					untyped __cpp__("rtc::IceServer iceServerRaw(url);");
+					final iceServer: cpp.Pointer<PCIceServer> = untyped __cpp__("&iceServerRaw");
+					if (server.username != null) iceServer.ref.username = cpp.StdString.ofString(server.username);
+					if (server.credential != null) iceServer.ref.password = cpp.StdString.ofString(server.credential);
+					final iceServers: cpp.Pointer<StdVector<PCIceServer>> = untyped __cpp__("&configRaw.iceServers");
+					iceServers.ref.push_back(iceServer.ref);
+				}
+			}
+		}
+		_pc = PC.makeShared(config.ref);
 		pc = cpp.Pointer.fromRaw(untyped __cpp__("{0}.get()", _pc));
 		pc.ref.onLocalDescription(cast untyped __cpp__("[this](auto d) { this->onLocalDescription(); }"));
 		pc.ref.onTrack(cast untyped __cpp__("[this](auto t) { this->onTrack(t); }"));

@@ -4,7 +4,7 @@ package snikket.jingle;
 typedef IceServer = {
 	var ?credential : String;
 	// var ?credentialType : IceCredentialType;
-	var ?url : String;
-	var ?urls : haxe.extern.EitherType<String,Array<String>>;
+	// var ?url : String;
+	var ?urls : Array<String>;
 	var ?username : String;
 }
