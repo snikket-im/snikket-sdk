@@ -731,15 +731,20 @@ class Channel extends Chat {
 			chatId
 		);
 		sync.setNewestPageFirst(false);
+		final promises = [];
 		final chatMessages = [];
 		sync.onMessages((messageList) -> {
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
-						persistence.storeMessage(client.accountId(), message, (m)->{});
+						promises.push(new thenshim.Promise((resolve, reject) -> {
+							persistence.storeMessage(client.accountId(), message, resolve);
+						}));
 						if (message.chatId() == chatId) chatMessages.push(message);
 					case ReactionUpdateStanza(update):
-						persistence.storeReaction(client.accountId(), update, (m)->{});
+						promises.push(new thenshim.Promise((resolve, reject) -> {
+							persistence.storeReaction(client.accountId(), update, resolve);
+						}));
 					default:
 						// ignore
 				}
@@ -747,13 +752,21 @@ class Channel extends Chat {
 			if (sync.hasMore()) {
 				sync.fetchNext();
 			} else {
-				inSync = true;
-				final lastFromSync = chatMessages[chatMessages.length - 1];
-				if (lastFromSync != null && (lastMessageTimestamp() == null || Reflect.compare(lastFromSync.timestamp, lastMessageTimestamp()) > 0)) {
-					setLastMessage(lastFromSync);
-					client.sortChats();
-				}
-				client.trigger("chats/update", [this]);
+				thenshim.PromiseTools.all(promises).then((_) -> {
+					inSync = true;
+					final lastFromSync = chatMessages[chatMessages.length - 1];
+					if (lastFromSync != null && (lastMessageTimestamp() == null || Reflect.compare(lastFromSync.timestamp, lastMessageTimestamp()) > 0)) {
+						setLastMessage(lastFromSync);
+						client.sortChats();
+					}
+					final readIndex = chatMessages.findIndex((m) -> m.serverId == readUpTo());
+					if (readIndex < 0) {
+						setUnreadCount(unreadCount() + chatMessages.length);
+					} else {
+						setUnreadCount(chatMessages.length - readIndex - 1);
+					}
+					client.trigger("chats/update", [this]);
+				});
 			}
 		});
 		sync.onError((stanza) -> {
