@@ -402,8 +402,8 @@ class MediaStreamTrack {
 
 	private function set_track(newTrack: SharedPtr<Track>) {
 		if (untyped __cpp__("!track")) {
+			track = newTrack;
 			if (kind == "audio") {
-				track = newTrack;
 				final depacket = RtpDepacketizer.makeShared();
 				final rtcp = RtcpReceivingSession.makeShared();
 				depacket.ref.addToChain(rtcp);
