@@ -31,8 +31,13 @@ class ChatAttachment {
 	@HaxeCBridge.noemit
 	public final hashes: Array<{algo:String, hash:BytesData}>;
 
+	#if cpp
 	@:allow(snikket)
-	private function new(name: Null<String>, mime: String, size: Null<Int>, uris: Array<String>, hashes: Array<{algo:String, hash:BytesData}>) {
+	private
+	#else
+	public
+	#end
+	function new(name: Null<String>, mime: String, size: Null<Int>, uris: Array<String>, hashes: Array<{algo:String, hash:BytesData}>) {
 		this.name = name;
 		this.mime = mime;
 		this.size = size;
