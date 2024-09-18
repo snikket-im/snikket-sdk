@@ -293,7 +293,8 @@ class XmppJsStream extends GenericStream {
 	}
 
 	public function sendStanza(stanza:Stanza) {
-		if (client == null) {
+		if (client == null || client.status != "online") {
+			// TODO: these aren't part of the sm state so they can get lost
 			pending.push(convertFromStanza(stanza));
 		} else {
 			client.send(convertFromStanza(stanza));
