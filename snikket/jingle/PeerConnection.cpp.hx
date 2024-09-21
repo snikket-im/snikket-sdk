@@ -343,7 +343,8 @@ class MediaStreamTrack {
 	private var opus: cpp.Struct<OpusDecoder>;
 	private var opusEncoder: cpp.Struct<OpusEncoder>;
 	private var rtpPacketizationConfig: SharedPtr<RtpPacketizationConfig>;
-	private final eventLoop: sys.thread.EventLoop;
+	private final audioLoop: sys.thread.EventLoop;
+	private final audioReadyLoop: sys.thread.EventLoop;
 	private var alive = true;
 
 	@:allow(snikket)
@@ -361,7 +362,8 @@ class MediaStreamTrack {
 
 	@:allow(snikket)
 	private function new() {
-		eventLoop = sys.thread.Thread.createWithEventLoop(() -> while(alive) { sys.thread.Thread.processEvents(); sys.thread.Thread.current().events.wait(); }).events;
+		audioLoop = sys.thread.Thread.createWithEventLoop(() -> while(alive) { sys.thread.Thread.processEvents(); sys.thread.Thread.current().events.wait(); }).events;
+		audioReadyLoop = sys.thread.Thread.createWithEventLoop(() -> while(alive) { sys.thread.Thread.processEvents(); sys.thread.Thread.current().events.wait(); }).events;
 	}
 
 	private function get_media() {
@@ -497,7 +499,11 @@ class MediaStreamTrack {
 	private function notifyReadyForData(fromCPP: Bool) {
 		untyped __cpp__("if (fromCPP) { int base = 0; hx::SetTopOfStack(&base, true); }"); // allow running haxe code on foreign thread
 		if (readyForPCMCallback != null) {
-			readyForPCMCallback();
+			// Run in background thread incase the callback blocks
+			// Overkill if they use an async audio system, but not everyone will
+			// Don't run on the audioLoop or else the encoding process and the
+			// audio fetching process wait on each other, which can cause choppiness
+			audioReadyLoop.run(() -> readyForPCMCallback());
 		}
 		untyped __cpp__("if (fromCPP) { hx::SetTopOfStack((int*)0, true); }"); // unregister with GC
 	}
@@ -511,7 +517,7 @@ class MediaStreamTrack {
 	**/
 	public function writePCM(pcm: Array<cpp.Int16>, clockRate: Int, channels: Int) {
 		if (track.ref.isClosed()) return;
-		eventLoop.run(() -> {
+		audioLoop.run(() -> {
 			if (track.ref.isClosed()) return;
 			final format = Lambda.find(supportedAudioFormats, format -> format.clockRate == clockRate && format.channels == channels);
 			if (format == null) throw "Unsupported audo format: " + clockRate + "/" + channels;
@@ -533,16 +539,19 @@ class MediaStreamTrack {
 			}
 			advanceTimestamp(Std.int(pcm.length / channels));
 		});
+		// Don't wait for the encoder to finish, send in the next one
+		//The eventloop will keep the outbound packets serialized still
 		notifyReadyForData(false);
 	}
 
 	@:allow(snikket)
 	private function onAudioLoop(callback: ()->Void) {
-		eventLoop.run(callback);
+		audioLoop.run(callback);
 	}
 
 	@:allow(snikket)
 	private function write(payload: Array<cpp.UInt8>, payloadType: cpp.UInt8, clockRate: Int) {
+		if (track.ref.isClosed()) return;
 		rtpPacketizationConfig.ref.payloadType = payloadType;
 		rtpPacketizationConfig.ref.clockRate = clockRate;
 		track.ref.send(cpp.Pointer.ofArray(payload).reinterpret(), payload.length);
