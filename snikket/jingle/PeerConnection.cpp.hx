@@ -497,7 +497,7 @@ class MediaStreamTrack {
 	private function notifyReadyForData(fromCPP: Bool) {
 		untyped __cpp__("if (fromCPP) { int base = 0; hx::SetTopOfStack(&base, true); }"); // allow running haxe code on foreign thread
 		if (readyForPCMCallback != null) {
-			eventLoop.run(() -> readyForPCMCallback());
+			readyForPCMCallback();
 		}
 		untyped __cpp__("if (fromCPP) { hx::SetTopOfStack((int*)0, true); }"); // unregister with GC
 	}
@@ -531,8 +531,8 @@ class MediaStreamTrack {
 				trace("Ignoring audio meant to go out as", format.format, format.clockRate, format.channels);
 			}
 			advanceTimestamp(Std.int(pcm.length / channels));
-			notifyReadyForData(false);
 		});
+		notifyReadyForData(false);
 	}
 
 	@:allow(snikket)
