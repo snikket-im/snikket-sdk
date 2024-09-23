@@ -343,9 +343,12 @@ class MediaStreamTrack {
 	private var opus: cpp.Struct<OpusDecoder>;
 	private var opusEncoder: cpp.Struct<OpusEncoder>;
 	private var rtpPacketizationConfig: SharedPtr<RtpPacketizationConfig>;
-	private final audioLoop: sys.thread.EventLoop;
-	private final audioReadyLoop: sys.thread.EventLoop;
+	private final eventLoop: sys.thread.EventLoop;
+	private var timer: haxe.Timer;
+	private var audioQ: Array<{stamp: Float, channels: Int, payloadType: cpp.UInt8, clockRate: Int, payload: Array<cpp.UInt8>}> = [];
 	private var alive = true;
+	private var waitForQ = false;
+	private var bufferSizeInSeconds = 0.0;
 
 	@:allow(snikket)
 	private var media(get, default): StdOptional<DescriptionMedia>;
@@ -362,8 +365,22 @@ class MediaStreamTrack {
 
 	@:allow(snikket)
 	private function new() {
-		audioLoop = sys.thread.Thread.createWithEventLoop(() -> while(alive) { sys.thread.Thread.processEvents(); sys.thread.Thread.current().events.wait(); }).events;
-		audioReadyLoop = sys.thread.Thread.createWithEventLoop(() -> while(alive) { sys.thread.Thread.processEvents(); sys.thread.Thread.current().events.wait(); }).events;
+		eventLoop = sys.thread.Thread.createWithEventLoop(() -> {
+			timer = new haxe.Timer(10); // This timer will stop when the audioloop for this track stops
+			timer.run = () -> {
+				trace("Q", audioQ.length);
+				if (audioQ.length > 0 && audioQ[audioQ.length - 1].stamp <= haxe.Timer.stamp()) {
+					final packet = audioQ.pop();
+					write(packet.payload, packet.payloadType, packet.clockRate);
+					advanceTimestamp(Std.int(packet.payload.length / packet.channels));
+				}
+				if (waitForQ && audioQ.length < (50+50*bufferSizeInSeconds)) {
+					waitForQ = false;
+					notifyReadyForData(false);
+				}
+			};
+			while(alive) { sys.thread.Thread.processEvents(); sys.thread.Thread.current().events.wait(); }
+		}).events;
 	}
 
 	private function get_media() {
@@ -499,11 +516,15 @@ class MediaStreamTrack {
 	private function notifyReadyForData(fromCPP: Bool) {
 		untyped __cpp__("if (fromCPP) { int base = 0; hx::SetTopOfStack(&base, true); }"); // allow running haxe code on foreign thread
 		if (readyForPCMCallback != null) {
-			// Run in background thread incase the callback blocks
-			// Overkill if they use an async audio system, but not everyone will
-			// Don't run on the audioLoop or else the encoding process and the
-			// audio fetching process wait on each other, which can cause choppiness
-			audioReadyLoop.run(() -> readyForPCMCallback());
+			eventLoop.run(() -> {
+				if (audioQ.length > (50+50*bufferSizeInSeconds)) {
+					trace("waitforQ");
+					waitForQ = true;
+				} else {
+					trace("ready");
+					readyForPCMCallback();
+				}
+			});
 		}
 		untyped __cpp__("if (fromCPP) { hx::SetTopOfStack((int*)0, true); }"); // unregister with GC
 	}
@@ -516,13 +537,19 @@ class MediaStreamTrack {
 		@param channels the number of audio channels
 	**/
 	public function writePCM(pcm: Array<cpp.Int16>, clockRate: Int, channels: Int) {
-		if (track.ref.isClosed()) return;
-		audioLoop.run(() -> {
+		final format = Lambda.find(supportedAudioFormats, format -> format.clockRate == clockRate && format.channels == channels);
+		if (format == null) throw "Unsupported audo format: " + clockRate + "/" + channels;
+		eventLoop.run(() -> {
 			if (track.ref.isClosed()) return;
-			final format = Lambda.find(supportedAudioFormats, format -> format.clockRate == clockRate && format.channels == channels);
-			if (format == null) throw "Unsupported audo format: " + clockRate + "/" + channels;
+			final stamp = if (audioQ.length < 1) {
+				bufferSizeInSeconds = Math.max(bufferSizeInSeconds, bufferSizeInSeconds + 0.1);
+				haxe.Timer.stamp() + bufferSizeInSeconds;
+			} else {
+				audioQ[0].stamp + (pcm.length / (clockRate / 1000)) / 1000.0;
+			}
 			if (format.format == "PCMU") {
-				write(pcm.map(pcmToUlaw), format.payloadType, clockRate);
+				final packet = { channels: channels, payloadType: format.payloadType, clockRate: clockRate, payload: pcm.map(pcmToUlaw), stamp: stamp };
+				audioQ.unshift(packet);
 			} else if (format.format == "opus") {
 				if (untyped __cpp__("!{0}", opusEncoder)) {
 					opusEncoder = OpusEncoder.create(clockRate, channels, untyped __cpp__("OPUS_APPLICATION_VOIP"), null); // assume only one opus clockRate+channels for this track
@@ -533,25 +560,22 @@ class MediaStreamTrack {
 				final rawOpus = new haxe.ds.Vector(pcm.length * 2).toData(); // Shoudn't be bigger than the input
 				final encoded = OpusEncoder.encode(opusEncoder, cpp.Pointer.ofArray(pcm), Std.int(pcm.length / channels), cpp.Pointer.ofArray(rawOpus), rawOpus.length);
 				rawOpus.resize(encoded);
-				write(rawOpus, format.payloadType, clockRate);
+				final packet = { channels: channels, payloadType: format.payloadType, clockRate: clockRate, payload: rawOpus, stamp: stamp };
+				audioQ.unshift(packet);
 			} else {
 				trace("Ignoring audio meant to go out as", format.format, format.clockRate, format.channels);
 			}
-			advanceTimestamp(Std.int(pcm.length / channels));
+			notifyReadyForData(false);
 		});
-		// Don't wait for the encoder to finish, send in the next one
-		//The eventloop will keep the outbound packets serialized still
-		notifyReadyForData(false);
 	}
 
 	@:allow(snikket)
 	private function onAudioLoop(callback: ()->Void) {
-		audioLoop.run(callback);
+		eventLoop.run(callback);
 	}
 
 	@:allow(snikket)
 	private function write(payload: Array<cpp.UInt8>, payloadType: cpp.UInt8, clockRate: Int) {
-		if (track.ref.isClosed()) return;
 		rtpPacketizationConfig.ref.payloadType = payloadType;
 		rtpPacketizationConfig.ref.clockRate = clockRate;
 		track.ref.send(cpp.Pointer.ofArray(payload).reinterpret(), payload.length);
