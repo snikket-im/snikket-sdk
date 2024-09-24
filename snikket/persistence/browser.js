@@ -4,7 +4,10 @@
 import { snikket as enums } from "./snikket-enums";
 import { snikket } from "./snikket";
 
-const browser = (dbname) => {
+const browser = (dbname, tokenize, stemmer) => {
+	if (!tokenize) tokenize = function(s) { return s.split(" "); }
+	if (!stemmer) stemmer = function(s) { return s; }
+
 	var db = null;
 	function openDb(version) {
 		var dbOpenReq = indexedDB.open(dbname, version);
@@ -57,12 +60,11 @@ const browser = (dbname) => {
 		});
 	}
 
-	async function hydrateMessage(value) {
+	function hydrateMessageSync(value) {
 		if (!value) return null;
 
 		const tx = db.transaction(["messages"], "readonly");
 		const store = tx.objectStore("messages");
-		let replyToMessage = value.replyToMessage && await hydrateMessage((await promisifyRequest(store.openCursor(IDBKeyRange.only(value.replyToMessage))))?.value);
 
 		const message = new snikket.ChatMessage();
 		message.localId = value.localId ? value.localId : null;
@@ -77,15 +79,26 @@ const browser = (dbname) => {
 		message.sender = value.sender && snikket.JID.parse(value.sender);
 		message.recipients = value.recipients.map((r) => snikket.JID.parse(r));
 		message.replyTo = value.replyTo.map((r) => snikket.JID.parse(r));
-		message.replyToMessage = replyToMessage;
 		message.threadId = value.threadId;
 		message.attachments = value.attachments;
 		message.reactions = value.reactions;
 		message.text = value.text;
 		message.lang = value.lang;
 		message.isGroupchat = value.isGroupchat || value.groupchat;
-		message.versions = await Promise.all((value.versions || []).map(hydrateMessage));
 		message.payloads = (value.payloads || []).map(snikket.Stanza.parse);
+		return message;
+	}
+
+	async function hydrateMessage(value) {
+		if (!value) return null;
+
+		const message = hydrateMessageSync(value);
+		const tx = db.transaction(["messages"], "readonly");
+		const store = tx.objectStore("messages");
+		const replyToMessage = value.replyToMessage && await hydrateMessage((await promisifyRequest(store.openCursor(IDBKeyRange.only(value.replyToMessage))))?.value);
+
+		message.replyToMessage = replyToMessage;
+		message.versions = await Promise.all((value.versions || []).map(hydrateMessage));
 		return message;
 	}
 
@@ -388,6 +401,41 @@ const browser = (dbname) => {
 			cursor.onerror = (event) => {
 				console.error(event);
 				callback([]);
+			}
+		},
+
+		searchMessages: function(account, chatId, q, callback) {
+			const tx = db.transaction(["messages"], "readonly");
+			const store = tx.objectStore("messages");
+			var cursor;
+			if (chatId) {
+				cursor = store.index("chats").openCursor(
+					IDBKeyRange.bound([account, chatId], [account, chatId, []]),
+					"prev"
+				);
+			} else if (account) {
+				cursor = store.index("accounts").openCursor(
+					IDBKeyRange.bound([account], [account, []]),
+					"prev"
+				);
+			} else {
+				cursor = store.openCursor(undefined, "prev");
+			}
+			const qTok = new Set(tokenize(q).map(stemmer));
+			cursor.onsuccess = (event) => {
+				if (event.target.result) {
+					const value = event.target.result.value;
+					if (new Set(tokenize(value.text).map(stemmer)).isSupersetOf(qTok)) {
+						if (!callback(q, hydrateMessageSync(value))) return;
+					}
+					event.target.result.continue();
+				} else {
+					callback(null);
+				}
+			}
+			cursor.onerror = (event) => {
+				console.error(event);
+				callback(null);
 			}
 		},
 
