@@ -54,6 +54,11 @@ abstract class Chat {
 	private var readUpToId: Null<String>;
 	@:allow(snikket)
 	private var readUpToBy: Null<String>;
+	private var isTyping = false;
+	private var typingThread: Null<String> = null;
+	private var typingTimer: haxe.Timer = null;
+	private var isActive: Null<Bool> = null;
+	private var activeThread: Null<String> = null;
 
 	@:allow(snikket)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
@@ -144,6 +149,70 @@ abstract class Chat {
 		@param reaction the emoji to remove
 	**/
 	abstract public function removeReaction(m:ChatMessage, reaction:String):Void;
+
+	abstract private function sendChatState(state: String, threadId: Null<String>):Void;
+
+	/**
+		Call this whenever the user is typing, can call on every keystroke
+
+		@param threadId optional, what thread the user has selected if any
+		@param content optional, what the user has typed so far
+	**/
+	public function typing(threadId: Null<String>, content: Null<String>) {
+		if (threadId != typingThread && isTyping) {
+			// User has switched threads
+			sendChatState("paused", typingThread);
+			isTyping = false;
+		}
+
+		typingThread = threadId;
+		if (typingTimer != null) typingTimer.stop();
+
+		if (content == "") {
+			isTyping = false;
+			sendChatState("active", typingThread);
+			if (isActive == null) {
+				typingTimer = haxe.Timer.delay(() -> {
+					sendChatState("inactive", typingThread);
+				}, 30000);
+			}
+			return;
+		}
+
+		typingTimer = haxe.Timer.delay(() -> {
+			sendChatState("paused", typingThread);
+			isTyping = false;
+		}, 10000);
+
+		if (isTyping) return; // No need to keep sending if the other side knows
+		isTyping = true;
+		sendChatState("composing", typingThread);
+	}
+
+
+	/**
+		Call this whenever the user makes a chat or thread "active" in your UX
+		If you call this with true you MUST later call it will false
+
+		@param active true if the chat is "active", false otherwise
+		@param threadId optional, what thread the user has selected if any
+	**/
+	public function setActive(active: Bool, threadId: Null<String>) {
+		if (typingTimer != null) typingTimer.stop();
+		isTyping = false;
+
+		if (isActive && active && threadId != activeThread) {
+			sendChatState("inactive", activeThread);
+			isActive = false;
+		}
+		if (isActive != null) {
+			if (isActive && active) return;
+			if (!isActive && !active) return;
+		}
+		isActive = active;
+		activeThread = threadId;
+		sendChatState(active ? "active" : "inactive", activeThread);
+	}
 
 	/**
 		Archive this chat
@@ -539,6 +608,7 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function sendMessage(message:ChatMessage):Void {
+		if (typingTimer != null) typingTimer.stop();
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);
 		final fromStanza = Message.fromStanza(message.asStanza(), client.jid);
@@ -547,7 +617,13 @@ class DirectChat extends Chat {
 				persistence.storeMessage(client.accountId(), message, (stored) -> {
 					for (recipient in message.recipients) {
 						message.to = recipient;
-						client.sendStanza(message.asStanza());
+						final stanza = message.asStanza();
+						if (isActive != null) {
+							isActive = true;
+							activeThread = message.threadId;
+							stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
+						}
+						client.sendStanza(stanza);
 					}
 					setLastMessage(message);
 					client.trigger("chats/update", [this]);
@@ -633,7 +709,12 @@ class DirectChat extends Chat {
 
 	private function sendChatState(state: String, threadId: Null<String>) {
 		for (recipient in getParticipants()) {
-			final stanza = new Stanza("message", { from: client.jid.asString(), to: recipient })
+			final stanza = new Stanza("message", {
+					id: ID.long(),
+					type: "chat",
+					from: client.jid.asString(),
+					to: recipient
+				})
 				.tag(state, { xmlns: "http://jabber.org/protocol/chatstates" })
 				.up();
 			if (threadId != null) {
@@ -645,6 +726,7 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function close() {
+		if (typingTimer != null) typingTimer.stop();
 		// Should this remove from roster?
 		uiState = Closed;
 		persistence.storeChat(client.accountId(), this);
@@ -933,6 +1015,7 @@ class Channel extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function sendMessage(message:ChatMessage):Void {
+		if (typingTimer != null) typingTimer.stop();
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);
 		final stanza = message.asStanza();
@@ -942,6 +1025,11 @@ class Channel extends Chat {
 		stanza.attr.set("from", client.jid.asString());
 		switch (fromStanza) {
 			case ChatMessageStanza(_):
+				if (isActive != null) {
+					isActive = true;
+					activeThread = message.threadId;
+					stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
+				}
 				persistence.storeMessage(client.accountId(), message, (stored) -> {
 					client.sendStanza(stanza);
 					setLastMessage(stored);
@@ -1050,7 +1138,12 @@ class Channel extends Chat {
 	}
 
 	private function sendChatState(state: String, threadId: Null<String>) {
-		final stanza = new Stanza("message", { from: client.jid.asString(), to: chatId })
+		final stanza = new Stanza("message", {
+				id: ID.long(),
+				type: "chat",
+				from: client.jid.asString(),
+				to: chatId
+			})
 			.tag(state, { xmlns: "http://jabber.org/protocol/chatstates" })
 			.up();
 		if (threadId != null) {
@@ -1061,6 +1154,7 @@ class Channel extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function close() {
+		if (typingTimer != null) typingTimer.stop();
 		uiState = Closed;
 		persistence.storeChat(client.accountId(), this);
 		selfPing(false);
