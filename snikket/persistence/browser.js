@@ -456,7 +456,7 @@ const browser = (dbname, tokenize, stemmer) => {
 				const response = await cache.match(niUrl);
 				if (response) {
 					// NOTE: the application needs to call URL.revokeObjectURL on this when done
-				  return URL.createObjectURL(await response.blob());
+					return URL.createObjectURL(await response.blob());
 				}
 
 				return null;
