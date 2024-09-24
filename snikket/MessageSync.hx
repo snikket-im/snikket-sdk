@@ -80,7 +80,7 @@ class MessageSync {
 				jmi.set(jmiChildren[0].attr.get("id"), originalMessage);
 			}
 
-			var msg = Message.fromStanza(originalMessage, client.jid, timestamp);
+			final msg = Message.fromStanza(originalMessage, client.jid, timestamp).parsed;
 
 			switch (msg) {
 				case ChatMessageStanza(chatMessage):

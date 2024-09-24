@@ -142,7 +142,7 @@ class ChatMessage {
 
 	@:allow(snikket)
 	private static function fromStanza(stanza:Stanza, localJid:JID):Null<ChatMessage> {
-		switch Message.fromStanza(stanza, localJid) {
+		switch Message.fromStanza(stanza, localJid).parsed {
 			case ChatMessageStanza(message):
 				return message;
 			default:

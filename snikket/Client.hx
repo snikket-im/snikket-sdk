@@ -44,6 +44,7 @@ class Client extends EventEmitter {
 	public var sendAvailable(null, default): Bool = true;
 	private var stream:GenericStream;
 	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
+	private var chatStateHandlers: Array<(String,String,Null<String>,UserState)->Void> = [];
 	@:allow(snikket)
 	private var jid(default,null):JID;
 	private var chats: Array<Chat> = [];
@@ -196,7 +197,8 @@ class Client extends EventEmitter {
 				}
 			}
 
-			switch (Message.fromStanza(stanza, this.jid)) {
+			final message = Message.fromStanza(stanza, this.jid);
+			switch (message.parsed) {
 				case ChatMessageStanza(chatMessage):
 					var chat = getChat(chatMessage.chatId());
 					if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
@@ -220,6 +222,23 @@ class Client extends EventEmitter {
 					persistence.storeReaction(accountId(), update, (stored) -> if (stored != null) notifyMessageHandlers(stored));
 				default:
 					// ignore
+			}
+
+			if (stanza.attr.get("type") != "error") {
+				final chatState = stanza.getChild(null, "http://jabber.org/protocol/chatstates");
+				final userState = switch (chatState?.name) {
+					case "active": UserState.Active;
+					case "inactive": UserState.Inactive;
+					case "gone": UserState.Gone;
+					case "composing": UserState.Composing;
+					case "paused": UserState.Paused;
+					default: null;
+				};
+				if (userState != null) {
+					for (handler in chatStateHandlers) {
+						handler(message.senderId, message.chatId, message.threadId, userState);
+					}
+				}
 			}
 
 			final pubsubEvent = PubsubEvent.fromStanza(stanza);
@@ -856,6 +875,15 @@ class Client extends EventEmitter {
 			return EventHandled;
 		});
 	}
+
+	#if !cpp
+	// TODO: haxe cpp erases enum into int, so using it as a callback arg is hard
+	// could just use int in C bindings, or need to come up with a good strategy
+	// for the wrapper
+	public function addUserStateListener(handler: (String,String,Null<String>,UserState)->Void):Void {
+		chatStateHandlers.push(handler);
+	}
+	#end
 
 	/**
 		Event fired when a new ChatMessage comes in on any Chat

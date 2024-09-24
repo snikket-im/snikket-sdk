@@ -20,6 +20,7 @@ export import jingle = snikket.jingle;
 export import UiState = enums.UiState;
 export import MessageStatus = enums.MessageStatus;
 export import MessageDirection = enums.MessageDirection;
+export import UserState = enums.UserState;
 
 export namespace persistence {
 	 export import browser = browserp;

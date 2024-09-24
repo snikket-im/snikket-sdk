@@ -23,8 +23,22 @@ enum MessageStanza {
 
 @:nullSafety(Strict)
 class Message {
-	public static function fromStanza(stanza:Stanza, localJid:JID, ?inputTimestamp: String):MessageStanza {
-		if (stanza.attr.get("type") == "error") return ErrorMessageStanza(stanza);
+	public final chatId: String;
+	public final senderId: String;
+	public final threadId: Null<String>;
+	public final parsed: MessageStanza;
+
+	private function new(chatId: String, senderId: String, threadId: Null<String>, parsed: MessageStanza) {
+		this.chatId = chatId;
+		this.senderId = senderId;
+		this.threadId = threadId;
+		this.parsed = parsed;
+	}
+
+	public static function fromStanza(stanza:Stanza, localJid:JID, ?inputTimestamp: String):Message {
+		final fromAttr = stanza.attr.get("from");
+		final from = fromAttr == null ? localJid.domain : fromAttr;
+		if (stanza.attr.get("type") == "error") return new Message(from, from, null, ErrorMessageStanza(stanza));
 
 		var msg = new ChatMessage();
 		final timestamp = stanza.findText("{urn:xmpp:delay}delay@stamp") ?? inputTimestamp ?? Date.format(std.Date.now());
@@ -35,8 +49,7 @@ class Message {
 		if (msg.text != null && (msg.lang == null || msg.lang == "")) {
 			msg.lang = stanza.getChild("body")?.attr.get("xml:lang");
 		}
-		final from = stanza.attr.get("from");
-		msg.from = from == null ? null : JID.parse(from);
+		msg.from = JID.parse(from);
 		msg.isGroupchat = stanza.attr.get("type") == "groupchat";
 		msg.sender = stanza.attr.get("type") == "groupchat" ? msg.from : msg.from?.asBare();
 		final localJidBare = localJid.asBare();
@@ -97,7 +110,7 @@ class Message {
 					replyTo.clear();
 				} else if (jid == null) {
 					trace("No support for addressing to non-jid", address);
-					return UnknownMessageStanza(stanza);
+					return new Message(msg.chatId(), msg.senderId(), msg.threadId, UnknownMessageStanza(stanza));
 				} else if (address.attr.get("type") == "to" || address.attr.get("type") == "cc") {
 					recipients[JID.parse(jid).asBare().asString()] = true;
 					if (!anyExtendedReplyTo) replyTo[JID.parse(jid).asString()] = true; // reply all
@@ -124,7 +137,7 @@ class Message {
 		final msgFrom = msg.from;
 		if (msg.direction == MessageReceived && msgFrom != null && msg.replyTo.find((r) -> r.asBare().equals(msgFrom.asBare())) == null) {
 			trace("Don't know what chat message without from in replyTo belongs in", stanza);
-			return UnknownMessageStanza(stanza);
+			return new Message(msg.chatId(), msg.senderId(), msg.threadId, UnknownMessageStanza(stanza));
 		}
 
 		final reactionsEl = stanza.getChild("reactions", "urn:xmpp:reactions:0");
@@ -133,7 +146,7 @@ class Message {
 			final reactions = reactionsEl.allTags("reaction").map((r) -> r.getText());
 			final reactionId = reactionsEl.attr.get("id");
 			if (reactionId != null) {
-				return ReactionUpdateStanza(new ReactionUpdate(
+				return new Message(msg.chatId(), msg.senderId(), msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
 					stanza.attr.get("id") ?? ID.long(),
 					stanza.attr.get("type") == "groupchat" ? reactionId : null,
 					stanza.attr.get("type") != "groupchat" ? reactionId : null,
@@ -141,7 +154,7 @@ class Message {
 					timestamp,
 					msg.senderId(),
 					reactions
-				));
+				)));
 			}
 		}
 
@@ -156,7 +169,7 @@ class Message {
 			msg.attachSims(sims);
 		}
 
-		if (msg.text == null && msg.attachments.length < 1) return UnknownMessageStanza(stanza);
+		if (msg.text == null && msg.attachments.length < 1) return new Message(msg.chatId(), msg.senderId(), msg.threadId, UnknownMessageStanza(stanza));
 
 		for (fallback in stanza.allTags("fallback", "urn:xmpp:fallback:0")) {
 			msg.payloads.push(fallback);
@@ -192,6 +205,6 @@ class Message {
 			Reflect.setField(msg, "localId", replaceId);
 		}
 
-		return ChatMessageStanza(msg);
+		return new Message(msg.chatId(), msg.senderId(), msg.threadId, ChatMessageStanza(msg));
 	}
 }

@@ -13,6 +13,7 @@ npm/snikket.js:
 	sed -i 's/snikket\.UiState/enums.UiState/g' npm/snikket.d.ts
 	sed -i 's/snikket\.MessageStatus/enums.MessageStatus/g' npm/snikket.d.ts
 	sed -i 's/snikket\.MessageDirection/enums.MessageDirection/g' npm/snikket.d.ts
+	sed -i 's/snikket\.UserState/enums.UserState/g' npm/snikket.d.ts
 	sed -i '1ivar exports = {};' npm/snikket.js
 	echo "export const snikket = exports.snikket;" >> npm/snikket.js
 

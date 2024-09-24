@@ -23,6 +23,14 @@ enum abstract UiState(Int) {
 	var Closed; // Archived
 }
 
+enum abstract UserState(Int) {
+	var Gone;
+	var Inactive;
+	var Active;
+	var Composing;
+	var Paused;
+}
+
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
@@ -611,7 +619,7 @@ class DirectChat extends Chat {
 		if (typingTimer != null) typingTimer.stop();
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);
-		final fromStanza = Message.fromStanza(message.asStanza(), client.jid);
+		final fromStanza = Message.fromStanza(message.asStanza(), client.jid).parsed;
 		switch (fromStanza) {
 			case ChatMessageStanza(_):
 				persistence.storeMessage(client.accountId(), message, (stored) -> {
@@ -1021,7 +1029,7 @@ class Channel extends Chat {
 		final stanza = message.asStanza();
 		// Fake from as it will look on reflection for storage purposes
 		stanza.attr.set("from", getFullJid().asString());
-		final fromStanza = Message.fromStanza(stanza, client.jid);
+		final fromStanza = Message.fromStanza(stanza, client.jid).parsed;
 		stanza.attr.set("from", client.jid.asString());
 		switch (fromStanza) {
 			case ChatMessageStanza(_):
