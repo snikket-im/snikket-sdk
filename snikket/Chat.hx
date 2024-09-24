@@ -631,11 +631,24 @@ class DirectChat extends Chat {
 		);
 	}
 
+	private function sendChatState(state: String, threadId: Null<String>) {
+		for (recipient in getParticipants()) {
+			final stanza = new Stanza("message", { from: client.jid.asString(), to: recipient })
+				.tag(state, { xmlns: "http://jabber.org/protocol/chatstates" })
+				.up();
+			if (threadId != null) {
+				stanza.textTag("thread", threadId);
+			}
+			stream.sendStanza(stanza);
+		}
+	}
+
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function close() {
 		// Should this remove from roster?
 		uiState = Closed;
 		persistence.storeChat(client.accountId(), this);
+		sendChatState("gone", null);
 		client.trigger("chats/update", [this]);
 	}
 }
@@ -1036,12 +1049,23 @@ class Channel extends Chat {
 		);
 	}
 
+	private function sendChatState(state: String, threadId: Null<String>) {
+		final stanza = new Stanza("message", { from: client.jid.asString(), to: chatId })
+			.tag(state, { xmlns: "http://jabber.org/protocol/chatstates" })
+			.up();
+		if (threadId != null) {
+			stanza.textTag("thread", threadId);
+		}
+		stream.sendStanza(stanza);
+	}
+
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function close() {
 		uiState = Closed;
 		persistence.storeChat(client.accountId(), this);
 		selfPing(false);
 		bookmark(); // TODO: what if not previously bookmarked?
+		sendChatState("gone", null);
 		client.trigger("chats/update", [this]);
 	}
 }
