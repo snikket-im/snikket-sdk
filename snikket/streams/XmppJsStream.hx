@@ -190,6 +190,12 @@ class XmppJsStream extends GenericStream {
 
 		if (initialSM != null) {
 			final parsedSM = haxe.Json.parse(Bytes.ofData(initialSM).toString());
+			final parsedPending: Null<Array<String>> = parsedSM.pending;
+			if (parsedPending != null) {
+				for (item in parsedPending) {
+					pending.push(XmppJsLtx.parse(item));
+				}
+			}
 			xmpp.streamManagement.id = parsedSM.id;
 			xmpp.streamManagement.outbound = parsedSM.outbound;
 			xmpp.streamManagement.inbound = parsedSM.inbound;
@@ -297,12 +303,11 @@ class XmppJsStream extends GenericStream {
 
 	public function sendStanza(stanza:Stanza) {
 		if (client == null || client.status != "online") {
-			// TODO: these aren't part of the sm state so they can get lost
 			pending.push(convertFromStanza(stanza));
 		} else {
 			client.send(convertFromStanza(stanza));
-			triggerSMupdate();
 		}
+		triggerSMupdate();
 	}
 
 	public function newId():String {
@@ -319,6 +324,7 @@ class XmppJsStream extends GenericStream {
 					outbound: client.streamManagement.outbound,
 					inbound: client.streamManagement.inbound,
 					outbound_q: (client.streamManagement.outbound_q ?? []).map((stanza) -> stanza.toString()),
+					pending: pending.map((stanza) -> stanza.toString())
 				})).getData()
 			}
 		);
@@ -359,6 +365,7 @@ class XmppJsStream extends GenericStream {
 		while ((item = pending.shift()) != null) {
 			client.send(item);
 		}
+		triggerSMupdate();
 		trigger("status/online", { jid: jid.toString(), resumed: resumed });
 	}
 
