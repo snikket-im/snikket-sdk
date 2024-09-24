@@ -24,8 +24,8 @@ interface Persistence {
 	public function getCaps(ver:String, callback: (Null<Caps>)->Void):Void;
 	public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>):Void;
 	public function getLogin(login:String, callback:(clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String>)->Void):Void;
-	public function storeStreamManagement(accountId:String, smId:String, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>):Void;
-	public function getStreamManagement(accountId:String, callback: (smId:Null<String>, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>)->Void):Void;
+	public function storeStreamManagement(accountId:String, data:BytesData):Void;
+	public function getStreamManagement(accountId:String, callback: (Null<BytesData>)->Void):Void;
 	public function storeService(accountId:String, serviceId:String, name:Null<String>, node:Null<String>, caps:Caps):Void;
 	@HaxeCBridge.noemit
 	public function findServicesWithFeature(accountId:String, feature:String, callback:(Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>)->Void):Void;

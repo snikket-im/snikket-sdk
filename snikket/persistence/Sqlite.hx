@@ -395,13 +395,13 @@ class Sqlite implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeStreamManagement(accountId:String, smId:String, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>) {
+	public function storeStreamManagement(accountId:String, sm:BytesData) {
 		// TODO
 	}
 
 	@HaxeCBridge.noemit
-	public function getStreamManagement(accountId:String, callback: (Null<String>, Int, Int, Array<String>)->Void) {
-		callback(null, -1, -1, []); // TODO
+	public function getStreamManagement(accountId:String, callback: (Null<BytesData>)->Void) {
+		callback(null); // TODO
 	}
 
 	@HaxeCBridge.noemit

@@ -98,7 +98,7 @@ class Client extends EventEmitter {
 		});
 
 		stream.on("sm/update", (data) -> {
-			persistence.storeStreamManagement(accountId(), data.id, data.outbound, data.inbound, data.outbound_q);
+			persistence.storeStreamManagement(accountId(), data.sm);
 			return EventHandled;
 		});
 
@@ -457,7 +457,7 @@ class Client extends EventEmitter {
 	public function start() {
 		persistence.getLogin(accountId(), (clientId, loadedToken, fastCount, displayName) -> {
 			token = loadedToken;
-			persistence.getStreamManagement(accountId(), (smId, smOut, smIn, smOutQ) -> {
+			persistence.getStreamManagement(accountId(), (sm) -> {
 				stream.clientId = clientId ?? ID.long();
 				jid = jid.withResource(stream.clientId);
 				if (!updateDisplayName(displayName) && clientId == null) {
@@ -490,13 +490,13 @@ class Client extends EventEmitter {
 						stream.on("auth/fail", (data) -> {
 							if (token != null) {
 								token = null;
-								stream.connect(jid.asString(), smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn, outbound_q: smOutQ });
+								stream.connect(jid.asString(), sm);
 							} else {
 								this.trigger("auth/fail", data);
 							}
 							return EventHandled;
 						});
-						stream.connect(jid.asString(), smId == null || smId == "" ? null : { id: smId, outbound: smOut, inbound: smIn, outbound_q: smOutQ });
+						stream.connect(jid.asString(), sm);
 					});
 				});
 			});

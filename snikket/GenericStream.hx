@@ -1,5 +1,6 @@
 package snikket;
 
+import haxe.io.BytesData;
 import snikket.Stanza;
 import snikket.EventEmitter;
 
@@ -19,7 +20,7 @@ abstract class GenericStream extends EventEmitter {
 	
 	/* Connections and streams */
 
-	abstract public function connect(jid:String, sm:Null<{id:String,outbound:Int,inbound:Int,outbound_q:Array<String>}>):Void;
+	abstract public function connect(jid:String, sm:Null<BytesData>):Void;
 	abstract public function sendStanza(stanza:Stanza):Void;
 	abstract public function newId():String;
 	abstract public function onIq(type:IqRequestType, tag:String, xmlns:String, handler:(Stanza)->IqResult):Void;

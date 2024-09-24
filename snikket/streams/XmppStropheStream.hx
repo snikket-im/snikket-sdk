@@ -1,6 +1,8 @@
 package snikket.streams;
 
 import haxe.DynamicAccess;
+import haxe.io.Bytes;
+import haxe.io.BytesData;
 
 import cpp.Char;
 import cpp.ConstPointer;
@@ -246,7 +248,7 @@ class XmppStropheStream extends GenericStream {
 		}
 	}
 
-	public function connect(jid:String, sm:Null<{id:String,outbound:Int,inbound:Int,outbound_q:Array<String>}>) {
+	public function connect(jid:String, sm:Null<BytesData>) {
 		StropheConn.set_jid(conn, NativeString.c_str(jid));
 		this.on("auth/password", function (event) {
 			var o = this;

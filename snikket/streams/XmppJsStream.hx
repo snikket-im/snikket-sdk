@@ -1,8 +1,10 @@
 package snikket.streams;
 
-import js.lib.Promise;
 import haxe.Http;
 import haxe.Json;
+import haxe.io.Bytes;
+import haxe.io.BytesData;
+import js.lib.Promise;
 using Lambda;
 
 import snikket.FSM;
@@ -101,7 +103,7 @@ class XmppJsStream extends GenericStream {
 	private var state:FSM;
 	private var pending:Array<XmppJsXml> = [];
 	private var pendingOnIq:Array<{type:IqRequestType,tag:String,xmlns:String,handler:(Stanza)->IqResult}> = [];
-	private var initialSM: Null<{id:String,outbound:Int,inbound:Int,outbound_q:Array<String>}> = null;
+	private var initialSM: Null<BytesData> = null;
 	private var resumed = false;
 
 	override public function new() {
@@ -187,10 +189,11 @@ class XmppJsStream extends GenericStream {
 		}
 
 		if (initialSM != null) {
-			xmpp.streamManagement.id = initialSM.id;
-			xmpp.streamManagement.outbound = initialSM.outbound;
-			xmpp.streamManagement.inbound = initialSM.inbound;
-			xmpp.streamManagement.outbound_q = (initialSM.outbound_q ?? []).map(XmppJsLtx.parse);
+			final parsedSM = haxe.Json.parse(Bytes.ofData(initialSM).toString());
+			xmpp.streamManagement.id = parsedSM.id;
+			xmpp.streamManagement.outbound = parsedSM.outbound;
+			xmpp.streamManagement.inbound = parsedSM.inbound;
+			xmpp.streamManagement.outbound_q = (parsedSM.outbound_q ?? []).map(XmppJsLtx.parse);
 			initialSM = null;
 		}
 
@@ -255,7 +258,7 @@ class XmppJsStream extends GenericStream {
 		});
 	}
 
-	public function connect(jid:String, sm:Null<{id:String,outbound:Int,inbound:Int,outbound_q:Array<String>}>) {
+	public function connect(jid:String, sm:Null<BytesData>) {
 		this.state.event("connect-requested");
 		this.jid = new XmppJsJID(jid);
 		this.initialSM = sm;
@@ -311,10 +314,12 @@ class XmppJsStream extends GenericStream {
 		this.trigger(
 			"sm/update",
 			{
-				id: client.streamManagement.id,
-				outbound: client.streamManagement.outbound,
-				inbound: client.streamManagement.inbound,
-				outbound_q: (client.streamManagement.outbound_q ?? []).map((stanza) -> stanza.toString()),
+				sm: Bytes.ofString(haxe.Json.stringify({
+					id: client.streamManagement.id,
+					outbound: client.streamManagement.outbound,
+					inbound: client.streamManagement.inbound,
+					outbound_q: (client.streamManagement.outbound_q ?? []).map((stanza) -> stanza.toString()),
+				})).getData()
 			}
 		);
 	}

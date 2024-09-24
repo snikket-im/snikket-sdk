@@ -508,10 +508,10 @@ const browser = (dbname, tokenize, stemmer) => {
 			}
 		},
 
-		storeStreamManagement: function(account, id, outbound, inbound, outbound_q) {
+		storeStreamManagement: function(account, sm) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			store.put({ id: id, outbound: outbound, inbound: inbound, outbound_q }, "sm:" + account).onerror = console.error;
+			store.put(sm, "sm:" + account).onerror = console.error;
 		},
 
 		getStreamManagement: function(account, callback) {
@@ -519,11 +519,15 @@ const browser = (dbname, tokenize, stemmer) => {
 			const store = tx.objectStore("keyvaluepairs");
 			promisifyRequest(store.get("sm:" + account)).then(
 				(v) => {
-					callback(v?.id, v?.outbound, v?.inbound, v?.outbound_q || []);
+					if (v instanceof ArrayBuffer) {
+						callback(v);
+					} else {
+						new Blob([JSON.stringify(v)], {type: "text/plain; charset=utf-8"}).arrayBuffer().then(callback);
+					}
 				},
 				(e) => {
 					console.error(e);
-					callback(null, -1, -1, []);
+					callback(null);
 				}
 			);
 		},
