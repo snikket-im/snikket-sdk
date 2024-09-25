@@ -92,7 +92,48 @@ abstract class Chat {
 		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
 		@param handler takes one argument, an array of ChatMessage that are found
 	**/
-	abstract public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
+	abstract public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
+
+	/**
+		Fetch a page of messages after some point
+
+		@param afterId id of the message to look after
+		@param afterTime timestamp of the message to look after,
+		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
+		@param handler takes one argument, an array of ChatMessage that are found
+	**/
+	abstract public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
+
+	/**
+		Fetch a page of messages around (before, including, and after) some point
+
+		@param aroundId id of the message to look around
+		@param aroundTime timestamp of the message to look around,
+		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
+		@param handler takes one argument, an array of ChatMessage that are found
+	**/
+	abstract public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
+
+	private function fetchFromSync(sync: MessageSync, callback: (Array<ChatMessage>)->Void) {
+		final chatMessages = [];
+		sync.onMessages((messageList) -> {
+			final chatMessages = [];
+			for (m in messageList.messages) {
+				switch (m) {
+					case ChatMessageStanza(message):
+						final chatMessage = prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() }));
+						persistence.storeMessage(client.accountId(), chatMessage, (m)->{});
+						if (message.chatId() == chatId) chatMessages.push(message);
+					case ReactionUpdateStanza(update):
+						persistence.storeReaction(client.accountId(), update, (m)->{});
+					default:
+						// ignore
+				}
+			}
+			callback(chatMessages);
+		});
+		sync.fetchNext();
+	}
 
 	/**
 		Send a ChatMessage to this Chat
@@ -470,7 +511,7 @@ abstract class Chat {
 		readUpToId = upTo;
 		readUpToBy = upToBy;
 		persistence.storeChat(client.accountId(), this);
-		persistence.getMessages(client.accountId(), chatId, null, null, (messages) -> {
+		persistence.getMessagesBefore(client.accountId(), chatId, null, null, (messages) -> {
 			var i = messages.length;
 			while (--i >= 0) {
 				if (messages[i].serverId == readUpToId) break;
@@ -549,30 +590,41 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
-		persistence.getMessages(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
+	public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
+		persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
 			if (messages.length > 0) {
 				handler(messages);
 			} else {
 				var filter:MAMQueryParams = { with: this.chatId };
 				if (beforeId != null) filter.page = { before: beforeId };
-				var sync = new MessageSync(this.client, this.stream, filter);
-				sync.onMessages((messageList) -> {
-					final chatMessages = [];
-					for (m in messageList.messages) {
-						switch (m) {
-							case ChatMessageStanza(message):
-								persistence.storeMessage(client.accountId(), message, (m)->{});
-								if (message.chatId() == chatId) chatMessages.push(message);
-							case ReactionUpdateStanza(update):
-								persistence.storeReaction(client.accountId(), update, (m)->{});
-							default:
-								// ignore
-						}
-					}
-					handler(chatMessages);
-				});
-				sync.fetchNext();
+				var sync  = new MessageSync(this.client, this.stream, filter);
+				fetchFromSync(sync, handler);
+			}
+		});
+	}
+
+	@HaxeCBridge.noemit // on superclass as abstract
+	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
+		persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime, (messages) -> {
+			if (messages.length > 0) {
+				handler(messages);
+			} else {
+				var filter:MAMQueryParams = { with: this.chatId };
+				if (afterId != null) filter.page = { after: afterId };
+				var sync  = new MessageSync(this.client, this.stream, filter);
+				fetchFromSync(sync, handler);
+			}
+		});
+	}
+
+	@HaxeCBridge.noemit // on superclass as abstract
+	public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
+		persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime, (messages) -> {
+			if (messages.length > 0) {
+				handler(messages);
+			} else {
+				// TODO
+				handler([]);
 			}
 		});
 	}
@@ -951,31 +1003,41 @@ class Channel extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessages(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
-		persistence.getMessages(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
+	public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
+		persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
 			if (messages.length > 0) {
 				handler(messages);
 			} else {
 				var filter:MAMQueryParams = {};
 				if (beforeId != null) filter.page = { before: beforeId };
 				var sync = new MessageSync(this.client, this.stream, filter, chatId);
-				sync.onMessages((messageList) -> {
-					final chatMessages = [];
-					for (m in messageList.messages) {
-						switch (m) {
-							case ChatMessageStanza(message):
-								final chatMessage = prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() }));
-								persistence.storeMessage(client.accountId(), chatMessage, (m)->{});
-								if (message.chatId() == chatId) chatMessages.push(message);
-							case ReactionUpdateStanza(update):
-								persistence.storeReaction(client.accountId(), update, (m)->{});
-							default:
-								// ignore
-						}
-					}
-					handler(chatMessages);
-				});
-				sync.fetchNext();
+				fetchFromSync(sync, handler);
+			}
+		});
+	}
+
+	@HaxeCBridge.noemit // on superclass as abstract
+	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
+		persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime, (messages) -> {
+			if (messages.length > 0) {
+				handler(messages);
+			} else {
+				var filter:MAMQueryParams = {};
+				if (afterId != null) filter.page = { after: afterId };
+				var sync = new MessageSync(this.client, this.stream, filter, chatId);
+				fetchFromSync(sync, handler);
+			}
+		});
+	}
+
+	@HaxeCBridge.noemit // on superclass as abstract
+	public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
+		persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime, (messages) -> {
+			if (messages.length > 0) {
+				handler(messages);
+			} else {
+				// TODO
+				handler([]);
 			}
 		});
 	}

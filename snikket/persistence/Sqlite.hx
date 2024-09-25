@@ -187,23 +187,41 @@ class Sqlite implements Persistence {
 		callback(message);
 	}
 
-	@HaxeCBridge.noemit
-	public function getMessages(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
+	private function getMessages(accountId: String, chatId: String, time: String, op: String) {
 		final q = new StringBuf();
 		q.add("SELECT stanza FROM messages WHERE account_id=");
 		db.addValue(q, accountId);
 		q.add(" AND chat_id=");
 		db.addValue(q, chatId);
-		if (beforeTime != null) {
-			q.add(" AND created_at <");
-			db.addValue(q, DateTime.fromString(beforeTime).getTime());
+		if (time != null) {
+			q.add(" AND created_at " + op);
+			db.addValue(q, DateTime.fromString(time).getTime());
 		}
+		q.add("LIMIT 50");
 		final result = db.request(q.toString());
 		final messages = [];
 		for (row in result) {
 			messages.push(ChatMessage.fromStanza(Stanza.parse(row.stanza), JID.parse(accountId))); // TODO
 		}
-		callback(messages);
+		return messages;
+	}
+
+	@HaxeCBridge.noemit
+	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
+		callback(getMessages(accountId, chatId, beforeTime, "<"));
+	}
+
+	@HaxeCBridge.noemit
+	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
+		callback(getMessages(accountId, chatId, afterTime, ">"));
+	}
+
+	@HaxeCBridge.noemit
+	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
+		if (aroundTime == null) throw "Around what?";
+		final before = getMessages(accountId, chatId, aroundTime, "<");
+		final aroundAndAfter = getMessages(accountId, chatId, aroundTime, ">=");
+		callback(before.concat(aroundAndAfter));
 	}
 
 	@HaxeCBridge.noemit

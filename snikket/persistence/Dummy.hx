@@ -42,7 +42,17 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessages(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
+	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
+		callback([]);
+	}
+
+	@HaxeCBridge.noemit
+	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
+		callback([]);
+	}
+
+	@HaxeCBridge.noemit
+	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
 		callback([]);
 	}
 

@@ -46,7 +46,7 @@ class MessageSync {
 		}
 		final messages:Array<MessageStanza> = [];
 		if (lastPage == null) {
-			if (newestPageFirst == true && (filter.page == null || filter.page.before == null)) {
+			if (newestPageFirst == true && (filter.page == null || (filter.page.before == null && filter.page.after == null))) {
 				if (filter.page == null) filter.page = {};
 				filter.page.before = ""; // Request last page of results
 			}

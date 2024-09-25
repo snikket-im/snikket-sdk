@@ -375,24 +375,63 @@ const browser = (dbname, tokenize, stemmer) => {
 			});
 		},
 
-		getMessages: function(account, chatId, beforeId, beforeTime, callback) {
-			const beforeDate = beforeTime ? new Date(beforeTime) : [];
+		getMessagesBefore: function(account, chatId, beforeId, beforeTime, callback) {
+			// TODO: if beforeId is present but beforeTime is null, lookup time
+			const bound = beforeTime ? new Date(beforeTime) : [];
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 			const cursor = store.index("chats").openCursor(
-				IDBKeyRange.bound([account, chatId], [account, chatId, beforeDate]),
+				IDBKeyRange.bound([account, chatId], [account, chatId, bound]),
 				"prev"
 			);
+			this.getMessagesFromCursor(cursor, beforeId, bound, (messages) => callback(messages.reverse()));
+		},
+
+		getMessagesAfter: function(account, chatId, afterId, afterTime, callback) {
+			// TODO: if afterId is present but afterTime is null, lookup time
+			const bound = afterTime ? [new Date(afterTime)] : [];
+			const tx = db.transaction(["messages"], "readonly");
+			const store = tx.objectStore("messages");
+			const cursor = store.index("chats").openCursor(
+				IDBKeyRange.bound([account, chatId].concat(bound), [account, chatId, []]),
+				"next"
+			);
+			this.getMessagesFromCursor(cursor, afterId, bound[0], callback);
+		},
+
+		getMessagesAround: function(account, chatId, id, time, callback) {
+			// TODO: if id is present but time is null, lookup time
+			if (!id && !time) throw "Around what?";
+			const before = new Promise((resolve, reject) =>
+				this.getMessagesBefore(account, chatId, id, time, resolve)
+			);
+
+			const tx = db.transaction(["messages"], "readonly");
+			const store = tx.objectStore("messages");
+			const cursor = store.index("chats").openCursor(
+				IDBKeyRange.bound([account, chatId, new Date(time)], [account, chatId, []]),
+				"next"
+			);
+			const aroundAndAfter = new Promise((resolve, reject) =>
+				this.getMessagesFromCursor(cursor, null, null, resolve)
+			);
+
+			Promise.all([before, aroundAndAfter]).then((result) => {
+				callback(result.flat());
+			});
+		},
+
+		getMessagesFromCursor: function(cursor, id, bound, callback) {
 			const result = [];
 			cursor.onsuccess = (event) => {
 				if (event.target.result && result.length < 50) {
 					const value = event.target.result.value;
-					if (value.serverId === beforeId || (value.timestamp && value.timestamp.getTime() === (beforeDate instanceof Date && beforeDate.getTime()))) {
+					if (value.serverId === id || value.localId === id || (value.timestamp && value.timestamp.getTime() === (bound instanceof Date && bound.getTime()))) {
 						event.target.result.continue();
 						return;
 					}
 
-					result.unshift(hydrateMessage(value));
+					result.push(hydrateMessage(value));
 					event.target.result.continue();
 				} else {
 					Promise.all(result).then(callback);

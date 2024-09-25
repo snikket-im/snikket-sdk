@@ -59,8 +59,18 @@ class Custom implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessages(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		backing.getMessages(accountId, chatId, beforeId, beforeTime, callback);
+	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
+		backing.getMessagesBefore(accountId, chatId, beforeId, beforeTime, callback);
+	}
+
+	@HaxeCBridge.noemit
+	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
+		backing.getMessagesAfter(accountId, chatId, afterId, afterTime, callback);
+	}
+
+	@HaxeCBridge.noemit
+	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
+		backing.getMessagesAround(accountId, chatId, aroundId, aroundTime, callback);
 	}
 
 	@HaxeCBridge.noemit
@@ -109,12 +119,12 @@ class Custom implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeStreamManagement(accountId:String, smId:String, outboundCount:Int, inboundCount:Int, outboundQueue:Array<String>) {
-		backing.storeStreamManagement(accountId, smId, outboundCount, inboundCount, outboundQueue);
+	public function storeStreamManagement(accountId:String, sm:BytesData) {
+		backing.storeStreamManagement(accountId, sm);
 	}
 
 	@HaxeCBridge.noemit
-	public function getStreamManagement(accountId:String, callback: (Null<String>, Int, Int, Array<String>)->Void) {
+	public function getStreamManagement(accountId:String, callback: (BytesData)->Void) {
 		backing.getStreamManagement(accountId, callback);
 	}
 
