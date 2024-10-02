@@ -115,22 +115,25 @@ abstract class Chat {
 	abstract public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
 
 	private function fetchFromSync(sync: MessageSync, callback: (Array<ChatMessage>)->Void) {
-		final chatMessages = [];
+		final promises = [];
 		sync.onMessages((messageList) -> {
 			final chatMessages = [];
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
 						final chatMessage = prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() }));
-						persistence.storeMessage(client.accountId(), chatMessage, (m)->{});
-						if (message.chatId() == chatId) chatMessages.push(message);
+						promises.push(new thenshim.Promise((resolve, reject) -> {
+							persistence.storeMessage(client.accountId(), chatMessage, resolve);
+						}));
 					case ReactionUpdateStanza(update):
 						persistence.storeReaction(client.accountId(), update, (m)->{});
 					default:
 						// ignore
 				}
 			}
-			callback(chatMessages);
+			thenshim.PromiseTools.all(promises).then((chatMessages) -> {
+				callback(chatMessages.filter((m) -> m != null && m.chatId() == chatId));
+			});
 		});
 		sync.fetchNext();
 	}
