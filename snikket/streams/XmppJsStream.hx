@@ -30,6 +30,7 @@ extern class XmppJsClient {
 		get: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 		set: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 	};
+	var middleware: { use:(({stanza: XmppJsXml})->Void)->Void };
 	var streamFeatures: { use:(String,String,({}, ()->Void, XmppJsXml)->Void)->Void };
 	var streamManagement: { id:String, outbound: Int, inbound: Int, outbound_q: Array<XmppJsXml>, enabled: Bool, allowResume: Bool };
 	var sasl2: Dynamic;
@@ -216,7 +217,8 @@ class XmppJsStream extends GenericStream {
 			this.state.event("connection-closed");
 		});
 
-		xmpp.on("stanza", function (stanza) {
+		xmpp.middleware.use(function (data) {
+			if (data.stanza.attrs.xmlns == "urn:xmpp:sm:3") return;
 			if (xmpp.status == "online" && this.state.can("connection-success")) {
 				resumed = xmpp.streamManagement.enabled && xmpp.streamManagement.id != null && xmpp.streamManagement.id != "";
 				if (xmpp.jid == null) {
@@ -226,6 +228,9 @@ class XmppJsStream extends GenericStream {
 				}
 				this.state.event("connection-success");
 			}
+		});
+
+		xmpp.on("stanza", function (stanza) {
 			this.onStanza(convertToStanza(stanza));
 			triggerSMupdate();
 		});
