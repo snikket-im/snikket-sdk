@@ -1281,20 +1281,20 @@ class SerializedChat {
 	public final avatarSha1:Null<BytesData>;
 	public final presence:Map<String, Presence>;
 	public final displayName:Null<String>;
-	public final uiState:String;
+	public final uiState:UiState;
 	public final extensions:String;
 	public final readUpToId:Null<String>;
 	public final readUpToBy:Null<String>;
 	public final disco:Null<Caps>;
 	public final klass:String;
 
-	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<String>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, disco: Null<Caps>, klass: String) {
+	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, disco: Null<Caps>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.avatarSha1 = avatarSha1;
 		this.presence = presence;
 		this.displayName = displayName;
-		this.uiState = uiState ?? "Open";
+		this.uiState = uiState ?? Open;
 		this.extensions = extensions ?? "<extensions xmlns='urn:app:bookmarks:1' />";
 		this.readUpToId = readUpToId;
 		this.readUpToBy = readUpToBy;
@@ -1303,18 +1303,12 @@ class SerializedChat {
 	}
 
 	public function toChat(client: Client, stream: GenericStream, persistence: Persistence) {
-		final uiStateEnum = switch (uiState) {
-			case "Pinned": Pinned;
-			case "Closed": Closed;
-			default: Open;
-		}
-
 		final extensionsStanza = Stanza.fromXml(Xml.parse(extensions));
 
 		final chat = if (klass == "DirectChat") {
-			new DirectChat(client, stream, persistence, chatId, uiStateEnum, extensionsStanza, readUpToId, readUpToBy);
+			new DirectChat(client, stream, persistence, chatId, uiState, extensionsStanza, readUpToId, readUpToBy);
 		} else if (klass == "Channel") {
-			final channel = new Channel(client, stream, persistence, chatId, uiStateEnum, extensionsStanza, readUpToId, readUpToBy);
+			final channel = new Channel(client, stream, persistence, chatId, uiState, extensionsStanza, readUpToId, readUpToBy);
 			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"]);
 			channel;
 		} else {
