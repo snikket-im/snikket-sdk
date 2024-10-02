@@ -560,6 +560,8 @@ const browser = (dbname, tokenize, stemmer) => {
 				(v) => {
 					if (v instanceof ArrayBuffer) {
 						callback(v);
+					} else if(!v) {
+						callback(null);
 					} else {
 						new Blob([JSON.stringify(v)], {type: "text/plain; charset=utf-8"}).arrayBuffer().then(callback);
 					}
