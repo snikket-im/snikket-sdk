@@ -368,6 +368,9 @@ class MediaStreamTrack {
 		eventLoop = sys.thread.Thread.createWithEventLoop(() -> {
 			timer = new haxe.Timer(10); // This timer will stop when the audioloop for this track stops
 			timer.run = () -> {
+				if (untyped __cpp__("!_gthis->track")) return;
+				if (!alive || !track.ref.isOpen()) return;
+
 				if (audioQ.length > 0 && audioQ[audioQ.length - 1].stamp <= haxe.Timer.stamp()) {
 					final packet = audioQ.pop();
 					write(packet.payload, packet.payloadType, packet.clockRate);
@@ -537,7 +540,6 @@ class MediaStreamTrack {
 		final format = Lambda.find(supportedAudioFormats, format -> format.clockRate == clockRate && format.channels == channels);
 		if (format == null) throw "Unsupported audo format: " + clockRate + "/" + channels;
 		eventLoop.run(() -> {
-			if (track.ref.isClosed()) return;
 			final stamp = if (audioQ.length < 1) {
 				bufferSizeInSeconds = Math.max(bufferSizeInSeconds, bufferSizeInSeconds + 0.1);
 				haxe.Timer.stamp() + bufferSizeInSeconds;
@@ -573,6 +575,8 @@ class MediaStreamTrack {
 
 	@:allow(snikket)
 	private function write(payload: Array<cpp.UInt8>, payloadType: cpp.UInt8, clockRate: Int) {
+		if (untyped __cpp__("!track") || !track.ref.isOpen()) return;
+
 		rtpPacketizationConfig.ref.payloadType = payloadType;
 		rtpPacketizationConfig.ref.clockRate = clockRate;
 		track.ref.send(cpp.Pointer.ofArray(payload).reinterpret(), payload.length);
@@ -587,7 +591,7 @@ class MediaStreamTrack {
 
 	public function stop() {
 		alive = false;
-		if (!track.ref.isClosed()) track.ref.close();
+		if (track.ref.isOpen()) track.ref.close();
 		if (untyped __cpp__("opus")) {
 			OpusDecoder.destroy(opus);
 			opus = null;
