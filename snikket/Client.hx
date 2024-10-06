@@ -523,6 +523,18 @@ class Client extends EventEmitter {
 	}
 
 	/**
+		Destroy local data for this account
+
+		@param completely if true chats, messages, etc will be deleted as well
+	**/
+	public function logout(completely: Bool) {
+		// TODO: unregister from all push notifications
+		stream.disconnect();
+		// TODO: FAST invalidate https://xmpp.org/extensions/xep-0484.html#invalidation
+		persistence.removeAccount(accountId(), completely);
+	}
+
+	/**
 		Sets the password to be used in response to the password needed event
 
 		@param password

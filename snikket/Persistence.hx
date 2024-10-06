@@ -26,6 +26,7 @@ interface Persistence {
 	public function getCaps(ver:String, callback: (Null<Caps>)->Void):Void;
 	public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>):Void;
 	public function getLogin(login:String, callback:(clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String>)->Void):Void;
+	public function removeAccount(accountId: String, completely:Bool):Void;
 	public function storeStreamManagement(accountId:String, data:BytesData):Void;
 	public function getStreamManagement(accountId:String, callback: (Null<BytesData>)->Void):Void;
 	public function storeService(accountId:String, serviceId:String, name:Null<String>, node:Null<String>, caps:Caps):Void;

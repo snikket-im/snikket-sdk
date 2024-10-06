@@ -76,6 +76,9 @@ extern class StropheConn {
 		userdata:RawPointer<Void>
 	):cpp.Int32;
 
+	@:native("xmpp_disconnect")
+	static function disconnect(conn:StropheConn):Void;
+
 	@:native("xmpp_handler_add")
 	static function handler_add(
 		conn:StropheConn,
@@ -266,6 +269,10 @@ class XmppStropheStream extends GenericStream {
 		});
 		this.trigger("auth/password-needed", {});
 		poll();
+	}
+
+	public function disconnect() {
+		StropheConn.disconnect(conn);
 	}
 
 	private function poll() {

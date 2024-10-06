@@ -124,6 +124,11 @@ class Custom implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
+	public function removeAccount(accountId:String, completely:Bool) {
+		backing.removeAccount(accountId, completely);
+	}
+
+	@HaxeCBridge.noemit
 	public function getStreamManagement(accountId:String, callback: (BytesData)->Void) {
 		backing.getStreamManagement(accountId, callback);
 	}

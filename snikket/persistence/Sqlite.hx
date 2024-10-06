@@ -413,6 +413,32 @@ class Sqlite implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
+	public function removeAccount(accountId:String, completely:Bool) {
+		var q = new StringBuf();
+		q.add("DELETE FROM logins WHERE login=");
+		db.addValue(q, accountId);
+		db.request(q.toString());
+		// TODO stream managemento
+
+		if (!completely) return;
+
+		var q = new StringBuf();
+		q.add("DELETE FROM messages WHERE account_id=");
+		db.addValue(q, accountId);
+		db.request(q.toString());
+
+		var q = new StringBuf();
+		q.add("DELETE FROM chats WHERE account_id=");
+		db.addValue(q, accountId);
+		db.request(q.toString());
+
+		var q = new StringBuf();
+		q.add("DELETE FROM services WHERE account_id=");
+		db.addValue(q, accountId);
+		db.request(q.toString());
+	}
+
+	@HaxeCBridge.noemit
 	public function storeStreamManagement(accountId:String, sm:BytesData) {
 		// TODO
 	}

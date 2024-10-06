@@ -21,6 +21,7 @@ extern class XmppJsScramSha1 {
 extern class XmppJsClient {
 	function new(options:Dynamic);
 	function start():Promise<Dynamic>;
+	function stop():Promise<Dynamic>;
 	function on(eventName:String, callback:(Dynamic)->Void):Void;
 	function send(stanza:XmppJsXml):Void;
 	var jid:XmppJsJID;
@@ -275,6 +276,11 @@ class XmppJsStream extends GenericStream {
 		this.initialSM = sm;
 
 		resolveConnectionURI(this.jid.domain, this.connectWithURI);
+	}
+
+	public function disconnect() {
+		if (client == null) return;
+		client.stop();
 	}
 
 	private function convertFromStanza(el:Stanza):XmppJsXml {

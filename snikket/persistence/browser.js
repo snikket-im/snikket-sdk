@@ -592,6 +592,54 @@ const browser = (dbname, tokenize, stemmer) => {
 			});
 		},
 
+		removeAccount(account, completely) {
+			const tx = db.transaction(["keyvaluepairs", "services", "messages", "chats", "reactions"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			store.delete("login:clientId:" + account);
+			store.delete("login:token:" + account);
+			store.delete("login:fastCount:" + account);
+			store.delete("fn:" + account);
+			store.delete("sm:" + account);
+
+			if (!completely) return;
+
+			const servicesStore = tx.objectStore("services");
+			const servicesCursor = servicesStore.openCursor(IDBKeyRange.bound([account], [account, []]));
+			servicesCursor.onsuccess = (event) => {
+				if (event.target.result) {
+					event.target.result.delete();
+					event.target.result.continue();
+				}
+			};
+
+			const messagesStore = tx.objectStore("messages");
+			const messagesCursor = messagesStore.openCursor(IDBKeyRange.bound([account], [account, []]));
+			messagesCursor.onsuccess = (event) => {
+				if (event.target.result) {
+					event.target.result.delete();
+					event.target.result.continue();
+				}
+			};
+
+			const chatsStore = tx.objectStore("chats");
+			const chatsCursor = chatsStore.openCursor(IDBKeyRange.bound([account], [account, []]));
+			chatsCursor.onsuccess = (event) => {
+				if (event.target.result) {
+					event.target.result.delete();
+					event.target.result.continue();
+				}
+			};
+
+			const reactionsStore = tx.objectStore("reactions");
+			const reactionsCursor = reactionsStore.openCursor(IDBKeyRange.bound([account], [account, []]));
+			reactionsCursor.onsuccess = (event) => {
+				if (event.target.result) {
+					event.target.result.delete();
+					event.target.result.continue();
+				}
+			};
+		},
+
 		storeService(account, serviceId, name, node, caps) {
 			this.storeCaps(caps);
 
