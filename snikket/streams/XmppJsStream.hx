@@ -100,13 +100,14 @@ typedef HostMetaJson = {
 class XmppJsStream extends GenericStream {
 	private var client:XmppJsClient;
 	private var jid:XmppJsJID;
-	private var connectionURI:String;
+	private var connectionURI: Null<String>;
 	private var debug = true;
 	private var state:FSM;
 	private var pending:Array<XmppJsXml> = [];
 	private var pendingOnIq:Array<{type:IqRequestType,tag:String,xmlns:String,handler:(Stanza)->IqResult}> = [];
 	private var initialSM: Null<BytesData> = null;
 	private var resumed = false;
+	private var everConnected = false;
 
 	override public function new() {
 		super();
@@ -121,6 +122,9 @@ class XmppJsStream extends GenericStream {
 				"online" => this.onOnline,
 				"offline" => this.onOffline,
 			],
+			transition_handlers: [
+				"connection-error" => this.onError,
+			],
 		}, "offline");
 	}
 
@@ -129,11 +133,10 @@ class XmppJsStream extends GenericStream {
 		request.onData = function (data:String) {
 			try {
 				var parsed:HostMetaJson = Json.parse(data);
-				for(entry in parsed.links) {
-					if(entry.href.substr(0, 6) == "wss://") {
-						callback(entry.href);
-						return;
-					}
+				final links = parsed.links.filter((entry) -> entry.href.substr(0, 6) == "wss://");
+				if (links.length > 0) {
+					callback(links[0].href);
+					return;
 				}
 			} catch (e) {
 			}
@@ -148,8 +151,7 @@ class XmppJsStream extends GenericStream {
 	private function connectWithURI(uri:String) {
 		trace("Got connection URI: "+uri);
 		if(uri == null) {
-			// What if first is null and next is fine??
-			//this.state.event("connection-error");
+			this.state.event("connection-error");
 			return;
 		}
 		connectionURI = uri;
@@ -372,6 +374,7 @@ class XmppJsStream extends GenericStream {
 	/* State handlers */
 
 	private function onOnline(event) {
+		everConnected = true;
 		var item;
 		while ((item = pending.shift()) != null) {
 			client.send(item);
@@ -382,5 +385,11 @@ class XmppJsStream extends GenericStream {
 
 	private function onOffline(event) {
 		trigger("status/offline", {});
+	}
+
+	private function onError(event) {
+		if (!everConnected) trigger("status/error", {});
+		// If everConnected then we are retrying so not fatal
+		return true;
 	}
 }

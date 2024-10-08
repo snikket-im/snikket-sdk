@@ -888,6 +888,18 @@ class Client extends EventEmitter {
 		});
 	}
 
+	/**
+		Event fired when connection fails with a fatal error and will not be retried
+
+		@param handler takes no arguments
+	**/
+	public function addConnectionFailedListener(handler:()->Void):Void {
+		stream.on("status/error", (data) -> {
+			handler();
+			return EventHandled;
+		});
+	}
+
 	#if !cpp
 	// TODO: haxe cpp erases enum into int, so using it as a callback arg is hard
 	// could just use int in C bindings, or need to come up with a good strategy
