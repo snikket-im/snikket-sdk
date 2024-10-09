@@ -1,0 +1,38 @@
+image: alpine/3.20
+packages:
+- opus-dev
+#- libdatachannel-dev
+- libstrophe-dev
+- libc++-dev
+- musl-dev
+- alpine-sdk
+sources:
+- https://git.sr.ht/~singpolyma/snikket-sdk
+- https://gitlab.alpinelinux.org/anjandev/aports.git#haxe
+tasks:
+- keygen: |
+    abuild-keygen -a -i -n
+- plog-dev: |
+    cd aports/community/plog
+    abuild -r
+- libdatachannel: |
+    cd aports/community/libdatachannel
+    abuild -r
+- neko: |
+    cd aports/testing/neko
+    abuild -r
+- haxe: |
+    cd aports/testing/haxe
+    abuild -r
+- xlocale: |
+    doas ln -s /usr/include/locale.h /usr/include/xlocale.h
+- haxelib: |
+    haxelib install datetime
+    haxelib install haxe-strings
+    haxelib install hsluv
+    haxelib install tink_http
+    haxelib install sha
+    haxelib install thenshim
+- make: |
+    cd snikket-sdk
+    make
