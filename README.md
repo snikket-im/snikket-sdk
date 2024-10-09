@@ -1,5 +1,7 @@
 # Snikket SDK
 
+https://github.com/snikket-im/snikket-sdk
+
 Working towards simplicity in developing Snikket-compatible apps.
 
     haxelib install datetime
