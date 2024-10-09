@@ -511,7 +511,7 @@ class Client extends EventEmitter {
 								token = null;
 								stream.connect(jid.asString(), sm);
 							} else {
-								this.trigger("auth/fail", data);
+								stream.connect(jid.asString(), sm);
 							}
 							return EventHandled;
 						});

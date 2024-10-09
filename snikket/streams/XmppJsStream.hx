@@ -221,6 +221,7 @@ class XmppJsStream extends GenericStream {
 		});
 
 		xmpp.middleware.use(function (data) {
+			everConnected = true;
 			if (data.stanza.attrs.xmlns == "urn:xmpp:sm:3") return;
 			if (xmpp.status == "online" && this.state.can("connection-success")) {
 				resumed = xmpp.streamManagement.enabled && xmpp.streamManagement.id != null && xmpp.streamManagement.id != "";
@@ -374,7 +375,6 @@ class XmppJsStream extends GenericStream {
 	/* State handlers */
 
 	private function onOnline(event) {
-		everConnected = true;
 		var item;
 		while ((item = pending.shift()) != null) {
 			client.send(item);
