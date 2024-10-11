@@ -94,6 +94,11 @@ class Custom implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
+	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (Bool)->Void) {
+		backing.hasMedia(hashAlgorithm, hash, callback);
+	}
+
+	@HaxeCBridge.noemit
 	public function storeMedia(mime:String, bd:BytesData, callback: ()->Void) {
 		backing.storeMedia(mime, bd, callback);
 	}

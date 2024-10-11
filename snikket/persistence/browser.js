@@ -478,27 +478,39 @@ const browser = (dbname, tokenize, stemmer) => {
 			}
 		},
 
-		getMediaUri: function(hashAlgorithm, hash, callback) {
-			(async function() {
-				var niUrl;
-				if (hashAlgorithm == "sha-256") {
-					niUrl = mkNiUrl(hashAlgorithm, hash);
-				} else {
-					const tx = db.transaction(["keyvaluepairs"], "readonly");
-					const store = tx.objectStore("keyvaluepairs");
-					niUrl = await promisifyRequest(store.get(mkNiUrl(hashAlgorithm, hash)));
-					if (!niUrl) {
-						return null;
-					}
+		routeHashPathSW: function() {
+			addEventListener("fetch", (event) => {
+				const url = new URL(event.request.url);
+				if (url.pathname.startsWith("/.well-known/ni/")) {
+					event.respondWith(this.getMediaResponse(url.pathname).then((r) => {
+						if (r) return r;
+						return Response.error();
+					}));
 				}
+			});
+		},
 
-				const response = await cache.match(niUrl);
-				if (response) {
-					// NOTE: the application needs to call URL.revokeObjectURL on this when done
-					return URL.createObjectURL(await response.blob());
+		getMediaResponse: async function(uri) {
+			uri = uri.replace(/^ni:\/\/\//, "/.well-known/ni/").replace(/;/, "/");
+			var niUrl;
+			if (uri.split("/")[3] === "sha-256") {
+				niUrl = uri;
+			} else {
+				const tx = db.transaction(["keyvaluepairs"], "readonly");
+				const store = tx.objectStore("keyvaluepairs");
+				niUrl = await promisifyRequest(store.get(uri));
+				if (!niUrl) {
+					return null;
 				}
+			}
 
-				return null;
+			return await cache.match(niUrl);
+		},
+
+		hasMedia: function(hashAlgorithm, hash, callback) {
+			(async () => {
+				const response = await this.getMediaResponse(hashAlgorithm, hash);
+				return !!response;
 			})().then(callback);
 		},
 

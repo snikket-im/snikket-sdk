@@ -10,10 +10,13 @@ export import Chat = snikket.Chat;
 export import ChatAttachment = snikket.ChatAttachment;
 export import ChatMessage = snikket.ChatMessage;
 export import Client = snikket.Client;
+export import Config = snikket.Config;
 export import DirectChat = snikket.DirectChat;
+export import Hash = snikket.Hash;
 export import Identicon = snikket.Identicon;
 export import Identity = snikket.Identity;
 export import Notification = snikket.Notification;
+export import Participant = snikket.Participant;
 export import SerializedChat = snikket.SerializedChat;
 export import jingle = snikket.jingle;
 

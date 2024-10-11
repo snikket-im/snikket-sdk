@@ -5,11 +5,13 @@ import haxe.io.Bytes;
 import haxe.io.BytesData;
 import haxe.Exception;
 using Lambda;
+using StringTools;
 
 #if cpp
 import HaxeCBridge;
 #end
 
+import snikket.Hash;
 import snikket.JID;
 import snikket.Identicon;
 import snikket.StringUtil;
@@ -28,8 +30,7 @@ class ChatAttachment {
 	public final mime: String;
 	public final size: Null<Int>;
 	public final uris: Array<String>;
-	@HaxeCBridge.noemit
-	public final hashes: Array<{algo:String, hash:BytesData}>;
+	public final hashes: Array<Hash>;
 
 	#if cpp
 	@:allow(snikket)
@@ -37,7 +38,7 @@ class ChatAttachment {
 	#else
 	public
 	#end
-	function new(name: Null<String>, mime: String, size: Null<Int>, uris: Array<String>, hashes: Array<{algo:String, hash:BytesData}>) {
+	function new(name: Null<String>, mime: String, size: Null<Int>, uris: Array<String>, hashes: Array<Hash>) {
 		this.name = name;
 		this.mime = mime;
 		this.size = size;
@@ -160,7 +161,7 @@ class ChatMessage {
 		var size = sims.findText("{urn:xmpp:jingle:apps:file-transfer:5}/size#");
 		if (size == null) size = sims.findText("{urn:xmpp:jingle:apps:file-transfer:3}/size#");
 		final hashes = ((sims.getChild("file", "urn:xmpp:jingle:apps:file-transfer:5") ?? sims.getChild("file", "urn:xmpp:jingle:apps:file-transfer:3"))
-			?.allTags("hash", "urn:xmpp:hashes:2") ?? []).map((hash) -> { algo: hash.attr.get("algo") ?? "", hash: Base64.decode(hash.getText()).getData() });
+			?.allTags("hash", "urn:xmpp:hashes:2") ?? []).map((hash) -> new Hash(hash.attr.get("algo") ?? "", Base64.decode(hash.getText()).getData()));
 		final sources = sims.getChild("sources");
 		final uris = (sources?.allTags("reference", "urn:xmpp:reference:0") ?? []).map((ref) -> ref.attr.get("uri") ?? "").filter((uri) -> uri != "");
 		if (uris.length > 0) attachments.push(new ChatAttachment(name, mime, size == null ? null : Std.parseInt(size), uris, hashes));
@@ -331,7 +332,7 @@ class ChatMessage {
 			stanza.textTag("media-type", attachment.mime);
 			if (attachment.size != null) stanza.textTag("size", Std.string(attachment.size));
 			for (hash in attachment.hashes) {
-				stanza.textTag("hash", Base64.encode(Bytes.ofData(hash.hash)), { xmlns: "urn:xmpp:hashes:2", algo: hash.algo });
+				stanza.textTag("hash", Base64.encode(Bytes.ofData(hash.hash)), { xmlns: "urn:xmpp:hashes:2", algo: hash.algorithm });
 			}
 			stanza.up();
 

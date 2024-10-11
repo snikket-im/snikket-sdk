@@ -77,6 +77,11 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
+	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (Bool)->Void) {
+		callback(false);
+	}
+
+	@HaxeCBridge.noemit
 	public function storeMedia(mime:String, bd:BytesData, callback: ()->Void) {
 		callback();
 	}

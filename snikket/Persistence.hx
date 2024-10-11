@@ -20,7 +20,7 @@ interface Persistence {
 	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (messages:Array<ChatMessage>)->Void):Void;
 	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>, callback: (messages:Array<ChatMessage>)->Void):Void;
 	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>, callback: (messages:Array<ChatMessage>)->Void):Void;
-	public function getMediaUri(hashAlgorithm:String, hash:BytesData, callback: (uri:Null<String>)->Void):Void;
+	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (has:Bool)->Void):Void;
 	public function storeMedia(mime:String, bytes:BytesData, callback: ()->Void):Void;
 	public function storeCaps(caps:Caps):Void;
 	public function getCaps(ver:String, callback: (Null<Caps>)->Void):Void;

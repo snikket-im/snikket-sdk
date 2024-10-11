@@ -316,6 +316,11 @@ class Sqlite implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
+	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (Bool)->Void) {
+		getMediaUri(hashAlgorithm, hash, (uri) -> callback(uri != null));
+	}
+
+	@HaxeCBridge.noemit
 	public function storeMedia(mime:String, bd:BytesData, callback: ()->Void) {
 		final bytes = Bytes.ofData(bd);
 		final sha256 = Sha256.make(bytes).toHex();

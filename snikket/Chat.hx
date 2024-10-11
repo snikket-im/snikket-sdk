@@ -1,5 +1,6 @@
 package snikket;
 
+import haxe.io.Bytes;
 import haxe.io.BytesData;
 import snikket.Chat;
 import snikket.ChatMessage;
@@ -169,9 +170,8 @@ abstract class Chat {
 		Get the details for one participant in this Chat
 
 		@param participantId the ID of the participant to look up
-		@param callback takes two arguments, the display name and the photo URI
 	**/
-	abstract public function getParticipantDetails(participantId:String, callback:(String, String)->Void):Void;
+	abstract public function getParticipantDetails(participantId: String):Participant;
 
 	/**
 		Correct an already-send message by replacing it with a new one
@@ -293,22 +293,18 @@ abstract class Chat {
 	}
 
 	/**
-		Get an image to represent this Chat
-
-		@param callback takes one argument, the URI to the image
+		Get the URI image to represent this Chat, or null
 	**/
-	public function getPhoto(callback:(String)->Void) {
-		if (avatarSha1 != null) {
-			persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
-				if (uri != null) {
-					callback(uri);
-				} else {
-					callback(Color.defaultPhoto(chatId, getDisplayName().charAt(0)));
-				}
-			});
-		} else {
-			callback(Color.defaultPhoto(chatId, getDisplayName().charAt(0)));
-		}
+	public function getPhoto(): Null<String> {
+		if (avatarSha1 == null || Bytes.ofData(avatarSha1).length < 1) return null;
+		return new Hash("sha-1", avatarSha1).toUri();
+	}
+
+	/**
+		Get the URI to a placeholder image to represent this Chat
+	**/
+	public function getPlaceholder(): String {
+		return Color.defaultPhoto(chatId, getDisplayName().charAt(0).toUpperCase());
 	}
 
 	/**
@@ -587,9 +583,9 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getParticipantDetails(participantId:String, callback:(String, String)->Void) {
+	public function getParticipantDetails(participantId:String): Participant {
 		final chat = client.getDirectChat(participantId);
-		chat.getPhoto((photoUri) -> callback(chat.getDisplayName(), photoUri));
+		return new Participant(chat.getDisplayName(), chat.getPhoto(), chat.getPlaceholder());
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -993,15 +989,14 @@ class Channel extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getParticipantDetails(participantId:String, callback:(String, String)->Void) {
+	public function getParticipantDetails(participantId:String): Participant {
 		if (participantId == getFullJid().asString()) {
-			client.getDirectChat(client.accountId(), false).getPhoto((photoUri) -> {
-				callback(client.displayName(), photoUri);
-			});
+			final chat = client.getDirectChat(client.accountId(), false);
+			return new Participant(client.displayName(), chat.getPhoto(), chat.getPlaceholder());
 		} else {
 			final nick = JID.parse(participantId).resource;
-			final photoUri = Color.defaultPhoto(participantId, nick == null ? " " : nick.charAt(0));
-			callback(nick, photoUri);
+			final placeholderUri = Color.defaultPhoto(participantId, nick == null ? " " : nick.charAt(0));
+			return new Participant(nick, null, placeholderUri);
 		}
 	}
 

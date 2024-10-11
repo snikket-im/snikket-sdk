@@ -257,8 +257,10 @@ class Client extends EventEmitter {
 				final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
 				chat.setAvatarSha1(avatarSha1);
 				persistence.storeChat(accountId(), chat);
-				persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
-					if (uri == null) {
+				persistence.hasMedia("sha-1", avatarSha1, (has) -> {
+					if (has) {
+						this.trigger("chats/update", [chat]);
+					} else {
 						final pubsubGet = new PubsubGet(pubsubEvent.getFrom(), "urn:xmpp:avatar:data", avatarSha1Hex);
 						pubsubGet.onFinished(() -> {
 							final item = pubsubGet.getResult()[0];
@@ -270,8 +272,6 @@ class Client extends EventEmitter {
 							});
 						});
 						sendQuery(pubsubGet);
-					} else {
-						this.trigger("chats/update", [chat]);
 					}
 				});
 			}
@@ -434,8 +434,10 @@ class Client extends EventEmitter {
 						final avatarSha1 = Bytes.ofHex(avatarSha1Hex).getData();
 						chat.setAvatarSha1(avatarSha1);
 						persistence.storeChat(accountId(), chat);
-						persistence.getMediaUri("sha-1", avatarSha1, (uri) -> {
-							if (uri == null) {
+						persistence.hasMedia("sha-1", avatarSha1, (has) -> {
+							if (has) {
+								if (chat.livePresence()) this.trigger("chats/update", [chat]);
+							} else {
 								final vcardGet = new VcardTempGet(from);
 								vcardGet.onFinished(() -> {
 									final vcard = vcardGet.getResult();
@@ -445,8 +447,6 @@ class Client extends EventEmitter {
 									});
 								});
 								sendQuery(vcardGet);
-							} else {
-								if (chat.livePresence()) this.trigger("chats/update", [chat]);
 							}
 						});
 					}
@@ -648,7 +648,7 @@ class Client extends EventEmitter {
 				return tink.streams.Stream.Handled.Resume;
 			}).handle((o) -> switch o {
 				case Depleted:
-					prepareAttachmentFor(source, services, [{ algo: "sha-256", hash: sha256.digest().getData() }], callback);
+					prepareAttachmentFor(source, services, [new Hash("sha-256", sha256.digest().getData())], callback);
 				default:
 					trace("Error computing attachment hash", o);
 					callback(null);
@@ -656,7 +656,7 @@ class Client extends EventEmitter {
 		});
 	}
 
-	private function prepareAttachmentFor(source: js.html.File, services: Array<{ serviceId: String }>, hashes: Array<{algo: String, hash: BytesData}>, callback: (Null<ChatAttachment>)->Void) {
+	private function prepareAttachmentFor(source: js.html.File, services: Array<{ serviceId: String }>, hashes: Array<Hash>, callback: (Null<ChatAttachment>)->Void) {
 		if (services.length < 1) {
 			callback(null);
 			return;

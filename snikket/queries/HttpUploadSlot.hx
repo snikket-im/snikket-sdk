@@ -19,7 +19,7 @@ class HttpUploadSlot extends GenericQuery {
 	public var responseStanza(default, null):Stanza;
 	private var result: { put: String, putHeaders: Array<tink.http.Header.HeaderField>, get: String };
 
-	public function new(to: String, filename: String, size: Int, mime: String, hashes: Array<{algo:String,hash:BytesData}>) {
+	public function new(to: String, filename: String, size: Int, mime: String, hashes: Array<Hash>) {
 		/* Build basic query */
 		queryId = ID.short();
 		queryStanza = new Stanza(
@@ -27,7 +27,7 @@ class HttpUploadSlot extends GenericQuery {
 			{ to: to, type: "get", id: queryId }
 		).tag("request", { xmlns: xmlns, filename: filename, size: Std.string(size), "content-type": mime });
 		for (hash in hashes) {
-			queryStanza.textTag("hash", Base64.encode(Bytes.ofData(hash.hash)), { xmlns: "urn:xmpp:hashes:2", algo: hash.algo });
+			queryStanza.textTag("hash", Base64.encode(Bytes.ofData(hash.hash)), { xmlns: "urn:xmpp:hashes:2", algo: hash.algorithm });
 		}
 		queryStanza.up();
 	}
