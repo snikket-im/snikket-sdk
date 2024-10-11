@@ -49,7 +49,7 @@ const browser = (dbname, tokenize, stemmer) => {
 	caches.open(dbname).then((c) => cache = c);
 
 	function mkNiUrl(hashAlgorithm, hashBytes) {
-		const b64url = btoa(Array.from(new Uint8Array(hashBytes), (x) => String.fromCodePoint(x)).join("")).replace(/\+/, "-").replace(/\//, "_").replace(/=/, "");
+		const b64url = btoa(Array.from(new Uint8Array(hashBytes), (x) => String.fromCodePoint(x)).join("")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 		return "/.well-known/ni/" + hashAlgorithm + "/" + b64url;
 	}
 
