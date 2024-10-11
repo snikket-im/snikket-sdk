@@ -16,6 +16,7 @@ import snikket.EventHandler;
 import snikket.PubsubEvent;
 import snikket.Stream;
 import snikket.jingle.Session;
+import snikket.queries.BoB;
 import snikket.queries.DiscoInfoGet;
 import snikket.queries.DiscoItemsGet;
 import snikket.queries.ExtDiscoGet;
@@ -200,6 +201,9 @@ class Client extends EventEmitter {
 			final message = Message.fromStanza(stanza, this.jid);
 			switch (message.parsed) {
 				case ChatMessageStanza(chatMessage):
+					for (hash in chatMessage.inlineHashReferences()) {
+						fetchMediaByHash([hash], [chatMessage.from]);
+					}
 					var chat = getChat(chatMessage.chatId());
 					if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
 					if (chat != null) {
@@ -1009,6 +1013,37 @@ class Client extends EventEmitter {
 	public function setNotInForeground() {
 		if (!stream.csi) return;
 		stream.sendStanza(new Stanza("inactive", { xmlns: "urn:xmpp:csi:0" }));
+	}
+
+	@:allow(snikket)
+	private function fetchMediaByHash(hashes: Array<Hash>, counterparts: Array<JID>) {
+		// TODO: only for counterparts who can infer our presence
+		// So MUCs, roster entires, anyone we've sent a message to in the past (from this client?)
+		if (hashes.length < 1 || counterparts.length < 1) return thenshim.Promise.reject("no counterparts left");
+		return fetchMediaByHashOneCounterpart(hashes, counterparts[0]).then(x -> x, (_) -> fetchMediaByHash(hashes, counterparts.slice(1)));
+	}
+
+	private function fetchMediaByHashOneCounterpart(hashes: Array<Hash>, counterpart: JID) {
+		if (hashes.length < 1) return thenshim.Promise.reject("no hashes left");
+
+		return new thenshim.Promise((resolve, reject) ->
+			persistence.hasMedia(hashes[0].algorithm, hashes[0].hash, resolve)
+		).then (has -> {
+			if (has) return thenshim.Promise.resolve(null);
+
+			return new thenshim.Promise((resolve, reject) -> {
+				final q = BoB.forHash(counterpart.asString(), hashes[0]);
+				q.onFinished(() -> {
+					final r = q.getResult();
+					if (r == null) {
+						reject("bad or no result from BoB query");
+					} else {
+						persistence.storeMedia(r.type, r.bytes.getData(), () -> resolve(null));
+					}
+				});
+				sendQuery(q);
+			}).then(x -> x, (_) -> fetchMediaByHashOneCounterpart(hashes.slice(1), counterpart));
+		});
 	}
 
 	@:allow(snikket)

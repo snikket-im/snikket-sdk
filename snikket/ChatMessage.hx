@@ -205,10 +205,53 @@ class ChatMessage {
 		Reflect.setField(this, "localId", null);
 	}
 
+	@:allow(snikket)
+	private function inlineHashReferences(): Array<Hash> {
+		final result = [];
+		final htmlBody = payloads.find((p) -> p.attr.get("xmlns") == "http://jabber.org/protocol/xhtml-im" && p.name == "html")?.getChild("body", "http://www.w3.org/1999/xhtml");
+		if (htmlBody != null) {
+			htmlBody.traverse(child -> {
+				if (child.name == "img") {
+					final src = child.attr.get("src");
+					if (src != null) {
+						final hash = Hash.fromUri(src);
+						if (hash != null) {
+							final x:Hash = hash;
+							result.push(x);
+						}
+					}
+					return true;
+				}
+				return false;
+			});
+		}
+
+		return result;
+	}
+
 	/**
 		Get HTML version of the message body
+
+		WARNING: this is possibly untrusted HTML. You must parse or sanitize appropriately!
 	**/
 	public function html():String {
+		final htmlBody = payloads.find((p) -> p.attr.get("xmlns") == "http://jabber.org/protocol/xhtml-im" && p.name == "html")?.getChild("body", "http://www.w3.org/1999/xhtml");
+		if (htmlBody != null) {
+			return htmlBody.getChildren().map(el -> el.traverse(child -> {
+				if (child.name == "img") {
+					final src = child.attr.get("src");
+					if (src != null) {
+						final hash = Hash.fromUri(src);
+						if (hash != null) {
+							child.attr.set("src", hash.toUri());
+						}
+					}
+					return true;
+				}
+				return false;
+			}).serialize()).join("");
+		}
+
 		final codepoints = StringUtil.codepointArray(text ?? "");
 		// TODO: not every app will implement every feature. How should the app tell us what fallbacks to handle?
 		final fallbacks: Array<{start: Int, end: Int}> = cast payloads.filter(

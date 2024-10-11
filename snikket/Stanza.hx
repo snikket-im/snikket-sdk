@@ -15,6 +15,7 @@ typedef NodeList = Array<Node>;
 private interface NodeInterface {
 	public function serialize():String;
 	public function clone():NodeInterface;
+	public function traverse(f: (Stanza)->Bool):NodeInterface;
 }
 
 class TextNode implements NodeInterface {
@@ -31,6 +32,10 @@ class TextNode implements NodeInterface {
 
 	public function clone():TextNode {
 		return new TextNode(this.content);
+	}
+
+	public function traverse(f: (Stanza)->Bool) {
+		return this;
 	}
 }
 
@@ -206,6 +211,13 @@ class Stanza implements NodeInterface {
 		return allTags()[0];
 	}
 
+	public function getChildren():Array<NodeInterface> {
+		return children.map(child -> switch(child) {
+			case Element(el): el;
+			case CData(text): text;
+		});
+	}
+
 	public function getChild(?name:Null<String>, ?xmlns:Null<String>):Null<Stanza> {
 		var ourXmlns = this.attr.get("xmlns");
 		/*
@@ -293,6 +305,15 @@ class Stanza implements NodeInterface {
 			case CData(textNode): textNode.content;
 			case _: null;
 		};
+	}
+
+	public function traverse(f: (Stanza)->Bool) {
+		if (!f(this)) {
+			for (child in allTags()) {
+				child.traverse(f);
+			}
+		}
+		return this;
 	}
 }
 

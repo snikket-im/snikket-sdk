@@ -180,6 +180,11 @@ class Message {
 			msg.payloads.push(unstyled);
 		}
 
+		final html = stanza.getChild("html", "http://jabber.org/protocol/xhtml-im");
+		if (html != null) {
+			msg.payloads.push(html);
+		}
+
 		final reply = stanza.getChild("reply", "urn:xmpp:reply:0");
 		if (reply != null) {
 			final replyToJid = reply.attr.get("to");

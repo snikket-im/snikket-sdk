@@ -891,6 +891,9 @@ class Channel extends Chat {
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
+						for (hash in message.inlineHashReferences()) {
+							client.fetchMediaByHash([hash], [message.from]);
+						}
 						promises.push(new thenshim.Promise((resolve, reject) -> {
 							persistence.storeMessage(client.accountId(), message, resolve);
 						}));
