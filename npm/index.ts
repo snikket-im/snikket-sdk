@@ -17,6 +17,7 @@ export import Identicon = snikket.Identicon;
 export import Identity = snikket.Identity;
 export import Notification = snikket.Notification;
 export import Participant = snikket.Participant;
+export import Push = snikket.Push;
 export import SerializedChat = snikket.SerializedChat;
 export import jingle = snikket.jingle;
 
