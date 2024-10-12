@@ -643,11 +643,13 @@ class Client extends EventEmitter {
 		return EventHandled;
 	}
 
-	#if js
-	public function prepareAttachment(source: js.html.File, callback: (Null<ChatAttachment>)->Void) { // TODO: abstract with filename, mime, and ability to convert to tink.io.Source
+	/**
+		Turn a file into a ChatAttachment for attaching to a ChatMessage
+	**/
+	public function prepareAttachment(source: AttachmentSource, callback: (Null<ChatAttachment>)->Void) {
 		persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0", (services) -> {
 			final sha256 = new sha.SHA256();
-			tink.io.Source.ofJsFile(source.name, source).chunked().forEach((chunk) -> {
+			source.tinkSource().chunked().forEach((chunk) -> {
 				sha256.update(chunk);
 				return tink.streams.Stream.Handled.Resume;
 			}).handle((o) -> switch o {
@@ -660,7 +662,7 @@ class Client extends EventEmitter {
 		});
 	}
 
-	private function prepareAttachmentFor(source: js.html.File, services: Array<{ serviceId: String }>, hashes: Array<Hash>, callback: (Null<ChatAttachment>)->Void) {
+	private function prepareAttachmentFor(source: AttachmentSource, services: Array<{ serviceId: String }>, hashes: Array<Hash>, callback: (Null<ChatAttachment>)->Void) {
 		if (services.length < 1) {
 			callback(null);
 			return;
@@ -671,7 +673,7 @@ class Client extends EventEmitter {
 			if (slot == null) {
 				prepareAttachmentFor(source, services.slice(1), hashes, callback);
 			} else {
-				tink.http.Client.fetch(slot.put, { method: PUT, headers: slot.putHeaders, body: tink.io.Source.RealSourceTools.idealize(tink.io.Source.ofJsFile(source.name, source), (e) -> throw e) }).all()
+				tink.http.Client.fetch(slot.put, { method: PUT, headers: slot.putHeaders, body: tink.io.Source.RealSourceTools.idealize(source.tinkSource(), (e) -> throw e) }).all()
 					.handle((o) -> switch o {
 						case Success(res) if (res.header.statusCode == 201):
 							callback(new ChatAttachment(source.name, source.type, source.size, [slot.get], hashes));
@@ -682,7 +684,6 @@ class Client extends EventEmitter {
 		});
 		sendQuery(httpUploadSlot);
 	}
-	#end
 
 	/**
 		@returns array of open chats, sorted by last activity
