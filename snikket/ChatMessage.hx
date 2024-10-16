@@ -449,6 +449,9 @@ class ChatMessage {
 			}
 		}
 		if (body != null) stanza.textTag("body", body);
+		for (payload in payloads) {
+			stanza.addDirectChild(Element(payload));
+		}
 		return stanza;
 	}
 
