@@ -1,6 +1,7 @@
 --library haxe-strings
 --library hsluv
 --library utest
+--library HtmlParser
 
 --run
 test.TestAll

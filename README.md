@@ -10,6 +10,7 @@ Working towards simplicity in developing Snikket-compatible apps.
     haxelib install tink_http
     haxelib install sha
     haxelib install thenshim
+    haxelib install HtmlParser
     make
 
 # JavaScript

@@ -4,6 +4,7 @@
 --library tink_http
 --library sha
 --library thenshim
+--library HtmlParser
 
 HaxeCBridge
 snikket.Client

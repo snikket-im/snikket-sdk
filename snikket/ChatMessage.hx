@@ -18,6 +18,8 @@ import snikket.StringUtil;
 import snikket.XEP0393;
 import snikket.EmojiUtil;
 import snikket.Message;
+import snikket.Stanza;
+import snikket.Util;
 
 @:expose
 @:nullSafety(Strict)
@@ -133,7 +135,7 @@ class ChatMessage {
 	**/
 	@:allow(snikket)
 	public var versions (default, null): Array<ChatMessage> = [];
-	@:allow(snikket)
+	@:allow(snikket, test)
 	private var payloads: Array<Stanza> = [];
 
 	/**
@@ -263,6 +265,50 @@ class ChatMessage {
 		}
 		final body = codepoints.join("");
 		return payloads.find((p) -> p.attr.get("xmlns") == "urn:xmpp:styling:0" && p.name == "unstyled") == null ? XEP0393.parse(body).map((s) -> s.toString()).join("") : StringTools.htmlEscape(body);
+	}
+
+	/**
+		Set rich text using an HTML string
+		Also sets the plain text body appropriately
+	**/
+	public function setHtml(html: String) {
+		final htmlEl = new Stanza("html", { xmlns: "http://jabber.org/protocol/xhtml-im" });
+		final body = new Stanza("body", { xmlns: "http://www.w3.org/1999/xhtml" });
+		htmlEl.addChild(body);
+		final nodes = htmlparser.HtmlParser.run(html, true);
+		for (node in nodes) {
+			final el = Util.downcast(node, htmlparser.HtmlNodeElement);
+			if (el != null && (el.name == "html" || el.name == "body")) {
+				for (inner in el.nodes) {
+					body.addDirectChild(htmlToNode(inner));
+				}
+			} else {
+				body.addDirectChild(htmlToNode(node));
+			}
+		}
+		final htmlIdx = payloads.findIndex((p) -> p.attr.get("xmlns") == "http://jabber.org/protocol/xhtml-im" && p.name == "html");
+		if (htmlIdx >= 0) payloads.splice(htmlIdx, 1);
+		payloads.push(htmlEl);
+		text = XEP0393.render(body);
+	}
+
+	private function htmlToNode(node: htmlparser.HtmlNode) {
+		final txt = Util.downcast(node, htmlparser.HtmlNodeText);
+		if (txt != null) {
+			return CData(new TextNode(txt.toText()));
+		}
+		final el = Util.downcast(node, htmlparser.HtmlNodeElement);
+		if (el != null) {
+			final s = new Stanza(el.name, {});
+			for (attr in el.attributes) {
+				s.attr.set(attr.name, attr.value);
+			}
+			for (child in el.nodes) {
+				s.addDirectChild(htmlToNode(child));
+			}
+			return Element(s);
+		}
+		throw "node was neither text nor element?";
 	}
 
 	/**

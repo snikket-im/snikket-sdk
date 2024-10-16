@@ -14,6 +14,79 @@ class XEP0393 {
 		return blocks;
 	}
 
+	public static function render(xhtml: Stanza) {
+		if (xhtml.name == "br") {
+			return "\n";
+		}
+
+		if (xhtml.name == "img") {
+			return xhtml.attr.get("alt") ?? "";
+		}
+
+		final s = new StringBuf();
+
+		if (xhtml.name == "pre") {
+			s.add("\n```\n");
+		}
+
+		if (xhtml.name == "b" || xhtml.name == "strong") {
+			s.add("*");
+		}
+
+		if (xhtml.name == "i" || xhtml.name == "em") {
+			s.add("_");
+		}
+
+		if (xhtml.name == "s" || xhtml.name == "del") {
+			s.add("~");
+		}
+
+		if (xhtml.name == "tt") {
+			s.add("`");
+		}
+
+		for (child in xhtml.children) {
+			s.add(renderNode(child));
+		}
+
+		if (xhtml.name == "b" || xhtml.name == "strong") {
+			s.add("*");
+		}
+
+		if (xhtml.name == "i" || xhtml.name == "em") {
+			s.add("_");
+		}
+
+		if (xhtml.name == "s" || xhtml.name == "del") {
+			s.add("~");
+		}
+
+		if (xhtml.name == "tt") {
+			s.add("`");
+		}
+
+		if (xhtml.name == "blockquote" || xhtml.name == "p" || xhtml.name == "div" || xhtml.name == "pre") {
+			s.add("\n");
+		}
+
+		if (xhtml.name == "pre") {
+			s.add("```\n");
+		}
+
+		if (xhtml.name == "blockquote") {
+			return ~/^/gm.replace(s.toString(), "> ");
+		}
+
+		return s.toString();
+	}
+
+	public static function renderNode(xhtml: Node) {
+		return switch (xhtml) {
+			case Element(c): render(c);
+			case CData(c): c.content;
+		};
+	}
+
 	public static function parseSpans(styled: String) {
 		final spans = [];
 		var start = 0;
