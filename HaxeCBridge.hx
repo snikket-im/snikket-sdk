@@ -1881,7 +1881,7 @@ abstract HaxeArray<T>(cpp.RawPointer<cpp.RawPointer<cpp.Void>>) from cpp.RawPoin
 	@:from
 	public static inline function fromArrayT<T>(x: Array<T>): HaxeArray<HaxeObject<T>> {
 		for (el in x) {
-			HaxeCBridge.retainHaxeObject(x);
+			HaxeCBridge.retainHaxeObject(el);
 		}
 		return HaxeCBridge.retainHaxeArray(x);
 	}
