@@ -440,7 +440,7 @@ class MediaStreamTrack {
 				untyped __cpp__("{0}->onFrame([this](rtc::binary msg, rtc::FrameInfo frame_info) { this->onFrame(msg, frame_info); });", track);
 				untyped __cpp__("{0}->onOpen([this]() { this->notifyReadyForData(true); });", track);
 			}
-			untyped __cpp__("{0}->onClosed([this]() { this->stop(); });", track);
+			untyped __cpp__("{0}->onClosed([this]() { int base = 0; hx::SetTopOfStack(&base, true); this->stop(); hx::SetTopOfStack((int*)0, true); });", track);
 		} else {
 			throw "Track already set";
 		}
