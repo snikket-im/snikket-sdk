@@ -257,7 +257,7 @@ class HaxeCBridge {
 							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
 							access: field.access,
 							pos: field.pos,
-							kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrT}], expr: macro { if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref($i{field.name}); } return $i{field.name}.length; } })
+							kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrT}], expr: macro { final x = $i{field.name}; if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(x); } return x.length; } })
 						});
 						insertTo++;
 					default:
@@ -294,7 +294,7 @@ class HaxeCBridge {
 							meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
 							access: field.access,
 							pos: field.pos,
-							kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrT}], expr: macro { if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref($i{field.name}); } return $i{field.name}.length; } })
+							kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrT}], expr: macro { final x = $i{field.name}; if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(x); } return x.length; } })
 						});
 						insertTo++;
 					default:
