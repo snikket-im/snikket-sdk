@@ -38,13 +38,16 @@ jobs:
 
     - name: Haxe Dependencies
       run: |
+        haxelib git jsImport https://github.com/back2dos/jsImport
         haxelib --quiet install datetime
         haxelib --quiet install haxe-strings
         haxelib --quiet install hsluv
         haxelib --quiet install tink_http
         haxelib --quiet install sha
         haxelib --quiet install thenshim
+        haxelib --quiet install HtmlParser
         haxelib --quiet install hxcpp
+        haxelib --quiet install hxnodejs
         haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
         haxelib --quiet install utest
 
