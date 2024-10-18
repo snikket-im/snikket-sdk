@@ -11,13 +11,13 @@ import snikket.FSM;
 import snikket.GenericStream;
 import snikket.Stanza;
 
-@:jsRequire("@xmpp/sasl-scram-sha-1")
+@:js.import(@default "@xmpp/sasl-scram-sha-1")
 extern class XmppJsScramSha1 {
 	@:selfCall
 	function new(sasl: Dynamic);
 }
 
-@:jsRequire("@xmpp/client", "client")
+@:js.import("@xmpp/client", "client")
 extern class XmppJsClient {
 	function new(options:Dynamic);
 	function start():Promise<Dynamic>;
@@ -37,7 +37,7 @@ extern class XmppJsClient {
 	var sasl2: Dynamic;
 }
 
-@:jsRequire("@xmpp/jid", "jid")
+@:js.import("@xmpp/jid", "jid")
 extern class XmppJsJID {
 	function new(jid:String);
 	function toString():String;
@@ -47,13 +47,13 @@ extern class XmppJsJID {
 	var resource(default, set):String;
 }
 
-@:jsRequire("@xmpp/debug")
+@:js.import(@default "@xmpp/debug")
 extern class XmppJsDebug {
 	@:selfCall
 	function new(client:XmppJsClient, force:Bool):Void;
 }
 
-@:jsRequire("@xmpp/xml")
+@:js.import(@default "@xmpp/xml")
 extern class XmppJsXml {
 	@:selfCall
 	@:overload(function(tagName:String, ?attr:Dynamic):XmppJsXml { })
@@ -67,7 +67,7 @@ extern class XmppJsXml {
 	var children:Array<Dynamic>;
 }
 
-@:jsRequire("ltx") // The default XML library used by xmpp.js
+@:js.import(@star "ltx") // The default XML library used by xmpp.js
 extern class XmppJsLtx {
 	static function isNode(el:Dynamic):Bool;
 	static function isElement(el:Dynamic):Bool;
@@ -75,13 +75,13 @@ extern class XmppJsLtx {
 	static function parse(input:String):XmppJsXml;
 }
 
-@:jsRequire("@xmpp/id")
+@:js.import(@default "@xmpp/id")
 extern class XmppJsId {
 	@:selfCall
 	static function id():String;
 }
 
-@:jsRequire("@xmpp/error")
+@:js.import(@default "@xmpp/error")
 extern class XmppJsError {
 	public final name: String;
 	public final condition: String;
@@ -129,6 +129,10 @@ class XmppJsStream extends GenericStream {
 	}
 
 	static private function resolveConnectionURI(domain:String, callback:(String)->Void):Void {
+		#if nodejs
+		callback("xmpp://" + domain);
+		return;
+		#else
 		var request = new Http('https://$domain/.well-known/host-meta.json');
 		request.onData = function (data:String) {
 			try {
@@ -146,6 +150,7 @@ class XmppJsStream extends GenericStream {
 			callback(null);
 		}
 		request.request(false);
+		#end
 	}
 
 	private function connectWithURI(uri:String) {

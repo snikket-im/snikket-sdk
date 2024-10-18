@@ -4,6 +4,7 @@ https://github.com/snikket-im/snikket-sdk
 
 Working towards simplicity in developing Snikket-compatible apps.
 
+    haxelib git jsImport https://github.com/back2dos/jsImport
     haxelib install datetime
     haxelib install haxe-strings
     haxelib install hsluv

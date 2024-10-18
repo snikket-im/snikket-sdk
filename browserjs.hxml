@@ -5,6 +5,7 @@
 --library sha
 --library thenshim
 --library HtmlParser
+--library jsImport
 
 snikket.Client
 snikket.Push
@@ -12,4 +13,4 @@ snikket.Push
 -D js-es=6
 -D hxtsdgen_enums_ts
 -D hxtsdgen_namespaced
---js npm/snikket.js
+--js npm/snikket-browser.js

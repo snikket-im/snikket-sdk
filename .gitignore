@@ -1,7 +1,11 @@
 npm/package-lock.json
 npm/*.d.ts
+npm/browser.js
 npm/snikket.js
 npm/snikket-enums.ts
 npm/snikket-enums.js
+npm/snikket-browser.js
+npm/snikket-browser-enums.ts
+npm/snikket-browser-enums.js
 npm/index.js
 node_modules

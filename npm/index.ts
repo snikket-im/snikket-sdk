@@ -1,6 +1,6 @@
-import browserp from "./browser";
-import { snikket as enums } from "./snikket-enums";
-import { snikket } from "./snikket";
+import browserp from "./browser.js";
+import { snikket as enums } from "./snikket-enums.js";
+import { snikket } from "./snikket.js";
 
 // TODO: should we autogenerate this?
 export import AvailableChat = snikket.AvailableChat;

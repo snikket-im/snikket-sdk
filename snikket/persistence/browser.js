@@ -1,8 +1,8 @@
 // This example persistence driver is written in JavaScript
 // so that SDK users can easily see how to write their own
 
-import { snikket as enums } from "./snikket-enums";
-import { snikket } from "./snikket";
+import { snikket as enums } from "./snikket-enums.js";
+import { snikket } from "./snikket.js";
 
 const browser = (dbname, tokenize, stemmer) => {
 	if (!tokenize) tokenize = function(s) { return s.split(" "); }
