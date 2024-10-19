@@ -16,8 +16,10 @@ Working towards simplicity in developing Snikket-compatible apps.
 
 # JavaScript
 
-browser.js, though should also work on nodejs for the most part.
+npm subdirectory will contain installable package for browser or nodejs after build.
 Also some typings are generated which include documenation comments.
+
+    npm install https://gitpkg.vercel.app/snikket-im/snikket-sdk/npm?compiled
 
 # C
 
