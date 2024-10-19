@@ -17,7 +17,11 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "sasl-scram-sha-1": "github:singpolyma/js-sasl-scram-sha-1"
+    "@xmpp/client": "https://gitpkg.vercel.app/singpolyma/xmpp.js/packages/client?main",
+    "@xmpp/debug": "^0.13.0",
+    "@xmpp/sasl-scram-sha-1": "^0.13.1",
+    "buffer": "^6.0.3",
+    "cipher-base": "github:steveluscher/cipher-base#2fdfc60f198aa797b873d21345a17cbd47846fdf"
   },
   "devDependencies": {
     "typescript": "^5.4.5"
