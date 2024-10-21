@@ -440,7 +440,8 @@ class InitiatedSession implements Session {
 				[
 					Attribute.parse(candidate.candidate),
 					new Attribute("ice-ufrag", candidate.usernameFragment),
-					media.attributes.find((attr) -> attr.key == "ice-pwd")
+					media.attributes.find((attr) -> attr.key == "ice-pwd") ??
+						localDescription.attributes.find((attr) -> attr.key == "ice-pwd")
 				],
 				media.formats
 			),

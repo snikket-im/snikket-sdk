@@ -669,6 +669,7 @@ typedef Configuration = {
 extern class Description {
 	public function new(sdp: cpp.StdString, sdpType: cpp.Struct<DescriptionType>):Void;
 	public function generateSdp(): StdString;
+	public function iceUfrag(): StdOptional<StdString>;
 }
 
 @:native("rtc::Candidate")
@@ -730,7 +731,7 @@ class PeerConnection {
 	final localCandidateListeners = [];
 	final mainLoop: sys.thread.EventLoop;
 
-	public function new(?configuration : Configuration, ?constraints : Dynamic){
+	public function new(?configuration : Configuration, ?constraints : Dynamic) {
 		if (Sys.getEnv("SNIKKET_WEBRTC_DEBUG") != null) {
 			untyped __cpp__("rtc::InitLogger(rtc::LogLevel::Verbose);");
 		}
@@ -770,10 +771,10 @@ class PeerConnection {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		mainLoop.run(() -> {
 			for (cb in localCandidateListeners) {
-				cb({ candiate: {
+				cb({ candidate: {
 					candidate: (candidate.candidate() : String),
 					sdpMid: (candidate.mid() : String),
-					usernameFragment: null // TODO?
+					usernameFragment: (pc.ref.localDescription().value().iceUfrag().value() : String)
 				}});
 			}
 		});
