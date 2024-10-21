@@ -1092,6 +1092,7 @@ class Client extends EventEmitter {
 	private function getIceServers(callback: (Array<IceServer>)->Void) {
 		final extDiscoGet = new ExtDiscoGet(jid.domain);
 		extDiscoGet.onFinished(() -> {
+			final didUrl: Map<String, Bool> = [];
 			final servers = [];
 			for (service in extDiscoGet.getResult() ?? []) {
 				if (!["stun", "stuns", "turn", "turns"].contains(service.attr.get("type"))) continue;
@@ -1100,11 +1101,15 @@ class Client extends EventEmitter {
 				final port = Std.parseInt(service.attr.get("port"));
 				if (port == null || port < 1 || port > 65535) continue;
 				final isTurn = ["turn", "turns"].contains(service.attr.get("type"));
-				servers.push({
-					username: service.attr.get("username"),
-					credential: service.attr.get("password"),
-					urls: [service.attr.get("type") + ":" + (host.indexOf(":") >= 0 ? "[" + host + "]" : host) + ":" + port + (isTurn ? "?transport=" + service.attr.get("transport") : "")]
-				});
+				final url = service.attr.get("type") + ":" + (host.indexOf(":") >= 0 ? "[" + host + "]" : host) + ":" + port + (isTurn ? "?transport=" + service.attr.get("transport") : "");
+				if (!didUrl.exists(url)) {
+					servers.push({
+						username: service.attr.get("username"),
+						credential: service.attr.get("password"),
+						urls: [url]
+					});
+					didUrl[url] = true;
+				}
 			}
 			callback(servers);
 		});
