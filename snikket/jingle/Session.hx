@@ -477,7 +477,7 @@ class InitiatedSession implements Session {
 			return;
 		}
 		client.getIceServers((servers) -> {
-			pc = new PeerConnection({ iceServers: servers });
+			pc = new PeerConnection({ iceServers: cast servers }, null);
 			pc.addEventListener("track", (event) -> {
 				client.trigger("call/track", { chatId: counterpart.asBare().asString(), track: event.track, streams: event.streams });
 			});
