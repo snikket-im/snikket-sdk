@@ -83,6 +83,7 @@ class Client extends EventEmitter {
 		@param persistence the persistence layer to use for storage
 	**/
 	public function new(address: String, persistence: Persistence) {
+		Util.setupTrace();
 		super();
 		this.jid = JID.parse(address);
 		this._displayName = this.jid.node;
