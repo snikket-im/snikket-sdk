@@ -135,14 +135,11 @@ class XmppJsStream extends GenericStream {
 		#else
 		var request = new Http('https://$domain/.well-known/host-meta.json');
 		request.onData = function (data:String) {
-			try {
-				var parsed:HostMetaJson = Json.parse(data);
-				final links = parsed.links.filter((entry) -> entry.href.substr(0, 6) == "wss://");
-				if (links.length > 0) {
-					callback(links[0].href);
-					return;
-				}
-			} catch (e) {
+			final parsed:HostMetaJson = Json.parse(data);
+			final links = parsed.links.filter((entry) -> entry.href.substr(0, 6) == "wss://");
+			if (links.length > 0) {
+				callback(links[0].href);
+				return;
 			}
 			callback(null);
 		};
