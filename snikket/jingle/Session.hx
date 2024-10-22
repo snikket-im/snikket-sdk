@@ -1,5 +1,7 @@
 package snikket.jingle;
 
+import snikket.ChatMessage;
+import snikket.Message;
 import snikket.ID;
 import snikket.jingle.PeerConnection;
 import snikket.jingle.SessionDescription;
@@ -35,6 +37,26 @@ interface Session {
 	public function dtmf():Null<DTMFSender>;
 }
 
+private function mkCallMessage(to: JID, from: JID, event: Stanza) {
+	final m = new ChatMessage();
+	m.type = MessageCall;
+	m.to = to;
+	m.recipients = [to.asBare()];
+	m.from = from;
+	m.sender = m.from.asBare();
+	m.replyTo = [m.sender];
+	m.direction = MessageSent;
+	m.text = "call " + event.name;
+	m.timestamp = Date.format(std.Date.now());
+	m.payloads.push(event);
+	m.localId = ID.long();
+	if (event.name != "propose") {
+		m.versions = [m.clone()];
+	}
+	Reflect.setField(m, "localId", event.attr.get("id"));
+	return m;
+}
+
 class IncomingProposedSession implements Session {
 	public var sid (get, null): String;
 	private final client: Client;
@@ -50,12 +72,24 @@ class IncomingProposedSession implements Session {
 
 	public function ring() {
 		// XEP-0353 says to send <ringing/> but that leaks presence if not careful
+		// Store it for ourselves at least
+		final event = new Stanza("ringing", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
+		final msg = mkCallMessage(from, client.jid, event);
+		client.storeMessage(msg, (stored) -> {
+			client.notifyMessageHandlers(stored);
+		});
 		client.trigger("call/ring", { chatId: from.asBare().asString(), session: this });
 	}
 
 	public function hangup() {
 		// XEP-0353 says to send <reject/> but that leaks presence if not careful
 		// It also tells all other devices to stop ringing, which you may or may not want
+		// Store it for ourselves at least
+		final event = new Stanza("reject", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
+		final msg = mkCallMessage(from, client.jid, event);
+		client.storeMessage(msg, (stored) -> {
+			client.notifyMessageHandlers(stored);
+		});
 		client.getDirectChat(from.asBare().asString(), false).jingleSessions.remove(sid);
 	}
 
@@ -85,11 +119,16 @@ class IncomingProposedSession implements Session {
 		if (accepted) return;
 		accepted = true;
 		client.sendPresence(from.asString());
-		client.sendStanza(
-			new Stanza("message", { to: from.asString(), type: "chat" })
-				.tag("proceed", { xmlns: "urn:xmpp:jingle-message:0", id: sid }).up()
-				.tag("store", { xmlns: "urn:xmpp:hints" })
-		);
+		final event = new Stanza("proceed", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
+		final msg = mkCallMessage(from, client.jid, event);
+		client.storeMessage(msg, (stored) -> {
+			client.notifyMessageHandlers(stored);
+			client.sendStanza(
+				new Stanza("message", { to: from.asString(), type: "chat", id: msg.versions[0].localId })
+					.addChild(event)
+					.tag("store", { xmlns: "urn:xmpp:hints" })
+			);
+		});
 	}
 
 	public function initiate(stanza: Stanza) {
@@ -139,17 +178,22 @@ class OutgoingProposedSession implements Session {
 	public function propose(audio: Bool, video: Bool) {
 		this.audio = audio;
 		this.video = video;
-		final stanza = new Stanza("message", { to: to.asString(), type: "chat" })
-			.tag("propose", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
+		final event = new Stanza("propose", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
 		if (audio) {
-			stanza.tag("description", { xmlns: "urn:xmpp:jingle:apps:rtp:1", media: "audio" }).up();
+			event.tag("description", { xmlns: "urn:xmpp:jingle:apps:rtp:1", media: "audio" }).up();
 		}
 		if (video) {
-			stanza.tag("description", { xmlns: "urn:xmpp:jingle:apps:rtp:1", media: "video" }).up();
+			event.tag("description", { xmlns: "urn:xmpp:jingle:apps:rtp:1", media: "video" }).up();
 		}
-		stanza.up().tag("store", { xmlns: "urn:xmpp:hints" });
-		client.sendStanza(stanza);
-		client.trigger("call/ringing", { chatId: to.asBare().asString() });
+		final msg = mkCallMessage(to, client.jid, event);
+		client.storeMessage(msg, (stored) -> {
+			final stanza = new Stanza("message", { to: to.asString(), type: "chat", id: msg.localId })
+				.addChild(event)
+				.tag("store", { xmlns: "urn:xmpp:hints" });
+			client.sendStanza(stanza);
+			client.notifyMessageHandlers(stored);
+			client.trigger("call/ringing", { chatId: to.asBare().asString() });
+		});
 	}
 
 	public function ring() {
@@ -157,11 +201,16 @@ class OutgoingProposedSession implements Session {
 	}
 
 	public function hangup() {
-		client.sendStanza(
-			new Stanza("message", { to: to.asString(), type: "chat" })
-				.tag("retract", { xmlns: "urn:xmpp:jingle-message:0", id: sid }).up()
-				.tag("store", { xmlns: "urn:xmpp:hints" })
-		);
+		final event = new Stanza("retract", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
+		final msg = mkCallMessage(to, client.jid, event);
+		client.storeMessage(msg, (stored) -> {
+			client.sendStanza(
+				new Stanza("message", { to: to.asString(), type: "chat", id: msg.versions[0].localId })
+					.addChild(event)
+					.tag("store", { xmlns: "urn:xmpp:hints" })
+			);
+			client.notifyMessageHandlers(stored);
+		});
 		client.getDirectChat(to.asBare().asString(), false).jingleSessions.remove(sid);
 	}
 
@@ -315,6 +364,17 @@ class InitiatedSession implements Session {
 		}
 		pc = null;
 		client.trigger("call/retract", { chatId: counterpart.asBare().asString() });
+
+		final event = new Stanza("finish", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
+		final msg = mkCallMessage(counterpart, client.jid, event);
+		client.storeMessage(msg, (stored) -> {
+			client.notifyMessageHandlers(stored);
+			client.sendStanza(
+				new Stanza("message", { to: counterpart.asString(), type: "chat", id: msg.versions[0].localId })
+					.addChild(event)
+					.tag("store", { xmlns: "urn:xmpp:hints" })
+			);
+		});
 	}
 
 	@:allow(snikket)

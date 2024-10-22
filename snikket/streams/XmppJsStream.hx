@@ -331,7 +331,7 @@ class XmppJsStream extends GenericStream {
 	}
 
 	private function triggerSMupdate() {
-		if (!client.streamManagement.enabled || !client.streamManagement.allowResume) return;
+		if (client == null || !client.streamManagement.enabled || !client.streamManagement.allowResume) return;
 		this.trigger(
 			"sm/update",
 			{

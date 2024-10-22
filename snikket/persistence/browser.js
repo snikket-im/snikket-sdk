@@ -70,6 +70,7 @@ const browser = (dbname, tokenize, stemmer) => {
 		message.localId = value.localId ? value.localId : null;
 		message.serverId = value.serverId ? value.serverId : null;
 		message.serverIdBy = value.serverIdBy ? value.serverIdBy : null;
+		message.replyId = value.replyId ? value.replyId : null;
 		message.syncPoint = !!value.syncPoint;
 		message.direction = value.direction;
 		message.status = value.status;
@@ -84,7 +85,7 @@ const browser = (dbname, tokenize, stemmer) => {
 		message.reactions = value.reactions;
 		message.text = value.text;
 		message.lang = value.lang;
-		message.isGroupchat = value.isGroupchat || value.groupchat;
+		message.type = value.type || (value.isGroupchat || value.groupchat ? enums.MessageType.Channel : enums.MessageType.Chat);
 		message.payloads = (value.payloads || []).map(snikket.Stanza.parse);
 		return message;
 	}
@@ -137,6 +138,15 @@ const browser = (dbname, tokenize, stemmer) => {
 		head.timestamp = result.value.timestamp; // Edited version is not newer
 		head.versions = versions;
 		head.reactions = result.value.reactions; // Preserve these, edit doesn't touch them
+		// Calls can "edit" from multiple senders, but the original direction and sender holds
+		if (result.value.type === enums.MessageType.MessageCall) {
+			head.direction = result.value.direction;
+			head.sender = result.value.sender;
+			head.from = result.value.from;
+			head.to = result.value.to;
+			head.replyTo = result.value.replyTo;
+			head.recipients = result.value.recipients;
+		}
 		result.update(head);
 		return head;
 	}
@@ -324,7 +334,7 @@ const browser = (dbname, tokenize, stemmer) => {
 			if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";
 			new Promise((resolve) =>
 				// Hydrate reply stubs
-				message.replyToMessage && !message.replyToMessage.serverIdBy ? this.getMessage(account, message.chatId(), message.replyToMessage?.serverId, message.replyToMessage?.localId, resolve) : resolve(message.replyToMessage)
+				message.replyToMessage && !message.replyToMessage.serverIdBy ? this.getMessage(account, message.chatId(), message.replyToMessage.getReplyId(), message.replyToMessage.getReplyId(), resolve) : resolve(message.replyToMessage)
 			).then((replyToMessage) => {
 				message.replyToMessage = replyToMessage;
 				const tx = db.transaction(["messages", "reactions"], "readwrite");
@@ -333,14 +343,14 @@ const browser = (dbname, tokenize, stemmer) => {
 					if (result?.value && !message.isIncoming() && result?.value.direction === enums.MessageDirection.MessageSent && message.versions.length < 1) {
 						// Duplicate, we trust our own sent ids
 						return promisifyRequest(result.delete());
-					} else if (result?.value && result.value.sender == message.senderId() && (message.versions.length > 0 || (result.value.versions || []).length > 0)) {
+					} else if (result?.value && (result.value.sender == message.senderId() || result.value.type == enums.MessageType.MessageCall) && (message.versions.length > 0 || (result.value.versions || []).length > 0)) {
 						hydrateMessage(correctMessage(account, message, result)).then(callback);
 						return true;
 					}
 				}).then((done) => {
 					if (!done) {
 						// There may be reactions already if we are paging backwards
-						const cursor = tx.objectStore("reactions").index("senders").openCursor(IDBKeyRange.bound([account, message.chatId(), (message.isGroupchat ? message.serverId : message.localId) || ""], [account, message.chatId(), (message.isGroupchat ? message.serverId : message.localId) || "", []]), "prev");
+						const cursor = tx.objectStore("reactions").index("senders").openCursor(IDBKeyRange.bound([account, message.chatId(), message.getReplyId() || ""], [account, message.chatId(), message.getReplyId() || "", []]), "prev");
 						const reactions = new Map();
 						const reactionTimes = new Map();
 						cursor.onsuccess = (event) => {

@@ -1,5 +1,6 @@
 package snikket;
 
+import datetime.DateTime;
 import haxe.crypto.Base64;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
@@ -68,8 +69,16 @@ class ChatMessage {
 		The ID of the server which set the serverId
 	**/
 	public var serverIdBy : Null<String> = null;
+	/**
+		The type of this message (Chat, Call, etc)
+	**/
+	public var type : MessageType = MessageChat;
+
 	@:allow(snikket)
 	private var syncPoint : Bool = false;
+
+	@:allow(snikket)
+	private var replyId : Null<String> = null;
 
 	/**
 		The timestamp of this message, in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
@@ -115,13 +124,6 @@ class ChatMessage {
 	**/
 	public var lang: Null<String> = null;
 
-	/**
-		Is this a Group Chat message?
-
-		If the message is in the context of a Channel but this is false,
-		then it is a private message
-	**/
-	public var isGroupchat: Bool = false; // Only really useful for distinguishing whispers
 	/**
 		Direction of this message
 	**/
@@ -178,10 +180,15 @@ class ChatMessage {
 	**/
 	public function reply() {
 		final m = new ChatMessage();
-		m.isGroupchat = isGroupchat;
+		m.type = type;
 		m.threadId = threadId ?? ID.long();
 		m.replyToMessage = this;
 		return m;
+	}
+
+	public function getReplyId() {
+		if (replyId != null) return replyId;
+		return type == MessageChannel || type == MessageChannelPrivate ? serverId : localId;
 	}
 
 	private function set_localId(localId:Null<String>) {
@@ -350,10 +357,43 @@ class ChatMessage {
 		return threadId == null ? null : Identicon.svg(threadId);
 	}
 
+	/**
+		The last status of the call if this message is related to a call
+	**/
+	public function callStatus() {
+		return payloads.find((el) -> el.attr.get("xmlns") == "urn:xmpp:jingle-message:0")?.name;
+	}
+
+	/**
+		The duration of the call if this message is related to a call
+	**/
+	public function callDuration(): Null<String> {
+		if (versions.length < 2) return null;
+		final startedStr = versions[versions.length - 1].timestamp;
+
+		return switch (callStatus()) {
+		case "finish":
+			final endedStr = versions[0].timestamp;
+			if (startedStr == null || endedStr == null) return null;
+			final started = DateTime.fromString(startedStr);
+			final ended = DateTime.fromString(endedStr);
+			final duration = ended - started;
+			duration.format("%I:%S");
+		case "proceed":
+			if (startedStr == null) return null;
+			final started = DateTime.fromString(startedStr);
+			final ended = DateTime.now(); // ongoing
+			final duration = ended - started;
+			duration.format("%I:%S");
+		default:
+			null;
+		}
+	}
+
 	@:allow(snikket)
 	private function asStanza():Stanza {
 		var body = text;
-		var attrs: haxe.DynamicAccess<String> = { type: isGroupchat ? "groupchat" : "chat" };
+		var attrs: haxe.DynamicAccess<String> = { type: type == MessageChannel ? "groupchat" : "chat" };
 		if (from != null) attrs.set("from", from.asString());
 		if (to != null) attrs.set("to", to.asString());
 		if (localId != null) attrs.set("id", localId);
@@ -386,7 +426,7 @@ class ChatMessage {
 			}
 			final reaction = EmojiUtil.isEmoji(StringTools.trim(body)) ? StringTools.trim(body) : null;
 			body = quoteText + body;
-			final replyId = replyToM.isGroupchat ? replyToM.serverId : replyToM.localId;
+			final replyId = replyToM.getReplyId();
 			if (replyId != null) {
 				final codepoints = StringUtil.codepointArray(quoteText);
 				if (reaction != null) {

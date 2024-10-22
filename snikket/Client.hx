@@ -144,6 +144,36 @@ class Client extends EventEmitter {
 				}
 			}
 
+			final message = Message.fromStanza(stanza, this.jid);
+			switch (message.parsed) {
+				case ChatMessageStanza(chatMessage):
+					for (hash in chatMessage.inlineHashReferences()) {
+						fetchMediaByHash([hash], [chatMessage.from]);
+					}
+					var chat = getChat(chatMessage.chatId());
+					if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
+					if (chat != null) {
+						final updateChat = (chatMessage) -> {
+							if (chatMessage.versions.length < 1 || chat.lastMessageId() == chatMessage.serverId || chat.lastMessageId() == chatMessage.localId) {
+								chat.setLastMessage(chatMessage);
+								if (chatMessage.versions.length < 1) chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
+								chatActivity(chat);
+							}
+							notifyMessageHandlers(chatMessage);
+						};
+						chatMessage = chat.prepareIncomingMessage(chatMessage, stanza);
+						if (chatMessage.serverId == null) {
+							updateChat(chatMessage);
+						} else {
+							persistence.storeMessage(accountId(), chatMessage, updateChat);
+						}
+					}
+				case ReactionUpdateStanza(update):
+					persistence.storeReaction(accountId(), update, (stored) -> if (stored != null) notifyMessageHandlers(stored));
+				default:
+					// ignore
+			}
+
 			final jmiP = stanza.getChild("propose", "urn:xmpp:jingle-message:0");
 			if (jmiP != null && jmiP.attr.get("id") != null) {
 				final session = new IncomingProposedSession(this, from, jmiP.attr.get("id"));
@@ -197,36 +227,6 @@ class Client extends EventEmitter {
 					session.retract();
 					chat.jingleSessions.remove(session.sid);
 				}
-			}
-
-			final message = Message.fromStanza(stanza, this.jid);
-			switch (message.parsed) {
-				case ChatMessageStanza(chatMessage):
-					for (hash in chatMessage.inlineHashReferences()) {
-						fetchMediaByHash([hash], [chatMessage.from]);
-					}
-					var chat = getChat(chatMessage.chatId());
-					if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
-					if (chat != null) {
-						final updateChat = (chatMessage) -> {
-							if (chatMessage.versions.length < 1 || chat.lastMessageId() == chatMessage.serverId || chat.lastMessageId() == chatMessage.localId) {
-								chat.setLastMessage(chatMessage);
-								if (chatMessage.versions.length < 1) chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
-								chatActivity(chat);
-							}
-							notifyMessageHandlers(chatMessage);
-						};
-						chatMessage = chat.prepareIncomingMessage(chatMessage, stanza);
-						if (chatMessage.serverId == null) {
-							updateChat(chatMessage);
-						} else {
-							persistence.storeMessage(accountId(), chatMessage, updateChat);
-						}
-					}
-				case ReactionUpdateStanza(update):
-					persistence.storeReaction(accountId(), update, (stored) -> if (stored != null) notifyMessageHandlers(stored));
-				default:
-					// ignore
 			}
 
 			if (stanza.attr.get("type") != "error") {
@@ -1065,6 +1065,11 @@ class Client extends EventEmitter {
 	@:allow(snikket)
 	private function sortChats() {
 		chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
+	}
+
+	@:allow(snikket)
+	private function storeMessage(message: ChatMessage, ?callback: Null<(ChatMessage)->Void>) {
+		persistence.storeMessage(accountId(), message, callback ?? (_)->{});
 	}
 
 	@:allow(snikket)

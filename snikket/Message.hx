@@ -14,6 +14,13 @@ enum abstract MessageStatus(Int) {
 	var MessageFailedToSend; // There was an error sending this message
 }
 
+enum abstract MessageType(Int) {
+	var MessageChat;
+	var MessageCall;
+	var MessageChannel;
+	var MessageChannelPrivate;
+}
+
 enum MessageStanza {
 	ErrorMessageStanza(stanza: Stanza);
 	ChatMessageStanza(message: ChatMessage);
@@ -50,8 +57,9 @@ class Message {
 			msg.lang = stanza.getChild("body")?.attr.get("xml:lang");
 		}
 		msg.from = JID.parse(from);
-		msg.isGroupchat = stanza.attr.get("type") == "groupchat";
-		msg.sender = stanza.attr.get("type") == "groupchat" ? msg.from : msg.from?.asBare();
+		final isGroupchat = stanza.attr.get("type") == "groupchat";
+		msg.type = isGroupchat ? MessageChannel : MessageChat;
+		msg.sender = isGroupchat ? msg.from : msg.from?.asBare();
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;
 		final to = stanza.attr.get("to");
@@ -85,6 +93,11 @@ class Message {
 				msg.serverIdBy = altServerId.attr.get("by");
 			}
 		}
+		if (msg.serverIdBy != null && msg.serverIdBy != localJid.domain) {
+			msg.replyId = msg.serverId;
+		} else if (msg.serverIdBy == localJid.domain) {
+			msg.replyId = msg.localId;
+		}
 		msg.direction = (msg.to == null || msg.to.asBare().equals(localJidBare)) ? MessageReceived : MessageSent;
 		if (msg.from != null && msg.from.asBare().equals(localJidBare)) msg.direction = MessageSent;
 		msg.status = msg.direction == MessageReceived ? MessageDeliveredToDevice : MessageDeliveredToServer; // Delivered to us, a device
@@ -96,7 +109,7 @@ class Message {
 		}
 		final from = msg.from;
 		if (msg.direction == MessageReceived && from != null) {
-			replyTo[stanza.attr.get("type") == "groupchat" ? from.asBare().asString() : from.asString()] = true;
+			replyTo[isGroupchat ? from.asBare().asString() : from.asString()] = true;
 		} else if(msg.to != null) {
 			replyTo[msg.to.asString()] = true;
 		}
@@ -148,8 +161,8 @@ class Message {
 			if (reactionId != null) {
 				return new Message(msg.chatId(), msg.senderId(), msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
 					stanza.attr.get("id") ?? ID.long(),
-					stanza.attr.get("type") == "groupchat" ? reactionId : null,
-					stanza.attr.get("type") != "groupchat" ? reactionId : null,
+					isGroupchat ? reactionId : null,
+					isGroupchat ? null : reactionId,
 					msg.chatId(),
 					timestamp,
 					msg.senderId(),
@@ -167,6 +180,18 @@ class Message {
 
 		for (sims in stanza.allTags("media-sharing", "urn:xmpp:sims:1")) {
 			msg.attachSims(sims);
+		}
+
+		final jmi = stanza.getChild(null, "urn:xmpp:jingle-message:0");
+		if (jmi != null) {
+			msg.type = MessageCall;
+			msg.payloads.push(jmi);
+			if (msg.text == null) msg.text = "call " + jmi.name;
+			if (jmi.name != "propose") {
+				msg.versions = [msg.clone()];
+			}
+			// The session id is what really identifies us
+			Reflect.setField(msg, "localId", jmi.attr.get("id"));
 		}
 
 		if (msg.text == null && msg.attachments.length < 1) return new Message(msg.chatId(), msg.senderId(), msg.threadId, UnknownMessageStanza(stanza));
@@ -192,13 +217,8 @@ class Message {
 			if (replyToID != null) {
 				// Reply stub
 				final replyToMessage = new ChatMessage();
-				replyToMessage.isGroupchat = msg.isGroupchat;
 				replyToMessage.from = replyToJid == null ? null : JID.parse(replyToJid);
-				if (msg.isGroupchat) {
-					replyToMessage.serverId = replyToID;
-				} else {
-					replyToMessage.localId = replyToID;
-				}
+				replyToMessage.replyId = replyToID;
 				msg.replyToMessage = replyToMessage;
 			}
 		}

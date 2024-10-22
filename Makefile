@@ -13,6 +13,7 @@ npm/snikket-browser.js:
 	sed -i 's/snikket\.UiState/enums.UiState/g' npm/snikket-browser.d.ts
 	sed -i 's/snikket\.MessageStatus/enums.MessageStatus/g' npm/snikket-browser.d.ts
 	sed -i 's/snikket\.MessageDirection/enums.MessageDirection/g' npm/snikket-browser.d.ts
+	sed -i 's/snikket\.MessageType/enums.MessageType/g' npm/snikket.d.ts
 	sed -i 's/snikket\.UserState/enums.UserState/g' npm/snikket-browser.d.ts
 	sed -i 's/_Push.Push_Fields_/Push/g' npm/snikket-browser.d.ts
 	sed -i '1ivar exports = {};' npm/snikket-browser.js
@@ -24,6 +25,7 @@ npm/snikket.js:
 	sed -i 's/snikket\.UiState/enums.UiState/g' npm/snikket.d.ts
 	sed -i 's/snikket\.MessageStatus/enums.MessageStatus/g' npm/snikket.d.ts
 	sed -i 's/snikket\.MessageDirection/enums.MessageDirection/g' npm/snikket.d.ts
+	sed -i 's/snikket\.MessageType/enums.MessageType/g' npm/snikket.d.ts
 	sed -i 's/snikket\.UserState/enums.UserState/g' npm/snikket.d.ts
 	sed -i 's/_Push.Push_Fields_/Push/g' npm/snikket.d.ts
 	sed -i '1iimport { createRequire } from "module";' npm/snikket.js

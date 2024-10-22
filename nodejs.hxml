@@ -1,12 +1,13 @@
+--library HtmlParser
+--library datetime
 --library haxe-strings
---library hxtsdgen
 --library hsluv
---library tink_http
+--library hxnodejs
+--library hxtsdgen
+--library jsImport
 --library sha
 --library thenshim
---library HtmlParser
---library hxnodejs
---library jsImport
+--library tink_http
 
 snikket.Client
 snikket.Push

@@ -7,6 +7,7 @@ import snikket.ChatMessage;
 import snikket.Color;
 import snikket.GenericStream;
 import snikket.ID;
+import snikket.Message;
 import snikket.MessageSync;
 import snikket.jingle.PeerConnection;
 import snikket.jingle.Session;
@@ -330,7 +331,16 @@ abstract class Chat {
 		A preview of the chat, such as the most recent message body
 	**/
 	public function preview() {
-		return lastMessage?.text ?? "";
+		if (lastMessage == null) return "";
+
+		return switch (lastMessage.type) {
+			case MessageCall:
+				lastMessage.isIncoming() ? "Incoming Call" : "Outgoing Call";
+			case MessageChannel:
+				getParticipantDetails(lastMessage.senderId()).displayName + ": " + lastMessage.text;
+			default:
+				lastMessage.text;
+		}
 	}
 
 	@:allow(snikket)
@@ -1046,6 +1056,7 @@ class Channel extends Chat {
 	@:allow(snikket)
 	private function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
 		message.syncPoint = !syncing();
+		if (message.type == MessageChat) message.type = MessageChannelPrivate;
 		message.sender = JID.parse(stanza.attr.get("from")); // MUC always needs full JIDs
 		if (message.senderId() == getFullJid().asString()) {
 			message.recipients = message.replyTo;
@@ -1055,7 +1066,7 @@ class Channel extends Chat {
 	}
 
 	private function prepareOutgoingMessage(message:ChatMessage) {
-		message.isGroupchat = true;
+		message.type = MessageChannel;
 		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
 		message.direction = MessageSent;
 		message.from = client.jid;
