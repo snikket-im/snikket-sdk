@@ -697,6 +697,24 @@ extern class PCConfiguration {
 	public var iceServers: StdVector<PCIceServer>;
 }
 
+@:native("rtc::PeerConnection::State")
+extern class NativePCState {}
+
+extern enum abstract PCState(NativePCState) {
+	@:native("rtc::PeerConnection::State::New")
+	var New;
+	@:native("rtc::PeerConnection::State::Connecting")
+	var Connecting;
+	@:native("rtc::PeerConnection::State::Connected")
+	var Connected;
+	@:native("rtc::PeerConnection::State::Disconnected")
+	var Disconnected;
+	@:native("rtc::PeerConnection::State::Failed")
+	var Failed;
+	@:native("rtc::PeerConnection::State::Closed")
+	var Closed;
+}
+
 @:buildXml("
 <target id='haxe'>
   <lib name='-ldatachannel'/>
@@ -718,10 +736,12 @@ extern class PC {
 	public function onTrack(callback: cpp.Callable<SharedPtr<Track>->Void>):Void;
 	public function onLocalCandidate(callback: cpp.Callable<Candidate->Void>):Void;
 	public function close():Void;
+	public function state():PCState;
 }
 
 class PeerConnection {
 	public var localDescription(get, null): { sdp: Null<String> };
+	public var connectionState(get, null): String;
 
 	var _pc: SharedPtr<PC>;
 	var pc: cpp.Pointer<PC>;
@@ -791,6 +811,17 @@ class PeerConnection {
 			}
 		});
 		untyped __cpp__("hx::SetTopOfStack((int*)0, true);"); // unregister with GC
+	}
+
+	public function get_connectionState() {
+		return switch (pc.ref.state()) {
+			case New: "new";
+			case Connecting: "connecting";
+			case Connected: "connected";
+			case Disconnected: "disconnected";
+			case Failed: "failed";
+			case Closed: "closed";
+		}
 	}
 
 	public function get_localDescription() {

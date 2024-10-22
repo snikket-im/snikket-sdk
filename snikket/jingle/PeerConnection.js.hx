@@ -2,7 +2,11 @@ package snikket.jingle;
 
 import js.html.rtc.PeerConnection;
 
-typedef PeerConnection = js.html.rtc.PeerConnection;
+@:native("RTCPeerConnection")
+extern class PeerConnection extends js.html.rtc.PeerConnection {
+	final connectionState: String;
+}
+
 typedef SdpType = js.html.rtc.SdpType;
 typedef Promise<T> = js.lib.Promise<T>;
 typedef MediaStream = js.html.MediaStream;
