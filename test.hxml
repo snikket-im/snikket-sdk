@@ -2,6 +2,7 @@
 --library hsluv
 --library utest
 --library HtmlParser
+--library datetime
 
 --run
 test.TestAll
