@@ -125,7 +125,7 @@ abstract class Chat {
 					case ChatMessageStanza(message):
 						final chatMessage = prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() }));
 						promises.push(new thenshim.Promise((resolve, reject) -> {
-							persistence.storeMessage(client.accountId(), chatMessage, resolve);
+							client.storeMessage(chatMessage, resolve);
 						}));
 					case ReactionUpdateStanza(update):
 						persistence.storeReaction(client.accountId(), update, (m)->{});
@@ -661,7 +661,7 @@ class DirectChat extends Chat {
 		message.resetLocalId();
 		message.versions = [toSend]; // This is a correction
 		message.localId = localId;
-		persistence.storeMessage(client.accountId(), message, (corrected) -> {
+		client.storeMessage(message, (corrected) -> {
 			toSend.versions = corrected.versions;
 			for (recipient in message.recipients) {
 				message.to = recipient;
@@ -683,7 +683,7 @@ class DirectChat extends Chat {
 		final fromStanza = Message.fromStanza(message.asStanza(), client.jid).parsed;
 		switch (fromStanza) {
 			case ChatMessageStanza(_):
-				persistence.storeMessage(client.accountId(), message, (stored) -> {
+				client.storeMessage(message, (stored) -> {
 					for (recipient in message.recipients) {
 						message.to = recipient;
 						final stanza = message.asStanza();
@@ -905,7 +905,7 @@ class Channel extends Chat {
 							client.fetchMediaByHash([hash], [message.from]);
 						}
 						promises.push(new thenshim.Promise((resolve, reject) -> {
-							persistence.storeMessage(client.accountId(), message, resolve);
+							client.storeMessage(message, resolve);
 						}));
 						if (message.chatId() == chatId) chatMessages.push(message);
 					case ReactionUpdateStanza(update):
@@ -1084,7 +1084,7 @@ class Channel extends Chat {
 		message.resetLocalId();
 		message.versions = [toSend]; // This is a correction
 		message.localId = localId;
-		persistence.storeMessage(client.accountId(), message, (corrected) -> {
+		client.storeMessage(message, (corrected) -> {
 			toSend.versions = corrected.versions;
 			client.sendStanza(toSend.asStanza());
 			if (localId == lastMessage?.localId) {
@@ -1112,7 +1112,7 @@ class Channel extends Chat {
 					activeThread = message.threadId;
 					stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
 				}
-				persistence.storeMessage(client.accountId(), message, (stored) -> {
+				client.storeMessage(message, (stored) -> {
 					client.sendStanza(stanza);
 					setLastMessage(stored);
 					client.trigger("chats/update", [this]);
