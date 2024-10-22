@@ -93,9 +93,9 @@ class Message {
 				msg.serverIdBy = altServerId.attr.get("by");
 			}
 		}
-		if (msg.serverIdBy != null && msg.serverIdBy != localJid.domain) {
+		if (msg.serverIdBy != null && msg.serverIdBy != localJid.asBare().asString()) {
 			msg.replyId = msg.serverId;
-		} else if (msg.serverIdBy == localJid.domain) {
+		} else if (msg.serverIdBy == localJid.asBare().asString()) {
 			msg.replyId = msg.localId;
 		}
 		msg.direction = (msg.to == null || msg.to.asBare().equals(localJidBare)) ? MessageReceived : MessageSent;
