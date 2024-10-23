@@ -7,7 +7,10 @@ all: npm libsnikket.so
 test:
 	haxe test.hxml
 
-npm/snikket-browser.js:
+snikket/EmojiData.hx: tools/GenerateEmoji.hx
+	haxe --library unifill --run tools/GenerateEmoji.hx > $@
+
+npm/snikket-browser.js: snikket/EmojiData.hx
 	haxe browserjs.hxml
 	sed -i 's/import { snikket }/import { snikket as enums }/' npm/snikket-browser.d.ts
 	sed -i 's/snikket\.UiState/enums.UiState/g' npm/snikket-browser.d.ts
@@ -19,7 +22,7 @@ npm/snikket-browser.js:
 	sed -i '1ivar exports = {};' npm/snikket-browser.js
 	echo "export const snikket = exports.snikket;" >> npm/snikket-browser.js
 
-npm/snikket.js:
+npm/snikket.js: snikket/EmojiData.hx
 	haxe nodejs.hxml
 	sed -i 's/import { snikket }/import { snikket as enums }/' npm/snikket.d.ts
 	sed -i 's/snikket\.UiState/enums.UiState/g' npm/snikket.d.ts
@@ -38,7 +41,7 @@ npm: npm/snikket-browser.js npm/snikket.js snikket/persistence/browser.js
 	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums -d index.ts
 	sed -i '1iimport { snikket as enums } from "./snikket-enums.js";' npm/index.js
 
-cpp/output.dso:
+cpp/output.dso: snikket/EmojiData.hx
 	haxe cpp.hxml
 
 libsnikket.so: cpp/output.dso
