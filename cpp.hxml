@@ -14,6 +14,6 @@ snikket.persistence.Sqlite
 
 --cpp cpp
 -D HXCPP_ALIGN_ALLOC
--D HXCPP_NO_CPP11
+-D HXCPP_CPP17
 -D HaxeCBridge.name=snikket
 -D dll_link
