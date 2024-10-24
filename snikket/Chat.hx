@@ -336,8 +336,6 @@ abstract class Chat {
 		return switch (lastMessage.type) {
 			case MessageCall:
 				lastMessage.isIncoming() ? "Incoming Call" : "Outgoing Call";
-			case MessageChannel:
-				getParticipantDetails(lastMessage.senderId()).displayName + ": " + lastMessage.text;
 			default:
 				lastMessage.text;
 		}
@@ -961,7 +959,8 @@ class Channel extends Chat {
 
 	override public function preview() {
 		if (lastMessage == null) return super.preview();
-		return lastMessage.sender.resource + ": " + super.preview();
+
+		return getParticipantDetails(lastMessage.senderId()).displayName + ": " + super.preview();
 	}
 
 	@:allow(snikket)
