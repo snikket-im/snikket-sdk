@@ -307,21 +307,20 @@ const browser = (dbname, tokenize, stemmer) => {
 				const reactionStore = tx.objectStore("reactions");
 				let result;
 				if (update.serverId) {
-					result = await promisifyRequest(store.openCursor(IDBKeyRange.bound([account, update.serverId], [account, update.serverId, []])));
+					result = await promisifyRequest(store.openCursor(IDBKeyRange.bound([account, update.serverId, update.serverIdBy], [account, update.serverId, update.serverIdBy, []])));
 				} else {
 					result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, update.localId, update.chatId])));
 				}
-				await promisifyRequest(reactionStore.put({...update, messageId: update.serverId || update.localId, timestamp: new Date(update.timestamp), account: account}));
-				if (!result || !result.value) {
-					return null;
-				}
-				const message = result.value;
 				const lastFromSender = promisifyRequest(reactionStore.index("senders").openCursor(IDBKeyRange.bound(
 					[account, update.chatId, update.serverId || update.localId, update.senderId],
 					[account, update.chatId, update.serverId || update.localId, update.senderId, []]
 				), "prev"));
+				const reactions = update.getReactions(lastFromSender?.value?.reactions);
+				await promisifyRequest(reactionStore.put({...update, reactions: reactions, append: (update.append ? update.reactions : null), messageId: update.serverId || update.localId, timestamp: new Date(update.timestamp), account: account}));
+				if (!result || !result.value) return null;
 				if (lastFromSender?.value && lastFromSender.value.timestamp > new Date(update.timestamp)) return;
-				setReactions(message.reactions, update.senderId, update.reactions);
+				const message = result.value;
+				setReactions(message.reactions, update.senderId, reactions);
 				store.put(message);
 				return await hydrateMessage(message);
 			})().then(callback);
@@ -339,8 +338,17 @@ const browser = (dbname, tokenize, stemmer) => {
 				message.replyToMessage = replyToMessage;
 				const tx = db.transaction(["messages", "reactions"], "readwrite");
 				const store = tx.objectStore("messages");
-				return promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, message.localId || [], message.chatId()]))).then((result) => {
-					if (result?.value && !message.isIncoming() && result?.value.direction === enums.MessageDirection.MessageSent && message.versions.length < 1) {
+				return Promise.all([
+					promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, message.localId || [], message.chatId()]))),
+					promisifyRequest(tx.objectStore("reactions").openCursor(IDBKeyRange.only([account, message.chatId(), message.senderId(), message.localId])))
+				]).then(([result, reactionResult]) => {
+					if (reactionResult?.value?.append && message.html().trim() == "") {
+						this.getMessage(account, message.chatId(), reactionResult.value.serverId, reactionResult.value.localId, (reactToMessage) => {
+							const reactions = Array.from(reactToMessage.reactions.keys()).filter((r) => !reactionResult.value.append.includes(r));
+							this.storeReaction(account, new snikket.ReactionUpdate(message.localId, reactionResult.value.serverId, reactionResult.value.serverIdBy, reactionResult.value.localId, message.chatId(), message.timestamp, message.senderId(), reactions), callback);
+						});
+						return true;
+					} else if (result?.value && !message.isIncoming() && result?.value.direction === enums.MessageDirection.MessageSent && message.versions.length < 1) {
 						// Duplicate, we trust our own sent ids
 						return promisifyRequest(result.delete());
 					} else if (result?.value && (result.value.sender == message.senderId() || result.value.type == enums.MessageType.MessageCall) && (message.versions.length > 0 || (result.value.versions || []).length > 0)) {

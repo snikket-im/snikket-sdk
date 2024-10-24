@@ -719,7 +719,7 @@ class DirectChat extends Chat {
 		for (areaction => senders in m.reactions) {
 			if (areaction != reaction && senders.contains(client.accountId())) reactions.push(areaction);
 		}
-		final update = new ReactionUpdate(ID.long(), null, m.localId, m.chatId(), Date.format(std.Date.now()), client.accountId(), reactions);
+		final update = new ReactionUpdate(ID.long(), null, null, m.localId, m.chatId(), Date.format(std.Date.now()), client.accountId(), reactions);
 		persistence.storeReaction(client.accountId(), update, (stored) -> {
 			final stanza = update.asStanza();
 			for (recipient in getParticipants()) {
@@ -1136,7 +1136,7 @@ class Channel extends Chat {
 		for (areaction => senders in m.reactions) {
 			if (areaction != reaction && senders.contains(getFullJid().asString())) reactions.push(areaction);
 		}
-		final update = new ReactionUpdate(ID.long(), m.serverId, null, m.chatId(), Date.format(std.Date.now()), client.accountId(), reactions);
+		final update = new ReactionUpdate(ID.long(), m.serverId, m.chatId(), null, m.chatId(), Date.format(std.Date.now()), client.accountId(), reactions);
 		persistence.storeReaction(client.accountId(), update, (stored) -> {
 			final stanza = update.asStanza();
 			stanza.attr.set("to", chatId);

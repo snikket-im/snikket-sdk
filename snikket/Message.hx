@@ -1,6 +1,7 @@
 package snikket;
 
 using Lambda;
+using StringTools;
 
 enum abstract MessageDirection(Int) {
 	var MessageReceived;
@@ -162,6 +163,7 @@ class Message {
 				return new Message(msg.chatId(), msg.senderId(), msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
 					stanza.attr.get("id") ?? ID.long(),
 					isGroupchat ? reactionId : null,
+					isGroupchat ? msg.chatId() : null,
 					isGroupchat ? null : reactionId,
 					msg.chatId(),
 					timestamp,
@@ -214,6 +216,45 @@ class Message {
 		if (reply != null) {
 			final replyToJid = reply.attr.get("to");
 			final replyToID = reply.attr.get("id");
+
+			final text = msg.text;
+			if (text != null && EmojiUtil.isOnlyEmoji(text.trim())) {
+				return new Message(msg.chatId(), msg.senderId(), msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
+					stanza.attr.get("id") ?? ID.long(),
+					isGroupchat ? replyToID : null,
+					isGroupchat ? msg.chatId() : null,
+					isGroupchat ? null : replyToID,
+					msg.chatId(),
+					timestamp,
+					msg.senderId(),
+					[text.trim()],
+					true
+				)));
+			}
+
+			if (html != null) {
+				final body = html.getChild("body", "http://www.w3.org/1999/xhtml");
+				if (body != null) {
+					final els = body.allTags();
+					if (els.length == 1 && els[0].name == "img") {
+						final hash = Hash.fromUri(els[0].attr.get("src") ?? "");
+						if (hash != null) {
+							return new Message(msg.chatId(), msg.senderId(), msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
+								stanza.attr.get("id") ?? ID.long(),
+								isGroupchat ? replyToID : null,
+								isGroupchat ? msg.chatId() : null,
+								isGroupchat ? null : replyToID,
+								msg.chatId(),
+								timestamp,
+								msg.senderId(),
+								[hash.serializeUri()],
+								true
+							)));
+						}
+					}
+				}
+			}
+
 			if (replyToID != null) {
 				// Reply stub
 				final replyToMessage = new ChatMessage();

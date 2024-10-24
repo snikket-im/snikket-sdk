@@ -169,6 +169,9 @@ class Client extends EventEmitter {
 						}
 					}
 				case ReactionUpdateStanza(update):
+					for (hash in update.inlineHashReferences()) {
+						fetchMediaByHash([hash], [from]);
+					}
 					persistence.storeReaction(accountId(), update, (stored) -> if (stored != null) notifyMessageHandlers(stored));
 				default:
 					// ignore

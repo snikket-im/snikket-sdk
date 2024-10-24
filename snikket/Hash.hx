@@ -52,8 +52,13 @@ class Hash {
 		if (Config.relativeHashUri) {
 			return "/.well-known/ni/" + algorithm.urlEncode() + "/" + toBase64Url();
 		} else {
-			return "ni:///" + algorithm.urlEncode() + ";" + toBase64Url();
+			return serializeUri();
 		}
+	}
+
+	@:allow(snikket)
+	private function serializeUri() {
+		return "ni:///" + algorithm.urlEncode() + ";" + toBase64Url();
 	}
 
 	public function toHex() {
