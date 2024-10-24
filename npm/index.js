@@ -1,0 +1,31 @@
+import { snikket as enums } from "./snikket-enums.js";
+import browserp from "./browser.js";
+import { snikket } from "./snikket.js";
+// TODO: should we autogenerate this?
+export var AvailableChat = snikket.AvailableChat;
+export var Caps = snikket.Caps;
+export var Channel = snikket.Channel;
+export var Chat = snikket.Chat;
+export var ChatAttachment = snikket.ChatAttachment;
+export var ChatMessage = snikket.ChatMessage;
+export var Client = snikket.Client;
+export var Config = snikket.Config;
+export var DirectChat = snikket.DirectChat;
+export var Hash = snikket.Hash;
+export var Identicon = snikket.Identicon;
+export var Identity = snikket.Identity;
+export var Notification = snikket.Notification;
+export var Participant = snikket.Participant;
+export var Push = snikket.Push;
+export var SerializedChat = snikket.SerializedChat;
+export var jingle = snikket.jingle;
+export var UiState = enums.UiState;
+export var MessageStatus = enums.MessageStatus;
+export var MessageDirection = enums.MessageDirection;
+export var MessageType = enums.MessageType;
+export var UserState = enums.UserState;
+export var persistence;
+(function (persistence) {
+    persistence.browser = browserp;
+    persistence.Dummy = snikket.persistence.Dummy;
+})(persistence || (persistence = {}));
