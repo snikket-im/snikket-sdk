@@ -17,7 +17,7 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "@xmpp/client": "https://gitpkg.vercel.app/singpolyma/xmpp.js/packages/client?main",
+    "@xmpp/client": "https://gitpkg-singpolyma.vercel.app/singpolyma/xmpp.js/packages/client?main",
     "@xmpp/debug": "^0.13.0",
     "@xmpp/sasl-scram-sha-1": "^0.13.1",
     "buffer": "^6.0.3",
