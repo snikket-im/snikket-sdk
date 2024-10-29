@@ -28,8 +28,12 @@ class Hash {
 		this.hash = hash;
 	}
 
-	public static function fromHex(algorithm: String, hash: String) {
-		return new Hash(algorithm, Bytes.ofHex(hash).getData());
+	public static function fromHex(algorithm: String, hash: String): Null<Hash> {
+		try {
+			return new Hash(algorithm, Bytes.ofHex(hash).getData());
+		} catch (e) {
+			return null;
+		}
 	}
 
 	public static function fromUri(uri: String): Null<Hash> {

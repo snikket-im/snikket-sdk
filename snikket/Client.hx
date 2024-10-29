@@ -253,7 +253,7 @@ class Client extends EventEmitter {
 			if (pubsubEvent != null && pubsubEvent.getFrom() != null && pubsubEvent.getNode() == "urn:xmpp:avatar:metadata" && pubsubEvent.getItems().length > 0) {
 				final item = pubsubEvent.getItems()[0];
 				final avatarSha1Hex = pubsubEvent.getItems()[0].attr.get("id");
-				final avatarSha1 = Bytes.ofHex(avatarSha1Hex).getData();
+				final avatarSha1 = Hash.fromHex("sha-1", avatarSha1Hex)?.hash;
 				final metadata = item.getChild("metadata", "urn:xmpp:avatar:metadata");
 				var mime = "image/png";
 				if (metadata != null) {
@@ -262,26 +262,28 @@ class Client extends EventEmitter {
 						mime = info.attr.get("type");
 					}
 				}
-				final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
-				chat.setAvatarSha1(avatarSha1);
-				persistence.storeChat(accountId(), chat);
-				persistence.hasMedia("sha-1", avatarSha1, (has) -> {
-					if (has) {
-						this.trigger("chats/update", [chat]);
-					} else {
-						final pubsubGet = new PubsubGet(pubsubEvent.getFrom(), "urn:xmpp:avatar:data", avatarSha1Hex);
-						pubsubGet.onFinished(() -> {
-							final item = pubsubGet.getResult()[0];
-							if (item == null) return;
-							final dataNode = item.getChild("data", "urn:xmpp:avatar:data");
-							if (dataNode == null) return;
-							persistence.storeMedia(mime, Base64.decode(StringTools.replace(dataNode.getText(), "\n", "")).getData(), () -> {
-								this.trigger("chats/update", [chat]);
+				if (avatarSha1 != null) {
+					final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
+					chat.setAvatarSha1(avatarSha1);
+					persistence.storeChat(accountId(), chat);
+					persistence.hasMedia("sha-1", avatarSha1, (has) -> {
+						if (has) {
+							this.trigger("chats/update", [chat]);
+						} else {
+							final pubsubGet = new PubsubGet(pubsubEvent.getFrom(), "urn:xmpp:avatar:data", avatarSha1Hex);
+							pubsubGet.onFinished(() -> {
+								final item = pubsubGet.getResult()[0];
+								if (item == null) return;
+								final dataNode = item.getChild("data", "urn:xmpp:avatar:data");
+								if (dataNode == null) return;
+								persistence.storeMedia(mime, Base64.decode(StringTools.replace(dataNode.getText(), "\n", "")).getData(), () -> {
+									this.trigger("chats/update", [chat]);
+								});
 							});
-						});
-						sendQuery(pubsubGet);
-					}
-				});
+							sendQuery(pubsubGet);
+						}
+					});
+				}
 			}
 
 			if (pubsubEvent != null && pubsubEvent.getFrom() != null && JID.parse(pubsubEvent.getFrom()).asBare().asString() == accountId() && pubsubEvent.getNode() == "http://jabber.org/protocol/nick" && pubsubEvent.getItems().length > 0) {
@@ -439,7 +441,7 @@ class Client extends EventEmitter {
 				if (from.isBare()) {
 					final avatarSha1Hex = stanza.findText("{vcard-temp:x:update}x/photo#");
 					if (avatarSha1Hex != null) {
-						final avatarSha1 = Bytes.ofHex(avatarSha1Hex).getData();
+						final avatarSha1 = Hash.fromHex("sha-1", avatarSha1Hex)?.hash;
 						chat.setAvatarSha1(avatarSha1);
 						persistence.storeChat(accountId(), chat);
 						persistence.hasMedia("sha-1", avatarSha1, (has) -> {
