@@ -340,11 +340,11 @@ const browser = (dbname, tokenize, stemmer) => {
 				const store = tx.objectStore("messages");
 				return Promise.all([
 					promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, message.localId || [], message.chatId()]))),
-					promisifyRequest(tx.objectStore("reactions").openCursor(IDBKeyRange.only([account, message.chatId(), message.senderId(), message.localId])))
+					promisifyRequest(tx.objectStore("reactions").openCursor(IDBKeyRange.only([account, message.chatId(), message.senderId(), message.localId || ""])))
 				]).then(([result, reactionResult]) => {
 					if (reactionResult?.value?.append && message.html().trim() == "") {
 						this.getMessage(account, message.chatId(), reactionResult.value.serverId, reactionResult.value.localId, (reactToMessage) => {
-							const reactions = Array.from(reactToMessage.reactions.keys()).filter((r) => !reactionResult.value.append.includes(r));
+							const reactions = (reactToMessage ? Array.from(reactToMessage.reactions.keys()) : []).filter((r) => !reactionResult.value.append.includes(r));
 							this.storeReaction(account, new snikket.ReactionUpdate(message.localId, reactionResult.value.serverId, reactionResult.value.serverIdBy, reactionResult.value.localId, message.chatId(), message.timestamp, message.senderId(), reactions), callback);
 						});
 						return true;

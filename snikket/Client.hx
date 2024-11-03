@@ -1294,7 +1294,7 @@ class Client extends EventEmitter {
 						}));
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {
-							persistence.storeReaction(accountId(), update, (m)->{});
+							persistence.storeReaction(accountId(), update, resolve);
 						}));
 					default:
 						// ignore
