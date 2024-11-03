@@ -621,8 +621,19 @@ class Client extends EventEmitter {
 			persistence.storeService(accountId(), service.jid.asString(), service.name, service.node, caps);
 		});
 		rosterGet();
+		trace("SYNC: bookmarks");
 		bookmarksGet(() -> {
-			sync(() -> {
+			trace("SYNC: MAM");
+			sync((syncFinished) -> {
+				if (!syncFinished) {
+					trace("SYNC: failed");
+					inSync = false;
+					stream.disconnect();
+					// TODO: retry?
+					return;
+				}
+
+				trace("SYNC: details");
 				inSync = true;
 				persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
 					for (detail in details) {
@@ -642,6 +653,7 @@ class Client extends EventEmitter {
 						pingAllChannels();
 					}
 					this.trigger("status/online", {});
+					trace("SYNC: done");
 				});
 			});
 		});
@@ -1241,9 +1253,9 @@ class Client extends EventEmitter {
 		sendQuery(pubsubGet);
 	}
 
-	private function sync(?callback: ()->Void) {
+	private function sync(?callback: (Bool)->Void) {
 		if (Std.isOfType(persistence, snikket.persistence.Dummy)) {
-			callback(); // No reason to sync if we're not storing anyway
+			callback(true); // No reason to sync if we're not storing anyway
 		} else {
 			persistence.lastId(accountId(), null, (lastId) -> doSync(callback, lastId));
 		}
@@ -1262,7 +1274,7 @@ class Client extends EventEmitter {
 		session.ring();
 	}
 
-	private function doSync(callback: Null<()->Void>, lastId: Null<String>) {
+	private function doSync(callback: Null<(Bool)->Void>, lastId: Null<String>) {
 		var thirtyDaysAgo = Date.format(
 			DateTools.delta(std.Date.now(), DateTools.days(-30))
 		);
@@ -1294,7 +1306,16 @@ class Client extends EventEmitter {
 				for (sid => stanza in sync.jmi) {
 					onMAMJMI(sid, stanza);
 				}
-				if (callback != null) thenshim.PromiseTools.all(promises).then((_) -> callback());
+				if (callback != null) {
+					thenshim.PromiseTools.all(promises)
+						.then(
+							(_) -> callback(true),
+							(e) -> {
+								trace("SYNC: error", e);
+								callback(false);
+							}
+						);
+				}
 			}
 		});
 		sync.onError((stanza) -> {
@@ -1302,7 +1323,8 @@ class Client extends EventEmitter {
 				// Gap in sync, out newest message has expired from server
 				doSync(callback, null);
 			} else {
-				if (callback != null) callback();
+				trace("SYNC: error", stanza);
+				if (callback != null) callback(false);
 			}
 		});
 		sync.fetchNext();
