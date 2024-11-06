@@ -812,7 +812,6 @@ class Client extends EventEmitter {
 		} else {
 			getDirectChat(availableChat.chatId, false);
 		}
-		if (availableChat.displayName != null) chat.setDisplayName(availableChat.displayName);
 		persistence.storeChat(accountId(), chat);
 		this.trigger("chats/update", [chat]);
 		return chat;
