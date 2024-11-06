@@ -57,6 +57,7 @@ abstract class Chat {
 	**/
 	@:allow(snikket)
 	public var uiState(default, null): UiState = Open;
+	public var isBlocked(default, null): Bool = false;
 	@:allow(snikket)
 	private var extensions: Stanza;
 	private var _unreadCount = 0;
@@ -71,12 +72,13 @@ abstract class Chat {
 	private var activeThread: Null<String> = null;
 
 	@:allow(snikket)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
 		this.chatId = chatId;
 		this.uiState = uiState;
+		this.isBlocked = isBlocked;
 		this.extensions = extensions ?? new Stanza("extensions", { xmlns: "urn:xmpp:bookmarks:1" });
 		this.readUpToId = readUpToId;
 		this.readUpToBy = readUpToBy;
@@ -271,6 +273,44 @@ abstract class Chat {
 		Archive this chat
 	**/
 	abstract public function close():Void;
+
+	/**
+		Block this chat so it will not re-open
+	**/
+	public function block(reportSpam: Null<ChatMessage>, onServer: Bool): Void {
+		if (reportSpam != null && !onServer) throw "Can't report SPAM if not sending to server";
+		isBlocked = true;
+		if (uiState != Closed) close(); // close persists
+		if (onServer) {
+			final iq = new Stanza("iq", { type: "set", id: ID.short() })
+				.tag("block", { xmlns: "urn:xmpp:blocking" })
+				.tag("item", { jid: chatId });
+			if (reportSpam != null) {
+				iq
+					.tag("report", { xmlns: "urn:xmpp:reporting:1", reason: "urn:xmpp:reporting:spam" })
+					.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", by: reportSpam.serverIdBy, id: reportSpam.serverId });
+			}
+			stream.sendIq(iq, (response) -> {});
+		}
+	}
+
+	/**
+		Unblock this chat so it will not open again
+	**/
+	public function unblock(onServer: Bool): Void {
+		isBlocked = false;
+		uiState = Open;
+		persistence.storeChat(client.accountId(), this);
+		client.trigger("chats/update", [this]);
+		if (onServer) {
+			stream.sendIq(
+				new Stanza("iq", { type: "set", id: ID.short() })
+					.tag("unblock", { xmlns: "urn:xmpp:blocking" })
+					.tag("item", { jid: chatId }).up().up(),
+				(response) -> {}
+			);
+		}
+	}
 
 	/**
 		An ID of the most recent message in this chat
@@ -581,8 +621,8 @@ abstract class Chat {
 #end
 class DirectChat extends Chat {
 	@:allow(snikket)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
-		super(client, stream, persistence, chatId, uiState, extensions, readUpToId, readUpToBy);
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
+		super(client, stream, persistence, chatId, uiState, isBlocked, extensions, readUpToId, readUpToBy);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -813,8 +853,8 @@ class Channel extends Chat {
 	private var inSync = true;
 
 	@:allow(snikket)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, extensions = null, readUpToId = null, readUpToBy = null, ?disco: Caps) {
-		super(client, stream, persistence, chatId, uiState, extensions, readUpToId, readUpToBy);
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions = null, readUpToId = null, readUpToBy = null, ?disco: Caps) {
+		super(client, stream, persistence, chatId, uiState, isBlocked, extensions, readUpToId, readUpToBy);
 		if (disco != null) this.disco = disco;
 	}
 
@@ -1290,19 +1330,21 @@ class SerializedChat {
 	public final presence:Map<String, Presence>;
 	public final displayName:Null<String>;
 	public final uiState:UiState;
+	public final isBlocked:Bool;
 	public final extensions:String;
 	public final readUpToId:Null<String>;
 	public final readUpToBy:Null<String>;
 	public final disco:Null<Caps>;
 	public final klass:String;
 
-	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, disco: Null<Caps>, klass: String) {
+	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, disco: Null<Caps>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.avatarSha1 = avatarSha1;
 		this.presence = presence;
 		this.displayName = displayName;
 		this.uiState = uiState ?? Open;
+		this.isBlocked = isBlocked ?? false;
 		this.extensions = extensions ?? "<extensions xmlns='urn:app:bookmarks:1' />";
 		this.readUpToId = readUpToId;
 		this.readUpToBy = readUpToBy;
@@ -1314,9 +1356,9 @@ class SerializedChat {
 		final extensionsStanza = Stanza.fromXml(Xml.parse(extensions));
 
 		final chat = if (klass == "DirectChat") {
-			new DirectChat(client, stream, persistence, chatId, uiState, extensionsStanza, readUpToId, readUpToBy);
+			new DirectChat(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy);
 		} else if (klass == "Channel") {
-			final channel = new Channel(client, stream, persistence, chatId, uiState, extensionsStanza, readUpToId, readUpToBy);
+			final channel = new Channel(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy);
 			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"]);
 			channel;
 		} else {

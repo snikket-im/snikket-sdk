@@ -16,6 +16,7 @@ import snikket.EventHandler;
 import snikket.PubsubEvent;
 import snikket.Stream;
 import snikket.jingle.Session;
+import snikket.queries.BlocklistGet;
 import snikket.queries.BoB;
 import snikket.queries.DiscoInfoGet;
 import snikket.queries.DiscoItemsGet;
@@ -385,6 +386,44 @@ class Client extends EventEmitter {
 				}
 			}
 			this.trigger("chats/update", chats);
+
+			return IqResult;
+		});
+
+		stream.onIq(Set, "block", "urn:xmpp:blocking", (stanza) -> {
+			if (
+				stanza.attr.get("from") != null &&
+				stanza.attr.get("from") != jid.domain
+			) {
+				return IqNoResult;
+			}
+
+			for (item in stanza.getChild("block", "urn:xmpp:blocking")?.allTags("item") ?? []) {
+				if (item.attr.get("jid") != null) serverBlocked(item.attr.get("jid"));
+			}
+
+			return IqResult;
+		});
+
+		stream.onIq(Set, "unblock", "urn:xmpp:blocking", (stanza) -> {
+			if (
+				stanza.attr.get("from") != null &&
+				stanza.attr.get("from") != jid.domain
+			) {
+				return IqNoResult;
+			}
+
+			final unblocks = stanza.getChild("unblock", "urn:xmpp:blocking")?.allTags("item");
+			if (unblocks == null) {
+				// unblock all
+				for (chat in chats) {
+					if (chat.isBlocked) chat.unblock(false);
+				}
+			} else {
+				for (item in unblocks) {
+					if (item.attr.get("jid") != null) getChat(item.attr.get("jid"))?.unblock(false);
+				}
+			}
 
 			return IqResult;
 		});
@@ -805,7 +844,7 @@ class Client extends EventEmitter {
 		}
 
 		final chat = if (availableChat.isChannel()) {
-			final channel = new Channel(this, this.stream, this.persistence, availableChat.chatId, Open, null, availableChat.caps);
+			final channel = new Channel(this, this.stream, this.persistence, availableChat.chatId, Open, false, null, availableChat.caps);
 			chats.unshift(channel);
 			channel.selfPing(false);
 			channel;
@@ -1066,6 +1105,7 @@ class Client extends EventEmitter {
 
 	@:allow(snikket)
 	private function chatActivity(chat: Chat, trigger = true) {
+		if (chat.isBlocked) return; // Don't notify blocked chats
 		if (chat.uiState == Closed) {
 			chat.uiState = Open;
 			persistence.storeChat(accountId(), chat);
@@ -1154,6 +1194,8 @@ class Client extends EventEmitter {
 
 	@:allow(snikket)
 	private function notifyMessageHandlers(message: ChatMessage) {
+		final chat = getChat(message.chatId());
+		if (chat != null && chat.isBlocked) return; // Don't notify blocked chats
 		for (handler in chatMessageHandlers) {
 			handler(message);
 		}
@@ -1188,7 +1230,7 @@ class Client extends EventEmitter {
 				persistence.storeCaps(resultCaps);
 				final uiState = handleCaps(resultCaps);
 				if (resultCaps.isChannel(jid)) {
-					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, null, resultCaps);
+					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, false, null, resultCaps);
 					handleChat(chat);
 					chats.unshift(chat);
 					persistence.storeChat(accountId(), chat);
@@ -1202,8 +1244,25 @@ class Client extends EventEmitter {
 		sendQuery(discoGet);
 	}
 
+	private function serverBlocked(blocked: String) {
+		final chat = getChat(blocked);
+		if (chat == null) {
+			startChatWith(blocked, (caps) -> Closed, (chat) -> chat.block(null, false));
+		} else {
+			chat.block(null, false);
+		}
+	}
+
 	// This is called right before we're going to trigger for all chats anyway, so don't bother with single triggers
 	private function bookmarksGet(callback: ()->Void) {
+		final blockingGet = new BlocklistGet();
+		blockingGet.onFinished(() -> {
+			for (blocked in blockingGet.getResult()) {
+				serverBlocked(blocked);
+			}
+		});
+		sendQuery(blockingGet);
+
 		final mdsGet = new PubsubGet(null, "urn:xmpp:mds:displayed:0");
 		mdsGet.onFinished(() -> {
 			for (item in mdsGet.getResult()) {

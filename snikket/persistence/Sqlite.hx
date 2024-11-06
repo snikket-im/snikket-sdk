@@ -57,7 +57,8 @@ class Sqlite implements Persistence {
 				trusted BOOLEAN NOT NULL,
 				avatar_sha1 BLOB,
 				fn TEXT,
-				ui_state TEXT,
+				ui_state TEXT NOT NULL,
+				blocked BOOLEAN NOT NULL,
 				extensions TEXT,
 				read_up_to_id TEXT,
 				read_up_to_by TEXT,
@@ -133,6 +134,8 @@ class Sqlite implements Persistence {
 		q.add(",");
 		db.addValue(q, chat.uiState);
 		q.add(",");
+		db.addValue(q, chat.isBlocked);
+		q.add(",");
 		db.addValue(q, chat.extensions);
 		q.add(",");
 		db.addValue(q, chat.readUpTo());
@@ -149,12 +152,12 @@ class Sqlite implements Persistence {
 		// TODO: presence
 		// TODO: disco
 		final q = new StringBuf();
-		q.add("SELECT chat_id, trusted, avatar_sha1, fn, ui_state, extensions, read_up_to_id, read_up_to_by, class FROM chats WHERE account_id=");
+		q.add("SELECT chat_id, trusted, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, class FROM chats WHERE account_id=");
 		db.addValue(q, accountId);
 		final result = db.request(q.toString());
 		final chats = [];
 		for (row in result) {
-			chats.push(new SerializedChat(row.chat_id, row.trusted, row.avatar_sha1, [], row.fn, row.ui_state, row.extensions, row.read_up_to_id, row.read_up_to_by, null, Reflect.field(row, "class")));
+			chats.push(new SerializedChat(row.chat_id, row.trusted, row.avatar_sha1, [], row.fn, row.ui_state, row.blocked, row.extensions, row.read_up_to_id, row.read_up_to_by, null, Reflect.field(row, "class")));
 		}
 		callback(chats);
 	}
