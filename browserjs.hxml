@@ -10,6 +10,7 @@
 
 snikket.Client
 snikket.Push
+snikket.Version
 
 -D js-es=6
 -D hxtsdgen_enums_ts

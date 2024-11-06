@@ -20,6 +20,7 @@ export import Participant = snikket.Participant;
 export import Push = snikket.Push;
 export import SerializedChat = snikket.SerializedChat;
 export import jingle = snikket.jingle;
+export const VERSION = snikket.Version.HUMAN;
 
 export import UiState = enums.UiState;
 export import MessageStatus = enums.MessageStatus;
