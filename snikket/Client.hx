@@ -1347,8 +1347,8 @@ class Client extends EventEmitter {
 			lastId == null ? { startTime: thirtyDaysAgo } : { page: { after: lastId } }
 		);
 		sync.setNewestPageFirst(false);
-		final promises = [];
 		sync.onMessages((messageList) -> {
+			final promises = [];
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
@@ -1363,23 +1363,21 @@ class Client extends EventEmitter {
 						// ignore
 				}
 			}
-			if (sync.hasMore()) {
-				sync.fetchNext();
-			} else {
-				for (sid => stanza in sync.jmi) {
-					onMAMJMI(sid, stanza);
+			trace("SYNC: MAM page wait for writes");
+			thenshim.PromiseTools.all(promises).then((_) -> {
+				if (sync.hasMore()) {
+					sync.fetchNext();
+				} else {
+					for (sid => stanza in sync.jmi) {
+						onMAMJMI(sid, stanza);
+					}
+					if (callback != null) callback(true);
 				}
-				if (callback != null) {
-					thenshim.PromiseTools.all(promises)
-						.then(
-							(_) -> callback(true),
-							(e) -> {
-								trace("SYNC: error", e);
-								callback(false);
-							}
-						);
-				}
-			}
+			},
+			(e) -> {
+				trace("SYNC: error", e);
+				callback(false);
+			});
 		});
 		sync.onError((stanza) -> {
 			if (lastId != null) {

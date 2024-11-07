@@ -943,9 +943,9 @@ class Channel extends Chat {
 			chatId
 		);
 		sync.setNewestPageFirst(false);
-		final promises = [];
 		final chatMessages = [];
 		sync.onMessages((messageList) -> {
+			final promises = [];
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
@@ -964,10 +964,10 @@ class Channel extends Chat {
 						// ignore
 				}
 			}
-			if (sync.hasMore()) {
-				sync.fetchNext();
-			} else {
-				thenshim.PromiseTools.all(promises).then((_) -> {
+			thenshim.PromiseTools.all(promises).then((_) -> {
+				if (sync.hasMore()) {
+					sync.fetchNext();
+				} else {
 					inSync = true;
 					final lastFromSync = chatMessages[chatMessages.length - 1];
 					if (lastFromSync != null && (lastMessageTimestamp() == null || Reflect.compare(lastFromSync.timestamp, lastMessageTimestamp()) > 0)) {
@@ -981,8 +981,8 @@ class Channel extends Chat {
 						setUnreadCount(chatMessages.length - readIndex - 1);
 					}
 					client.trigger("chats/update", [this]);
-				});
-			}
+				}
+			});
 		});
 		sync.onError((stanza) -> {
 			if (lastId != null) {
