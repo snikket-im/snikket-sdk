@@ -499,13 +499,17 @@ const browser = (dbname, tokenize, stemmer) => {
 		},
 
 		routeHashPathSW: function() {
+			const waitForMedia = async (uri) => {
+				const r = await this.getMediaResponse(uri);
+				if (r) return r;
+				await new Promise(resolve => setTimeout(resolve, 5000));
+				return await waitForMedia(uri);
+			};
+
 			addEventListener("fetch", (event) => {
 				const url = new URL(event.request.url);
 				if (url.pathname.startsWith("/.well-known/ni/")) {
-					event.respondWith(this.getMediaResponse(url.pathname).then((r) => {
-						if (r) return r;
-						return Response.error();
-					}));
+					event.respondWith(waitForMedia(url.pathname));
 				}
 			});
 		},
