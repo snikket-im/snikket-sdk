@@ -1120,7 +1120,11 @@ class Client extends EventEmitter {
 
 	@:allow(snikket)
 	private function sortChats() {
-		chats.sort((a, b) -> -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0"));
+		chats.sort((a, b) -> {
+			if (a.uiState == Pinned && b.uiState != Pinned) return -1;
+			if (b.uiState == Pinned && a.uiState != Pinned) return 1;
+			return -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0");
+		});
 	}
 
 	@:allow(snikket)

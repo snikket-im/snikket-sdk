@@ -275,6 +275,16 @@ abstract class Chat {
 	abstract public function close():Void;
 
 	/**
+		Pin or unpin this chat
+	**/
+	public function togglePinned(): Void {
+		uiState = uiState == Pinned ? Open : Pinned;
+		persistence.storeChat(client.accountId(), this);
+		client.sortChats();
+		client.trigger("chats/update", [this]);
+	}
+
+	/**
 		Block this chat so it will not re-open
 	**/
 	public function block(reportSpam: Null<ChatMessage>, onServer: Bool): Void {
