@@ -313,7 +313,7 @@ const browser = (dbname, tokenize, stemmer) => {
 				} else {
 					result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, update.localId, update.chatId])));
 				}
-				const lastFromSender = promisifyRequest(reactionStore.index("senders").openCursor(IDBKeyRange.bound(
+				const lastFromSender = await promisifyRequest(reactionStore.index("senders").openCursor(IDBKeyRange.bound(
 					[account, update.chatId, update.serverId || update.localId, update.senderId],
 					[account, update.chatId, update.serverId || update.localId, update.senderId, []]
 				), "prev"));
