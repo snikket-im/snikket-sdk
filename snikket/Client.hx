@@ -1110,10 +1110,11 @@ class Client extends EventEmitter {
 			chat.uiState = Open;
 			persistence.storeChat(accountId(), chat);
 		}
+		final pinnedCount = chat.uiState == Pinned ? 0 : chats.fold((item, result) -> result + (item.uiState == Pinned ? 1 : 0), 0);
 		var idx = chats.indexOf(chat);
-		if (idx > 0) {
+		if (idx > pinnedCount) {
 			chats.splice(idx, 1);
-			chats.unshift(chat);
+			chats.insert(pinnedCount, chat);
 			if (trigger) this.trigger("chats/update", [chat]);
 		}
 	}
