@@ -921,8 +921,16 @@ class Channel extends Chat {
 	}
 
 	override public function setPresence(resource:String, presence:Presence) {
-		super.setPresence(resource, presence);
 		final oneTen = presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "110");
+		if (presence != null && presence.mucUser != null && oneTen == null) {
+			final existing = this.presence.get(resource);
+			if (existing != null && existing?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "110") != null) {
+				presence.mucUser.tag("status", { code: "110" });
+				setPresence(resource, presence);
+				return;
+			}
+		}
+		super.setPresence(resource, presence);
 		final tripleThree = presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "333");
 		if (!inSync && oneTen != null) {
 			persistence.lastId(client.accountId(), chatId, doSync);
