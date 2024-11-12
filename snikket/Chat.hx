@@ -290,7 +290,11 @@ abstract class Chat {
 	public function block(reportSpam: Null<ChatMessage>, onServer: Bool): Void {
 		if (reportSpam != null && !onServer) throw "Can't report SPAM if not sending to server";
 		isBlocked = true;
-		if (uiState != Closed) close(); // close persists
+		if (uiState == Closed) {
+			persistence.storeChat(client.accountId(), this);
+		} else {
+			close(); // close persists
+		}
 		if (onServer) {
 			final iq = new Stanza("iq", { type: "set", id: ID.short() })
 				.tag("block", { xmlns: "urn:xmpp:blocking" })
