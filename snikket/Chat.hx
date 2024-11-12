@@ -339,7 +339,7 @@ abstract class Chat {
 		final conf = item.getChild("conference", "urn:xmpp:bookmarks:1");
 		final fn = conf.attr.get("name");
 		if (fn != null) setDisplayName(fn);
-		uiState = (conf.attr.get("autojoin") == "1" || conf.attr.get("autojoin") == "true") ? Open : Closed;
+		uiState = (conf.attr.get("autojoin") == "1" || conf.attr.get("autojoin") == "true") ? (uiState == Pinned ? Pinned : Open) : Closed;
 		extensions = conf.getChild("extensions") ?? new Stanza("extensions", { xmlns: "urn:xmpp:bookmarks:1" });
 	}
 
