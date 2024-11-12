@@ -155,12 +155,12 @@ class Client extends EventEmitter {
 					if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
 					if (chat != null) {
 						final updateChat = (chatMessage) -> {
+							notifyMessageHandlers(chatMessage);
 							if (chatMessage.versions.length < 1 || chat.lastMessageId() == chatMessage.serverId || chat.lastMessageId() == chatMessage.localId) {
 								chat.setLastMessage(chatMessage);
 								if (chatMessage.versions.length < 1) chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
 								chatActivity(chat);
 							}
-							notifyMessageHandlers(chatMessage);
 						};
 						chatMessage = chat.prepareIncomingMessage(chatMessage, stanza);
 						if (chatMessage.serverId == null) {
