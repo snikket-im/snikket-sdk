@@ -1,4 +1,4 @@
-image: alpine/3.20
+image: alpine/edge
 packages:
 - opus-dev
 #- libdatachannel-dev
@@ -9,6 +9,8 @@ packages:
 sources:
 - https://git.sr.ht/~singpolyma/snikket-sdk
 - https://gitlab.alpinelinux.org/anjandev/aports.git#haxe
+artifacts:
+- snikket-sdk/libsnikket.so
 tasks:
 - keygen: |
     abuild-keygen -a -i -n
@@ -27,12 +29,20 @@ tasks:
 - xlocale: |
     doas ln -s /usr/include/locale.h /usr/include/xlocale.h
 - haxelib: |
-    haxelib install datetime
-    haxelib install haxe-strings
-    haxelib install hsluv
-    haxelib install tink_http
-    haxelib install sha
-    haxelib install thenshim
+    haxelib --quiet git jsImport https://github.com/back2dos/jsImport
+    haxelib --quiet install datetime
+    haxelib --quiet install haxe-strings
+    haxelib --quiet install hsluv
+    haxelib --quiet install tink_http
+    haxelib --quiet install sha
+    haxelib --quiet install thenshim
+    haxelib --quiet install HtmlParser
+    haxelib --quiet install hxnodejs
+    haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
+    haxelib --quiet install utest
+    haxelib --quiet git hxcpp https://github.com/HaxeFoundation/hxcpp
+    cd ~/haxe/hxcpp/git/tools/hxcpp
+    haxe compile.hxml
 - make: |
     cd snikket-sdk
     make
