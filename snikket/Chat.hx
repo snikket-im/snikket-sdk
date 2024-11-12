@@ -577,7 +577,7 @@ abstract class Chat {
 			while (--i >= 0) {
 				if (messages[i].serverId == readUpToId) break;
 			}
-			if (i > 0) _unreadCount = messages.length - (i + 1);
+			setUnreadCount(messages.length - (i + 1));
 			if (callback != null) callback();
 		});
 	}
