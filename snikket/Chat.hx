@@ -305,7 +305,7 @@ abstract class Chat {
 	}
 
 	/**
-		Unblock this chat so it will not open again
+		Unblock this chat so it will open again
 	**/
 	public function unblock(onServer: Bool): Void {
 		isBlocked = false;
