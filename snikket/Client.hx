@@ -34,6 +34,13 @@ using Lambda;
 import HaxeCBridge;
 #end
 
+enum abstract ChatMessageEvent(Int) {
+	var DeliveryEvent;
+	var CorrectionEvent;
+	var ReactionEvent;
+	var StatusEvent;
+}
+
 @:expose
 #if cpp
 @:build(HaxeCBridge.expose())
@@ -45,7 +52,7 @@ class Client extends EventEmitter {
 	**/
 	public var sendAvailable(null, default): Bool = true;
 	private var stream:GenericStream;
-	private var chatMessageHandlers: Array<(ChatMessage)->Void> = [];
+	private var chatMessageHandlers: Array<(ChatMessage, ChatMessageEvent)->Void> = [];
 	private var chatStateHandlers: Array<(String,String,Null<String>,UserState)->Void> = [];
 	@:allow(snikket)
 	private var jid(default,null):JID;
@@ -111,7 +118,7 @@ class Client extends EventEmitter {
 				accountId(),
 				data.id,
 				MessageDeliveredToServer,
-				notifyMessageHandlers
+				(m) -> notifyMessageHandlers(m, StatusEvent)
 			);
 			return EventHandled;
 		});
@@ -121,7 +128,7 @@ class Client extends EventEmitter {
 				accountId(),
 				data.id,
 				MessageFailedToSend,
-				notifyMessageHandlers
+				(m) -> notifyMessageHandlers(m, StatusEvent)
 			);
 			return EventHandled;
 		});
@@ -155,7 +162,7 @@ class Client extends EventEmitter {
 					if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
 					if (chat != null) {
 						final updateChat = (chatMessage) -> {
-							notifyMessageHandlers(chatMessage);
+							notifyMessageHandlers(chatMessage, chatMessage.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 							if (chatMessage.versions.length < 1 || chat.lastMessageId() == chatMessage.serverId || chat.lastMessageId() == chatMessage.localId) {
 								chat.setLastMessage(chatMessage);
 								if (chatMessage.versions.length < 1) chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
@@ -173,7 +180,7 @@ class Client extends EventEmitter {
 					for (hash in update.inlineHashReferences()) {
 						fetchMediaByHash([hash], [from]);
 					}
-					persistence.storeReaction(accountId(), update, (stored) -> if (stored != null) notifyMessageHandlers(stored));
+					persistence.storeReaction(accountId(), update, (stored) -> if (stored != null) notifyMessageHandlers(stored, ReactionEvent));
 				default:
 					// ignore
 			}
@@ -975,10 +982,16 @@ class Client extends EventEmitter {
 		Also fires when status of a ChatMessage changes,
 		when a ChatMessage is edited, or when a reaction is added
 
-		@param handler takes one argument, the ChatMessage
+		@param handler takes two arguments, the ChatMessage and ChatMessageEvent enum describing what happened
 	**/
-	public function addChatMessageListener(handler:ChatMessage->Void):Void {
+	#if cpp
+		// HaxeCBridge doesn't support "secondary" enums yet
+		public function addChatMessageListener(handler:(ChatMessage, Int)->Void):Void {
+			chatMessageHandlers.push((m, e) -> handler(m, cast e));
+	#else
+		public function addChatMessageListener(handler:(ChatMessage, ChatMessageEvent)->Void):Void {
 		chatMessageHandlers.push(handler);
+	#end
 	}
 
 	/**
@@ -1198,11 +1211,11 @@ class Client extends EventEmitter {
 	}
 
 	@:allow(snikket)
-	private function notifyMessageHandlers(message: ChatMessage) {
+	private function notifyMessageHandlers(message: ChatMessage, event: ChatMessageEvent) {
 		final chat = getChat(message.chatId());
 		if (chat != null && chat.isBlocked) return; // Don't notify blocked chats
 		for (handler in chatMessageHandlers) {
-			handler(message);
+			handler(message, event);
 		}
 	}
 

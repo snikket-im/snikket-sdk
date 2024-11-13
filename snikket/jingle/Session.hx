@@ -76,7 +76,7 @@ class IncomingProposedSession implements Session {
 		final event = new Stanza("ringing", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
 		final msg = mkCallMessage(from, client.jid, event);
 		client.storeMessage(msg, (stored) -> {
-			client.notifyMessageHandlers(stored);
+			client.notifyMessageHandlers(stored, CorrectionEvent);
 		});
 		client.trigger("call/ring", { chatId: from.asBare().asString(), session: this });
 	}
@@ -88,7 +88,7 @@ class IncomingProposedSession implements Session {
 		final event = new Stanza("reject", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
 		final msg = mkCallMessage(from, client.jid, event);
 		client.storeMessage(msg, (stored) -> {
-			client.notifyMessageHandlers(stored);
+			client.notifyMessageHandlers(stored, CorrectionEvent);
 		});
 		client.getDirectChat(from.asBare().asString(), false).jingleSessions.remove(sid);
 	}
@@ -122,7 +122,7 @@ class IncomingProposedSession implements Session {
 		final event = new Stanza("proceed", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
 		final msg = mkCallMessage(from, client.jid, event);
 		client.storeMessage(msg, (stored) -> {
-			client.notifyMessageHandlers(stored);
+			client.notifyMessageHandlers(stored, CorrectionEvent);
 			client.sendStanza(
 				new Stanza("message", { to: from.asString(), type: "chat", id: msg.versions[0].localId })
 					.addChild(event)
@@ -191,7 +191,7 @@ class OutgoingProposedSession implements Session {
 				.addChild(event)
 				.tag("store", { xmlns: "urn:xmpp:hints" });
 			client.sendStanza(stanza);
-			client.notifyMessageHandlers(stored);
+			client.notifyMessageHandlers(stored, DeliveryEvent);
 			client.trigger("call/ringing", { chatId: to.asBare().asString() });
 		});
 	}
@@ -209,7 +209,7 @@ class OutgoingProposedSession implements Session {
 					.addChild(event)
 					.tag("store", { xmlns: "urn:xmpp:hints" })
 			);
-			client.notifyMessageHandlers(stored);
+			client.notifyMessageHandlers(stored, CorrectionEvent);
 		});
 		client.getDirectChat(to.asBare().asString(), false).jingleSessions.remove(sid);
 	}
@@ -368,7 +368,7 @@ class InitiatedSession implements Session {
 		final event = new Stanza("finish", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
 		final msg = mkCallMessage(counterpart, client.jid, event);
 		client.storeMessage(msg, (stored) -> {
-			client.notifyMessageHandlers(stored);
+			client.notifyMessageHandlers(stored, CorrectionEvent);
 			client.sendStanza(
 				new Stanza("message", { to: counterpart.asString(), type: "chat", id: msg.versions[0].localId })
 					.addChild(event)

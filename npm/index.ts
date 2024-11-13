@@ -22,10 +22,11 @@ export import SerializedChat = snikket.SerializedChat;
 export import jingle = snikket.jingle;
 export const VERSION = snikket.Version.HUMAN;
 
-export import UiState = enums.UiState;
-export import MessageStatus = enums.MessageStatus;
+export import ChatMessageEvent = enums.ChatMessageEvent;
 export import MessageDirection = enums.MessageDirection;
+export import MessageStatus = enums.MessageStatus;
 export import MessageType = enums.MessageType;
+export import UiState = enums.UiState;
 export import UserState = enums.UserState;
 
 export namespace persistence {

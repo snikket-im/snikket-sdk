@@ -723,7 +723,7 @@ class DirectChat extends Chat {
 				setLastMessage(corrected);
 				client.trigger("chats/update", [this]);
 			}
-			client.notifyMessageHandlers(corrected);
+			client.notifyMessageHandlers(corrected, CorrectionEvent);
 		});
 	}
 
@@ -748,7 +748,7 @@ class DirectChat extends Chat {
 					}
 					setLastMessage(message);
 					client.trigger("chats/update", [this]);
-					client.notifyMessageHandlers(stored);
+					client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 				});
 			case ReactionUpdateStanza(update):
 				persistence.storeReaction(client.accountId(), update, (stored) -> {
@@ -756,7 +756,7 @@ class DirectChat extends Chat {
 						message.to = recipient;
 						client.sendStanza(message.asStanza());
 					}
-					if (stored != null) client.notifyMessageHandlers(stored);
+					if (stored != null) client.notifyMessageHandlers(stored, ReactionEvent);
 				});
 			default:
 				trace("Invalid message", fromStanza);
@@ -778,7 +778,7 @@ class DirectChat extends Chat {
 				stanza.attr.set("to", recipient);
 				client.sendStanza(stanza);
 			}
-			if (stored != null) client.notifyMessageHandlers(stored);
+			if (stored != null) client.notifyMessageHandlers(stored, ReactionEvent);
 		});
 	}
 
@@ -1152,7 +1152,7 @@ class Channel extends Chat {
 				setLastMessage(corrected);
 				client.trigger("chats/update", [this]);
 			}
-			client.notifyMessageHandlers(corrected);
+			client.notifyMessageHandlers(corrected, CorrectionEvent);
 		});
 	}
 
@@ -1177,12 +1177,12 @@ class Channel extends Chat {
 					client.sendStanza(stanza);
 					setLastMessage(stored);
 					client.trigger("chats/update", [this]);
-					client.notifyMessageHandlers(stored);
+					client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 				});
 			case ReactionUpdateStanza(update):
 				persistence.storeReaction(client.accountId(), update, (stored) -> {
 					client.sendStanza(stanza);
-					if (stored != null) client.notifyMessageHandlers(stored);
+					if (stored != null) client.notifyMessageHandlers(stored, ReactionEvent);
 				});
 			default:
 				trace("Invalid message", fromStanza);
@@ -1202,7 +1202,7 @@ class Channel extends Chat {
 			final stanza = update.asStanza();
 			stanza.attr.set("to", chatId);
 			client.sendStanza(stanza);
-			if (stored != null) client.notifyMessageHandlers(stored);
+			if (stored != null) client.notifyMessageHandlers(stored, ReactionEvent);
 		});
 	}
 
