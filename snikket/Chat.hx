@@ -1283,7 +1283,7 @@ class Channel extends Chat {
 	private function sendChatState(state: String, threadId: Null<String>) {
 		final stanza = new Stanza("message", {
 				id: ID.long(),
-				type: "chat",
+				type: "groupchat",
 				from: client.jid.asString(),
 				to: chatId
 			})
