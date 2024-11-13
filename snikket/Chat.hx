@@ -647,7 +647,7 @@ class DirectChat extends Chat {
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipantDetails(participantId:String): Participant {
 		final chat = client.getDirectChat(participantId);
-		return new Participant(chat.getDisplayName(), chat.getPhoto(), chat.getPlaceholder());
+		return new Participant(chat.getDisplayName(), chat.getPhoto(), chat.getPlaceholder(), chat.chatId == client.accountId());
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -1066,11 +1066,11 @@ class Channel extends Chat {
 	public function getParticipantDetails(participantId:String): Participant {
 		if (participantId == getFullJid().asString()) {
 			final chat = client.getDirectChat(client.accountId(), false);
-			return new Participant(client.displayName(), chat.getPhoto(), chat.getPlaceholder());
+			return new Participant(client.displayName(), chat.getPhoto(), chat.getPlaceholder(), true);
 		} else {
 			final nick = JID.parse(participantId).resource;
 			final placeholderUri = Color.defaultPhoto(participantId, nick == null ? " " : nick.charAt(0));
-			return new Participant(nick, null, placeholderUri);
+			return new Participant(nick, null, placeholderUri, false);
 		}
 	}
 
