@@ -251,8 +251,11 @@ class Client extends EventEmitter {
 					default: null;
 				};
 				if (userState != null) {
-					for (handler in chatStateHandlers) {
-						handler(message.senderId, message.chatId, message.threadId, userState);
+					final chat = getChat(from.asBare().asString());
+					if (chat == null || !chat.getParticipantDetails(message.senderId).isSelf) {
+						for (handler in chatStateHandlers) {
+							handler(message.senderId, message.chatId, message.threadId, userState);
+						}
 					}
 				}
 			}
