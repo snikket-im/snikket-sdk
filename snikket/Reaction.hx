@@ -9,11 +9,13 @@ class Reaction {
 	public final timestamp: String;
 	public final text: String;
 	public final key: String;
+	public final envelopeId: Null<String>;
 
-	public function new(senderId: String, timestamp: String, text: String, key: Null<String> = null) {
+	public function new(senderId: String, timestamp: String, text: String, envelopeId: Null<String> = null, key: Null<String> = null) {
 		this.senderId = senderId;
 		this.timestamp = timestamp;
 		this.text = text.replace("\u{fe0f}", "");
+		this.envelopeId = envelopeId;
 		this.key = key ?? this.text;
 	}
 
@@ -26,8 +28,8 @@ class Reaction {
 class CustomEmojiReaction extends Reaction {
 	public final uri: String;
 
-	public function new(senderId: String, timestamp: String, text: String, uri: String) {
-		super(senderId, timestamp, text, uri);
+	public function new(senderId: String, timestamp: String, text: String, uri: String, envelopeId: Null<String> = null) {
+		super(senderId, timestamp, text, envelopeId, uri);
 		this.uri = uri;
 	}
 

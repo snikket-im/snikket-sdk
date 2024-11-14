@@ -70,9 +70,9 @@ const browser = (dbname, tokenize, stemmer) => {
 
 	function hydrateObjectReaction(r) {
 		if (r.uri) {
-			return new snikket.CustomEmojiReaction(r.senderId, r.timestamp, r.text, r.uri);
+			return new snikket.CustomEmojiReaction(r.senderId, r.timestamp, r.text, r.uri, r.envelopeId);
 		} else {
-			return new snikket.Reaction(r.senderId, r.timestamp, r.text, r.key);
+			return new snikket.Reaction(r.senderId, r.timestamp, r.text, r.envelopeId, r.key);
 		}
 	}
 

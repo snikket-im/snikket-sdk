@@ -169,7 +169,7 @@ class Message {
 					msg.chatId(),
 					msg.senderId(),
 					timestamp,
-					reactions.map(text -> new Reaction(msg.senderId(), timestamp, text)),
+					reactions.map(text -> new Reaction(msg.senderId(), timestamp, text, msg.localId)),
 					EmojiReactions
 				)));
 			}
@@ -229,7 +229,7 @@ class Message {
 					msg.chatId(),
 					msg.senderId(),
 					timestamp,
-					[new Reaction(msg.senderId(), timestamp, text.trim())],
+					[new Reaction(msg.senderId(), timestamp, text.trim(), msg.localId)],
 					AppendReactions
 				)));
 			}
@@ -249,7 +249,7 @@ class Message {
 								msg.chatId(),
 								msg.senderId(),
 								timestamp,
-								[new CustomEmojiReaction(msg.senderId(), timestamp, els[0].attr.get("alt") ?? "", hash.serializeUri())],
+								[new CustomEmojiReaction(msg.senderId(), timestamp, els[0].attr.get("alt") ?? "", hash.serializeUri(), msg.localId)],
 								AppendReactions
 							)));
 						}

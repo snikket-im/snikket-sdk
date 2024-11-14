@@ -195,6 +195,7 @@ abstract class Chat {
 	**/
 	public function addReaction(m:ChatMessage, reaction:Reaction) {
 		final toSend = m.reply();
+		toSend.localId = ID.long();
 		reaction.render(
 			(text) -> {
 				toSend.text = text.replace("\u{fe0f}", "");
@@ -214,7 +215,7 @@ abstract class Chat {
 		@param m ChatMessage to remove the reaction from
 		@param reaction the emoji to remove
 	**/
-	abstract public function removeReaction(m:ChatMessage, reaction:String):Void;
+	abstract public function removeReaction(m:ChatMessage, reaction:Reaction):Void;
 
 	abstract private function sendChatState(state: String, threadId: Null<String>):Void;
 
@@ -725,7 +726,7 @@ class DirectChat extends Chat {
 		message.versions = [toSend]; // This is a correction
 		message.localId = localId;
 		client.storeMessage(message, (corrected) -> {
-			toSend.versions = corrected.versions;
+			toSend.versions = corrected.localId == localId ? corrected.versions : [message];
 			for (recipient in message.recipients) {
 				message.to = recipient;
 				client.sendStanza(toSend.asStanza());
@@ -776,11 +777,21 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function removeReaction(m:ChatMessage, reaction:String) {
+	public function removeReaction(m:ChatMessage, reaction:Reaction) {
+		if (Std.is(reaction, CustomEmojiReaction)) {
+			if (reaction.envelopeId == null) throw "Cannot remove custom emoji reaction without envelopeId";
+			final correct = m.reply();
+			correct.localId = ID.long();
+			correct.setHtml("");
+			correct.text = null;
+			correctMessage(reaction.envelopeId, correct);
+			return;
+		}
+
 		// NOTE: doing it this way means no fallback behaviour
 		final reactions = [];
 		for (areaction => reacts in m.reactions) {
-			if (areaction != reaction) {
+			if (areaction != reaction.key) {
 				final react = reacts.find(r -> r.senderId == client.accountId());
 				if (react != null && !Std.is(react, CustomEmojiReaction)) {
 					reactions.push(react);
@@ -1162,7 +1173,7 @@ class Channel extends Chat {
 		message.versions = [toSend]; // This is a correction
 		message.localId = localId;
 		client.storeMessage(message, (corrected) -> {
-			toSend.versions = corrected.versions;
+			toSend.versions = corrected.localId == localId ? corrected.versions : [message];
 			client.sendStanza(toSend.asStanza());
 			if (localId == lastMessage?.localId) {
 				setLastMessage(corrected);
@@ -1207,11 +1218,21 @@ class Channel extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function removeReaction(m:ChatMessage, reaction:String) {
+	public function removeReaction(m:ChatMessage, reaction:Reaction) {
+		if (Std.is(reaction, CustomEmojiReaction)) {
+			if (reaction.envelopeId == null) throw "Cannot remove custom emoji reaction without envelopeId";
+			final correct = m.reply();
+			correct.localId = ID.long();
+			correct.setHtml("");
+			correct.text = null;
+			correctMessage(reaction.envelopeId, correct);
+			return;
+		}
+
 		// NOTE: doing it this way means no fallback behaviour
 		final reactions = [];
 		for (areaction => reacts in m.reactions) {
-			if (areaction != reaction) {
+			if (areaction != reaction.key) {
 				final react = reacts.find(r -> r.senderId == getFullJid().asString());
 				if (react != null && !Std.is(react, CustomEmojiReaction)) reactions.push(react);
 			}

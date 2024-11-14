@@ -412,43 +412,44 @@ class ChatMessage {
 
 		final replyToM = replyToMessage;
 		if (replyToM != null) {
-			if (body == null) body = "";
-			final lines = replyToM.text?.split("\n") ?? [];
-			var quoteText = "";
-			for (line in lines) {
-				if (!~/^(?:> ?){3,}/.match(line)) {
-					if (line.charAt(0) == ">") {
-						quoteText += ">" + line + "\n";
-					} else {
-						quoteText += "> " + line + "\n";
-					}
-				}
-			}
-			final reaction = EmojiUtil.isEmoji(StringTools.trim(body)) ? StringTools.trim(body) : null;
-			body = quoteText + body;
 			final replyId = replyToM.getReplyId();
-			if (replyId != null) {
-				final codepoints = StringUtil.codepointArray(quoteText);
-				if (reaction != null) {
-					final addedReactions: Map<String, Bool> = [];
-					stanza.tag("reactions", { xmlns: "urn:xmpp:reactions:0", id: replyId });
-					stanza.textTag("reaction", reaction);
-					addedReactions[reaction] = true;
-
-					for (areaction => reactions in replyToM.reactions) {
-						if (!(addedReactions[areaction] ?? false) && reactions.find(r -> r.senderId == senderId()) != null) {
-							addedReactions[areaction] = true;
-							stanza.textTag("reaction", areaction);
+			if (body != null) {
+				final lines = replyToM.text?.split("\n") ?? [];
+				var quoteText = "";
+				for (line in lines) {
+					if (!~/^(?:> ?){3,}/.match(line)) {
+						if (line.charAt(0) == ">") {
+							quoteText += ">" + line + "\n";
+						} else {
+							quoteText += "> " + line + "\n";
 						}
 					}
-					stanza.up();
-					stanza.tag("fallback", { xmlns: "urn:xmpp:fallback:0", "for": "urn:xmpp:reactions:0" })
-						.tag("body").up().up();
 				}
-				stanza.tag("fallback", { xmlns: "urn:xmpp:fallback:0", "for": "urn:xmpp:reply:0" })
-						.tag("body", { start: "0", end: Std.string(codepoints.length) }).up().up();
-				stanza.tag("reply", { xmlns: "urn:xmpp:reply:0", to: replyToM.from?.asString(), id: replyId }).up();
+				final reaction = EmojiUtil.isEmoji(StringTools.trim(body)) ? StringTools.trim(body) : null;
+				body = quoteText + body;
+				if (replyId != null) {
+					final codepoints = StringUtil.codepointArray(quoteText);
+					if (reaction != null) {
+						final addedReactions: Map<String, Bool> = [];
+						stanza.tag("reactions", { xmlns: "urn:xmpp:reactions:0", id: replyId });
+						stanza.textTag("reaction", reaction);
+						addedReactions[reaction] = true;
+
+						for (areaction => reactions in replyToM.reactions) {
+							if (!(addedReactions[areaction] ?? false) && reactions.find(r -> r.senderId == senderId()) != null) {
+								addedReactions[areaction] = true;
+								stanza.textTag("reaction", areaction);
+							}
+						}
+						stanza.up();
+						stanza.tag("fallback", { xmlns: "urn:xmpp:fallback:0", "for": "urn:xmpp:reactions:0" })
+								.tag("body").up().up();
+					}
+					stanza.tag("fallback", { xmlns: "urn:xmpp:fallback:0", "for": "urn:xmpp:reply:0" })
+							.tag("body", { start: "0", end: Std.string(codepoints.length) }).up().up();
+				}
 			}
+			if (replyId != null) stanza.tag("reply", { xmlns: "urn:xmpp:reply:0", to: replyToM.from?.asString(), id: replyId }).up();
 		}
 
 		for (attachment in attachments) {
