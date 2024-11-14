@@ -26,8 +26,7 @@ class TextNode implements NodeInterface {
 	}
 
 	public function serialize():String {
-		// NOTE: using STringTools.htmlEscape breaks things if this is one half of a surrogate pair in an adjacent cdata
-		return StringTools.replace(StringTools.replace(StringTools.replace(content, "&", "&amp;"), "<", "&lt;"), ">", "&gt;");
+		return Util.xmlEscape(content);
 	}
 
 	public function clone():TextNode {

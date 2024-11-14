@@ -61,6 +61,11 @@ class Hash {
 	}
 
 	@:allow(snikket)
+	private function bobUri() {
+		return "cid:" + (algorithm == "sha-1" ? "sha1" : algorithm.urlEncode()) + "+" + toHex() + "@bob.xmpp.org";
+	}
+
+	@:allow(snikket)
 	private function serializeUri() {
 		return "ni:///" + algorithm.urlEncode() + ";" + toBase64Url();
 	}

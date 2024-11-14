@@ -21,6 +21,11 @@ function downcast<T, S>(value: T, c: Class<S>): Null<S> {
 	return cast Std.downcast(cast value, cast c);
 }
 
+function xmlEscape(s: String) {
+	// NOTE: using STringTools.htmlEscape breaks things if this is one half of a surrogate pair in an adjacent cdata
+	return StringTools.replace(StringTools.replace(StringTools.replace(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;");
+}
+
 macro function getGitVersion():haxe.macro.Expr.ExprOf<String> {
 	#if !display
 	var process = new sys.io.Process('git', ['describe', '--always']);

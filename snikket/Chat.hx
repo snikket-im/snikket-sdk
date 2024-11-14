@@ -15,6 +15,7 @@ import snikket.jingle.Session;
 import snikket.queries.DiscoInfoGet;
 import snikket.queries.MAMQuery;
 using Lambda;
+using StringTools;
 
 #if cpp
 import HaxeCBridge;
@@ -192,9 +193,18 @@ abstract class Chat {
 		@param m ChatMessage to react to
 		@param reaction emoji of the reaction
 	**/
-	public function addReaction(m:ChatMessage, reaction:String) {
+	public function addReaction(m:ChatMessage, reaction:Reaction) {
 		final toSend = m.reply();
-		toSend.text = reaction;
+		reaction.render(
+			(text) -> {
+				toSend.text = text.replace("\u{fe0f}", "");
+				return;
+			},
+			(text, uri) -> {
+				final hash = Hash.fromUri(uri);
+				toSend.setHtml('<img alt="' + Util.xmlEscape(text) + '" src="' + Util.xmlEscape(hash == null ? uri : hash.bobUri()) + '" />');
+			}
+		);
 		sendMessage(toSend);
 	}
 

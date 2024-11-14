@@ -1,5 +1,7 @@
 package snikket;
 
+using StringTools;
+
 @:nullSafety(Strict)
 @:expose
 class Reaction {
@@ -11,8 +13,8 @@ class Reaction {
 	public function new(senderId: String, timestamp: String, text: String, key: Null<String> = null) {
 		this.senderId = senderId;
 		this.timestamp = timestamp;
-		this.text = text;
-		this.key = key ?? text;
+		this.text = text.replace("\u{fe0f}", "");
+		this.key = key ?? this.text;
 	}
 
 	public function render<T>(forText: (String) -> T, forImage: (String, String) -> T) {
