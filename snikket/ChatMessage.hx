@@ -113,7 +113,7 @@ class ChatMessage {
 		Map of reactions to this message
 	**/
 	@HaxeCBridge.noemit
-	public var reactions: Map<String, Array<String>> = [];
+	public var reactions: Map<String, Array<Reaction>> = [];
 
 	/**
 		Body text of this message or NULL
@@ -435,8 +435,8 @@ class ChatMessage {
 					stanza.textTag("reaction", reaction);
 					addedReactions[reaction] = true;
 
-					for (areaction => senders in replyToM.reactions) {
-						if (!(addedReactions[areaction] ?? false) && senders.contains(senderId())) {
+					for (areaction => reactions in replyToM.reactions) {
+						if (!(addedReactions[areaction] ?? false) && reactions.find(r -> r.senderId == senderId()) != null) {
 							addedReactions[areaction] = true;
 							stanza.textTag("reaction", areaction);
 						}

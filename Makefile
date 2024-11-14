@@ -16,6 +16,7 @@ npm/snikket-browser.js:
 	sed -i 's/snikket\.MessageType/enums.MessageType/g' npm/snikket-browser.d.ts
 	sed -i 's/snikket\.UserState/enums.UserState/g' npm/snikket-browser.d.ts
 	sed -i 's/snikket\.ChatMessageEvent/enums.ChatMessageEvent/g' npm/snikket-browser.d.ts
+	sed -i 's/snikket\.ReactionUpdateKind/enums.ReactionUpdateKind/g' npm/snikket-browser.d.ts
 	sed -i 's/_Push.Push_Fields_/Push/g' npm/snikket-browser.d.ts
 	sed -i '1ivar exports = {};' npm/snikket-browser.js
 	echo "export const snikket = exports.snikket;" >> npm/snikket-browser.js
@@ -29,6 +30,7 @@ npm/snikket.js:
 	sed -i 's/snikket\.MessageType/enums.MessageType/g' npm/snikket.d.ts
 	sed -i 's/snikket\.UserState/enums.UserState/g' npm/snikket.d.ts
 	sed -i 's/snikket\.ChatMessageEvent/enums.ChatMessageEvent/g' npm/snikket.d.ts
+	sed -i 's/snikket\.ReactionUpdateKind/enums.ReactionUpdateKind/g' npm/snikket.d.ts
 	sed -i 's/_Push.Push_Fields_/Push/g' npm/snikket.d.ts
 	sed -i '1iimport { createRequire } from "module";' npm/snikket.js
 	sed -i '1iglobal.require = createRequire(import.meta.url);' npm/snikket.js

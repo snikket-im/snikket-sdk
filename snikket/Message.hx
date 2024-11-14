@@ -1,5 +1,6 @@
 package snikket;
 
+import snikket.Reaction;
 using Lambda;
 using StringTools;
 
@@ -166,9 +167,10 @@ class Message {
 					isGroupchat ? msg.chatId() : null,
 					isGroupchat ? null : reactionId,
 					msg.chatId(),
-					timestamp,
 					msg.senderId(),
-					reactions
+					timestamp,
+					reactions.map(text -> new Reaction(msg.senderId(), timestamp, text)),
+					EmojiReactions
 				)));
 			}
 		}
@@ -225,10 +227,10 @@ class Message {
 					isGroupchat ? msg.chatId() : null,
 					isGroupchat ? null : replyToID,
 					msg.chatId(),
-					timestamp,
 					msg.senderId(),
-					[text.trim()],
-					true
+					timestamp,
+					[new Reaction(msg.senderId(), timestamp, text.trim())],
+					AppendReactions
 				)));
 			}
 
@@ -245,10 +247,10 @@ class Message {
 								isGroupchat ? msg.chatId() : null,
 								isGroupchat ? null : replyToID,
 								msg.chatId(),
-								timestamp,
 								msg.senderId(),
-								[hash.serializeUri()],
-								true
+								timestamp,
+								[new CustomEmojiReaction(msg.senderId(), timestamp, els[0].attr.get("alt") ?? "", hash.serializeUri())],
+								AppendReactions
 							)));
 						}
 					}

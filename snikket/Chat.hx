@@ -9,6 +9,7 @@ import snikket.GenericStream;
 import snikket.ID;
 import snikket.Message;
 import snikket.MessageSync;
+import snikket.Reaction;
 import snikket.jingle.PeerConnection;
 import snikket.jingle.Session;
 import snikket.queries.DiscoInfoGet;
@@ -768,10 +769,15 @@ class DirectChat extends Chat {
 	public function removeReaction(m:ChatMessage, reaction:String) {
 		// NOTE: doing it this way means no fallback behaviour
 		final reactions = [];
-		for (areaction => senders in m.reactions) {
-			if (areaction != reaction && senders.contains(client.accountId())) reactions.push(areaction);
+		for (areaction => reacts in m.reactions) {
+			if (areaction != reaction) {
+				final react = reacts.find(r -> r.senderId == client.accountId());
+				if (react != null && !Std.is(react, CustomEmojiReaction)) {
+					reactions.push(react);
+				}
+			}
 		}
-		final update = new ReactionUpdate(ID.long(), null, null, m.localId, m.chatId(), Date.format(std.Date.now()), client.accountId(), reactions);
+		final update = new ReactionUpdate(ID.long(), null, null, m.localId, m.chatId(), client.accountId(), Date.format(std.Date.now()), reactions, EmojiReactions);
 		persistence.storeReaction(client.accountId(), update, (stored) -> {
 			final stanza = update.asStanza();
 			for (recipient in getParticipants()) {
@@ -1194,10 +1200,13 @@ class Channel extends Chat {
 	public function removeReaction(m:ChatMessage, reaction:String) {
 		// NOTE: doing it this way means no fallback behaviour
 		final reactions = [];
-		for (areaction => senders in m.reactions) {
-			if (areaction != reaction && senders.contains(getFullJid().asString())) reactions.push(areaction);
+		for (areaction => reacts in m.reactions) {
+			if (areaction != reaction) {
+				final react = reacts.find(r -> r.senderId == getFullJid().asString());
+				if (react != null && !Std.is(react, CustomEmojiReaction)) reactions.push(react);
+			}
 		}
-		final update = new ReactionUpdate(ID.long(), m.serverId, m.chatId(), null, m.chatId(), Date.format(std.Date.now()), client.accountId(), reactions);
+		final update = new ReactionUpdate(ID.long(), m.serverId, m.chatId(), null, m.chatId(), getFullJid().asString(), Date.format(std.Date.now()), reactions, EmojiReactions);
 		persistence.storeReaction(client.accountId(), update, (stored) -> {
 			final stanza = update.asStanza();
 			stanza.attr.set("to", chatId);

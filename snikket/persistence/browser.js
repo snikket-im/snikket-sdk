@@ -60,6 +60,36 @@ const browser = (dbname, tokenize, stemmer) => {
 		});
 	}
 
+	function hydrateStringReaction(r, senderId, timestamp) {
+		if (r.startsWith("ni://")){
+			return new snikket.CustomEmojiReaction(senderId, timestamp, "", r);
+		} else {
+			return new snikket.Reaction(senderId, timestamp, r);
+		}
+	}
+
+	function hydrateObjectReaction(r) {
+		if (r.uri) {
+			return new snikket.CustomEmojiReaction(r.senderId, r.timestamp, r.text, r.uri);
+		} else {
+			return new snikket.Reaction(r.senderId, r.timestamp, r.text, r.key);
+		}
+	}
+
+	function hydrateReactionsArray(reacts, sernderId, timestamp) {
+		if (!reacts) return reacts;
+		return reacts.map(r => typeof r === "string" ? hydrateStringReaction(r, senderId, timestamp) : hydrateObjectReaction(r));
+	}
+
+	function hydrateReactions(map, timestamp) {
+		if (!map) return new Map();
+		const newMap = new Map();
+		for (const [k, reacts] of map) {
+			newMap.set(k, reacts.map(reactOrSender => typeof reactOrSender === "string" ? hydrateStringReaction(k, reactOrSender, timestamp) : hydrateObjectReaction(reactOrSender)));
+		}
+		return newMap;
+	}
+
 	function hydrateMessageSync(value) {
 		if (!value) return null;
 
@@ -82,7 +112,7 @@ const browser = (dbname, tokenize, stemmer) => {
 		message.replyTo = value.replyTo.map((r) => snikket.JID.parse(r));
 		message.threadId = value.threadId;
 		message.attachments = value.attachments;
-		message.reactions = value.reactions;
+		message.reactions = hydrateReactions(value.reactions, message.timestamp);
 		message.text = value.text;
 		message.lang = value.lang;
 		message.type = value.type || (value.isGroupchat || value.groupchat ? enums.MessageType.Channel : enums.MessageType.Chat);
@@ -152,17 +182,16 @@ const browser = (dbname, tokenize, stemmer) => {
 	}
 
 	function setReactions(reactionsMap, sender, reactions) {
-		for (const [reaction, senders] of reactionsMap) {
-			if (!reactions.includes(reaction) && senders.includes(sender)) {
-				if (senders.length === 1) {
-					reactionsMap.delete(reaction);
-				} else {
-					reactionsMap.set(reaction, senders.filter((asender) => asender != sender));
-				}
+		for (const [reaction, reacts] of reactionsMap) {
+			const newReacts = reacts.filter((react) => react.senderId !== sender);
+			if (newReacts.length < 1) {
+				reactionsMap.delete(reaction);
+			} else {
+				reactionsMap.set(reaction, newReacts);
 			}
 		}
 		for (const reaction of reactions) {
-			reactionsMap.set(reaction, [...new Set([...reactionsMap.get(reaction) || [], sender])].sort());
+			reactionsMap.set(reaction.key, [...reactionsMap.get(reaction.key) || [], reaction]);
 		}
 		return reactionsMap;
 	}
@@ -317,8 +346,8 @@ const browser = (dbname, tokenize, stemmer) => {
 					[account, update.chatId, update.serverId || update.localId, update.senderId],
 					[account, update.chatId, update.serverId || update.localId, update.senderId, []]
 				), "prev"));
-				const reactions = update.getReactions(lastFromSender?.value?.reactions);
-				await promisifyRequest(reactionStore.put({...update, reactions: reactions, append: (update.append ? update.reactions : null), messageId: update.serverId || update.localId, timestamp: new Date(update.timestamp), account: account}));
+				const reactions = update.getReactions(hydrateReactionsArray(lastFromSender?.value?.reactions));
+				await promisifyRequest(reactionStore.put({...update, reactions: reactions, append: (update.kind === enums.ReactionUpdateKind.AppendReactions ? update.reactions : null), messageId: update.serverId || update.localId, timestamp: new Date(update.timestamp), account: account}));
 				if (!result || !result.value) return null;
 				if (lastFromSender?.value && lastFromSender.value.timestamp > new Date(update.timestamp)) return;
 				const message = result.value;
@@ -346,8 +375,14 @@ const browser = (dbname, tokenize, stemmer) => {
 				]).then(([result, reactionResult]) => {
 					if (reactionResult?.value?.append && message.html().trim() == "") {
 						this.getMessage(account, message.chatId(), reactionResult.value.serverId, reactionResult.value.localId, (reactToMessage) => {
-							const reactions = (reactToMessage ? Array.from(reactToMessage.reactions.keys()) : []).filter((r) => !reactionResult.value.append.includes(r));
-							this.storeReaction(account, new snikket.ReactionUpdate(message.localId, reactionResult.value.serverId, reactionResult.value.serverIdBy, reactionResult.value.localId, message.chatId(), message.timestamp, message.senderId(), reactions), callback);
+							const previouslyAppended = hydrateReactionsArray(reactionResult.value.append, reactionResult.value.senderId, reactionResult.value.timestamp).map(r => r.key);
+							const reactions = [];
+							for (const [k, reacts] of reactToMessage.reactions) {
+								for (const react of reacts) {
+									if (react.senderId === message.senderId() && !previouslyAppended.includes(k)) reactions.push(react);
+								}
+							}
+							this.storeReaction(account, new snikket.ReactionUpdate(message.localId, reactionResult.value.serverId, reactionResult.value.serverIdBy, reactionResult.value.localId, message.chatId(), message.senderId(), message.timestamp, reactions, enums.ReactionUpdateKind.CompleteReactions), callback);
 						});
 						return true;
 					} else if (result?.value && !message.isIncoming() && result?.value.direction === enums.MessageDirection.MessageSent && message.versions.length < 1) {
@@ -367,7 +402,7 @@ const browser = (dbname, tokenize, stemmer) => {
 							if (event.target.result && event.target.result.value) {
 								const time = reactionTimes.get(event.target.result.senderId);
 								if (!time || time < event.target.result.value.timestamp) {
-									setReactions(reactions, event.target.result.value.senderId, event.target.result.value.reactions);
+									setReactions(reactions, event.target.result.value.senderId, hydrateReactionsArray(event.target.result.value.reactions, event.target.result.senderId, event.target.result.timestamp));
 									reactionTimes.set(event.target.result.value.senderId, event.target.result.value.timestamp);
 								}
 								event.target.result.continue();
