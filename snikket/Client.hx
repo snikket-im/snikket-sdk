@@ -135,6 +135,12 @@ class Client extends EventEmitter {
 
 		stream.on("message", function(event) {
 			final stanza:Stanza = event.stanza;
+
+			if (stanza.getChild("result", "urn:xmpp:mam:2") != null) {
+				// We don't want to process MAM messages here
+				return EventUnhandled;
+			}
+
 			final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
 
 			if (stanza.attr.get("type") == "error" && from != null) {
