@@ -76,7 +76,7 @@ const browser = (dbname, tokenize, stemmer) => {
 		}
 	}
 
-	function hydrateReactionsArray(reacts, sernderId, timestamp) {
+	function hydrateReactionsArray(reacts, senderId, timestamp) {
 		if (!reacts) return reacts;
 		return reacts.map(r => typeof r === "string" ? hydrateStringReaction(r, senderId, timestamp) : hydrateObjectReaction(r));
 	}
