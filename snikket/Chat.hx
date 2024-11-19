@@ -972,7 +972,7 @@ class Channel extends Chat {
 		}
 		super.setPresence(resource, presence);
 		final tripleThree = presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "333");
-		if (!inSync && oneTen != null) {
+		if (!inSync && sync == null && oneTen != null) {
 			persistence.lastId(client.accountId(), chatId, doSync);
 		}
 		if (oneTen != null && tripleThree != null) {
