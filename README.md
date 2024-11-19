@@ -4,20 +4,19 @@ https://github.com/snikket-im/snikket-sdk
 
 Working towards simplicity in developing Snikket-compatible apps.
 
-  haxelib setup ~/haxe
-  haxelib --quiet git jsImport https://github.com/back2dos/jsImport
-  haxelib --quiet install datetime
-  haxelib --quiet install haxe-strings
-  haxelib --quiet install hsluv
-  haxelib --quiet install tink_http
-  haxelib --quiet install sha
-  haxelib --quiet install thenshim
-  haxelib --quiet install HtmlParser
-  haxelib --quiet install hxnodejs
-  haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
-  haxelib --quiet install utest
-  haxelib --quiet git hxcpp https://github.com/HaxeFoundation/hxcpp
-  cd ~/haxe/hxcpp/git/tools/hxcpp
+    haxelib git jsImport https://github.com/back2dos/jsImport
+    haxelib install datetime
+    haxelib install haxe-strings
+    haxelib install hsluv
+    haxelib install tink_http
+    haxelib install sha
+    haxelib install thenshim
+    haxelib install HtmlParser
+    haxelib install hxnodejs
+    haxelib git hxtsdgen https://github.com/singpolyma/hxtsdgen
+    haxelib install utest
+    haxelib git hxcpp https://github.com/HaxeFoundation/hxcpp
+    cd ~/haxe/hxcpp/git/tools/hxcpp
     haxe compile.hxml
     make
 
