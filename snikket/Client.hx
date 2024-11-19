@@ -109,7 +109,8 @@ class Client extends EventEmitter {
 		});
 
 		stream.on("sm/update", (data) -> {
-			persistence.storeStreamManagement(accountId(), data.sm);
+			final anySyncHappening = chats.exists(chat -> chat.syncing());
+			persistence.storeStreamManagement(accountId(), anySyncHappening ? null : data.sm);
 			return EventHandled;
 		});
 
