@@ -106,7 +106,7 @@ class Dummy implements Persistence {
 	public function removeAccount(accountId:String, completely:Bool) { }
 
 	@HaxeCBridge.noemit
-	public function storeStreamManagement(accountId:String, sm:BytesData) { }
+	public function storeStreamManagement(accountId:String, sm:Null<BytesData>) { }
 
 	@HaxeCBridge.noemit
 	public function getStreamManagement(accountId:String, callback: (Null<BytesData>)->Void) {

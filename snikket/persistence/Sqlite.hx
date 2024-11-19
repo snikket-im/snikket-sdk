@@ -447,7 +447,7 @@ class Sqlite implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeStreamManagement(accountId:String, sm:BytesData) {
+	public function storeStreamManagement(accountId:String, sm:Null<BytesData>) {
 		// TODO
 	}
 

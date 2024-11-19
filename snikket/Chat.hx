@@ -892,6 +892,8 @@ class Channel extends Chat {
 	@:allow(snikket)
 	private var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"]);
 	private var inSync = true;
+	private var sync = null;
+	private var forceLive = false;
 
 	@:allow(snikket)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions = null, readUpToId = null, readUpToBy = null, ?disco: Caps) {
@@ -912,16 +914,21 @@ class Channel extends Chat {
 			return;
 		}
 
-		stream.sendIq(
-			new Stanza("iq", { type: "get", to: getFullJid().asString() })
-				.tag("ping", { xmlns: "urn:xmpp:ping" }).up(),
-			(response) -> {
-				if (response.attr.get("type") == "error") {
-					final err = response.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
-					if (err.name == "service-unavailable" || err.name == "feature-not-implemented") return checkRename(); // Error, success!
-					if (err.name == "remote-server-not-found" || err.name == "remote-server-timeout") return checkRename(); // Timeout, retry later
-					if (err.name == "item-not-found") return checkRename(); // Nick was changed?
-					(shouldRefreshDisco ? refreshDisco : (cb)->cb())(() -> {
+		(refresh ? refreshDisco : (cb)->cb())(() -> {
+			if (!disco.features.contains("http://jabber.org/protocol/muc")) {
+				// Not a MUC, owhat kind of channel is this?
+				forceLive = true;
+				return;
+			}
+			stream.sendIq(
+				new Stanza("iq", { type: "get", to: getFullJid().asString() })
+					.tag("ping", { xmlns: "urn:xmpp:ping" }).up(),
+				(response) -> {
+					if (response.attr.get("type") == "error") {
+						final err = response.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
+						if (err.name == "service-unavailable" || err.name == "feature-not-implemented") return checkRename(); // Error, success!
+						if (err.name == "remote-server-not-found" || err.name == "remote-server-timeout") return checkRename(); // Timeout, retry later
+						if (err.name == "item-not-found") return checkRename(); // Nick was changed?
 						presence = []; // About to ask for a fresh set
 						inSync = false;
 						client.trigger("chats/update", [this]);
@@ -936,12 +943,14 @@ class Channel extends Chat {
 								return stanza;
 							}
 						);
-					});
-				} else {
-					checkRename();
+					} else {
+						inSync = false;
+						persistence.lastId(client.accountId(), chatId, doSync);
+						checkRename();
+					}
 				}
-			}
-		);
+			);
+		});
 	}
 
 	private function checkRename() {
@@ -967,15 +976,21 @@ class Channel extends Chat {
 			persistence.lastId(client.accountId(), chatId, doSync);
 		}
 		if (oneTen != null && tripleThree != null) {
-			selfPing();
+			selfPing(true);
 		}
 	}
 
 	private function doSync(lastId: Null<String>) {
+		if (!disco.features.contains("urn:xmpp:mam:2")) {
+			inSync = true;
+			return;
+		}
+		if (sync != null) return;
+
 		var threeDaysAgo = Date.format(
 			DateTools.delta(std.Date.now(), DateTools.days(-3))
 		);
-		var sync = new MessageSync(
+		sync = new MessageSync(
 			client,
 			stream,
 			lastId == null ? { startTime: threeDaysAgo } : { page: { after: lastId } },
@@ -1008,6 +1023,7 @@ class Channel extends Chat {
 					sync.fetchNext();
 				} else {
 					inSync = true;
+					sync = null;
 					final lastFromSync = chatMessages[chatMessages.length - 1];
 					if (lastFromSync != null && (lastMessageTimestamp() == null || Reflect.compare(lastFromSync.timestamp, lastMessageTimestamp()) > 0)) {
 						setLastMessage(lastFromSync);
@@ -1024,9 +1040,12 @@ class Channel extends Chat {
 			});
 		});
 		sync.onError((stanza) -> {
+			sync = null;
 			if (lastId != null) {
 				// Gap in sync, out newest message has expired from server
 				doSync(null);
+			} else {
+				trace("SYNC failed", chatId, stanza);
 			}
 		});
 		sync.fetchNext();
@@ -1054,6 +1073,8 @@ class Channel extends Chat {
 
 	@:allow(snikket)
 	override private function livePresence() {
+		if (forceLive) return true;
+
 		for (nick => p in presence) {
 			for (status in p?.mucUser?.allTags("status") ?? []) {
 				if (status.attr.get("code") == "110") {

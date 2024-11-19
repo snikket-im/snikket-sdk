@@ -246,7 +246,7 @@ class Stanza implements NodeInterface {
 		return allText().join("");
 	}
 
-	public function find(path:String):Node {
+	public function find(path:String): Null<Node> {
 		var pos = 0;
 		var len = path.length;
 		var cursor = this;

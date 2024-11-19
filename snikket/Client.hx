@@ -109,7 +109,7 @@ class Client extends EventEmitter {
 		});
 
 		stream.on("sm/update", (data) -> {
-			final anySyncHappening = chats.exists(chat -> chat.syncing());
+			final anySyncHappening = chats.exists(chat -> chat.uiState != Closed && chat.syncing());
 			persistence.storeStreamManagement(accountId(), anySyncHappening ? null : data.sm);
 			return EventHandled;
 		});
@@ -147,7 +147,7 @@ class Client extends EventEmitter {
 			if (stanza.attr.get("type") == "error" && from != null) {
 				final chat = getChat(from.asBare().asString());
 				final channel = Std.downcast(chat, Channel);
-				if (channel != null) channel.selfPing();
+				if (channel != null) channel.selfPing(true);
 			}
 
 			var fwd = null;
@@ -650,7 +650,7 @@ class Client extends EventEmitter {
 		if (fn == null || fn == "" || fn == displayName()) return false;
 		_displayName = fn;
 		persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, fn, null);
-		pingAllChannels();
+		pingAllChannels(false);
 		return true;
 	}
 
@@ -706,7 +706,7 @@ class Client extends EventEmitter {
 					// Set self to online
 					if (sendAvailable) {
 						sendPresence();
-						pingAllChannels();
+						pingAllChannels(true);
 					}
 					this.trigger("status/online", {});
 					trace("SYNC: done");
@@ -854,7 +854,7 @@ class Client extends EventEmitter {
 				chats = chats.filter((chat) -> chat.chatId != availableChat.chatId);
 			} else {
 				if (existingChat.uiState == Closed) existingChat.uiState = Open;
-				channel?.selfPing();
+				channel?.selfPing(true);
 				this.trigger("chats/update", [existingChat]);
 				return existingChat;
 			}
@@ -1410,10 +1410,10 @@ class Client extends EventEmitter {
 		sync.fetchNext();
 	}
 
-	private function pingAllChannels() {
+	private function pingAllChannels(refresh: Bool) {
 		for (chat in getChats()) {
 			final channel = Std.downcast(chat, Channel);
-			channel?.selfPing(channel?.disco == null);
+			channel?.selfPing(refresh || channel?.disco == null);
 		}
 	}
 }
