@@ -1009,16 +1009,19 @@ class Channel extends Chat {
 						promises.push(new thenshim.Promise((resolve, reject) -> {
 							client.storeMessage(message, resolve);
 						}));
-						if (message.chatId() == chatId) chatMessages.push(message);
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {
-							persistence.storeReaction(client.accountId(), update, resolve);
+							persistence.storeReaction(client.accountId(), update, (_) -> resolve(null));
 						}));
 					default:
 						// ignore
 				}
 			}
-			thenshim.PromiseTools.all(promises).then((_) -> {
+			thenshim.PromiseTools.all(promises).then((stored) -> {
+				for (message in stored) {
+					if (message != null && message.chatId() == chatId) chatMessages.push(message);
+					if (chatMessages.length > 1000) chatMessages.shift(); // Save some RAM
+				}
 				if (sync.hasMore()) {
 					sync.fetchNext();
 				} else {
@@ -1029,11 +1032,20 @@ class Channel extends Chat {
 						setLastMessage(lastFromSync);
 						client.sortChats();
 					}
-					final readIndex = chatMessages.findIndex((m) -> m.serverId == readUpTo());
+					final serverIds: Map<String, Bool> = [];
+					final dedupedMessages = [];
+					chatMessages.reverse();
+					for (m in chatMessages) {
+						if (!(serverIds[m.serverId] ?? false)) {
+							dedupedMessages.unshift(m);
+							serverIds[m.serverId] = true;
+						}
+					}
+					final readIndex = dedupedMessages.findIndex((m) -> m.serverId == readUpTo());
 					if (readIndex < 0) {
-						setUnreadCount(unreadCount() + chatMessages.length);
+						setUnreadCount(unreadCount() + dedupedMessages.length);
 					} else {
-						setUnreadCount(chatMessages.length - readIndex - 1);
+						setUnreadCount(dedupedMessages.length - readIndex - 1);
 					}
 					client.trigger("chats/update", [this]);
 				}
