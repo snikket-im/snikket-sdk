@@ -902,7 +902,7 @@ class Channel extends Chat {
 	}
 
 	@:allow(snikket)
-	private function selfPing(shouldRefreshDisco = true) {
+	private function selfPing(refresh: Bool) {
 		if (uiState == Closed){
 			client.sendPresence(
 				getFullJid().asString(),
