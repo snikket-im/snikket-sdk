@@ -396,13 +396,15 @@ class Client extends EventEmitter {
 			var items = roster.getResult();
 			if (items.length == 0) return IqNoResult;
 
+			final chatsToUpdate = [];
 			for (item in items) {
 				if (item.subscription != "remove") {
 					final chat = getDirectChat(item.jid, false);
 					chat.setTrusted(item.subscription == "both" || item.subscription == "from");
+					chatsToUpdate.push(chat);
 				}
 			}
-			this.trigger("chats/update", chats);
+			this.trigger("chats/update", chatsToUpdate);
 
 			return IqResult;
 		});
@@ -1232,13 +1234,15 @@ class Client extends EventEmitter {
 	private function rosterGet() {
 		var rosterGet = new RosterGet();
 		rosterGet.onFinished(() -> {
+			final chatsToUpdate = [];
 			for (item in rosterGet.getResult()) {
 				var chat = getDirectChat(item.jid, false);
 				chat.setTrusted(item.subscription == "both" || item.subscription == "from");
 				if (item.fn != null && item.fn != "") chat.setDisplayName(item.fn);
 				persistence.storeChat(accountId(), chat);
+				chatsToUpdate.push(chat);
 			}
-			this.trigger("chats/update", chats);
+			this.trigger("chats/update", chatsToUpdate);
 		});
 		sendQuery(rosterGet);
 	}
