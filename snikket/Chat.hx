@@ -898,7 +898,13 @@ class Channel extends Chat {
 	@:allow(snikket)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions = null, readUpToId = null, readUpToBy = null, ?disco: Caps) {
 		super(client, stream, persistence, chatId, uiState, isBlocked, extensions, readUpToId, readUpToBy);
-		if (disco != null) this.disco = disco;
+		if (disco != null) {
+			this.disco = disco;
+			if (!disco.features.contains("http://jabber.org/protocol/muc")) {
+				// Not a MUC, what kind of channel is this?
+				forceLive = true;
+			}
+		}
 	}
 
 	@:allow(snikket)
