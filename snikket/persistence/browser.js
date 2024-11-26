@@ -519,7 +519,7 @@ const browser = (dbname, tokenize, stemmer) => {
 			cursor.onsuccess = (event) => {
 				if (event.target.result) {
 					const value = event.target.result.value;
-					if (new Set(tokenize(value.text).map(stemmer)).isSupersetOf(qTok)) {
+					if (value.text && new Set(tokenize(value.text).map(stemmer)).isSupersetOf(qTok)) {
 						if (!callback(q, hydrateMessageSync(value))) return;
 					}
 					event.target.result.continue();
