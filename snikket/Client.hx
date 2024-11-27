@@ -401,7 +401,8 @@ class Client extends EventEmitter {
 			for (item in items) {
 				if (item.subscription != "remove") {
 					final chat = getDirectChat(item.jid, false);
-					chat.setTrusted(item.subscription == "both" || item.subscription == "from");
+					chat.updateFromRoster(item);
+					persistence.storeChat(accountId(), chat);
 					chatsToUpdate.push(chat);
 				}
 			}
@@ -1249,8 +1250,7 @@ class Client extends EventEmitter {
 			final chatsToUpdate = [];
 			for (item in rosterGet.getResult()) {
 				var chat = getDirectChat(item.jid, false);
-				chat.setTrusted(item.subscription == "both" || item.subscription == "from");
-				if (item.fn != null && item.fn != "") chat.setDisplayName(item.fn);
+				chat.updateFromRoster(item);
 				persistence.storeChat(accountId(), chat);
 				chatsToUpdate.push(chat);
 			}

@@ -1,5 +1,6 @@
 package snikket;
 
+import haxe.DynamicAccess;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
 import snikket.Chat;
@@ -53,6 +54,7 @@ abstract class Chat {
 	public var chatId(default, null):String;
 	@:allow(snikket)
 	private var jingleSessions: Map<String, snikket.jingle.Session> = [];
+	@:allow(snikket)
 	private var displayName:String;
 	/**
 		Current state of this chat
@@ -354,9 +356,15 @@ abstract class Chat {
 	private function updateFromBookmark(item: Stanza) {
 		final conf = item.getChild("conference", "urn:xmpp:bookmarks:1");
 		final fn = conf.attr.get("name");
-		if (fn != null) setDisplayName(fn);
+		if (fn != null) displayName = fn;
 		uiState = (conf.attr.get("autojoin") == "1" || conf.attr.get("autojoin") == "true") ? (uiState == Pinned ? Pinned : Open) : Closed;
 		extensions = conf.getChild("extensions") ?? new Stanza("extensions", { xmlns: "urn:xmpp:bookmarks:1" });
+	}
+
+	@:allow(snikket)
+	private function updateFromRoster(item: { fn: Null<String>, subscription: String }) {
+		setTrusted(item.subscription == "both" || item.subscription == "from");
+		if (item.fn != null && item.fn != "") displayName = item.fn;
 	}
 
 	/**
@@ -412,9 +420,9 @@ abstract class Chat {
 		lastMessage = message;
 	}
 
-	@:allow(snikket)
-	private function setDisplayName(fn:String) {
+	public function setDisplayName(fn:String) {
 		this.displayName = fn;
+		bookmark();
 	}
 
 	/**
@@ -841,10 +849,14 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function bookmark() {
+		final attr: DynamicAccess<String> = { jid: chatId };
+		if (displayName != null && displayName != "" && displayName != chatId) {
+			attr["name"] = displayName;
+		}
 		stream.sendIq(
 			new Stanza("iq", { type: "set" })
 				.tag("query", { xmlns: "jabber:iq:roster" })
-				.tag("item", { jid: chatId })
+				.tag("item", attr)
 				.up().up(),
 			(response) -> {
 				if (response.attr.get("type") == "error") return;
@@ -1468,7 +1480,7 @@ class SerializedChat {
 		} else {
 			throw "Unknown class: " + klass;
 		}
-		if (displayName != null) chat.setDisplayName(displayName);
+		if (displayName != null) chat.displayName = displayName;
 		if (avatarSha1 != null) chat.setAvatarSha1(avatarSha1);
 		chat.setTrusted(trusted);
 		for (resource => p in presence) {
