@@ -467,8 +467,7 @@ abstract class Chat {
 		this.avatarSha1 = sha1;
 	}
 
-	@:allow(snikket)
-	private function setTrusted(trusted:Bool) {
+	public function setTrusted(trusted:Bool) {
 		this.trusted = trusted;
 	}
 
@@ -850,7 +849,7 @@ class DirectChat extends Chat {
 			(response) -> {
 				if (response.attr.get("type") == "error") return;
 				stream.sendStanza(new Stanza("presence", { to: chatId, type: "subscribe", id: ID.short() }));
-				stream.sendStanza(new Stanza("presence", { to: chatId, type: "subscribed", id: ID.short() }));
+				if (isTrusted()) stream.sendStanza(new Stanza("presence", { to: chatId, type: "subscribed", id: ID.short() }));
 			}
 		);
 	}
