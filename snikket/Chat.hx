@@ -1068,6 +1068,10 @@ class Channel extends Chat {
 		sync.fetchNext();
 	}
 
+	override public function isTrusted() {
+		return uiState != Closed;
+	}
+
 	@:allow(snikket)
 	private function refreshDisco(?callback: ()->Void) {
 		final discoGet = new DiscoInfoGet(chatId);
