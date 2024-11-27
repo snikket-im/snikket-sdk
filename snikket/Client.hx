@@ -29,6 +29,7 @@ import snikket.queries.Push2Enable;
 import snikket.queries.RosterGet;
 import snikket.queries.VcardTempGet;
 using Lambda;
+using StringTools;
 
 #if cpp
 import HaxeCBridge;
@@ -777,35 +778,42 @@ class Client extends EventEmitter {
 	public function findAvailableChats(q:String, callback:(String, Array<AvailableChat>) -> Void) {
 		var results = [];
 		final query = StringTools.trim(q);
-		final checkAndAdd = (jid) -> {
+		final checkAndAdd = (jid, prepend = false) -> {
+			final add = (item) -> prepend ? results.unshift(item) : results.push(item);
 			final discoGet = new DiscoInfoGet(jid.asString());
 			discoGet.onFinished(() -> {
 				final resultCaps = discoGet.getResult();
 				if (resultCaps == null) {
 					final err = discoGet.responseStanza?.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
 					if (err == null || err?.name == "service-unavailable" || err?.name == "feature-not-implemented") {
-						results.push(new AvailableChat(jid.asString(), query, jid.asString(), new Caps("", [], [])));
+						add(new AvailableChat(jid.asString(), query, jid.asString(), new Caps("", [], [])));
 					}
 				} else {
 					persistence.storeCaps(resultCaps);
 					final identity = resultCaps.identities[0];
 					final displayName = identity?.name ?? query;
 					final note = jid.asString() + (identity == null ? "" : " (" + identity.type + ")");
-					results.push(new AvailableChat(jid.asString(), displayName, note, resultCaps));
+					add(new AvailableChat(jid.asString(), displayName, note, resultCaps));
 				}
 				callback(q, results);
 			});
 			sendQuery(discoGet);
 		};
-		if (StringTools.startsWith(query, "xmpp:")) {
-			checkAndAdd(JID.parse(query.substr(5)));
+		final jid = if (StringTools.startsWith(query, "xmpp:")) {
+			JID.parse(query.substr(5));
 		} else {
-			final jid = JID.parse(query);
-			if (jid.isValid()) {
-				checkAndAdd(jid);
-			}
+			JID.parse(query);
+		}
+		if (jid.isValid()) {
+			checkAndAdd(jid, true);
 		}
 		for (chat in chats) {
+			if (chat.chatId != jid.asBare().asString()) {
+				if (chat.chatId.contains(query.toLowerCase()) || chat.getDisplayName().toLowerCase().contains(query.toLowerCase())) {
+					final channel = Util.downcast(chat, Channel);
+					results.push(new AvailableChat(chat.chatId, chat.getDisplayName(), chat.chatId, channel == null ? new Caps("", [], []) : channel.disco));
+				}
+			}
 			if (chat.isTrusted()) {
 				final resources:Map<String, Bool> = [];
 				for (resource in Caps.withIdentity(chat.getCaps(), "gateway", null)) {
@@ -841,6 +849,9 @@ class Client extends EventEmitter {
 				}
 			}
 		}
+		if (!jid.isValid() && results.length > 0) {
+			callback(q, results);
+		}
 	}
 
 	/**
@@ -852,11 +863,12 @@ class Client extends EventEmitter {
 		final existingChat = getChat(availableChat.chatId);
 		if (existingChat != null) {
 			final channel = Std.downcast(existingChat, Channel);
-			if (channel == null && availableChat.isChannel()) {
+			if ((channel == null && availableChat.isChannel()) || (channel != null && !availableChat.isChannel())) {
 				chats = chats.filter((chat) -> chat.chatId != availableChat.chatId);
 			} else {
 				if (existingChat.uiState == Closed) existingChat.uiState = Open;
 				channel?.selfPing(true);
+				persistence.storeChat(accountId(), existingChat);
 				this.trigger("chats/update", [existingChat]);
 				return existingChat;
 			}
