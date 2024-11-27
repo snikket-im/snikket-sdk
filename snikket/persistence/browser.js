@@ -165,6 +165,7 @@ const browser = (dbname, tokenize, stemmer) => {
 		head.serverIdBy = result.value.serverIdBy;
 		head.serverId = result.value.serverId;
 		head.localId = result.value.localId;
+		head.replyId = result.value.replyId;
 		head.timestamp = result.value.timestamp; // Edited version is not newer
 		head.versions = versions;
 		head.reactions = result.value.reactions; // Preserve these, edit doesn't touch them
