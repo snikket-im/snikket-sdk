@@ -1478,7 +1478,7 @@ class SerializedChat {
 			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"]);
 			channel;
 		} else {
-			throw "Unknown class: " + klass;
+			throw "Unknown class of " + chatId + ": " + klass;
 		}
 		if (displayName != null) chat.displayName = displayName;
 		if (avatarSha1 != null) chat.setAvatarSha1(avatarSha1);
