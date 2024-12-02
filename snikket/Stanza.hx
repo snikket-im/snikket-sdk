@@ -38,6 +38,18 @@ class TextNode implements NodeInterface {
 	}
 }
 
+class StanzaError {
+	public var type:String;
+	public var condition:String;
+	public var text:Null<String>;
+
+	public function new(type_:String, condition_:String, ?text_:String) {
+		type = type_;
+		condition = condition_;
+		text = text_;
+	}
+}
+
 @:expose
 class Stanza implements NodeInterface {
 	public var name(default, null):String = null;
@@ -313,6 +325,18 @@ class Stanza implements NodeInterface {
 			}
 		}
 		return this;
+	}
+
+	public function getError():Null<StanzaError> {
+		final errorTag = this.getChild("error");
+		if(errorTag == null) {
+			return null;
+		}
+		return new StanzaError(
+			errorTag.attr.get("type"),
+			errorTag.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas")?.name,
+			errorTag.getChildText("text", "urn:ietf:params:xml:ns:xmpp-stanzas")
+		);
 	}
 }
 
