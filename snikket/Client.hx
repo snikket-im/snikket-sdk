@@ -718,6 +718,8 @@ class Client extends EventEmitter {
 			});
 		});
 
+		this.trigger("session-started", {});
+
 		return EventHandled;
 	}
 
