@@ -78,7 +78,10 @@ abstract class Chat {
 	private var notificationSettings: Null<{reply: Bool, mention: Bool}> = null;
 
 	@:allow(snikket)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
+	private var omemoContactDeviceIDs: Array<Int> = [];
+
+	@:allow(snikket)
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
@@ -89,6 +92,7 @@ abstract class Chat {
 		this.readUpToId = readUpToId;
 		this.readUpToBy = readUpToBy;
 		this.displayName = chatId;
+		this.omemoContactDeviceIDs = omemoContactDeviceIDs ?? [];
 	}
 
 	@:allow(snikket)
@@ -714,8 +718,8 @@ abstract class Chat {
 #end
 class DirectChat extends Chat {
 	@:allow(snikket)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
-		super(client, stream, persistence, chatId, uiState, isBlocked, extensions, readUpToId, readUpToBy);
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
+		super(client, stream, persistence, chatId, uiState, isBlocked, extensions, readUpToId, readUpToBy, omemoContactDeviceIDs);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -1562,12 +1566,13 @@ class SerializedChat {
 	public final readUpToId:Null<String>;
 	public final readUpToBy:Null<String>;
 	public final disco:Null<Caps>;
+	public final omemoContactDeviceIDs: Array<Int>;
 	public final klass:String;
 	public final notificationsFiltered: Null<Bool>;
 	public final notifyMention: Bool;
 	public final notifyReply: Bool;
 
-	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, disco: Null<Caps>, klass: String) {
+	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, disco: Null<Caps>, omemoContactDeviceIDs: Array<Int>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.avatarSha1 = avatarSha1;
@@ -1582,6 +1587,7 @@ class SerializedChat {
 		this.notifyMention = notifyMention;
 		this.notifyReply = notifyReply;
 		this.disco = disco;
+		this.omemoContactDeviceIDs = omemoContactDeviceIDs;
 		this.klass = klass;
 	}
 
@@ -1591,7 +1597,7 @@ class SerializedChat {
 		var mention = notifyMention;
 
 		final chat = if (klass == "DirectChat") {
-			new DirectChat(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy);
+			new DirectChat(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy, omemoContactDeviceIDs);
 		} else if (klass == "Channel") {
 			final channel = new Channel(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy);
 			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"]);

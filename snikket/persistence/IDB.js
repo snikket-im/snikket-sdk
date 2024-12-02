@@ -242,7 +242,8 @@ export default (dbname, media, tokenize, stemmer) => {
 					readUpToBy: chat.readUpToBy,
 					notificationSettings: chat.notificationsFiltered() ? { mention: chat.notifyMention(), reply: chat.notifyReply() } : null,
 					disco: chat.disco,
-					class: chat instanceof snikket.DirectChat ? "DirectChat" : (chat instanceof snikket.Channel ? "Channel" : "Chat")
+					omemoDevices: chat.omemoContactDeviceIDs,
+				class: chat instanceof snikket.DirectChat ? "DirectChat" : (chat instanceof snikket.Channel ? "Channel" : "Chat")
 				});
 			}
 		},
@@ -270,6 +271,7 @@ export default (dbname, media, tokenize, stemmer) => {
 					r.notificationSettings?.mention,
 					r.notificationSettings?.reply,
 					r.disco ? new snikket.Caps(r.disco.node, r.disco.identities, r.disco.features) : null,
+					r.omemoDevices || [],
 					r.class
 				)));
 			})().then(callback);
