@@ -93,6 +93,10 @@ class FSM extends EventEmitter {
 		return states.get(currentState).get(name) != null;
 	}
 
+	public function getState():String {
+		return currentState;
+	}
+
 	public function event(name:FSMTransitionName, ?attr:Dynamic):Bool {
 		var newState = states.get(currentState).get(name);
 		if(newState == null) {
@@ -152,4 +156,3 @@ class FSM extends EventEmitter {
 		}
 	}
 }
-
