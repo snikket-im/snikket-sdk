@@ -554,7 +554,7 @@ class InitiatedSession implements Session {
 
 	private function setupLocalDescription(type: String, ?filterMedia: Array<String>, ?filterOut: Bool = false, ?beforeSend: (SessionDescription)->Void) {
 		return pc.setLocalDescription(null).then((_) -> {
-			final caps = client.getDirectChat(counterpart.asBare().asString()).getResourceCaps(counterpart.resource, true);
+			final caps = client.getDirectChat(counterpart.asBare().asString()).getResourceCaps(counterpart.resource);
 			return if ((type == "session-initiate" || type == "session-accept") && caps.features.contains("urn:ietf:rfc:3264")) {
 				new Promise((resolve, reject) -> {
 					final timeout = haxe.Timer.delay(() -> {

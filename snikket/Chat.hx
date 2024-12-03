@@ -466,8 +466,8 @@ abstract class Chat {
 	}
 
 	@:allow(snikket)
-	private function getResourceCaps(resource:String, defaultToAny = false):Caps {
-		return presence[resource]?.caps ?? (defaultToAny ? presence.iterator().next()?.caps : null) ?? new Caps("", [], []);
+	private function getResourceCaps(resource:String):Caps {
+		return presence[resource]?.caps ?? new Caps("", [], []);
 	}
 
 	@:allow(snikket)
