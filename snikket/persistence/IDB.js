@@ -8,6 +8,23 @@ export default (dbname, media, tokenize, stemmer) => {
 	if (!tokenize) tokenize = function(s) { return s.split(" "); }
 	if (!stemmer) stemmer = function(s) { return s; }
 
+	// Helper functions to convert binary data to storage-safe strings
+	// Uint8Array.to/fromBase64() is not yet widely available
+	function arrayBufferToBase64 (ab) {
+		return btoa((new Uint8Array(ab)).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+	}
+
+	function base64ToArrayBuffer (b64) {
+		const binary_string = atob(b64);
+		const len = binary_string.length;
+		const bytes = new Uint8Array(len);
+
+		for (let i = 0; i < len; i++) {
+			bytes[i] = binary_string.charCodeAt(i);
+		}
+		return bytes.buffer;
+	}
+
 	var db = null;
 	function openDb(version) {
 		var dbOpenReq = indexedDB.open(dbname, version);
@@ -613,6 +630,100 @@ export default (dbname, media, tokenize, stemmer) => {
 			}
 		},
 
+		storeOmemoId: function(login, omemoId) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			store.put(omemoId, "omemo:id:" + login).onerror = console.error;
+		},
+
+		storeOmemoIdentityKey: function (login, keypair) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			store.put(keypair, "omemo:key:" + login).onerror = console.error;
+		},
+
+		storeOmemoDeviceList: function (identifier, deviceIds) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			const key = "omemo:devices:"+identifier;
+			if(deviceIds.length>0) {
+				store.put(deviceIds, key);
+			} else {
+				store.delete(key);
+			}
+		},
+
+		getOmemoDeviceList: function (identifier, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			promisifyRequest(store.get("omemo:devices:"+identifier)).then((result) => {
+				if (result === undefined) {
+					callback([]);
+				} else {
+					callback(result);
+				}
+			}).catch((e) => {
+				console.error(e);
+				callback([]);
+			});
+		},
+
+		storeOmemoPreKey: function (login, keyId, keyPair) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			const storedKeyPair = {
+				"privKey": arrayBufferToBase64(keyPair.privKey),
+				"pubKey": arrayBufferToBase64(keyPair.pubKey),
+			};
+			store.put(storedKeyPair, "omemo:prekeys:"+login+":"+keyId.toString());
+		},
+
+		getOmemoPreKey: function (login, keyId, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			promisifyRequest(store.get("omemo:prekeys:"+login+":"+keyId.toString())).then((result) => {
+				if(result === undefined) {
+					callback(null);
+				} else {
+					callback({
+						"privKey": base64ToArrayBuffer(result.privKey),
+						"pubKey": base64ToArrayBuffer(result.pubKey),
+					});
+				}
+			}).catch((e) => {
+				console.error(e);
+				callback(null);
+			});
+		},
+
+		getOmemoPreKeys: function (login, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			const prefix = "omemo:prekeys:"+login+":";
+			const keyRange = IDBKeyRange.bound(prefix, prefix + '\uffff');
+
+			const prekeys = [];
+			const req = store.openCursor(keyRange);
+
+			req.onsuccess = (event) => {
+				const cursor = event.target.result;
+				if(cursor) {
+					prekeys.push({
+						"privKey": base64ToArrayBuffer(cursor.value.privKey),
+						"pubKey": base64ToArrayBuffer(cursor.value.pubKey),
+					});
+					cursor.continue();
+				} else {
+					callback(prekeys);
+				}
+			}
+
+			req.onerror = (e) => {
+				console.error(e);
+				callback(null);
+			};
+		},
+
 		storeStreamManagement: function(account, sm) {
 			// Don't bother on ios, the indexeddb is too broken
 			// https://bugs.webkit.org/show_bug.cgi?id=287876
@@ -661,6 +772,45 @@ export default (dbname, media, tokenize, stemmer) => {
 				console.error(e);
 				callback(null, null, 0, null);
 			});
+		},
+
+		getOmemoId: function(login, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			promisifyRequest(store.get("omemo:id:"+login)).then((result) => {
+				callback(result);
+			}).catch((e) => {
+				console.error(e);
+				callback(null);
+			});
+		},
+
+		getOmemoIdentityKey: function(login, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			promisifyRequest(store.get("omemo:key:"+login)).then((result) => {
+				callback(result);
+			}).catch((e) => {
+				console.error(e);
+				callback(null);
+			});
+		},
+
+		getOmemoSignedPreKey: function(login, keyId, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			promisifyRequest(store.get("omemo:signed-prekey:"+login+":"+keyId.toString())).then((result) => {
+				callback(result);
+			}).catch((e) => {
+				console.error(e);
+				callback(null);
+			});
+		},
+
+		storeOmemoSignedPreKey: function (login, signedKey) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			store.put(signedKey, "omemo:signed-prekey:"+login+":"+signedKey.id.toString());
 		},
 
 		removeAccount(account, completely) {

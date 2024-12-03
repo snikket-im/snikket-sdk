@@ -157,6 +157,29 @@ class Custom implements Persistence {
 	public function findServicesWithFeature(accountId:String, feature:String, callback:(Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>)->Void) {
 		backing.findServicesWithFeature(accountId, feature, callback);
 	}
+
+
+	// OMEMO
+	// TODO
+	@HaxeCBridge.noemit
+	public function getOmemoId(login:String, callback:(omemoId:Null<Int>)->Void):Void {
+		backing.getOmemoId(login, callback);
+	}
+
+	@HaxeCBridge.noemit
+	public function storeOmemoId(login:String, omemoId:Int):Void {
+		backing.storeOmemoId(login, omemoId);
+	}
+
+	@HaxeCBridge.noemit
+	public function getOMEMODeviceList(identifier:String, callback: (Array<Int>)->Void) {
+		return backing.getOMEMODeviceList(identifier, callback);
+	}
+
+	@HaxeCBridge.noemit
+	public function storeOMEMODeviceList(identifier:String, deviceIds:Array<Int>) {
+		backing.storeOMEMODeviceList(identifier, deviceIds);
+	}
 }
 
 @:expose

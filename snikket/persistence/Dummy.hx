@@ -7,6 +7,9 @@ import haxe.io.BytesData;
 import snikket.Caps;
 import snikket.Chat;
 import snikket.Message;
+import snikket.OMEMO;
+
+using snikket.SignalProtocol;
 
 // TODO: consider doing background threads for operations
 
@@ -138,4 +141,34 @@ class Dummy implements Persistence {
 	public function findServicesWithFeature(accountId:String, feature:String, callback:(Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>)->Void) {
 		callback([]);
 	}
+
+	@HaxeCBridge.noemit
+	public function getOmemoId(login:String, callback:(omemoId:Null<Int>)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoId(login:String, omemoId:Int):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoDeviceList(identifier:String, callback: (Array<Int>)->Void) { }
+	@HaxeCBridge.noemit
+	public function storeOmemoDeviceList(identifier:String, deviceIds:Array<Int>):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoPreKey(identifier:String, keyId:Int, keyPair:PreKeyPair):Void { }
+	@HaxeCBridge.noemit
+	public function getOmemoPreKey(identifier:String, keyId:Int, callback: (PreKeyPair)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoIdentityKey(login:String, keypair:IdentityKeyPair):Void { }
+	@HaxeCBridge.noemit
+	public function getOmemoIdentityKey(login:String, callback: (IdentityKeyPair)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoSignedPreKey(login:String, signedPreKey:OMEMOBundleSignedPreKey):Void { }
+	@HaxeCBridge.noemit
+	public function getOmemoSignedPreKey(login:String, keyId:Int, callback: (OMEMOBundleSignedPreKey)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoPreKeys(login:String, callback: (Array<PreKeyPair>)->Void):Void { }
+
 }

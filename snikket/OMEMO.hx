@@ -164,7 +164,6 @@ class OMEMO {
 			persistence.getOmemoPreKeys(client.accountId(), resolve);
 		}).then(function (prekeys) {
 			// Always an array (just empty if no keys)
-			// FIXME: bundle should contain Array<PublicPreKey> rather then PreKeyPair!!
 			newBundle.prekeys = [
 				for(i in 0...prekeys.length) {
 					{
