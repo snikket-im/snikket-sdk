@@ -2,6 +2,7 @@ package snikket.jingle;
 
 import snikket.ID;
 import HaxeCBridge;
+using Lambda;
 
 typedef Transceiver = {
 	receiver: Null<{ track: MediaStreamTrack }>,
@@ -776,6 +777,8 @@ class PeerConnection {
 	final localCandidateListeners = [];
 	final stateChangeListeners = [];
 	final mainLoop: sys.thread.EventLoop;
+	var hasLocal = false;
+	var pendingTracks = [];
 
 	public function new(?configuration : Configuration, ?constraints : Dynamic) {
 		if (Sys.getEnv("SNIKKET_WEBRTC_DEBUG") != null) {
@@ -818,6 +821,13 @@ class PeerConnection {
 	private function onLocalCandidate(candidate: Candidate) {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		mainLoop.run(() -> {
+			if (!hasLocal) {
+				hasLocal = true;
+				var track;
+				while ((track = pendingTracks.shift()) != null) {
+					addTrack(track, null);
+				}
+			}
 			for (cb in localCandidateListeners) {
 				cb({ candidate: {
 					candidate: (candidate.candidate() : String),
@@ -855,7 +865,14 @@ class PeerConnection {
 	private function onTrack(track: SharedPtr<Track>) {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		mainLoop.run(() -> {
-			final media = MediaStreamTrack.fromTrack(track);
+			final matchingTrack = pendingTracks.find(t -> t.kind == track.ref.description().type());
+			final media = if (matchingTrack == null) {
+				MediaStreamTrack.fromTrack(track);
+			} else {
+				pendingTracks = pendingTracks.filter(t -> t.id != matchingTrack.id);
+				matchingTrack.track = track;
+				matchingTrack;
+			}
 			tracks[media.id] = media;
 			for (cb in trackListeners) {
 				cb({ track: media, streams: [] });
@@ -895,8 +912,12 @@ class PeerConnection {
 	}
 
 	public function addTrack(track : MediaStreamTrack, stream : MediaStream) {
-		track.track = pc.ref.addTrack(track.media.value());
-		tracks[track.id] = track;
+		if (hasLocal) {
+			track.track = pc.ref.addTrack(track.media.value());
+			tracks[track.id] = track;
+		} else {
+			pendingTracks.push(track);
+		}
 	}
 
 	public function getTransceivers(): Array<Transceiver> {
