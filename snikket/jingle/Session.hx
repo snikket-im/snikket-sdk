@@ -290,7 +290,6 @@ class InitiatedSession implements Session {
 	private var afterMedia: Null<()->Void> = null;
 	private final initiator: Bool;
 	private var candidatesDone: Null<()->Void> = null;
-	private final caps: Caps;
 
 	@:allow(snikket)
 	private function new(client: Client, counterpart: JID, sid: String, remoteDescription: Null<SessionDescription>) {
@@ -299,7 +298,6 @@ class InitiatedSession implements Session {
 		this._sid = sid;
 		this.remoteDescription = remoteDescription;
 		this.initiator = remoteDescription == null;
-		this.caps = client.getDirectChat(counterpart.asBare().asString()).getResourceCaps(counterpart.resource);
 	}
 
 	@:allow(snikket)
@@ -555,13 +553,23 @@ class InitiatedSession implements Session {
 	}
 
 	private function setupLocalDescription(type: String, ?filterMedia: Array<String>, ?filterOut: Bool = false, ?beforeSend: (SessionDescription)->Void) {
-		return pc.setLocalDescription(null).then((_) ->
-			if ((type == "session-initiate" || type == "session-accept") && caps.features.contains("urn:ietf:rfc:3264")) {
-				new Promise((resolve, reject) -> candidatesDone = () -> resolve(true));
+		return pc.setLocalDescription(null).then((_) -> {
+			final caps = client.getDirectChat(counterpart.asBare().asString()).getResourceCaps(counterpart.resource, true);
+			return if ((type == "session-initiate" || type == "session-accept") && caps.features.contains("urn:ietf:rfc:3264")) {
+				new Promise((resolve, reject) -> {
+					final timeout = haxe.Timer.delay(() -> {
+						candidatesDone = () -> {};
+						resolve(false);
+					}, 3000);
+					candidatesDone = () -> {
+						timeout.stop();
+						resolve(true);
+					}
+				});
 			} else {
 				null;
 			}
-		).then((_) -> {
+		}).then((_) -> {
 			localDescription = SessionDescription.parse(pc.localDescription.sdp);
 			var descriptionToSend = localDescription;
 			if (filterMedia != null) {
