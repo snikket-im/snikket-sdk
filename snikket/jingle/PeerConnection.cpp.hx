@@ -713,6 +713,29 @@ extern enum abstract PCState(NativePCState) {
 	var Failed;
 	@:native("rtc::PeerConnection::State::Closed")
 	var Closed;
+
+	inline public function toString() {
+		return switch (cast this) {
+			case New: "new";
+			case Connecting: "connecting";
+			case Connected: "connected";
+			case Disconnected: "disconnected";
+			case Failed: "failed";
+			case Closed: "closed";
+		}
+	}
+}
+
+@:native("rtc::PeerConnection::GatheringState")
+extern class NativeGatheringState {}
+
+extern enum abstract GatheringState(NativeGatheringState) {
+	@:native("rtc::PeerConnection::GatheringState::New")
+	var New;
+	@:native("rtc::PeerConnection::GatheringState::InProgress")
+	var InProgress;
+	@:native("rtc::PeerConnection::GatheringState::Complete")
+	var Complete;
 }
 
 @:buildXml("
@@ -735,6 +758,8 @@ extern class PC {
 	public function addTrack(media: DescriptionMedia):SharedPtr<Track>;
 	public function onTrack(callback: cpp.Callable<SharedPtr<Track>->Void>):Void;
 	public function onLocalCandidate(callback: cpp.Callable<Candidate->Void>):Void;
+	public function onStateChange(callback: cpp.Callable<PCState->Void>):Void;
+	public function onGatheringStateChange(callback: cpp.Callable<GatheringState->Void>):Void;
 	public function close():Void;
 	public function state():PCState;
 }
@@ -749,6 +774,7 @@ class PeerConnection {
 	final tracks: Map<String, MediaStreamTrack> = [];
 	final trackListeners = [];
 	final localCandidateListeners = [];
+	final stateChangeListeners = [];
 	final mainLoop: sys.thread.EventLoop;
 
 	public function new(?configuration : Configuration, ?constraints : Dynamic) {
@@ -776,6 +802,8 @@ class PeerConnection {
 		pc.ref.onLocalDescription(cast untyped __cpp__("[this](auto d) { this->onLocalDescription(); }"));
 		pc.ref.onTrack(cast untyped __cpp__("[this](auto t) { this->onTrack(t); }"));
 		pc.ref.onLocalCandidate(cast untyped __cpp__("[this](auto c) { this->onLocalCandidate(c); }"));
+		pc.ref.onStateChange(cast untyped __cpp__("[this](auto s) { this->onStateChange(s); }"));
+		pc.ref.onGatheringStateChange(cast untyped __cpp__("[this](auto s) { this->onGatheringStateChange(s); }"));
 	}
 
 	private function onLocalDescription() {
@@ -801,6 +829,29 @@ class PeerConnection {
 		untyped __cpp__("hx::SetTopOfStack((int*)0, true);"); // unregister with GC
 	}
 
+	private function onStateChange(state: cpp.Struct<PCState>) {
+		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
+		mainLoop.run(() -> {
+			for (cb in stateChangeListeners) {
+				cb(null);
+			}
+		});
+		untyped __cpp__("hx::SetTopOfStack((int*)0, true);"); // unregister with GC
+	}
+
+	private function onGatheringStateChange(state: cpp.Struct<GatheringState>) {
+		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
+		final c: cpp.Struct<GatheringState> = Complete;
+		if (state == c) {
+			mainLoop.run(() -> {
+				for (cb in localCandidateListeners) {
+					cb({ candidate: null });
+				}
+			});
+		}
+		untyped __cpp__("hx::SetTopOfStack((int*)0, true);"); // unregister with GC
+	}
+
 	private function onTrack(track: SharedPtr<Track>) {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		mainLoop.run(() -> {
@@ -814,14 +865,7 @@ class PeerConnection {
 	}
 
 	public function get_connectionState() {
-		return switch (pc.ref.state()) {
-			case New: "new";
-			case Connecting: "connecting";
-			case Connected: "connected";
-			case Disconnected: "disconnected";
-			case Failed: "failed";
-			case Closed: "closed";
-		}
+		return pc.ref.state().toString();
 	}
 
 	public function get_localDescription() {
@@ -874,6 +918,7 @@ class PeerConnection {
 	public function addEventListener(event: String, callback: Dynamic->Void) {
 		if (event == "track") trackListeners.push(callback);
 		if (event == "icecandidate") localCandidateListeners.push(callback);
+		if (event == "connectionstatechange") stateChangeListeners.push(callback);
 	}
 }
 

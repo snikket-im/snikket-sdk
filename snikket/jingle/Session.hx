@@ -546,7 +546,7 @@ class InitiatedSession implements Session {
 				sendIceCandidate(event.candidate);
 			});
 			pc.addEventListener("connectionstatechange", (event) -> {
-				if (pc.connectionState == "closed" || pc.connectionState == "failed") {
+				if (pc != null && (pc.connectionState == "closed" || pc.connectionState == "failed")) {
 					terminate();
 				}
 			});
