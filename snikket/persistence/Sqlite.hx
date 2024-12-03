@@ -14,7 +14,11 @@ import snikket.Chat;
 import snikket.Message;
 import snikket.Reaction;
 import snikket.ReactionUpdate;
+import snikket.OMEMO;
+
 using Lambda;
+
+// TODO: consider doing background threads for operations
 
 @:expose
 #if cpp
@@ -838,4 +842,13 @@ class Sqlite implements Persistence implements KeyValueStore {
 			return builder;
 		}));
 	}
+
+	// OMEMO
+	// TODO
+	@HaxeCBridge.noemit
+	public function getOmemoId(login:String, callback:(omemoId:Null<Int>)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoId(login:String, omemoId:Int):Void { }
+
 }

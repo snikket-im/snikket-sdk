@@ -14,6 +14,7 @@ import snikket.ChatMessage;
 import snikket.Message;
 import snikket.EventEmitter;
 import snikket.EventHandler;
+import snikket.OMEMO;
 import snikket.PubsubEvent;
 import snikket.Stream;
 import snikket.jingle.Session;
@@ -78,7 +79,8 @@ class Client extends EventEmitter {
 			"urn:xmpp:jingle:apps:rtp:1",
 			"urn:xmpp:jingle:apps:rtp:audio",
 			"urn:xmpp:jingle:apps:rtp:video",
-			"urn:xmpp:jingle:transports:ice-udp:1"
+			"urn:xmpp:jingle:transports:ice-udp:1",
+			"eu.siacs.conversations.axolotl.devicelist+notify"
 		]
 	);
 	private var _displayName: String;
@@ -86,6 +88,9 @@ class Client extends EventEmitter {
 	private var token: Null<String> = null;
 	private var fastCount: Null<Int> = null;
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
+
+	private final omemo: OMEMO;
+
 	@:allow(snikket)
 	private var inSync(default, null) = false;
 
@@ -101,6 +106,7 @@ class Client extends EventEmitter {
 		this.jid = JID.parse(address);
 		this._displayName = this.jid.node;
 		this.persistence = persistence;
+		this.omemo = new OMEMO(this, persistence);
 		stream = new Stream();
 		stream.on("status/online", this.onConnected);
 		stream.on("status/offline", (data) -> {
@@ -312,23 +318,41 @@ class Client extends EventEmitter {
 				}
 			}
 
-			if (pubsubEvent != null && pubsubEvent.getFrom() != null && JID.parse(pubsubEvent.getFrom()).asBare().asString() == accountId() && pubsubEvent.getNode() == "http://jabber.org/protocol/nick" && pubsubEvent.getItems().length > 0) {
-				updateDisplayName(pubsubEvent.getItems()[0].getChildText("nick", "http://jabber.org/protocol/nick"));
-			}
+			trace("pubsubEvent "+Std.string(pubsubEvent!=null));
+			if (pubsubEvent != null && pubsubEvent.getFrom() != null {
+			if (pubsubEvent != null && pubsubEvent.getFrom() != null) {
+				final fromBare = JID.parse(pubsubEvent.getFrom()).asBare();
+				final isOwnAccount = fromBare.asString() == accountId();
+				final pubsubNode = pubsubEvent.getNode();
 
-			if (pubsubEvent != null && pubsubEvent.getFrom() != null && JID.parse(pubsubEvent.getFrom()).asBare().asString() == accountId() && pubsubEvent.getNode() == "urn:xmpp:mds:displayed:0" && pubsubEvent.getItems().length > 0) {
-				for (item in pubsubEvent.getItems()) {
-					if (item.attr.get("id") != null) {
-						final upTo = item.getChild("displayed", "urn:xmpp:mds:displayed:0")?.getChild("stanza-id", "urn:xmpp:sid:0");
-						final chat = getChat(item.attr.get("id"));
-						if (chat == null) {
-							startChatWith(item.attr.get("id"), (caps) -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
-						} else {
-							chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by"), () -> {
-								persistence.storeChats(accountId(), [chat]);
-								this.trigger("chats/update", [chat]);
-							});
+				if(isOwnAccount && pubsubEvent.getNode() == "urn:xmpp:mds:displayed:0" && pubsubEvent.getItems().length > 0) {
+					for (item in pubsubEvent.getItems()) {
+						if (item.attr.get("id") != null) {
+							final upTo = item.getChild("displayed", "urn:xmpp:mds:displayed:0")?.getChild("stanza-id", "urn:xmpp:sid:0");
+							final chat = getChat(item.attr.get("id"));
+							if (chat == null) {
+								startChatWith(item.attr.get("id"), (caps) -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
+							} else {
+								chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by"), () -> {
+									persistence.storeChats(accountId(), [chat]);
+									this.trigger("chats/update", [chat]);
+								});
+							}
 						}
+					}
+				}
+						
+				if (isOwnAccount && pubsubNode == "http://jabber.org/protocol/nick" && pubsubEvent.getItems().length > 0) {
+					updateDisplayName(pubsubEvent.getItems()[0].getChildText("nick", "http://jabber.org/protocol/nick"));
+				}
+
+				trace("pubsubNode == "+pubsubNode);
+
+				if(pubsubNode == "eu.siacs.conversations.axolotl.devicelist") {
+					if(isOwnAccount) {
+						omemo.onAccountUpdatedDeviceList(pubsubEvent.getItems());
+					} else {
+						omemo.onContactUpdatedDeviceList(fromBare, pubsubEvent.getItems());
 					}
 				}
 			}
