@@ -350,6 +350,10 @@ class Stanza implements NodeInterface {
 			}
 		});
 	}
+
+	static public function parseXmlBool(x:String) {
+		return x == "true" || x == "1";
+	}
 }
 
 enum IqRequestType {

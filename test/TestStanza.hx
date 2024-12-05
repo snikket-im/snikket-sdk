@@ -22,4 +22,11 @@ class TestStanza extends utest.Test {
         }
         Assert.equals(2, count);
     }
+
+    public function testParseXmlBool() {
+        Assert.equals(true, Stanza.parseXmlBool("true"));
+        Assert.equals(true, Stanza.parseXmlBool("1"));
+        Assert.equals(false, Stanza.parseXmlBool("false"));
+        Assert.equals(false, Stanza.parseXmlBool("0"));
+    }
 }
