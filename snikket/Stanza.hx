@@ -338,6 +338,18 @@ class Stanza implements NodeInterface {
 			errorTag.getChildText("text", "urn:ietf:params:xml:ns:xmpp-stanzas")
 		);
 	}
+
+	public function removeChildren(?name: String, ?xmlns_:String):Void {
+		final xmlns = xmlns_??attr.get("xmlns");
+		children = children.filter((child:Node) -> {
+			switch(child) {
+				case Element(c):
+					return !( (name == null || c.name == name) && c.attr.get("xmlns")??xmlns == xmlns);
+				default:
+					return true;
+			}
+		});
+	}
 }
 
 enum IqRequestType {
