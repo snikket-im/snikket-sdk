@@ -14,7 +14,9 @@ import snikket.Chat;
 import snikket.Message;
 import snikket.Reaction;
 import snikket.ReactionUpdate;
+#if !NO_OMEMO
 import snikket.OMEMO;
+#end
 
 using Lambda;
 
@@ -843,6 +845,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		}));
 	}
 
+#if !NO_OMEMO
 	// OMEMO
 	// TODO
 	@HaxeCBridge.noemit
@@ -850,5 +853,5 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function storeOmemoId(login:String, omemoId:Int):Void { }
-
+#end
 }
