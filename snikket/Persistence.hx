@@ -5,9 +5,10 @@ import snikket.Chat;
 import snikket.ChatMessage;
 import snikket.Message;
 
+#if !NO_OMEMO
 import snikket.OMEMO;
-
 using snikket.SignalProtocol;
+#end
 
 #if cpp
 @:build(HaxeSwiftBridge.expose())
@@ -38,6 +39,7 @@ interface Persistence {
 	public function storeStreamManagement(accountId:String, data:Null<BytesData>):Void;
 	public function getStreamManagement(accountId:String, callback: (Null<BytesData>)->Void):Void;
 	public function storeService(accountId:String, serviceId:String, name:Null<String>, node:Null<String>, caps:Caps):Void;
+#if !NO_OMEMO
 	public function getOmemoId(login:String, callback:(omemoId:Null<Int>)->Void):Void;
 	public function storeOmemoId(login:String, omemoId:Int):Void;
 	public function storeOmemoIdentityKey(login:String, keypair:IdentityKeyPair):Void;
@@ -49,6 +51,10 @@ interface Persistence {
 	public function storeOmemoSignedPreKey(login:String, signedPreKey:OMEMOBundleSignedPreKey):Void;
 	public function getOmemoSignedPreKey(login:String, keyId:Int, callback: (OMEMOBundleSignedPreKey)->Void):Void;
 	public function getOmemoPreKeys(login:String, callback: (Array<PreKeyPair>)->Void):Void;
+	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Void;
+	public function getOmemoContactIdentityKey(account:String, address:String, callback:(IdentityPublicKey)->Void):Void;
+#end
+
 
 	@HaxeCBridge.noemit
 	public function findServicesWithFeature(accountId:String, feature:String, callback:(Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>)->Void):Void;

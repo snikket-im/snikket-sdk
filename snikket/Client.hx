@@ -5,18 +5,22 @@ import sha.SHA256;
 import haxe.crypto.Base64;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
-import snikket.jingle.IceServer;
-import snikket.jingle.PeerConnection;
 import snikket.Caps;
 import snikket.Chat;
 import snikket.ChatMessage;
 import snikket.Message;
 import snikket.EventEmitter;
 import snikket.EventHandler;
+#if !NO_OMEMO
 import snikket.OMEMO;
+#end
 import snikket.PubsubEvent;
 import snikket.Stream;
+#if !NO_JINGLE
+import snikket.jingle.IceServer;
+import snikket.jingle.PeerConnection;
 import snikket.jingle.Session;
+#end
 import snikket.queries.BlocklistGet;
 import snikket.queries.BoB;
 import snikket.queries.DiscoInfoGet;
@@ -72,6 +76,7 @@ class Client extends EventEmitter {
 			"http://jabber.org/protocol/nick+notify",
 			"urn:xmpp:bookmarks:1+notify",
 			"urn:xmpp:mds:displayed:0+notify",
+#if !NO_JINGLE
 			"urn:xmpp:jingle-message:0",
 			"urn:xmpp:jingle:1",
 			"urn:xmpp:jingle:apps:dtls:0",
@@ -79,7 +84,10 @@ class Client extends EventEmitter {
 			"urn:xmpp:jingle:apps:rtp:audio",
 			"urn:xmpp:jingle:apps:rtp:video",
 			"urn:xmpp:jingle:transports:ice-udp:1",
+#end
+#if !NO_OMEMO
 			"eu.siacs.conversations.axolotl.devicelist+notify"
+#end
 		]
 	);
 	private var _displayName: String;
@@ -88,7 +96,10 @@ class Client extends EventEmitter {
 	private var fastCount: Null<Int> = null;
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
 
+#if !NO_OMEMO
+	@:allow(snikket)
 	private final omemo: OMEMO;
+#end
 
 	@:allow(snikket)
 	private var inSync(default, null) = false;
@@ -105,7 +116,9 @@ class Client extends EventEmitter {
 		this.jid = JID.parse(address);
 		this._displayName = this.jid.node;
 		this.persistence = persistence;
+#if !NO_OMEMO
 		this.omemo = new OMEMO(this, persistence);
+#end
 		stream = new Stream();
 		stream.on("status/online", this.onConnected);
 		stream.on("status/offline", (data) -> {
@@ -207,6 +220,7 @@ class Client extends EventEmitter {
 					// ignore
 			}
 
+#if !NO_JINGLE
 			final jmiP = stanza.getChild("propose", "urn:xmpp:jingle-message:0");
 			if (jmiP != null && jmiP.attr.get("id") != null) {
 				final session = new IncomingProposedSession(this, from, jmiP.attr.get("id"));
@@ -261,6 +275,7 @@ class Client extends EventEmitter {
 					chat.jingleSessions.remove(session.sid);
 				}
 			}
+#end
 
 			if (stanza.attr.get("type") != "error") {
 				final chatState = stanza.getChild(null, "http://jabber.org/protocol/chatstates");
@@ -349,6 +364,7 @@ class Client extends EventEmitter {
 
 				trace("pubsubNode == "+pubsubNode);
 
+#if !NO_OMEMO
 				if(pubsubNode == "eu.siacs.conversations.axolotl.devicelist") {
 					if(isOwnAccount) {
 						omemo.onAccountUpdatedDeviceList(pubsubEvent.getItems());
@@ -356,11 +372,13 @@ class Client extends EventEmitter {
 						omemo.onContactUpdatedDeviceList(fromBare, pubsubEvent.getItems());
 					}
 				}
+#end
 			}
 
 			return EventUnhandled; // Allow others to get this event as well
 		});
 
+#if !NO_JINGLE
 		stream.onIq(Set, "jingle", "urn:xmpp:jingle:1", (stanza) -> {
 			final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
 			final jingle = stanza.getChild("jingle", "urn:xmpp:jingle:1");
@@ -411,6 +429,7 @@ class Client extends EventEmitter {
 			// jingle requires useless replies to every iq
 			return IqResult;
 		});
+#end
 
 		stream.onIq(Get, "query", "http://jabber.org/protocol/disco#info", (stanza) -> {
 			return IqResultElement(caps.discoReply());
@@ -1148,6 +1167,7 @@ class Client extends EventEmitter {
 		});
 	}
 
+#if !NO_JINGLE
 	/**
 		Event fired when a new call comes in
 
@@ -1210,6 +1230,7 @@ class Client extends EventEmitter {
 			return EventHandled;
 		});
 	}
+#end
 
 	/**
 		Let the SDK know the UI is in the foreground
@@ -1309,6 +1330,7 @@ class Client extends EventEmitter {
 		);
 	}
 
+#if !NO_JINGLE
 	@:allow(snikket)
 	private function getIceServers(callback: (Array<IceServer>)->Void) {
 		final extDiscoGet = new ExtDiscoGet(jid.domain);
@@ -1336,6 +1358,7 @@ class Client extends EventEmitter {
 		});
 		sendQuery(extDiscoGet);
 	}
+#end
 
 	@:allow(snikket)
 	private function discoverServices(target: JID, ?node: String, callback: ({ jid: JID, name: Null<String>, node: Null<String> }, Caps)->Void) {
@@ -1490,6 +1513,7 @@ class Client extends EventEmitter {
 		}
 	}
 
+#if !NO_JINGLE
 	private function onMAMJMI(sid: String, stanza: Stanza) {
 		if (stanza.attr.get("from") == null) return;
 		final from = JID.parse(stanza.attr.get("from"));
@@ -1502,6 +1526,7 @@ class Client extends EventEmitter {
 		chatActivity(chat);
 		session.ring();
 	}
+#end
 
 	private function doSync(callback: Null<(Bool)->Void>, lastId: Null<String>) {
 		var thirtyDaysAgo = Date.format(
@@ -1556,6 +1581,7 @@ class Client extends EventEmitter {
 				if (sync.hasMore()) {
 					sync.fetchNext();
 				} else {
+#if !NO_JINGLE
 					for (sid => stanza in sync.jmi) {
 						onMAMJMI(sid, stanza);
 					}
@@ -1564,6 +1590,7 @@ class Client extends EventEmitter {
 						final chat = getChat(chatId);
 						if (chat == null) getDirectChat(chatId);
 					}
+#end
 					if (callback != null) callback(true);
 				}
 			},
