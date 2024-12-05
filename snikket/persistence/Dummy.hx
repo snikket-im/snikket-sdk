@@ -7,9 +7,11 @@ import haxe.io.BytesData;
 import snikket.Caps;
 import snikket.Chat;
 import snikket.Message;
+#if !NO_OMEMO
 import snikket.OMEMO;
-
 using snikket.SignalProtocol;
+#end
+
 
 // TODO: consider doing background threads for operations
 
@@ -142,6 +144,7 @@ class Dummy implements Persistence {
 		callback([]);
 	}
 
+#if !NO_OMEMO
 	@HaxeCBridge.noemit
 	public function getOmemoId(login:String, callback:(omemoId:Null<Int>)->Void):Void { }
 
@@ -171,4 +174,9 @@ class Dummy implements Persistence {
 	@HaxeCBridge.noemit
 	public function getOmemoPreKeys(login:String, callback: (Array<PreKeyPair>)->Void):Void { }
 
+	@HaxeCBridge.noemit
+	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Void { }
+	@HaxeCBridge.noemit
+	public function getOmemoContactIdentityKey(account:String, address:String, callback:(IdentityPublicKey)->Void):Void { }
+#end
 }

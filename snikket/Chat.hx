@@ -11,8 +11,10 @@ import snikket.ID;
 import snikket.Message;
 import snikket.MessageSync;
 import snikket.Reaction;
+#if !NO_JINGLE
 import snikket.jingle.PeerConnection;
 import snikket.jingle.Session;
+#end
 import snikket.queries.DiscoInfoGet;
 import snikket.queries.MAMQuery;
 using Lambda;
@@ -53,8 +55,10 @@ abstract class Chat {
 		ID of this Chat
 	**/
 	public var chatId(default, null):String;
+#if !NO_JINGLE
 	@:allow(snikket)
 	private var jingleSessions: Map<String, snikket.jingle.Session> = [];
+#end
 	@:allow(snikket)
 	private var displayName:String;
 	/**
@@ -548,10 +552,11 @@ abstract class Chat {
 		Can audio calls be started in this Chat?
 	**/
 	public function canAudioCall():Bool {
+#if !NO_JINGLE
 		for (resource => p in presence) {
 			if (p.caps?.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false) return true;
 		}
-
+#end
 		return false;
 	}
 
@@ -559,13 +564,15 @@ abstract class Chat {
 		Can video calls be started in this Chat?
 	**/
 	public function canVideoCall():Bool {
+#if !NO_JINGLE
 		for (resource => p in presence) {
 			if (p.caps?.features?.contains("urn:xmpp:jingle:apps:rtp:video") ?? false) return true;
 		}
-
+#end
 		return false;
 	}
 
+#if !NO_JINGLE
 	/**
 		Start a new call in this Chat
 
@@ -632,6 +639,7 @@ abstract class Chat {
 	public function videoTracks(): Array<MediaStreamTrack> {
 		return jingleSessions.flatMap((session) -> session.videoTracks());
 	}
+#end
 
 	@:allow(snikket)
 	private function markReadUpToId(upTo: String, upToBy: String, ?callback: ()->Void) {

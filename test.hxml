@@ -1,8 +1,15 @@
---library haxe-strings
---library hsluv
---library utest
 --library HtmlParser
 --library datetime
+--library haxe-strings
+--library hsluv
+--library hxtsdgen
+--library sha
+--library thenshim
+--library tink_http
 
+--library utest
+
+-D NO_JINGLE
+-D NO_OMEMO
 --run
 test.TestAll
