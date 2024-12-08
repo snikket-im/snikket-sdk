@@ -552,7 +552,7 @@ class InitiatedSession implements Session {
 		});
 	}
 
-	private function setupLocalDescription(type: String, ?filterMedia: Array<String>, ?filterOut: Bool = false, ?beforeSend: (SessionDescription)->Void) {
+	private function setupLocalDescription(type: String, ?filterMedia: Array<String>, ?filterOut: Bool = false, ?beforeSend: (SessionDescription)->Void): Promise<Any> {
 		return pc.setLocalDescription(null).then((_) -> {
 			final caps = client.getDirectChat(counterpart.asBare().asString()).getResourceCaps(counterpart.resource);
 			return if ((type == "session-initiate" || type == "session-accept") && caps.features.contains("urn:ietf:rfc:3264")) {
@@ -595,18 +595,17 @@ class InitiatedSession implements Session {
 		});
 	}
 
-	private function onPeerConnection() {
+	private function onPeerConnection(): Promise<Any> {
 		return pc.setRemoteDescription({ type: SdpType.OFFER, sdp: remoteDescription.toSdp() })
 		.then((_) -> {
 			final inboundTransportInfo = queuedInboundTransportInfo.copy();
 			queuedInboundTransportInfo.resize(0);
 			return inboundTransportInfo.map(transportInfo);
 		})
-		.then((_) -> {
-			setupLocalDescription("session-accept");
-		}).then((x) -> {
+		.then((_) ->
+			setupLocalDescription("session-accept")
+		).then((_) -> {
 			peerDtlsSetup = localDescription.getDtlsSetup() == "active" ? "passive" : "active";
-			return;
 		});
 	}
 }

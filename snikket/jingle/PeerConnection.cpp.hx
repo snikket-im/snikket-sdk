@@ -778,7 +778,8 @@ class PeerConnection {
 	final stateChangeListeners = [];
 	final mainLoop: sys.thread.EventLoop;
 	var hasLocal = false;
-	var pendingTracks = [];
+	var hasRemote = false;
+	var pendingTracks: Array<MediaStreamTrack> = [];
 
 	public function new(?configuration : Configuration, ?constraints : Dynamic) {
 		if (Sys.getEnv("SNIKKET_WEBRTC_DEBUG") != null) {
@@ -812,6 +813,7 @@ class PeerConnection {
 	private function onLocalDescription() {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		mainLoop.run(() -> {
+			addPendingTracks();
 			if (waitingOnLocal != null) waitingOnLocal(null);
 			waitingOnLocal = null;
 		});
@@ -821,13 +823,6 @@ class PeerConnection {
 	private function onLocalCandidate(candidate: Candidate) {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		mainLoop.run(() -> {
-			if (!hasLocal) {
-				hasLocal = true;
-				var track;
-				while ((track = pendingTracks.shift()) != null) {
-					addTrack(track, null);
-				}
-			}
 			for (cb in localCandidateListeners) {
 				cb({ candidate: {
 					candidate: (candidate.candidate() : String),
@@ -897,18 +892,28 @@ class PeerConnection {
 	public function setLocalDescription(sdpType: Null<SdpType>): Promise<Any> {
 		return new Promise((resolve, reject) -> {
 			waitingOnLocal = resolve;
+			if (!hasRemote) addPendingTracks();
 			pc.ref.setLocalDescription(sdpType ?? SdpType.UNSPEC);
 		});
 	}
 
 	public function setRemoteDescription(description : SessionDescriptionInit): Promise<Any> {
 		pc.ref.setRemoteDescription(new Description(cpp.StdString.ofString(description.sdp), description.type));
+		hasRemote = true;
 		return Promise.resolve(null);
 	}
 
 	public function addIceCandidate(candidate : { candidate: String, sdpMid: String, sppMLineIndex: Int, usernameFragment: String }): Promise<Any> {
 		pc.ref.addRemoteCandidate(new Candidate(cpp.StdString.ofString(candidate.candidate), cpp.StdString.ofString(candidate.sdpMid)));
 		return Promise.resolve(null);
+	}
+
+	private function addPendingTracks() {
+		hasLocal = true;
+		var track;
+		while ((track = pendingTracks.shift()) != null) {
+			addTrack(track, null);
+		}
 	}
 
 	public function addTrack(track : MediaStreamTrack, stream : MediaStream) {
