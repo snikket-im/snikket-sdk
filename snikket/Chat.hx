@@ -1058,7 +1058,7 @@ class Channel extends Chat {
 							serverIds[m.serverId] = true;
 						}
 					}
-					final readIndex = dedupedMessages.findIndex((m) -> m.serverId == readUpTo());
+					final readIndex = dedupedMessages.findIndex((m) -> m.serverId == readUpTo() || !m.isIncoming());
 					if (readIndex < 0) {
 						setUnreadCount(unreadCount() + dedupedMessages.length);
 					} else {
