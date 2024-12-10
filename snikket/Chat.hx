@@ -1036,6 +1036,7 @@ class Channel extends Chat {
 			}
 			thenshim.PromiseTools.all(promises).then((stored) -> {
 				for (message in stored) {
+					client.notifySyncMessageHandlers(message);
 					if (message != null && message.chatId() == chatId) chatMessages.push(message);
 					if (chatMessages.length > 1000) chatMessages.shift(); // Save some RAM
 				}

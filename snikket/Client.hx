@@ -54,6 +54,7 @@ class Client extends EventEmitter {
 	public var sendAvailable(null, default): Bool = true;
 	private var stream:GenericStream;
 	private var chatMessageHandlers: Array<(ChatMessage, ChatMessageEvent)->Void> = [];
+	private var syncMessageHandlers: Array<(ChatMessage)->Void> = [];
 	private var chatStateHandlers: Array<(String,String,Null<String>,UserState)->Void> = [];
 	@:allow(snikket)
 	private var jid(default,null):JID;
@@ -1017,8 +1018,18 @@ class Client extends EventEmitter {
 			chatMessageHandlers.push((m, e) -> handler(m, cast e));
 	#else
 		public function addChatMessageListener(handler:(ChatMessage, ChatMessageEvent)->Void):Void {
-		chatMessageHandlers.push(handler);
+			chatMessageHandlers.push(handler);
 	#end
+	}
+
+	/**
+		Event fired when syncing a new ChatMessage that was send when offline.
+		Normally you don't want this, but it may be useful if you want to notify on app start.
+
+		@param handler takes one argument, the ChatMessage
+	**/
+	public function addSyncMessageListener(handler:(ChatMessage)->Void):Void {
+		syncMessageHandlers.push(handler);
 	}
 
 	/**
@@ -1246,6 +1257,16 @@ class Client extends EventEmitter {
 		}
 	}
 
+	@:allow(snikket)
+	private function notifySyncMessageHandlers(message: ChatMessage) {
+		if (message == null || message.versions.length > 1) return;
+		final chat = getChat(message.chatId());
+		if (chat != null && chat.isBlocked) return; // Don't notify blocked chats
+		for (handler in syncMessageHandlers) {
+			handler(message);
+		}
+	}
+
 	private function rosterGet() {
 		var rosterGet = new RosterGet();
 		rosterGet.onFinished(() -> {
@@ -1394,14 +1415,20 @@ class Client extends EventEmitter {
 						}));
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {
-							persistence.storeReaction(accountId(), update, resolve);
+							persistence.storeReaction(accountId(), update, (_) -> resolve(null));
 						}));
 					default:
 						// ignore
 				}
 			}
 			trace("SYNC: MAM page wait for writes");
-			thenshim.PromiseTools.all(promises).then((_) -> {
+			thenshim.PromiseTools.all(promises).then((storedMessages) -> {
+				if (syncMessageHandlers.length > 0) {
+					for (message in storedMessages) {
+						notifySyncMessageHandlers(message);
+					}
+				}
+
 				if (sync.hasMore()) {
 					sync.fetchNext();
 				} else {
