@@ -365,7 +365,7 @@ const browser = (dbname, tokenize, stemmer) => {
 			if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";
 			new Promise((resolve) =>
 				// Hydrate reply stubs
-				message.replyToMessage && !message.replyToMessage.serverIdBy ? this.getMessage(account, message.chatId(), message.replyToMessage.getReplyId(), message.replyToMessage.getReplyId(), resolve) : resolve(message.replyToMessage)
+				message.replyToMessage && !message.replyToMessage.serverIdBy ? this.getMessage(account, message.chatId(), message.replyToMessage.serverId, message.replyToMessage.localId, resolve) : resolve(message.replyToMessage)
 			).then((replyToMessage) => {
 				message.replyToMessage = replyToMessage;
 				const tx = db.transaction(["messages", "reactions"], "readwrite");
