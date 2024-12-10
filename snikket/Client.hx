@@ -815,7 +815,7 @@ class Client extends EventEmitter {
 			if (chat.chatId != jid.asBare().asString()) {
 				if (chat.chatId.contains(query.toLowerCase()) || chat.getDisplayName().toLowerCase().contains(query.toLowerCase())) {
 					final channel = Util.downcast(chat, Channel);
-					results.push(new AvailableChat(chat.chatId, chat.getDisplayName(), chat.chatId, channel == null ? new Caps("", [], []) : channel.disco));
+					results.push(new AvailableChat(chat.chatId, chat.getDisplayName(), chat.chatId, channel == null || channel.disco == null ? new Caps("", [], []) : channel.disco));
 				}
 			}
 			if (chat.isTrusted()) {
