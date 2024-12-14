@@ -191,6 +191,22 @@ class ChatMessage {
 		return type == MessageChannel || type == MessageChannelPrivate ? serverId : localId;
 	}
 
+	@:allow(snikket)
+	private function makeModerated(timestamp: String, moderatorId: Null<String>, reason: Null<String>) {
+		text = null;
+		attachments = [];
+		payloads = [];
+		versions = [];
+		final cleanedStub = clone();
+		final payload = new Stanza("retracted", { xmlns: "urn:xmpp:message-retract:1", stamp: timestamp });
+		if (reason != null) payload.textTag("reason", reason);
+		payload.tag("moderated", { by: moderatorId, xmlns: "urn:xmpp:message-moderate:1" }).up();
+		payloads.push(payload);
+		final head = clone();
+		head.timestamp = timestamp;
+		versions = [head, cleanedStub];
+	}
+
 	private function set_localId(localId:Null<String>) {
 		if(this.localId != null) {
 			throw new Exception("Message already has a localId set");

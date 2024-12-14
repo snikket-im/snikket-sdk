@@ -42,6 +42,15 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
+	public function updateMessage(accountId: String, message: ChatMessage) {
+	}
+
+	@HaxeCBridge.noemit
+	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>, callback: (Null<ChatMessage>)->Void) {
+		callback(null);
+	}
+
+	@HaxeCBridge.noemit
 	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
 		callback([]);
 	}
@@ -84,6 +93,10 @@ class Dummy implements Persistence {
 	@HaxeCBridge.noemit
 	public function storeMedia(mime:String, bd:BytesData, callback: ()->Void) {
 		callback();
+	}
+
+	@HaxeCBridge.noemit
+	public function removeMedia(hashAlgorithm:String, hash:BytesData) {
 	}
 
 	@HaxeCBridge.noemit

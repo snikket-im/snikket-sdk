@@ -190,6 +190,8 @@ class Client extends EventEmitter {
 						fetchMediaByHash([hash], [from]);
 					}
 					persistence.storeReaction(accountId(), update, (stored) -> if (stored != null) notifyMessageHandlers(stored, ReactionEvent));
+				case ModerateMessageStanza(action):
+					moderateMessage(action).then((stored) -> if (stored != null) notifyMessageHandlers(stored, CorrectionEvent));
 				default:
 					// ignore
 			}
@@ -901,6 +903,23 @@ class Client extends EventEmitter {
 	}
 
 	@:allow(snikket)
+	private function moderateMessage(action: ModerationAction): Promise<Null<ChatMessage>> {
+		return new thenshim.Promise((resolve, reject) ->
+			persistence.getMessage(accountId(), action.chatId, action.moderateServerId, null, (moderateMessage) -> {
+				if (moderateMessage == null) return resolve(null);
+				for(attachment in moderateMessage.attachments) {
+					for(hash in attachment.hashes) {
+						persistence.removeMedia(hash.algorithm, hash.hash);
+					}
+				}
+				moderateMessage.makeModerated(action.timestamp, action.moderatorId, action.reason);
+				persistence.updateMessage(accountId(), moderateMessage);
+				resolve(moderateMessage);
+			})
+		);
+	}
+
+	@:allow(snikket)
 	private function getDirectChat(chatId:String, triggerIfNew:Bool = true):DirectChat {
 		for (chat in chats) {
 			if (Std.isOfType(chat, DirectChat) && chat.chatId == chatId) {
@@ -1416,6 +1435,10 @@ class Client extends EventEmitter {
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {
 							persistence.storeReaction(accountId(), update, (_) -> resolve(null));
+						}));
+					case ModerateMessageStanza(action):
+						promises.push(new thenshim.Promise((resolve, reject) -> {
+							moderateMessage(action).then((_) -> resolve(null));
 						}));
 					default:
 						// ignore

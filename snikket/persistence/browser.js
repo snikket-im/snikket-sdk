@@ -419,6 +419,12 @@ const browser = (dbname, tokenize, stemmer) => {
 			});
 		},
 
+		updateMessage: function(account, message) {
+			const tx = db.transaction(["messages"], "readwrite");
+			const store = tx.objectStore("messages");
+			store.put(serializeMessage(account, message));
+		},
+
 		updateMessageStatus: function(account, localId, status, callback) {
 			const tx = db.transaction(["messages"], "readwrite");
 			const store = tx.objectStore("messages");
@@ -569,9 +575,25 @@ const browser = (dbname, tokenize, stemmer) => {
 
 		hasMedia: function(hashAlgorithm, hash, callback) {
 			(async () => {
-				const response = await this.getMediaResponse(hashAlgorithm, hash);
+				const response = await this.getMediaResponse(mkNiUrl(hashAlgorithm, hash));
 				return !!response;
 			})().then(callback);
+		},
+
+		removeMedia: function(hashAlgorithm, hash) {
+			(async () => {
+				var niUrl;
+				if (hashAlgorithm === "sha-256") {
+					niUrl = mkNiUrl(hashAlgorithm, hash);
+				} else {
+					const tx = db.transaction(["keyvaluepairs"], "readonly");
+					const store = tx.objectStore("keyvaluepairs");
+					niUrl = await promisifyRequest(store.get(mkNiUrl(hashAlgorithm, hash)));
+					if (!niUrl) return;
+				}
+
+				return await cache.delete(niUrl);
+			})();
 		},
 
 		storeMedia: function(mime, buffer, callback) {

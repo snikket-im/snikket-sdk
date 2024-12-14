@@ -135,6 +135,8 @@ abstract class Chat {
 						}));
 					case ReactionUpdateStanza(update):
 						persistence.storeReaction(client.accountId(), update, (m)->{});
+					case ModerateMessageStanza(action):
+						client.moderateMessage(action);
 					default:
 						// ignore
 				}
@@ -1029,6 +1031,10 @@ class Channel extends Chat {
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {
 							persistence.storeReaction(client.accountId(), update, (_) -> resolve(null));
+						}));
+					case ModerateMessageStanza(action):
+						promises.push(new thenshim.Promise((resolve, reject) -> {
+							client.moderateMessage(action).then((_) -> resolve(null));
 						}));
 					default:
 						// ignore

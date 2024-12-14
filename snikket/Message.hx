@@ -26,6 +26,7 @@ enum abstract MessageType(Int) {
 enum MessageStanza {
 	ErrorMessageStanza(stanza: Stanza);
 	ChatMessageStanza(message: ChatMessage);
+	ModerateMessageStanza(action: ModerationAction);
 	ReactionUpdateStanza(update: ReactionUpdate);
 	UnknownMessageStanza(stanza: Stanza);
 }
@@ -198,7 +199,30 @@ class Message {
 			Reflect.setField(msg, "localId", jmi.attr.get("id"));
 		}
 
-		if (msg.text == null && msg.attachments.length < 1) return new Message(msg.chatId(), msg.senderId(), msg.threadId, UnknownMessageStanza(stanza));
+		final retract = stanza.getChild("replace", "urn:xmpp:message-retract:1");
+		final fasten = stanza.getChild("apply-to", "urn:xmpp:fasten:0");
+		final moderated = retract?.getChild("moderated", "urn:xmpp:message-retract:1") ?? fasten?.getChild("moderated", "urn:xmpp:message-moderate:0");
+		final moderateServerId = retract?.attr?.get("id") ?? fasten?.attr?.get("id");
+		if (moderated != null && moderateServerId != null && isGroupchat && msg.from != null && msg.from.isBare() && msg.from.asString() == msg.chatId()) {
+			final reason = retract?.getChildText("reason") ?? moderated?.getChildText("reason");
+			final by = moderated.attr.get("by");
+			// TODO: occupant id as well / instead of by?
+			return new Message(
+				msg.chatId(),
+				msg.senderId(),
+				msg.threadId,
+				ModerateMessageStanza(new ModerationAction(msg.chatId(), moderateServerId, timestamp, by, reason))
+			);
+		}
+
+		final replace = stanza.getChild("replace", "urn:xmpp:message-correct:0");
+		final replaceId  = replace?.attr?.get("id");
+		if (replaceId != null) {
+			msg.versions = [msg.clone()];
+			Reflect.setField(msg, "localId", replaceId);
+		}
+
+		if (msg.text == null && msg.attachments.length < 1 && msg.versions.length < 1) return new Message(msg.chatId(), msg.senderId(), msg.threadId, UnknownMessageStanza(stanza));
 
 		for (fallback in stanza.allTags("fallback", "urn:xmpp:fallback:0")) {
 			msg.payloads.push(fallback);
@@ -269,13 +293,6 @@ class Message {
 				}
 				msg.replyToMessage = replyToMessage;
 			}
-		}
-
-		final replace = stanza.getChild("replace", "urn:xmpp:message-correct:0");
-		final replaceId  = replace?.attr?.get("id");
-		if (replaceId != null) {
-			msg.versions = [msg.clone()];
-			Reflect.setField(msg, "localId", replaceId);
 		}
 
 		return new Message(msg.chatId(), msg.senderId(), msg.threadId, ChatMessageStanza(msg));

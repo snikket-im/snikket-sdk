@@ -190,6 +190,35 @@ class Sqlite implements Persistence {
 		callback(message);
 	}
 
+	@HaxeCBridge.noemit
+	public function updateMessage(accountId: String, message: ChatMessage) {
+		storeMessage(accountId, message, (_)->{});
+	}
+
+
+	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>, callback: (Null<ChatMessage>)->Void) {
+		final q = new StringBuf();
+		q.add("SELECT stanza FROM messages WHERE account_id=");
+		db.addValue(q, accountId);
+		q.add(" AND chat_id=");
+		db.addValue(q, chatId);
+		if (serverId != null) {
+			q.add(" AND mam_id=");
+			db.addValue(q, serverId);
+		} else if (localId != null) {
+			q.add(" AND stanza_id=");
+			db.addValue(q, localId);
+		}
+		q.add("LIMIT 1");
+		final result = db.request(q.toString());
+		final messages = [];
+		for (row in result) {
+			callback(ChatMessage.fromStanza(Stanza.parse(row.stanza), JID.parse(accountId))); // TODO
+			return;
+		}
+		callback(null);
+	}
+
 	private function getMessages(accountId: String, chatId: String, time: String, op: String) {
 		final q = new StringBuf();
 		q.add("SELECT stanza FROM messages WHERE account_id=");
@@ -294,13 +323,13 @@ class Sqlite implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function getMediaUri(hashAlgorithm:String, hash:BytesData, callback: (Null<String>)->Void) {
+	public function getMediaPath(hashAlgorithm:String, hash:BytesData) {
 		if (hashAlgorithm == "sha-256") {
 			final path = blobpath + "/f" + Bytes.ofData(hash).toHex();
 			if (FileSystem.exists(path)) {
-				callback("file://" + FileSystem.absolutePath(path));
+				return FileSystem.absolutePath(path);
 			} else {
-				callback(null);
+				return null;
 			}
 		} else if (hashAlgorithm == "sha-1") {
 			final q = new StringBuf();
@@ -309,10 +338,9 @@ class Sqlite implements Persistence {
 			q.add(" LIMIT 1");
 			final result = db.request(q.toString());
 			for (row in result) {
-				getMediaUri("sha-256", row.sha256, callback);
-				return;
+				return getMediaPath("sha-256", row.sha256);
 			}
-			callback(null);
+			return null;
 		} else {
 			throw "Unknown hash algorithm: " + hashAlgorithm;
 		}
@@ -320,7 +348,13 @@ class Sqlite implements Persistence {
 
 	@HaxeCBridge.noemit
 	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (Bool)->Void) {
-		getMediaUri(hashAlgorithm, hash, (uri) -> callback(uri != null));
+		callback(getMediaPath(hashAlgorithm, hash) != null);
+	}
+
+	@HaxeCBridge.noemit
+	public function removeMedia(hashAlgorithm:String, hash:BytesData) {
+		final path = getMediaPath(hashAlgorithm, hash);
+		if (path != null) FileSystem.deleteFile(path);
 	}
 
 	@HaxeCBridge.noemit

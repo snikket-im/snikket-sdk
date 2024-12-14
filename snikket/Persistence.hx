@@ -16,12 +16,15 @@ interface Persistence {
 	public function getChatsUnreadDetails(accountId: String, chats: Array<Chat>, callback: (details:Array<{ chatId: String, message: ChatMessage, unreadCount: Int }>)->Void):Void;
 	public function storeReaction(accountId: String, update: ReactionUpdate, callback: (Null<ChatMessage>)->Void):Void;
 	public function storeMessage(accountId: String, message: ChatMessage, callback: (ChatMessage)->Void):Void;
+	public function updateMessage(accountId: String, message: ChatMessage):Void;
 	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus, callback: (ChatMessage)->Void):Void;
+	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>, callback: (Null<ChatMessage>)->Void):Void;
 	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (messages:Array<ChatMessage>)->Void):Void;
 	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>, callback: (messages:Array<ChatMessage>)->Void):Void;
 	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>, callback: (messages:Array<ChatMessage>)->Void):Void;
 	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (has:Bool)->Void):Void;
 	public function storeMedia(mime:String, bytes:BytesData, callback: ()->Void):Void;
+	public function removeMedia(hashAlgorithm:String, hash:BytesData):Void;
 	public function storeCaps(caps:Caps):Void;
 	public function getCaps(ver:String, callback: (Null<Caps>)->Void):Void;
 	public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>):Void;
