@@ -266,7 +266,7 @@ const browser = (dbname, tokenize, stemmer) => {
 					r.extensions,
 					r.readUpToId,
 					r.readUpToBy,
-					r.disco,
+					r.disco ? new snikket.Caps(r.disco.node, r.disco.identities, r.disco.features) : null,
 					r.class
 				)));
 			})().then(callback);
