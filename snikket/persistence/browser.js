@@ -126,7 +126,7 @@ const browser = (dbname, tokenize, stemmer) => {
 		const message = hydrateMessageSync(value);
 		const tx = db.transaction(["messages"], "readonly");
 		const store = tx.objectStore("messages");
-		const replyToMessage = value.replyToMessage && await hydrateMessage((await promisifyRequest(store.openCursor(IDBKeyRange.only(value.replyToMessage))))?.value);
+		const replyToMessage = value.replyToMessage && value.replyToMessage[1] !== message.serverId && value.replyToMessage[3] !== message.localId && await hydrateMessage((await promisifyRequest(store.openCursor(IDBKeyRange.only(value.replyToMessage))))?.value);
 
 		message.replyToMessage = replyToMessage;
 		message.versions = await Promise.all((value.versions || []).map(hydrateMessage));
