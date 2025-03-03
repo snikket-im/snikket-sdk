@@ -33,8 +33,19 @@ extern class XmppJsClient {
 	};
 	var middleware: { use:(({stanza: XmppJsXml})->Void)->Void };
 	var streamFeatures: { use:(String,String,({}, ()->Void, XmppJsXml)->Void)->Void };
-	var streamManagement: { id:String, outbound: Int, inbound: Int, outbound_q: Array<XmppJsXml>, enabled: Bool, allowResume: Bool };
-	var sasl2: Dynamic;
+	var streamManagement: {
+		id:String,
+		outbound: Int,
+		inbound: Int,
+		outbound_q: Array<{ stanza: XmppJsXml, stamp: String }>,
+		enabled: Bool,
+		allowResume: Bool,
+		on: (String, Dynamic->Void)->Void
+	};
+	var saslFactory: Dynamic;
+	var fast: {
+		saveToken: ({ token: String, expiry: String, mechanism: String })->Promise<Any>
+	};
 }
 
 @:js.import("@xmpp/jid", "jid")
@@ -171,19 +182,33 @@ class XmppJsStream extends GenericStream {
 			service: connectionURI,
 			domain: jid.domain,
 			resource: jid.resource,
-			clientId: clientId,
-			credentials: (callback, mechanisms: Dynamic) -> {
+			credentials: (callback, mechanisms: Dynamic, fast: Null<{mechanism: String}>) -> {
+				everConnected = true;
 				this.clientId = Std.is(mechanisms, Array) ? clientId : null;
-				final mechs: Array<{name: String, canFast: Bool, canOther: Bool}> = Std.is(mechanisms, Array) ? mechanisms : [{ name: mechanisms, canFast: false, canOther: true }];
+				final mechs: Array<{name: String, canFast: Bool, canOther: Bool}> =
+					(fast == null ? [] : [{ name: fast.mechanism, canFast: true, canOther: false }]).concat(
+						(Std.is(mechanisms, Array) ? mechanisms : [mechanisms]).map((m: String) -> { name: m, canFast: false, canOther: true })
+					);
 				final mech = mechs.find((m) -> m.canOther)?.name;
 				this.trigger("auth/password-needed", { mechanisms: mechs });
 				return waitForCreds.then((creds) -> {
-					return callback(creds, creds.mechanism ?? mech);
+					creds.username = jid.local;
+					// xmpp.js doesn't support fastCount for now, and expects the cred to be called token when using FAST
+					if (creds.fastCount != null) {
+						try {
+							creds = { username: jid.local, token: Json.parse(creds.password), mechanism: null };
+						} catch (e) {
+							// JSON parse error, so just proceed and let auth fail
+							// token of empty string causes exceptions so don't do that
+							creds = { password: null, fastCount: null, username: jid.local, token: { token: "fail", mechanism: creds.mechanism }, mechanism: null };
+						}
+					}
+					return callback(creds, creds.mechanism ?? mech, new XmppJsXml("user-agent", { id: clientId }));
 				});
 			}
 		});
-		new XmppJsScramSha1(xmpp.sasl2);
-		xmpp.streamFrom = this.jid;
+		new XmppJsScramSha1(xmpp.saslFactory);
+		xmpp.jid = this.jid;
 
 		xmpp.streamFeatures.use("csi", "urn:xmpp:csi:0", (ctx, next, feature) -> {
 			csi = true;
@@ -205,7 +230,9 @@ class XmppJsStream extends GenericStream {
 			xmpp.streamManagement.id = parsedSM.id;
 			xmpp.streamManagement.outbound = parsedSM.outbound;
 			xmpp.streamManagement.inbound = parsedSM.inbound;
-			xmpp.streamManagement.outbound_q = (parsedSM.outbound_q ?? []).map(XmppJsLtx.parse);
+			xmpp.streamManagement.outbound_q = (parsedSM.outbound_q ?? []).map(
+				item -> { stanza: XmppJsLtx.parse(item.stanza), stamp: item.stamp }
+			);
 			initialSM = null;
 		}
 
@@ -222,18 +249,14 @@ class XmppJsStream extends GenericStream {
 			this.state.event("connection-closed");
 		});
 
-		xmpp.middleware.use(function (data) {
-			everConnected = true;
-			if (data.stanza.attrs.xmlns == "urn:xmpp:sm:3") return;
-			if (xmpp.status == "online" && this.state.can("connection-success")) {
-				resumed = xmpp.streamManagement.enabled && xmpp.streamManagement.id != null && xmpp.streamManagement.id != "";
-				if (xmpp.jid == null) {
-					xmpp.jid = this.jid;
-				} else {
-					this.jid = xmpp.jid;
-				}
-				this.state.event("connection-success");
+		xmpp.streamManagement.on("resumed", (_) -> {
+			resumed = true;
+			if (xmpp.jid == null) {
+				xmpp.jid = this.jid;
+			} else {
+				this.jid = xmpp.jid;
 			}
+			this.state.event("connection-success");
 		});
 
 		xmpp.on("stanza", function (stanza) {
@@ -241,19 +264,21 @@ class XmppJsStream extends GenericStream {
 			triggerSMupdate();
 		});
 
-		xmpp.on("stream-management/ack", (stanza) -> {
-			if (stanza.name == "message" && stanza.attrs.id != null) this.trigger("sm/ack", { id: stanza.attrs.id });
+		xmpp.streamManagement.on("ack", (stanza) -> {
+			if (stanza?.name == "message" && stanza?.attrs?.id != null) this.trigger("sm/ack", { id: stanza.attrs.id });
 			triggerSMupdate();
 		});
 
-		xmpp.on("stream-management/fail", (stanza) -> {
+		xmpp.streamManagement.on("fail", (stanza) -> {
 			if (stanza.name == "message" && stanza.attrs.id != null) this.trigger("sm/fail", { id: stanza.attrs.id });
 			triggerSMupdate();
 		});
 
-		xmpp.on("fast-token", (tokenEl) -> {
-			this.trigger("fast-token", tokenEl.attrs);
-		});
+		xmpp.fast.saveToken = (token) -> {
+			token.token = Json.stringify(token);
+			this.trigger("fast-token", token);
+			return Promise.resolve(null);
+		};
 
 		xmpp.on("status", (status) -> {
 			if (status == "disconnect") {
@@ -331,7 +356,7 @@ class XmppJsStream extends GenericStream {
 	}
 
 	private function triggerSMupdate() {
-		if (client == null || !client.streamManagement.enabled || !client.streamManagement.allowResume) return;
+		if (client == null || !client.streamManagement.enabled) return;
 		this.trigger(
 			"sm/update",
 			{
@@ -339,7 +364,7 @@ class XmppJsStream extends GenericStream {
 					id: client.streamManagement.id,
 					outbound: client.streamManagement.outbound,
 					inbound: client.streamManagement.inbound,
-					outbound_q: (client.streamManagement.outbound_q ?? []).map((stanza) -> stanza.toString()),
+					outbound_q: (client.streamManagement.outbound_q ?? []).map((item) -> { stanza: item.stanza.toString(), stamp: item.stamp }),
 					pending: pending.map((stanza) -> stanza.toString())
 				})).getData()
 			}
@@ -377,6 +402,7 @@ class XmppJsStream extends GenericStream {
 	/* State handlers */
 
 	private function onOnline(event) {
+		everConnected = true;
 		var item;
 		while ((item = pending.shift()) != null) {
 			client.send(item);
