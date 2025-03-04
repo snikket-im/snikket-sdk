@@ -3,257 +3,372 @@ package snikket.persistence;
 #if cpp
 import HaxeCBridge;
 #end
-import datetime.DateTime;
+import haxe.DynamicAccess;
 import haxe.Json;
 import haxe.crypto.Base64;
-import haxe.crypto.Sha1;
-import haxe.crypto.Sha256;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
-import sys.FileSystem;
-import sys.db.Connection;
-import sys.io.File;
+import thenshim.Promise;
 import snikket.Caps;
 import snikket.Chat;
 import snikket.Message;
-
-// TODO: consider doing background threads for operations
+using Lambda;
 
 @:expose
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
-class Sqlite implements Persistence {
-	final db: Connection;
-	final blobpath: String;
+class Sqlite implements Persistence implements KeyValueStore {
+	final db: SqliteDriver;
+	final media: MediaStore;
 
 	/**
 		Create a basic persistence layer based on sqlite
 
 		@param dbfile path to sqlite database
-		@params blobpath path to directory for blob storage
+		@params media a MediaStore to use for media
 		@returns new persistence layer
 	**/
-	public function new(dbfile: String, blobpath: String) {
-		this.blobpath = blobpath;
-		db = sys.db.Sqlite.open(dbfile);
-		final version = db.request("PRAGMA user_version;").getIntResult(0);
-		if (version < 1) {
-			db.request("CREATE TABLE messages (
-				account_id TEXT NOT NULL,
-				mam_id TEXT,
-				mam_by TEXT,
-				stanza_id TEXT NOT NULL,
-				sync_point BOOLEAN NOT NULL,
-				chat_id TEXT NOT NULL,
-				created_at INTEGER NOT NULL,
-				stanza TEXT NOT NULL,
-				PRIMARY KEY (account_id, mam_id, mam_by)
-			);");
-			db.request("CREATE TABLE chats (
-				account_id TEXT NOT NULL,
-				chat_id TEXT NOT NULL,
-				trusted BOOLEAN NOT NULL,
-				avatar_sha1 BLOB,
-				fn TEXT,
-				ui_state TEXT NOT NULL,
-				blocked BOOLEAN NOT NULL,
-				extensions TEXT,
-				read_up_to_id TEXT,
-				read_up_to_by TEXT,
-				class TEXT NOT NULL,
-				PRIMARY KEY (account_id, chat_id)
-			);");
-			db.request("CREATE TABLE media (
-				sha256 BLOB NOT NULL PRIMARY KEY,
-				sha1 BLOB NOT NULL UNIQUE,
-				mime TEXT NOT NULL
-			);");
-			db.request("CREATE TABLE caps (
-				sha1 BLOB NOT NULL UNIQUE,
-				caps JSONB NOT NULL
-			);");
-			db.request("CREATE TABLE services (
-				account_id TEXT NOT NULL,
-				service_id TEXT NOT NULL,
-				name TEXT,
-				node TEXT,
-				caps BLOB NOT NULL,
-				PRIMARY KEY (account_id, service_id)
-			);");
-			db.request("CREATE TABLE logins (
-				login TEXT NOT NULL,
-				client_id TEXT NOT NULL,
-				display_name TEXT,
-				token TEXT,
-				fast_count INTEGER NOT NULL DEFAULT 0,
-				PRIMARY KEY (login)
-			);");
-			db.request("PRAGMA user_version = 1;");
+	public function new(dbfile: String, media: MediaStore) {
+		this.media = media;
+		media.setKV(this);
+		db = new SqliteDriver(dbfile);
+		final version = db.exec("PRAGMA user_version;").then(iter -> {
+			final version = Std.parseInt(iter.next()?.user_version) ?? 0;
+			return if (version < 1) {
+				// messages cannot be STRICT because mam_id may be NULL
+				db.exec("CREATE TABLE messages (
+					account_id TEXT NOT NULL,
+					mam_id TEXT,
+					mam_by TEXT,
+					stanza_id TEXT,
+					sync_point INTEGER NOT NULL,
+					chat_id TEXT NOT NULL,
+					created_at INTEGER NOT NULL,
+					status INTEGER NOT NULL,
+					direction INTEGER NOT NULL,
+					stanza TEXT NOT NULL,
+					PRIMARY KEY (account_id, mam_id, mam_by, stanza_id)
+				);
+				CREATE INDEX messages_created_at ON messages (account_id, chat_id, created_at);
+				CREATE TABLE chats (
+					account_id TEXT NOT NULL,
+					chat_id TEXT NOT NULL,
+					trusted INTEGER NOT NULL,
+					avatar_sha1 BLOB,
+					fn TEXT,
+					ui_state INTEGER NOT NULL,
+					blocked INTEGER NOT NULL,
+					extensions TEXT,
+					read_up_to_id TEXT,
+					read_up_to_by TEXT,
+					caps_ver BLOB,
+					presence BLOB NOT NULL,
+					class TEXT NOT NULL,
+					PRIMARY KEY (account_id, chat_id)
+				) STRICT;
+				CREATE TABLE keyvaluepairs (
+					k TEXT NOT NULL PRIMARY KEY,
+					v TEXT NOT NULL
+				) STRICT;
+				CREATE TABLE caps (
+					sha1 BLOB NOT NULL PRIMARY KEY,
+					caps BLOB NOT NULL
+				) STRICT;
+				CREATE TABLE services (
+					account_id TEXT NOT NULL,
+					service_id TEXT NOT NULL,
+					name TEXT,
+					node TEXT,
+					caps BLOB NOT NULL,
+					PRIMARY KEY (account_id, service_id)
+				) STRICT;
+				CREATE TABLE accounts (
+					account_id TEXT NOT NULL,
+					client_id TEXT NOT NULL,
+					display_name TEXT,
+					token TEXT,
+					fast_count INTEGER NOT NULL DEFAULT 0,
+					sm_state BLOB,
+					PRIMARY KEY (account_id)
+				) STRICT;
+				PRAGMA user_version = 1;");
+			}
+		});
+	}
+
+	@HaxeCBridge.noemit
+	public function get(k: String, callback: (Null<String>)->Void) {
+		db.exec("SELECT v FROM keyvaluepairs WHERE k=? LIMIT 1", [k]).then(iter -> {
+			for (row in iter) {
+				callback(row.v);
+				return;
+			}
+			callback(null);
+		});
+	}
+
+	@HaxeCBridge.noemit
+	public function set(k: String, v: Null<String>, callback: ()->Void) {
+		if (v == null) {
+			db.exec("DELETE FROM keyvaluepairs WHERE k=?", [k]).then(_ -> {
+				callback();
+			});
+		} else {
+			db.exec("INSERT OR REPLACE INTO keyvaluepairs VALUES (?,?)", [k, v]).then(_ -> {
+				callback();
+			});
 		}
 	}
 
 	@HaxeCBridge.noemit
 	public function lastId(accountId: String, chatId: Null<String>, callback:(Null<String>)->Void):Void {
-		final q = new StringBuf();
-		q.add("SELECT mam_id FROM messages WHERE mam_id IS NOT NULL AND sync_point AND account_id=");
-		db.addValue(q, accountId);
-		if (chatId != null) {
-			q.add(" AND chat_id=");
-			db.addValue(q, chatId);
+		final params = [accountId];
+		var q = "SELECT mam_id FROM messages WHERE mam_id IS NOT NULL AND sync_point AND account_id=?";
+		if (chatId == null) {
+			q += " AND mam_by=?";
+			params.push(accountId);
+		} else {
+			q += " AND chat_id=?";
+			params.push(chatId);
 		}
-		q.add(";");
-		try {
-			callback(db.request(q.toString()).getResult(0));
-		} catch (e) {
-			callback(null);
-		}
+		q += " ORDER BY ROWID DESC LIMIT 1";
+		db.exec(q, params).then(iter -> callback(iter.next()?.mam_id), (_) -> callback(null));
 	}
 
+	private final storeChatBuffer: Map<String, Chat> = [];
+	private var storeChatTimer = null;
+
 	@HaxeCBridge.noemit
-	public function storeChat(accountId: String, chat: Chat) {
-		// TODO: presence
-		// TODO: disco
-		trace("storeChat");
-		final q = new StringBuf();
-		q.add("INSERT OR REPLACE INTO chats VALUES (");
-		db.addValue(q, accountId);
-		q.add(",");
-		db.addValue(q, chat.chatId);
-		q.add(",");
-		db.addValue(q, chat.isTrusted());
-		if (chat.avatarSha1 == null) {
-			q.add(",NULL");
-		} else {
-			q.add(",X");
-			db.addValue(q, Bytes.ofData(chat.avatarSha1).toHex());
+	public function storeChats(accountId: String, chats: Array<Chat>) {
+		if (storeChatTimer != null) {
+			storeChatTimer.stop();
 		}
-		q.add(",");
-		db.addValue(q, chat.getDisplayName());
-		q.add(",");
-		db.addValue(q, chat.uiState);
-		q.add(",");
-		db.addValue(q, chat.isBlocked);
-		q.add(",");
-		db.addValue(q, chat.extensions);
-		q.add(",");
-		db.addValue(q, chat.readUpTo());
-		q.add(",");
-		db.addValue(q, chat.readUpToBy);
-		q.add(",");
-		db.addValue(q, Type.getClassName(Type.getClass(chat)).split(".").pop());
-		q.add(");");
-		db.request(q.toString());
+
+		for (chat in chats) {
+			storeChatBuffer[accountId + "\n" + chat.chatId] = chat;
+		}
+
+		storeChatTimer = haxe.Timer.delay(() -> {
+			final mapPresence = (chat: Chat) -> {
+				final storePresence: DynamicAccess<{ ?caps: String, ?mucUser: String }> = {};
+				for (resource => presence in chat.presence) {
+					storePresence[resource] = {};
+					if (presence.caps != null) {
+						storeCaps(presence.caps);
+						storePresence[resource].caps = presence.caps.ver();
+					}
+					if (presence.mucUser != null) {
+						storePresence[resource].mucUser = presence.mucUser.toString();
+					}
+				}
+				return storePresence;
+			};
+			final q = new StringBuf();
+			q.add("INSERT OR REPLACE INTO chats VALUES ");
+			var first = true;
+			for (_ in storeChatBuffer) {
+				if (!first) q.add(",");
+				first = false;
+				q.add("(?,?,?,?,?,?,?,?,?,?,?,jsonb(?),?)");
+			}
+			db.exec(
+				q.toString(),
+				storeChatBuffer.flatMap(chat -> {
+					final channel = Std.downcast(chat, Channel);
+					if (channel != null) storeCaps(channel.disco);
+					final row: Array<Dynamic> = [
+						accountId, chat.chatId, chat.isTrusted(), chat.avatarSha1,
+						chat.getDisplayName(), chat.uiState, chat.isBlocked,
+						chat.extensions.toString(), chat.readUpTo(), chat.readUpToBy,
+						channel?.disco?.verRaw().hash, Json.stringify(mapPresence(chat)),
+						Type.getClassName(Type.getClass(chat)).split(".").pop()
+					];
+					return row;
+				})
+			);
+			storeChatTimer = null;
+			storeChatBuffer.clear();
+		}, 100);
 	}
 
 	@HaxeCBridge.noemit
 	public function getChats(accountId: String, callback: (Array<SerializedChat>)->Void) {
-		// TODO: presence
-		// TODO: disco
-		final q = new StringBuf();
-		q.add("SELECT chat_id, trusted, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, class FROM chats WHERE account_id=");
-		db.addValue(q, accountId);
-		final result = db.request(q.toString());
-		final chats = [];
-		for (row in result) {
-			chats.push(new SerializedChat(row.chat_id, row.trusted, row.avatar_sha1, [], row.fn, row.ui_state, row.blocked, row.extensions, row.read_up_to_id, row.read_up_to_by, null, Reflect.field(row, "class")));
-		}
-		callback(chats);
+		db.exec(
+			"SELECT chat_id, trusted, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, json(caps) AS caps, json(presence) AS presence, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
+			[accountId]
+		).then(result -> {
+			final fetchCaps: Map<BytesData, Bool> = [];
+			final chats: Array<Dynamic> = [];
+			for (row in result) {
+				final capsJson = row.caps == null ? null : Json.parse(row.caps);
+				row.capsObj = capsJson == null ? null : new Caps(capsJson.node, capsJson.identities.map(i -> new Identity(i.category, i.type, i.name)), capsJson.features);
+				final presenceJson: DynamicAccess<Dynamic> = Json.parse(row.presence);
+				row.presenceJson = presenceJson;
+				for (resource => presence in presenceJson) {
+					if (presence.caps) fetchCaps[Base64.decode(presence.caps).getData()] = true;
+				}
+				chats.push(row);
+			}
+			final fetchCapsSha1s = { iterator: () -> fetchCaps.keys() }.array();
+			return db.exec(
+				"SELECT sha1, json(caps) AS caps FROM caps WHERE sha1 IN (" + fetchCapsSha1s.map(_ -> "?").join(",") + ")",
+				fetchCapsSha1s
+			).then(capsResult -> { chats: chats, caps: capsResult });
+		}).then(result -> {
+			final capsMap: Map<String, Caps> = [];
+			for (row in result.caps) {
+				final json = Json.parse(row.caps);
+				capsMap[Base64.encode(Bytes.ofData(row.sha1))] = new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), json.features);
+			}
+			final chats = [];
+			for (row in result.chats) {
+				final presenceMap: Map<String, Presence> = [];
+				final presenceJson: DynamicAccess<Dynamic> = row.presenceJson;
+				for (resource => presence in presenceJson) {
+					presenceMap[resource] = new Presence(
+						presence.caps == null ? null : capsMap[presence.caps],
+						presence.mucUser == null ? null : Stanza.parse(presence.mucUser)
+					);
+				}
+				chats.push(new SerializedChat(row.chat_id, row.trusted, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked, row.extensions, row.read_up_to_id, row.read_up_to_by, row.capsObj, Reflect.field(row, "class")));
+			}
+			callback(chats);
+		});
 	}
 
 	@HaxeCBridge.noemit
-	public function storeMessage(accountId: String, message: ChatMessage, callback: (ChatMessage)->Void) {
-		final q = new StringBuf();
-		q.add("INSERT OR REPLACE INTO messages VALUES (");
-		db.addValue(q, accountId);
-		q.add(",");
-		db.addValue(q, message.serverId);
-		q.add(",");
-		db.addValue(q, message.serverIdBy);
-		q.add(",");
-		db.addValue(q, message.localId);
-		q.add(",");
-		db.addValue(q, message.syncPoint);
-		q.add(",");
-		db.addValue(q, message.chatId());
-		q.add(",");
-		db.addValue(q, DateTime.fromString(message.timestamp).getTime());
-		q.add(",");
-		db.addValue(q, message.asStanza().toString());
-		q.add(");");
-		db.request(q.toString());
+	public function storeMessages(accountId: String, messages: Array<ChatMessage>, callback: (Array<ChatMessage>)->Void) {
+		if (messages.length < 1) {
+			callback(messages);
+			return;
+		}
+
+		final chatIds = [];
+		final localIds = [];
+		for (message in messages) {
+			if (message.serverId == null && message.localId == null) throw "Cannot store a message with no id";
+			if (message.serverId == null && message.isIncoming()) throw "Cannot store an incoming message with no server id";
+			if (message.serverId != null && message.serverIdBy == null) throw "Cannot store a message with a server id and no by";
+
+			if (!message.isIncoming() && message.versions.length < 1) {
+				// Duplicate, we trust our own sent ids
+				// Ideally this would be in a transaction with the insert, but then we can't use bind with async api
+				chatIds.push(message.chatId());
+				localIds.push(message.localId);
+			}
+		}
+
+		(if (chatIds.length > 0 && localIds.length > 0) {
+			final q = new StringBuf();
+			q.add("DELETE FROM messages WHERE account_id=? AND direction=? AND chat_id IN (");
+			q.add(chatIds.map(_ -> "?").join(","));
+			q.add(") AND stanza_id IN (");
+			q.add(localIds.map(_ -> "?").join(","));
+			q.add(")");
+			db.exec(q.toString(), ([accountId, MessageSent] : Array<Dynamic>).concat(chatIds).concat(localIds));
+		} else {
+			Promise.resolve(null);
+		}).then(_ ->
+			db.exec(
+				"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?)").join(","),
+				messages.flatMap(message -> ([
+					accountId, message.serverId, message.serverIdBy,
+					message.localId, message.syncPoint, message.chatId(),
+					message.timestamp, message.status, message.direction,
+					message.asStanza().toString()
+				] : Array<Dynamic>))
+			).then(_ -> callback(messages))
+		);
 
 		// TODO: hydrate reply to stubs?
 		// TODO: corrections
 		// TODO: fetch reactions?
-		callback(message);
 	}
 
 	@HaxeCBridge.noemit
 	public function updateMessage(accountId: String, message: ChatMessage) {
-		storeMessage(accountId, message, (_)->{});
+		storeMessages(accountId, [message], (_)->{});
 	}
-
 
 	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>, callback: (Null<ChatMessage>)->Void) {
-		final q = new StringBuf();
-		q.add("SELECT stanza FROM messages WHERE account_id=");
-		db.addValue(q, accountId);
-		q.add(" AND chat_id=");
-		db.addValue(q, chatId);
+		var q = "SELECT stanza, direction, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, mam_id, mam_by FROM messages WHERE account_id=? AND chat_id=?";
+		final params = [accountId, chatId];
 		if (serverId != null) {
-			q.add(" AND mam_id=");
-			db.addValue(q, serverId);
+			q += " AND mam_id=?";
+			params.push(serverId);
 		} else if (localId != null) {
-			q.add(" AND stanza_id=");
-			db.addValue(q, localId);
+			q += " AND stanza_id=?";
+			params.push(localId);
 		}
-		q.add("LIMIT 1");
-		final result = db.request(q.toString());
-		final messages = [];
-		for (row in result) {
-			callback(ChatMessage.fromStanza(Stanza.parse(row.stanza), JID.parse(accountId))); // TODO
-			return;
-		}
-		callback(null);
+		q += "LIMIT 1";
+		db.exec(q, params).then(result -> {
+			for (row in result) {
+				callback(hydrateMessage(accountId, row));
+				return;
+			}
+			callback(null);
+		});
 	}
 
-	private function getMessages(accountId: String, chatId: String, time: String, op: String) {
-		final q = new StringBuf();
-		q.add("SELECT stanza FROM messages WHERE account_id=");
-		db.addValue(q, accountId);
-		q.add(" AND chat_id=");
-		db.addValue(q, chatId);
+	private function getMessages(accountId: String, chatId: String, time: Null<String>, op: String): Promise<Iterator<ChatMessage>> {
+		var q = "SELECT stanza, direction, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, mam_id, mam_by FROM messages WHERE account_id=? AND chat_id=?";
+		final params = [accountId, chatId];
 		if (time != null) {
-			q.add(" AND created_at " + op);
-			db.addValue(q, DateTime.fromString(time).getTime());
+			q += " AND created_at " + op + "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)";
+			params.push(time);
 		}
-		q.add("LIMIT 50");
-		final result = db.request(q.toString());
-		final messages = [];
-		for (row in result) {
-			messages.push(ChatMessage.fromStanza(Stanza.parse(row.stanza), JID.parse(accountId))); // TODO
-		}
-		return messages;
+		q += " ORDER BY created_at";
+		if (op == "<" || op == "<=") q += " DESC";
+		q += ", ROWID";
+		if (op == "<" || op == "<=") q += " DESC";
+		q += " LIMIT 50";
+		return db.exec(q, params).then(result -> ({
+			hasNext: result.hasNext,
+			next: () -> hydrateMessage(accountId, result.next())
+		})).then(iter ->
+			if (op == "<" || op == "<=") {
+				final arr = { iterator: () -> iter }.array();
+				arr.reverse();
+				final reviter = arr.iterator();
+				{ hasNext: reviter.hasNext, next: reviter.next };
+			} else {
+				iter;
+			}
+		);
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		callback(getMessages(accountId, chatId, beforeTime, "<"));
+		getMessages(accountId, chatId, beforeTime, "<").then(iter -> callback({ iterator: () -> iter }.array()));
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		callback(getMessages(accountId, chatId, afterTime, ">"));
+		getMessages(accountId, chatId, afterTime, ">").then(iter -> callback({ iterator: () -> iter }.array()));
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		if (aroundTime == null) throw "Around what?";
-		final before = getMessages(accountId, chatId, aroundTime, "<");
-		final aroundAndAfter = getMessages(accountId, chatId, aroundTime, ">=");
-		callback(before.concat(aroundAndAfter));
+		(if (aroundTime == null) {
+			new Promise((resolve, reject) -> getMessage(accountId, chatId, aroundId, null, resolve)).then(m ->
+				if (m != null) {
+					Promise.resolve(m.timestamp);
+				} else {
+					new Promise((resolve, reject) -> getMessage(accountId, chatId, null, aroundId, resolve)).then(m -> m?.timestamp);
+				}
+			);
+		} else {
+			Promise.resolve(aroundTime);
+		}).then(aroundTime ->
+			thenshim.PromiseTools.all([
+				getMessages(accountId, chatId, aroundTime, "<"),
+				getMessages(accountId, chatId, aroundTime, ">=")
+			])
+		).then(results ->
+			callback(results.flatMap(iter -> { iterator: () -> iter }.array()))
+		);
 	}
 
 	@HaxeCBridge.noemit
@@ -263,53 +378,51 @@ class Sqlite implements Persistence {
 			return;
 		}
 
+		final params: Array<Dynamic> = [accountId]; // subq is first in final q, so subq params first
+
 		final subq = new StringBuf();
-		subq.add("SELECT chat_id, MAX(ROWID) AS row FROM messages WHERE account_id=");
-		db.addValue(subq, accountId);
+		subq.add("SELECT chat_id, MAX(ROWID) AS row FROM messages WHERE account_id=?");
 		subq.add(" AND chat_id IN (");
 		for (i => chat in chats) {
 			if (i != 0) subq.add(",");
-			db.addValue(subq, chat.chatId);
+			subq.add("?");
+			params.push(chat.chatId);
 		}
 		subq.add(") AND (mam_id IN (");
 		var didOne = false;
 		for (chat in chats) {
 			if (chat.readUpTo() != null) {
 				if (didOne) subq.add(",");
-				db.addValue(subq, chat.readUpTo());
+				subq.add("?");
+				params.push(chat.readUpTo());
 				didOne = true;
 			}
 		}
-		subq.add(") OR stanza_id IN (");
-		didOne = false;
-		for (chat in chats) {
-			if (chat.readUpTo() != null) {
-				if (didOne) subq.add(",");
-				db.addValue(subq, chat.readUpTo());
-				didOne = true;
-			}
-		}
-		subq.add(")) GROUP BY chat_id");
+		subq.add(") OR direction=?) GROUP BY chat_id");
+		params.push(MessageSent);
 
 		final q = new StringBuf();
-		q.add("SELECT chat_id as chatId, stanza, CASE WHEN subq.row IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, MAX(messages.created_at) ");
-		q.add("FROM messages LEFT JOIN (");
+		q.add("SELECT chat_id AS chatId, stanza, direction, mam_id, mam_by, CASE WHEN subq.row IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
 		q.add(subq.toString());
-		q.add(") subq USING (chat_id) WHERE account_id=");
-		db.addValue(q, accountId);
-		q.add(" AND chat_id IN (");
+		q.add(") subq USING (chat_id) WHERE account_id=? AND chat_id IN (");
+		params.push(accountId);
 		for (i => chat in chats) {
 			if (i != 0) q.add(",");
-			db.addValue(q, chat.chatId);
+			q.add("?");
+			params.push(chat.chatId);
 		}
 		q.add(") AND (subq.row IS NULL OR messages.ROWID >= subq.row) GROUP BY chat_id;");
-		final result = db.request(q.toString());
-		final details = [];
-		for (row in result) {
-			row.message = ChatMessage.fromStanza(Stanza.parse(row.stanza), JID.parse(accountId)); // TODO
-			details.push(row);
-		}
-		callback(details);
+		db.exec(q.toString(), params).then(result -> {
+			final details = [];
+			for (row in result) {
+				details.push({
+					unreadCount: row.unreadCount,
+					chatId: row.chatId,
+					message: hydrateMessage(accountId, row)
+				});
+			}
+			callback(details);
+		});
 	}
 
 	@HaxeCBridge.noemit
@@ -319,211 +432,188 @@ class Sqlite implements Persistence {
 
 	@HaxeCBridge.noemit
 	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus, callback: (ChatMessage)->Void) {
-		callback(null); // TODO
-	}
-
-	@HaxeCBridge.noemit
-	public function getMediaPath(hashAlgorithm:String, hash:BytesData) {
-		if (hashAlgorithm == "sha-256") {
-			final path = blobpath + "/f" + Bytes.ofData(hash).toHex();
-			if (FileSystem.exists(path)) {
-				return FileSystem.absolutePath(path);
-			} else {
-				return null;
-			}
-		} else if (hashAlgorithm == "sha-1") {
-			final q = new StringBuf();
-			q.add("SELECT sha256 FROM media WHERE sha1=X");
-			db.addValue(q, Bytes.ofData(hash).toHex());
-			q.add(" LIMIT 1");
-			final result = db.request(q.toString());
+		db.exec(
+			"UPDATE messages SET status=? WHERE account_id=? AND stanza_id=? AND direction=? AND status <> ?",
+			[status, accountId, localId, MessageSent, MessageDeliveredToDevice]
+		).then(_ ->
+			db.exec(
+				"SELECT stanza, strftime('%FT%H:%M:%fZ') AS timestamp, mam_id, mam_by FROM messages WHERE account_id=? AND stanza_id=? AND direction=?",
+				[accountId, localId, MessageSent]
+			)
+		).then(result -> {
 			for (row in result) {
-				return getMediaPath("sha-256", row.sha256);
+				callback(hydrateMessage(accountId, row));
+				return;
 			}
-			return null;
-		} else {
-			throw "Unknown hash algorithm: " + hashAlgorithm;
-		}
+		});
 	}
 
 	@HaxeCBridge.noemit
 	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (Bool)->Void) {
-		callback(getMediaPath(hashAlgorithm, hash) != null);
+		media.hasMedia(hashAlgorithm, hash, callback);
 	}
 
 	@HaxeCBridge.noemit
 	public function removeMedia(hashAlgorithm:String, hash:BytesData) {
-		final path = getMediaPath(hashAlgorithm, hash);
-		if (path != null) FileSystem.deleteFile(path);
+		media.removeMedia(hashAlgorithm, hash);
 	}
 
 	@HaxeCBridge.noemit
-	public function storeMedia(mime:String, bd:BytesData, callback: ()->Void) {
-		final bytes = Bytes.ofData(bd);
-		final sha256 = Sha256.make(bytes).toHex();
-		final sha1 = Sha1.make(bytes).toHex();
-		File.saveBytes(blobpath + "/f" + sha256, bytes);
-
-		final q = new StringBuf();
-		q.add("INSERT OR IGNORE INTO media VALUES (X");
-		db.addValue(q, sha256);
-		q.add(",X");
-		db.addValue(q, sha1);
-		q.add(",");
-		db.addValue(q, mime);
-		q.add(");");
-		db.request(q.toString());
-
-		callback();
+	public function storeMedia(mime: String, bd: BytesData, callback: ()->Void) {
+		media.storeMedia(mime, bd, callback);
 	}
 
 	@HaxeCBridge.noemit
 	public function storeCaps(caps:Caps) {
-		final q = new StringBuf();
-		q.add("INSERT OR IGNORE INTO caps VALUES (X");
-		db.addValue(q, caps.verRaw().toHex());
-		q.add(",jsonb(");
-		db.addValue(q, Json.stringify(caps));
-		q.add("));");
-		db.request(q.toString());
+		db.exec(
+			"INSERT OR IGNORE INTO caps VALUES (?,jsonb(?))",
+			[caps.verRaw().hash, Json.stringify({ node: caps.node, identities: caps.identities, features: caps.features })]
+		);
 	}
 
 	@HaxeCBridge.noemit
 	public function getCaps(ver:String, callback: (Caps)->Void) {
-		final q = new StringBuf();
-		q.add("SELECT json(caps) AS caps FROM caps WHERE sha1=X");
-		db.addValue(q, Base64.decode(ver).toHex());
-		q.add(" LIMIT 1");
-		final result = db.request(q.toString());
-		for (row in result) {
-			final json = Json.parse(row.caps);
-			callback(new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), json.features));
+		final verData = try {
+			Base64.decode(ver).getData();
+		} catch (e) {
+			callback(null);
 			return;
 		}
-		callback(null);
+		db.exec(
+			"SELECT json(caps) AS caps FROM caps WHERE sha1=? LIMIT 1",
+			[verData]
+		).then(result -> {
+			for (row in result) {
+				final json = Json.parse(row.caps);
+				callback(new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), json.features));
+				return;
+			}
+			callback(null);
+		});
 	}
 
 	@HaxeCBridge.noemit
-	public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>) {
+	public function storeLogin(accountId:String, clientId:String, displayName:String, token:Null<String>) {
+		final params = [accountId, clientId, displayName];
 		final q = new StringBuf();
-		q.add("INSERT INTO logins (login, client_id, display_name");
+		q.add("INSERT INTO accounts (account_id, client_id, display_name");
 		if (token != null) {
 			q.add(", token, fast_count");
 		}
-		q.add(") VALUES (");
-		db.addValue(q, login);
-		q.add(",");
-		db.addValue(q, clientId);
-		q.add(",");
-		db.addValue(q, displayName);
+		q.add(") VALUES (?,?,?");
 		if (token != null) {
-			q.add(",");
-			db.addValue(q, token);
+			q.add(",?");
+			params.push(token);
 			q.add(",0"); // reset count to zero on new token
 		}
-		q.add(") ON CONFLICT DO UPDATE SET client_id=");
-		db.addValue(q, clientId);
-		q.add(", display_name=");
-		db.addValue(q, displayName);
+		q.add(") ON CONFLICT DO UPDATE SET client_id=?");
+		params.push(clientId);
+		q.add(", display_name=?");
+		params.push(displayName);
 		if (token != null) {
-			q.add(", token=");
-			db.addValue(q, token);
+			q.add(", token=?");
+			params.push(token);
 			q.add(", fast_count=0"); // reset count to zero on new token
 		}
-		db.request(q.toString());
+		db.exec(q.toString(), params);
 	}
 
 	@HaxeCBridge.noemit
-	public function getLogin(login:String, callback:(Null<String>, Null<String>, Int, Null<String>)->Void) {
-		final q = new StringBuf();
-		q.add("SELECT client_id, display_name, token, fast_count FROM logins WHERE login=");
-		db.addValue(q, login);
-		q.add(" LIMIT 1");
-		final result = db.request(q.toString());
-		for (row in result) {
-			if (row.token != null) {
-				final update = new StringBuf();
-				update.add("UPDATE logins SET fast_count=fast_count+1 WHERE login=");
-				db.addValue(update, login);
-				db.request(update.toString());
+	public function getLogin(accountId:String, callback:(Null<String>, Null<String>, Int, Null<String>)->Void) {
+		db.exec(
+			"SELECT client_id, display_name, token, fast_count FROM accounts WHERE account_id=? LIMIT 1",
+			[accountId]
+		).then(result -> {
+			for (row in result) {
+				if (row.token != null) {
+					db.exec("UPDATE accounts SET fast_count=fast_count+1 WHERE account_id=?", [accountId]);
+				}
+				callback(row.client_id, row.token, row.fast_count ?? 0, row.display_name);
+				return;
 			}
-			callback(row.client_id, row.token, row.fast_count ?? 0, row.display_name);
-			return;
-		}
 
-		callback(null, null, 0, null);
+			callback(null, null, 0, null);
+		});
 	}
 
 	@HaxeCBridge.noemit
 	public function removeAccount(accountId:String, completely:Bool) {
-		var q = new StringBuf();
-		q.add("DELETE FROM logins WHERE login=");
-		db.addValue(q, accountId);
-		db.request(q.toString());
-		// TODO stream managemento
+		db.exec("DELETE FROM accounts WHERE account_id=?", [accountId]);
 
 		if (!completely) return;
 
-		var q = new StringBuf();
-		q.add("DELETE FROM messages WHERE account_id=");
-		db.addValue(q, accountId);
-		db.request(q.toString());
-
-		var q = new StringBuf();
-		q.add("DELETE FROM chats WHERE account_id=");
-		db.addValue(q, accountId);
-		db.request(q.toString());
-
-		var q = new StringBuf();
-		q.add("DELETE FROM services WHERE account_id=");
-		db.addValue(q, accountId);
-		db.request(q.toString());
+		db.exec("DELETE FROM messages WHERE account_id=?", [accountId]);
+		db.exec("DELETE FROM chats WHERE account_id=?", [accountId]);
+		db.exec("DELETE FROM services WHERE account_id=?", [accountId]);
 	}
 
+	private var smStoreInProgress = false;
+	private var smStoreNext: Null<BytesData> = null;
 	@HaxeCBridge.noemit
 	public function storeStreamManagement(accountId:String, sm:Null<BytesData>) {
-		// TODO
+		smStoreNext = sm;
+		if (!smStoreInProgress) {
+			smStoreInProgress = true;
+			db.exec(
+				"UPDATE accounts SET sm_state=? WHERE account_id=?",
+				[sm, accountId]
+			).then(_ -> {
+				smStoreInProgress = false;
+				if (smStoreNext != sm) storeStreamManagement(accountId, sm);
+			});
+		}
 	}
 
 	@HaxeCBridge.noemit
 	public function getStreamManagement(accountId:String, callback: (Null<BytesData>)->Void) {
-		callback(null); // TODO
+		db.exec("SELECT sm_state FROM accounts  WHERE account_id=?", [accountId]).then(result -> {
+			for (row in result) {
+				callback(row.sm_state);
+				return;
+			}
+
+			callback(null);
+		});
 	}
 
 	@HaxeCBridge.noemit
 	public function storeService(accountId:String, serviceId:String, name:Null<String>, node:Null<String>, caps:Caps) {
 		storeCaps(caps);
 
-		final q = new StringBuf();
-		q.add("INSERT OR REPLACE INTO services VALUES (");
-		db.addValue(q, accountId);
-		q.add(",");
-		db.addValue(q, serviceId);
-		q.add(",");
-		db.addValue(q, name);
-		q.add(",");
-		db.addValue(q, node);
-		q.add(",X");
-		db.addValue(q, caps.verRaw().toHex());
-		q.add(");");
-		db.request(q.toString());
+		db.exec(
+			"INSERT OR REPLACE INTO services VALUES (?,?,?,?,?)",
+			[accountId, serviceId, name, node, caps.verRaw().hash]
+		);
 	}
 
 	@HaxeCBridge.noemit
 	public function findServicesWithFeature(accountId:String, feature:String, callback:(Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>)->Void) {
 		// Almost full scan shouldn't be too expensive, how many services are we aware of?
-		final q = new StringBuf();
-		q.add("SELECT service_id, name, node, json(caps.caps) AS caps FROM services INNER JOIN caps ON services.caps=caps.sha1 WHERE account_id=");
-		db.addValue(q, accountId);
-		final result = db.request(q.toString());
-		final services = [];
-		for (row in result) {
-			final json = Json.parse(row.caps);
-			if (json.features.contains(feature)) {
-				row.set("caps", new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), json.features));
-				services.push(row);
+		db.exec(
+			"SELECT service_id, name, node, json(caps.caps) AS caps FROM services INNER JOIN caps ON services.caps=caps.sha1 WHERE account_id=?",
+			[accountId]
+		).then(result -> {
+			final services = [];
+			for (row in result) {
+				final json = Json.parse(row.caps);
+				final features = json.features;
+				if (features.contains(feature)) {
+					row.set("caps", new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), features.array()));
+					services.push(row);
+				}
 			}
-		}
-		callback(services);
+			callback(services);
+		});
+	}
+
+	private function hydrateMessage(accountId: String, row: { stanza: String, timestamp: String, direction: MessageDirection, mam_id: String, mam_by: String }) {
+		// TODO
+		final accountJid = JID.parse(accountId);
+		final x = ChatMessage.fromStanza(Stanza.parse(row.stanza), JID.parse(accountId));
+		x.timestamp = row.timestamp;
+		x.direction = row.direction;
+		x.serverId = row.mam_id;
+		x.serverIdBy = row.mam_by;
+		return x;
 	}
 }

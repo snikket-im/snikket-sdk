@@ -1,4 +1,5 @@
-import browserp from "./browser.js";
+import IDBjs from "./IDB.js";
+import MediaStoreCachejs from "./MediaStoreCache.js";
 import { snikket as enums } from "./snikket-enums.js";
 import { snikket } from "./snikket.js";
 
@@ -33,6 +34,8 @@ export import UiState = enums.UiState;
 export import UserState = enums.UserState;
 
 export namespace persistence {
-	 export import browser = browserp;
-	 export import Dummy = snikket.persistence.Dummy;
+	export import IDB = IDBjs;
+	export import MediaStoreCache = MediaStoreCachejs;
+	export import Dummy = snikket.persistence.Dummy;
+	export import Sqlite = snikket.persistence.Sqlite;
 }

@@ -11,6 +11,7 @@ snikket.Client
 snikket.Push
 snikket.persistence.Dummy
 snikket.persistence.Sqlite
+snikket.persistence.MediaStoreFS
 
 --cpp cpp
 -D HXCPP_ALIGN_ALLOC

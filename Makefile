@@ -37,8 +37,10 @@ npm/snikket.js:
 	sed -i '1ivar exports = {};' npm/snikket.js
 	echo "export const snikket = exports.snikket;" >> npm/snikket.js
 
-npm: npm/snikket-browser.js npm/snikket.js snikket/persistence/browser.js
-	cp snikket/persistence/browser.js npm
+npm: npm/snikket-browser.js npm/snikket.js snikket/persistence/IDB.js snikket/persistence/MediaStoreCache.js snikket/persistence/sqlite-worker1.mjs
+	cp snikket/persistence/IDB.js npm
+	cp snikket/persistence/MediaStoreCache.js npm
+	cp snikket/persistence/sqlite-worker1.mjs npm
 	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums -d index.ts
 	sed -i '1iimport { snikket as enums } from "./snikket-enums.js";' npm/index.js
 

@@ -182,7 +182,7 @@ class Client extends EventEmitter {
 						if (chatMessage.serverId == null) {
 							updateChat(chatMessage);
 						} else {
-							persistence.storeMessage(accountId(), chatMessage, updateChat);
+							storeMessages([chatMessage], (stored) -> updateChat(stored[0]));
 						}
 					}
 				case ReactionUpdateStanza(update):
@@ -287,7 +287,7 @@ class Client extends EventEmitter {
 				if (avatarSha1 != null) {
 					final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
 					chat.setAvatarSha1(avatarSha1);
-					persistence.storeChat(accountId(), chat);
+					persistence.storeChats(accountId(), [chat]);
 					persistence.hasMedia("sha-1", avatarSha1, (has) -> {
 						if (has) {
 							this.trigger("chats/update", [chat]);
@@ -321,7 +321,7 @@ class Client extends EventEmitter {
 							startChatWith(item.attr.get("id"), (caps) -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
 						} else {
 							chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by"), () -> {
-								persistence.storeChat(accountId(), chat);
+								persistence.storeChats(accountId(), [chat]);
 								this.trigger("chats/update", [chat]);
 							});
 						}
@@ -405,10 +405,10 @@ class Client extends EventEmitter {
 				if (item.subscription != "remove") {
 					final chat = getDirectChat(item.jid, false);
 					chat.updateFromRoster(item);
-					persistence.storeChat(accountId(), chat);
-					chatsToUpdate.push(chat);
+					chatsToUpdate.push(cast (chat, Chat));
 				}
 			}
+			persistence.storeChats(accountId(), chatsToUpdate);
 			this.trigger("chats/update", chatsToUpdate);
 
 			return IqResult;
@@ -465,12 +465,12 @@ class Client extends EventEmitter {
 				}
 				if (c == null) {
 					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(null, mucUser));
-					persistence.storeChat(accountId(), chat);
+					persistence.storeChats(accountId(), [chat]);
 					if (chat.livePresence()) this.trigger("chats/update", [chat]);
 				} else {
 					final handleCaps = (caps) -> {
 						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(caps, mucUser));
-						persistence.storeChat(accountId(), chat);
+						persistence.storeChats(accountId(), [chat]);
 						return chat;
 					};
 
@@ -506,7 +506,7 @@ class Client extends EventEmitter {
 					if (avatarSha1Hex != null) {
 						final avatarSha1 = Hash.fromHex("sha-1", avatarSha1Hex)?.hash;
 						chat.setAvatarSha1(avatarSha1);
-						persistence.storeChat(accountId(), chat);
+						persistence.storeChats(accountId(), [chat]);
 						persistence.hasMedia("sha-1", avatarSha1, (has) -> {
 							if (has) {
 								if (chat.livePresence()) this.trigger("chats/update", [chat]);
@@ -535,7 +535,7 @@ class Client extends EventEmitter {
 				}
 				// Maybe in the future record it as offine rather than removing it
 				chat.removePresence(JID.parse(stanza.attr.get("from")).resource);
-				persistence.storeChat(accountId(), chat);
+				persistence.storeChats(accountId(), [chat]);
 				this.trigger("chats/update", [chat]);
 			}
 
@@ -874,7 +874,7 @@ class Client extends EventEmitter {
 			} else {
 				if (existingChat.uiState == Closed) existingChat.uiState = Open;
 				channel?.selfPing(true);
-				persistence.storeChat(accountId(), existingChat);
+				persistence.storeChats(accountId(), [existingChat]);
 				this.trigger("chats/update", [existingChat]);
 				return existingChat;
 			}
@@ -888,7 +888,7 @@ class Client extends EventEmitter {
 		} else {
 			getDirectChat(availableChat.chatId, false);
 		}
-		persistence.storeChat(accountId(), chat);
+		persistence.storeChats(accountId(), [chat]);
 		this.trigger("chats/update", [chat]);
 		return chat;
 	}
@@ -927,7 +927,7 @@ class Client extends EventEmitter {
 			}
 		}
 		final chat = new DirectChat(this, this.stream, this.persistence, chatId);
-		persistence.storeChat(accountId(), chat);
+		persistence.storeChats(accountId(), [chat]);
 		chats.unshift(chat);
 		if (triggerIfNew) this.trigger("chats/update", [chat]);
 		return chat;
@@ -1178,15 +1178,15 @@ class Client extends EventEmitter {
 		if (chat.isBlocked) return; // Don't notify blocked chats
 		if (chat.uiState == Closed) {
 			chat.uiState = Open;
-			persistence.storeChat(accountId(), chat);
+			persistence.storeChats(accountId(), [chat]);
 		}
 		final pinnedCount = chat.uiState == Pinned ? 0 : chats.fold((item, result) -> result + (item.uiState == Pinned ? 1 : 0), 0);
 		var idx = chats.indexOf(chat);
 		if (idx > pinnedCount) {
 			chats.splice(idx, 1);
 			chats.insert(pinnedCount, chat);
-			if (trigger) this.trigger("chats/update", [chat]);
 		}
+		if (trigger) this.trigger("chats/update", [chat]);
 	}
 
 	@:allow(snikket)
@@ -1199,8 +1199,8 @@ class Client extends EventEmitter {
 	}
 
 	@:allow(snikket)
-	private function storeMessage(message: ChatMessage, ?callback: Null<(ChatMessage)->Void>) {
-		persistence.storeMessage(accountId(), message, callback ?? (_)->{});
+	private function storeMessages(messages: Array<ChatMessage>, ?callback: Null<(Array<ChatMessage>)->Void>) {
+		persistence.storeMessages(accountId(), messages, callback ?? (_)->{});
 	}
 
 	@:allow(snikket)
@@ -1293,9 +1293,9 @@ class Client extends EventEmitter {
 			for (item in rosterGet.getResult()) {
 				var chat = getDirectChat(item.jid, false);
 				chat.updateFromRoster(item);
-				persistence.storeChat(accountId(), chat);
-				chatsToUpdate.push(chat);
+				chatsToUpdate.push(cast (chat, Chat));
 			}
+			persistence.storeChats(accountId(), chatsToUpdate);
 			this.trigger("chats/update", chatsToUpdate);
 		});
 		sendQuery(rosterGet);
@@ -1310,7 +1310,7 @@ class Client extends EventEmitter {
 				if (err == null || err?.name == "service-unavailable" || err?.name == "feature-not-implemented") {
 					final chat = getDirectChat(jid, false);
 					handleChat(chat);
-					persistence.storeChat(accountId(), chat);
+					persistence.storeChats(accountId(), [chat]);
 				}
 			} else {
 				persistence.storeCaps(resultCaps);
@@ -1319,11 +1319,11 @@ class Client extends EventEmitter {
 					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, false, null, resultCaps);
 					handleChat(chat);
 					chats.unshift(chat);
-					persistence.storeChat(accountId(), chat);
+					persistence.storeChats(accountId(), [chat]);
 				} else {
 					final chat = getDirectChat(jid, false);
 					handleChat(chat);
-					persistence.storeChat(accountId(), chat);
+					persistence.storeChats(accountId(), [chat]);
 				}
 			}
 		});
@@ -1347,6 +1347,7 @@ class Client extends EventEmitter {
 
 		final mdsGet = new PubsubGet(null, "urn:xmpp:mds:displayed:0");
 		mdsGet.onFinished(() -> {
+			final chatsToUpdate = [];
 			for (item in mdsGet.getResult()) {
 				if (item.attr.get("id") != null) {
 					final upTo = item.getChild("displayed", "urn:xmpp:mds:displayed:0")?.getChild("stanza-id", "urn:xmpp:sid:0");
@@ -1355,15 +1356,17 @@ class Client extends EventEmitter {
 						startChatWith(item.attr.get("id"), (caps) -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
 					} else {
 						chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by"));
-						persistence.storeChat(accountId(), chat);
+						chatsToUpdate.push(chat);
 					}
 				}
 			}
+			persistence.storeChats(accountId(), chatsToUpdate);
 		});
 		sendQuery(mdsGet);
 
 		final pubsubGet = new PubsubGet(null, "urn:xmpp:bookmarks:1");
 		pubsubGet.onFinished(() -> {
+			final chatsToUpdate = [];
 			for (item in pubsubGet.getResult()) {
 				if (item.attr.get("id") != null) {
 					final chat = getChat(item.attr.get("id"));
@@ -1384,10 +1387,11 @@ class Client extends EventEmitter {
 						);
 					} else {
 						chat.updateFromBookmark(item);
-						persistence.storeChat(accountId(), chat);
+						chatsToUpdate.push(chat);
 					}
 				}
 			}
+			persistence.storeChats(accountId(), chatsToUpdate);
 			callback();
 		});
 		sendQuery(pubsubGet);
@@ -1426,12 +1430,11 @@ class Client extends EventEmitter {
 		sync.setNewestPageFirst(false);
 		sync.onMessages((messageList) -> {
 			final promises = [];
+			final chatMessages = [];
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
-						promises.push(new thenshim.Promise((resolve, reject) -> {
-							persistence.storeMessage(accountId(), message, resolve);
-						}));
+						chatMessages.push(message);
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {
 							persistence.storeReaction(accountId(), update, (_) -> resolve(null));
@@ -1444,11 +1447,18 @@ class Client extends EventEmitter {
 						// ignore
 				}
 			}
+			promises.push(new thenshim.Promise((resolve, reject) -> {
+				persistence.storeMessages(accountId(), chatMessages, resolve);
+			}));
 			trace("SYNC: MAM page wait for writes");
-			thenshim.PromiseTools.all(promises).then((storedMessages) -> {
+			thenshim.PromiseTools.all(promises).then((results) -> {
 				if (syncMessageHandlers.length > 0) {
-					for (message in storedMessages) {
-						notifySyncMessageHandlers(message);
+					for (messages in results) {
+						if (messages != null) {
+							for (message in messages) {
+								notifySyncMessageHandlers(message);
+							}
+						}
 					}
 				}
 

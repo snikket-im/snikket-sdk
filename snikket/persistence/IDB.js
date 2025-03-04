@@ -4,7 +4,7 @@
 import { snikket as enums } from "./snikket-enums.js";
 import { snikket } from "./snikket.js";
 
-const browser = (dbname, tokenize, stemmer) => {
+export default (dbname, media, tokenize, stemmer) => {
 	if (!tokenize) tokenize = function(s) { return s.split(" "); }
 	if (!stemmer) stemmer = function(s) { return s; }
 
@@ -36,6 +36,7 @@ const browser = (dbname, tokenize, stemmer) => {
 		};
 		dbOpenReq.onsuccess = (event) => {
 			db = event.target.result;
+			window.db = db;
 			if (!db.objectStoreNames.contains("messages") || !db.objectStoreNames.contains("keyvaluepairs") || !db.objectStoreNames.contains("chats") || !db.objectStoreNames.contains("services") || !db.objectStoreNames.contains("reactions")) {
 				db.close();
 				openDb(db.version + 1);
@@ -44,14 +45,6 @@ const browser = (dbname, tokenize, stemmer) => {
 		};
 	}
 	openDb();
-
-	var cache = null;
-	caches.open(dbname).then((c) => cache = c);
-
-	function mkNiUrl(hashAlgorithm, hashBytes) {
-		const b64url = btoa(Array.from(new Uint8Array(hashBytes), (x) => String.fromCodePoint(x)).join("")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-		return "/.well-known/ni/" + hashAlgorithm + "/" + b64url;
-	}
 
 	function promisifyRequest(request) {
 		return new Promise((resolve, reject) => {
@@ -197,7 +190,7 @@ const browser = (dbname, tokenize, stemmer) => {
 		return reactionsMap;
 	}
 
-	return {
+	const obj = {
 		lastId: function(account, jid, callback) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
@@ -226,25 +219,27 @@ const browser = (dbname, tokenize, stemmer) => {
 			}
 		},
 
-		storeChat: function(account, chat) {
+		storeChats: function(account, chats) {
 			const tx = db.transaction(["chats"], "readwrite");
 			const store = tx.objectStore("chats");
 
-			store.put({
-				account: account,
-				chatId: chat.chatId,
-				trusted: chat.trusted,
-				avatarSha1: chat.avatarSha1,
-				presence: new Map([...chat.presence.entries()].map(([k, p]) => [k, { caps: p.caps?.ver(), mucUser: p.mucUser?.toString() }])),
-				displayName: chat.displayName,
-				uiState: chat.uiState,
-				isBlocked: chat.isBlocked,
-				extensions: chat.extensions?.toString(),
-				readUpToId: chat.readUpToId,
-				readUpToBy: chat.readUpToBy,
-				disco: chat.disco,
-				class: chat instanceof snikket.DirectChat ? "DirectChat" : (chat instanceof snikket.Channel ? "Channel" : "Chat")
-			});
+			for (const chat of chats) {
+				store.put({
+					account: account,
+					chatId: chat.chatId,
+					trusted: chat.trusted,
+					avatarSha1: chat.avatarSha1,
+					presence: new Map([...chat.presence.entries()].map(([k, p]) => [k, { caps: p.caps?.ver(), mucUser: p.mucUser?.toString() }])),
+					displayName: chat.displayName,
+					uiState: chat.uiState,
+					isBlocked: chat.isBlocked,
+					extensions: chat.extensions?.toString(),
+					readUpToId: chat.readUpToId,
+					readUpToBy: chat.readUpToBy,
+					disco: chat.disco,
+					class: chat instanceof snikket.DirectChat ? "DirectChat" : (chat instanceof snikket.Channel ? "Channel" : "Chat")
+				});
+			}
 		},
 
 		getChats: function(account, callback) {
@@ -358,6 +353,12 @@ const browser = (dbname, tokenize, stemmer) => {
 			})().then(callback);
 		},
 
+		storeMessages(account, messages, callback) {
+			Promise.all(messages.map(m =>
+				new Promise(resolve => this.storeMessage(account, m, resolve))
+			)).then(callback);
+		},
+
 		storeMessage: function(account, message, callback) {
 			if (!message.chatId()) throw "Cannot store a message with no chatId";
 			if (!message.serverId && !message.localId) throw "Cannot store a message with no id";
@@ -378,7 +379,7 @@ const browser = (dbname, tokenize, stemmer) => {
 						this.getMessage(account, message.chatId(), reactionResult.value.serverId, reactionResult.value.localId, (reactToMessage) => {
 							const previouslyAppended = hydrateReactionsArray(reactionResult.value.append, reactionResult.value.senderId, reactionResult.value.timestamp).map(r => r.key);
 							const reactions = [];
-							for (const [k, reacts] of reactToMessage.reactions) {
+							for (const [k, reacts] of reactToMessage?.reactions || []) {
 								for (const react of reacts) {
 									if (react.senderId === message.senderId() && !previouslyAppended.includes(k)) reactions.push(react);
 								}
@@ -409,7 +410,8 @@ const browser = (dbname, tokenize, stemmer) => {
 								event.target.result.continue();
 							} else {
 								message.reactions = reactions;
-								store.put(serializeMessage(account, message));
+								const req = store.put(serializeMessage(account, message));
+								req.onerror = () => { window.mylog.push("MSG STORE ERROR: " + req.error.name + " " + req.error.message); }
 								callback(message);
 							}
 						};
@@ -461,25 +463,38 @@ const browser = (dbname, tokenize, stemmer) => {
 			this.getMessagesFromCursor(cursor, afterId, bound[0], callback);
 		},
 
-		getMessagesAround: function(account, chatId, id, time, callback) {
-			// TODO: if id is present but time is null, lookup time
-			if (!id && !time) throw "Around what?";
-			const before = new Promise((resolve, reject) =>
-				this.getMessagesBefore(account, chatId, id, time, resolve)
-			);
+		getMessagesAround: function(account, chatId, id, timeArg, callback) {
+			if (!id && !timeArg) throw "Around what?";
+			new Promise((resolve, reject) => {
+				if (timeArg)  {
+					resolve(timeArg);
+				} else {
+					this.getMessage(account, chatId, id, null, (m) => {
+						m ? resolve(m.timestamp) : this.getMessage(account, chatId, null, id, (m2) => resolve(m2?.timestamp));
+					});
+				}
+			}).then((time) => {
+				if (!time) {
+					callback([]);
+					return;
+				}
+				const before = new Promise((resolve, reject) =>
+					this.getMessagesBefore(account, chatId, id, time, resolve)
+				);
 
-			const tx = db.transaction(["messages"], "readonly");
-			const store = tx.objectStore("messages");
-			const cursor = store.index("chats").openCursor(
-				IDBKeyRange.bound([account, chatId, new Date(time)], [account, chatId, []]),
-				"next"
-			);
-			const aroundAndAfter = new Promise((resolve, reject) =>
-				this.getMessagesFromCursor(cursor, null, null, resolve)
-			);
+				const tx = db.transaction(["messages"], "readonly");
+				const store = tx.objectStore("messages");
+				const cursor = store.index("chats").openCursor(
+					IDBKeyRange.bound([account, chatId, new Date(time)], [account, chatId, []]),
+					"next"
+				);
+				const aroundAndAfter = new Promise((resolve, reject) =>
+					this.getMessagesFromCursor(cursor, null, null, resolve)
+				);
 
-			Promise.all([before, aroundAndAfter]).then((result) => {
-				callback(result.flat());
+				Promise.all([before, aroundAndAfter]).then((result) => {
+					callback(result.flat());
+				});
 			});
 		},
 
@@ -540,75 +555,16 @@ const browser = (dbname, tokenize, stemmer) => {
 			}
 		},
 
-		routeHashPathSW: function() {
-			const waitForMedia = async (uri) => {
-				const r = await this.getMediaResponse(uri);
-				if (r) return r;
-				await new Promise(resolve => setTimeout(resolve, 5000));
-				return await waitForMedia(uri);
-			};
-
-			addEventListener("fetch", (event) => {
-				const url = new URL(event.request.url);
-				if (url.pathname.startsWith("/.well-known/ni/")) {
-					event.respondWith(waitForMedia(url.pathname));
-				}
-			});
-		},
-
-		getMediaResponse: async function(uri) {
-			uri = uri.replace(/^ni:\/\/\//, "/.well-known/ni/").replace(/;/, "/");
-			var niUrl;
-			if (uri.split("/")[3] === "sha-256") {
-				niUrl = uri;
-			} else {
-				const tx = db.transaction(["keyvaluepairs"], "readonly");
-				const store = tx.objectStore("keyvaluepairs");
-				niUrl = await promisifyRequest(store.get(uri));
-				if (!niUrl) {
-					return null;
-				}
-			}
-
-			return await cache.match(niUrl);
-		},
-
 		hasMedia: function(hashAlgorithm, hash, callback) {
-			(async () => {
-				const response = await this.getMediaResponse(mkNiUrl(hashAlgorithm, hash));
-				return !!response;
-			})().then(callback);
+			media.hasMedia(hashAlgorithm, hash, callback);
 		},
 
 		removeMedia: function(hashAlgorithm, hash) {
-			(async () => {
-				var niUrl;
-				if (hashAlgorithm === "sha-256") {
-					niUrl = mkNiUrl(hashAlgorithm, hash);
-				} else {
-					const tx = db.transaction(["keyvaluepairs"], "readonly");
-					const store = tx.objectStore("keyvaluepairs");
-					niUrl = await promisifyRequest(store.get(mkNiUrl(hashAlgorithm, hash)));
-					if (!niUrl) return;
-				}
-
-				return await cache.delete(niUrl);
-			})();
+			media.removeMedia(hashAlgorithm, hash);
 		},
 
 		storeMedia: function(mime, buffer, callback) {
-			(async function() {
-				const sha256 = await crypto.subtle.digest("SHA-256", buffer);
-				const sha512 = await crypto.subtle.digest("SHA-512", buffer);
-				const sha1 = await crypto.subtle.digest("SHA-1", buffer);
-				const sha256NiUrl = mkNiUrl("sha-256", sha256);
-				await cache.put(sha256NiUrl, new Response(buffer, { headers: { "Content-Type": mime } }));
-
-				const tx = db.transaction(["keyvaluepairs"], "readwrite");
-				const store = tx.objectStore("keyvaluepairs");
-				await promisifyRequest(store.put(sha256NiUrl, mkNiUrl("sha-1", sha1)));
-				await promisifyRequest(store.put(sha256NiUrl, mkNiUrl("sha-512", sha512)));
-			})().then(callback);
+		  media.storeMedia(mime, buffer, callback);
 		},
 
 		storeCaps: function(caps) {
@@ -642,9 +598,14 @@ const browser = (dbname, tokenize, stemmer) => {
 		},
 
 		storeStreamManagement: function(account, sm) {
+			// Don't bother on ios, the indexeddb is too broken
+			// https://bugs.webkit.org/show_bug.cgi?id=287876
+			if (navigator.userAgent.match(/(iPad|iPhone|iPod)/g)) return;
+
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			store.put(sm, "sm:" + account).onerror = console.error;
+			const req = store.put(sm, "sm:" + account);
+			req.onerror = () => { console.error("storeStreamManagement", req.error.name, req.error.message); }
 		},
 
 		getStreamManagement: function(account, callback) {
@@ -769,8 +730,21 @@ const browser = (dbname, tokenize, stemmer) => {
 				console.error(event);
 				callback([]);
 			}
-		}
-	}
-};
+		},
 
-export default browser;
+		get(k, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
+			const store = tx.objectStore("keyvaluepairs");
+			promisifyRequest(store.get(k)).then(callback);
+		},
+
+		set(k, v, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			promisifyRequest(store.put(v, k)).then(callback);
+		}
+	};
+
+	media.setKV(obj);
+	return obj;
+};

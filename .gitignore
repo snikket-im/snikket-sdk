@@ -1,6 +1,8 @@
 npm/package-lock.json
 npm/*.d.ts
-npm/browser.js
+npm/MediaStoreCache.js
+npm/sqlite-worker1.mjs
+npm/IDB.js
 npm/snikket.js
 npm/snikket-enums.ts
 npm/snikket-enums.js

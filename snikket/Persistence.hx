@@ -10,12 +10,12 @@ import snikket.Message;
 #end
 interface Persistence {
 	public function lastId(accountId: String, chatId: Null<String>, callback:(serverId:Null<String>)->Void):Void;
-	public function storeChat(accountId: String, chat: Chat):Void;
+	public function storeChats(accountId: String, chats: Array<Chat>):Void;
 	public function getChats(accountId: String, callback: (chats:Array<SerializedChat>)->Void):Void;
 	@HaxeCBridge.noemit
 	public function getChatsUnreadDetails(accountId: String, chats: Array<Chat>, callback: (details:Array<{ chatId: String, message: ChatMessage, unreadCount: Int }>)->Void):Void;
 	public function storeReaction(accountId: String, update: ReactionUpdate, callback: (Null<ChatMessage>)->Void):Void;
-	public function storeMessage(accountId: String, message: ChatMessage, callback: (ChatMessage)->Void):Void;
+	public function storeMessages(accountId: String, message: Array<ChatMessage>, callback: (Array<ChatMessage>)->Void):Void;
 	public function updateMessage(accountId: String, message: ChatMessage):Void;
 	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus, callback: (ChatMessage)->Void):Void;
 	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>, callback: (Null<ChatMessage>)->Void):Void;

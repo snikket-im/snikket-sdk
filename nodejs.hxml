@@ -12,6 +12,7 @@
 snikket.Client
 snikket.Push
 snikket.Version
+snikket.persistence.Sqlite
 
 -D js-es=6
 -D hxtsdgen_enums_ts

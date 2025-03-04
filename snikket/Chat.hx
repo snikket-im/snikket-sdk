@@ -46,6 +46,7 @@ abstract class Chat {
 	private var persistence:Persistence;
 	@:allow(snikket)
 	private var avatarSha1:Null<BytesData> = null;
+	@:allow(snikket)
 	private var presence:Map<String, Presence> = [];
 	private var trusted:Bool = false;
 	/**
@@ -123,16 +124,12 @@ abstract class Chat {
 	abstract public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
 
 	private function fetchFromSync(sync: MessageSync, callback: (Array<ChatMessage>)->Void) {
-		final promises = [];
 		sync.onMessages((messageList) -> {
 			final chatMessages = [];
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
-						final chatMessage = prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() }));
-						promises.push(new thenshim.Promise((resolve, reject) -> {
-							client.storeMessage(chatMessage, resolve);
-						}));
+						chatMessages.push(prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() })));
 					case ReactionUpdateStanza(update):
 						persistence.storeReaction(client.accountId(), update, (m)->{});
 					case ModerateMessageStanza(action):
@@ -141,7 +138,7 @@ abstract class Chat {
 						// ignore
 				}
 			}
-			thenshim.PromiseTools.all(promises).then((chatMessages) -> {
+			client.storeMessages(chatMessages, (chatMessages) -> {
 				callback(chatMessages.filter((m) -> m != null && m.chatId() == chatId));
 			});
 		});
@@ -295,7 +292,7 @@ abstract class Chat {
 	**/
 	public function togglePinned(): Void {
 		uiState = uiState == Pinned ? Open : Pinned;
-		persistence.storeChat(client.accountId(), this);
+		persistence.storeChats(client.accountId(), [this]);
 		client.sortChats();
 		client.trigger("chats/update", [this]);
 	}
@@ -307,7 +304,7 @@ abstract class Chat {
 		if (reportSpam != null && !onServer) throw "Can't report SPAM if not sending to server";
 		isBlocked = true;
 		if (uiState == Closed) {
-			persistence.storeChat(client.accountId(), this);
+			persistence.storeChats(client.accountId(), [this]);
 		} else {
 			close(); // close persists
 		}
@@ -330,7 +327,7 @@ abstract class Chat {
 	public function unblock(onServer: Bool): Void {
 		isBlocked = false;
 		uiState = Open;
-		persistence.storeChat(client.accountId(), this);
+		persistence.storeChats(client.accountId(), [this]);
 		client.trigger("chats/update", [this]);
 		if (onServer) {
 			stream.sendIq(
@@ -592,7 +589,7 @@ abstract class Chat {
 
 		readUpToId = upTo;
 		readUpToBy = upToBy;
-		persistence.storeChat(client.accountId(), this);
+		persistence.storeChats(client.accountId(), [this]);
 		persistence.getMessagesBefore(client.accountId(), chatId, null, null, (messages) -> {
 			var i = messages.length;
 			while (--i >= 0) {
@@ -734,17 +731,17 @@ class DirectChat extends Chat {
 		message.resetLocalId();
 		message.versions = [toSend]; // This is a correction
 		message.localId = localId;
-		client.storeMessage(message, (corrected) -> {
-			toSend.versions = corrected.localId == localId ? corrected.versions : [message];
+		client.storeMessages([message], (corrected) -> {
+			toSend.versions = corrected[0].localId == localId ? corrected[0].versions : [message];
 			for (recipient in message.recipients) {
 				message.to = recipient;
 				client.sendStanza(toSend.asStanza());
 			}
 			if (localId == lastMessage?.localId) {
-				setLastMessage(corrected);
+				setLastMessage(corrected[0]);
 				client.trigger("chats/update", [this]);
 			}
-			client.notifyMessageHandlers(corrected, CorrectionEvent);
+			client.notifyMessageHandlers(corrected[0], CorrectionEvent);
 		});
 	}
 
@@ -756,7 +753,7 @@ class DirectChat extends Chat {
 		final fromStanza = Message.fromStanza(message.asStanza(), client.jid).parsed;
 		switch (fromStanza) {
 			case ChatMessageStanza(_):
-				client.storeMessage(message, (stored) -> {
+				client.storeMessages([message], (stored) -> {
 					for (recipient in message.recipients) {
 						message.to = recipient;
 						final stanza = message.asStanza();
@@ -769,7 +766,7 @@ class DirectChat extends Chat {
 					}
 					setLastMessage(message);
 					client.trigger("chats/update", [this]);
-					client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
+					client.notifyMessageHandlers(stored[0], stored[0].versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 				});
 			case ReactionUpdateStanza(update):
 				persistence.storeReaction(client.accountId(), update, (stored) -> {
@@ -890,7 +887,7 @@ class DirectChat extends Chat {
 		if (typingTimer != null) typingTimer.stop();
 		// Should this remove from roster?
 		uiState = Closed;
-		persistence.storeChat(client.accountId(), this);
+		persistence.storeChats(client.accountId(), [this]);
 		sendChatState("gone", null);
 		client.trigger("chats/update", [this]);
 	}
@@ -1019,15 +1016,14 @@ class Channel extends Chat {
 		final chatMessages = [];
 		sync.onMessages((messageList) -> {
 			final promises = [];
+			final pageChatMessages = [];
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
 						for (hash in message.inlineHashReferences()) {
 							client.fetchMediaByHash([hash], [message.from]);
 						}
-						promises.push(new thenshim.Promise((resolve, reject) -> {
-							client.storeMessage(message, resolve);
-						}));
+						pageChatMessages.push(message);
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {
 							persistence.storeReaction(client.accountId(), update, (_) -> resolve(null));
@@ -1040,11 +1036,18 @@ class Channel extends Chat {
 						// ignore
 				}
 			}
+			promises.push(new thenshim.Promise((resolve, reject) -> {
+				client.storeMessages(pageChatMessages, resolve);
+			}));
 			thenshim.PromiseTools.all(promises).then((stored) -> {
-				for (message in stored) {
-					client.notifySyncMessageHandlers(message);
-					if (message != null && message.chatId() == chatId) chatMessages.push(message);
-					if (chatMessages.length > 1000) chatMessages.shift(); // Save some RAM
+				for (messages in stored) {
+					if (messages != null) {
+						for (message in messages) {
+							client.notifySyncMessageHandlers(message);
+							if (message != null && message.chatId() == chatId) chatMessages.push(message);
+							if (chatMessages.length > 1000) chatMessages.shift(); // Save some RAM
+						}
+					}
 				}
 				if (sync.hasMore()) {
 					sync.fetchNext();
@@ -1098,7 +1101,7 @@ class Channel extends Chat {
 			if (discoGet.getResult() != null) {
 				disco = discoGet.getResult();
 				persistence.storeCaps(discoGet.getResult());
-				persistence.storeChat(client.accountId(), this);
+				persistence.storeChats(client.accountId(), [this]);
 			}
 			if (callback != null) callback();
 		});
@@ -1233,14 +1236,14 @@ class Channel extends Chat {
 		message.resetLocalId();
 		message.versions = [toSend]; // This is a correction
 		message.localId = localId;
-		client.storeMessage(message, (corrected) -> {
-			toSend.versions = corrected.localId == localId ? corrected.versions : [message];
+		client.storeMessages([message], (corrected) -> {
+			toSend.versions = corrected[0].localId == localId ? corrected[0].versions : [message];
 			client.sendStanza(toSend.asStanza());
+			client.notifyMessageHandlers(corrected[0], CorrectionEvent);
 			if (localId == lastMessage?.localId) {
-				setLastMessage(corrected);
+				setLastMessage(corrected[0]);
 				client.trigger("chats/update", [this]);
 			}
-			client.notifyMessageHandlers(corrected, CorrectionEvent);
 		});
 	}
 
@@ -1261,11 +1264,11 @@ class Channel extends Chat {
 					activeThread = message.threadId;
 					stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
 				}
-				client.storeMessage(message, (stored) -> {
+				client.storeMessages([message], (stored) -> {
 					client.sendStanza(stanza);
-					setLastMessage(stored);
+					setLastMessage(stored[0]);
+					client.notifyMessageHandlers(stored[0], stored[0].versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 					client.trigger("chats/update", [this]);
-					client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 				});
 			case ReactionUpdateStanza(update):
 				persistence.storeReaction(client.accountId(), update, (stored) -> {
@@ -1400,7 +1403,7 @@ class Channel extends Chat {
 	public function close() {
 		if (typingTimer != null) typingTimer.stop();
 		uiState = Closed;
-		persistence.storeChat(client.accountId(), this);
+		persistence.storeChats(client.accountId(), [this]);
 		selfPing(false);
 		bookmark(); // TODO: what if not previously bookmarked?
 		sendChatState("gone", null);

@@ -29,7 +29,7 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeChat(accountId: String, chat: Chat) { }
+	public function storeChats(accountId: String, chat: Array<Chat>) { }
 
 	@HaxeCBridge.noemit
 	public function getChats(accountId: String, callback: (Array<SerializedChat>)->Void) {
@@ -37,8 +37,8 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeMessage(accountId: String, message: ChatMessage, callback: (ChatMessage)->Void) {
-		callback(message);
+	public function storeMessages(accountId: String, messages: Array<ChatMessage>, callback: (Array<ChatMessage>)->Void) {
+		callback(messages);
 	}
 
 	@HaxeCBridge.noemit
