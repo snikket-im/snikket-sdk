@@ -676,12 +676,6 @@ class Client extends EventEmitter {
 			return EventHandled;
 		}
 
-		// Enable carbons
-		sendStanza(
-			new Stanza("iq", { type: "set", id: ID.short() })
-				.tag("enable", { xmlns: "urn:xmpp:carbons:2" })
-				.up()
-		);
 
 		discoverServices(new JID(null, jid.domain), (service, caps) -> {
 			persistence.storeService(accountId(), service.jid.asString(), service.name, service.node, caps);
@@ -715,6 +709,12 @@ class Client extends EventEmitter {
 					this.trigger("chats/update", chats);
 					// Set self to online
 					if (sendAvailable) {
+						// Enable carbons
+						sendStanza(
+							new Stanza("iq", { type: "set", id: ID.short() })
+								.tag("enable", { xmlns: "urn:xmpp:carbons:2" })
+								.up()
+						);
 						sendPresence();
 						pingAllChannels(true);
 					}
