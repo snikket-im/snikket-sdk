@@ -696,6 +696,10 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
+		if (afterId == lastMessageId() && !syncing()) {
+			handler([]);
+			return;
+		}
 		persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime, (messages) -> {
 			if (messages.length > 0) {
 				handler(messages);
@@ -1189,6 +1193,10 @@ class Channel extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
+		if (afterId == lastMessageId() && !syncing()) {
+			handler([]);
+			return;
+		}
 		persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime, (messages) -> {
 			if (messages.length > 0) {
 				handler(messages);
