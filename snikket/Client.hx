@@ -471,7 +471,7 @@ class Client extends EventEmitter {
 				} else {
 					final handleCaps = (caps) -> {
 						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(caps, mucUser));
-						persistence.storeChats(accountId(), [chat]);
+						if (mucUser == null || chat.livePresence()) persistence.storeChats(accountId(), [chat]);
 						return chat;
 					};
 
