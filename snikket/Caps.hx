@@ -1,15 +1,17 @@
 package snikket;
 
 import haxe.crypto.Base64;
-import haxe.crypto.Sha1;
 import haxe.io.Bytes;
 using Lambda;
 
+import snikket.Hash;
+
 @:expose
 class Caps {
-	private final node: String;
+	public final node: String;
 	public final identities: Array<Identity>;
 	public final features : Array<String>;
+	private var _ver : Null<Hash> = null;
 	// TODO: data forms
 
 	@:allow(snikket)
@@ -74,7 +76,7 @@ class Caps {
 		return stanza;
 	}
 
-	public function verRaw(): Bytes {
+	private function computeVer(): Hash {
 		features.sort((x, y) -> x == y ? 0 : (x < y ? -1 : 1));
 		identities.sort((x, y) -> x.ver() == y.ver() ? 0 : (x.ver() < y.ver() ? -1 : 1));
 		var s = "";
@@ -84,11 +86,16 @@ class Caps {
 		for (feature in features) {
 			s += feature + "<";
 		}
-		return Sha1.make(Bytes.ofString(s));
+		return Hash.sha1(Bytes.ofString(s));
+	}
+
+	public function verRaw(): Hash {
+		if (_ver == null) _ver = computeVer();
+		return _ver;
 	}
 
 	public function ver(): String {
-		return Base64.encode(verRaw(), true);
+		return verRaw().toBase64();
 	}
 }
 
