@@ -495,7 +495,6 @@ class Client extends EventEmitter {
 								sendQuery(discoGet);
 							} else {
 								pending.push(handleCaps);
-								if (chat.livePresence()) this.trigger("chats/update", [chat]);
 							}
 						} else {
 							handleCaps(caps);
