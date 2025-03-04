@@ -247,7 +247,7 @@ class UnicodeRange implements UnicodeSet {
 	private final lower: Int;
 	private final upper: Int;
 
-    public function new(lower: Int, upper: Int) {
+	public function new(lower: Int, upper: Int) {
 		this.lower = lower;
 		this.upper = upper;
 	}

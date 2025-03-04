@@ -333,13 +333,13 @@ class Autolink {
 
 	public static function one(s:String, start:Int) {
 		final matches = [
-            match(s, start, XMPP_URI, false),
-		    match(s, start, TEL_URI, false),
-		    match(s, start, SMS_URI, false),
-		    match(s, start, AUTOLINK_WEB_URL, true)
-        ];
-        matches.sort((x, y) -> x.start - y.start); // Should use minimum...
-        return matches.find((match) -> match.span != null) ?? matches[0];
+			match(s, start, XMPP_URI, false),
+			match(s, start, TEL_URI, false),
+			match(s, start, SMS_URI, false),
+			match(s, start, AUTOLINK_WEB_URL, true)
+		];
+		matches.sort((x, y) -> x.start - y.start); // Should use minimum...
+		return matches.find((match) -> match.span != null) ?? matches[0];
 	}
 
 	private static function match(s:String, start:Int, pattern:String, addHttps:Bool) {

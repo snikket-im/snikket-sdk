@@ -25,13 +25,13 @@ export default (cacheName) => {
 			})().then(callback);
 		},
 
-  		removeMedia(hashAlgorithm, hash) {
+		removeMedia(hashAlgorithm, hash) {
 			(async () => {
 				let niUrl;
 				if (hashAlgorithm === "sha-256") {
 					niUrl = mkNiUrl(hashAlgorithm, hash);
 				} else {
-				   niUrl = this.kv && await new Promise((resolve) => this.kv.get(mkNiUrl(hashAlgorithm, hash), resolve));
+					niUrl = this.kv && await new Promise((resolve) => this.kv.get(mkNiUrl(hashAlgorithm, hash), resolve));
 					if (!niUrl) return;
 				}
 
@@ -39,7 +39,7 @@ export default (cacheName) => {
 			})();
 		},
 
-  		routeHashPathSW() {
+		routeHashPathSW() {
 			const waitForMedia = async (uri) => {
 				const r = await this.getMediaResponse(uri);
 				if (r) return r;
@@ -61,7 +61,7 @@ export default (cacheName) => {
 			if (uri.split("/")[3] === "sha-256") {
 				niUrl = uri;
 			} else {
-			   niUrl = this.kv && await new Promise((resolve) => this.kv.get(uri, resolve));
+				niUrl = this.kv && await new Promise((resolve) => this.kv.get(uri, resolve));
 				if (!niUrl) {
 					return null;
 				}
