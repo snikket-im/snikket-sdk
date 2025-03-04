@@ -1144,6 +1144,14 @@ class Channel extends Chat {
 		return !inSync || !livePresence();
 	}
 
+	override public function canAudioCall():Bool {
+		return disco?.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false;
+	}
+
+	override public function canVideoCall():Bool {
+		return disco?.features?.contains("urn:xmpp:jingle:apps:rtp:video") ?? false;
+	}
+
 	private function nickInUse() {
 		return _nickInUse ?? client.displayName();
 	}
