@@ -943,6 +943,10 @@ class Client extends EventEmitter {
 				userVisibleOnly: true,
 				applicationServerKey: vapid_public_raw
 			}).then((pushSubscription) -> {
+				if (pushSubscription == null) {
+					trace("WebPush subscription failed");
+					return;
+				}
 				enablePush(
 					push_service,
 					vapid_key.privateKey,
