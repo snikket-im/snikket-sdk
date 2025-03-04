@@ -916,6 +916,7 @@ class Channel extends Chat {
 	private var inSync = true;
 	private var sync = null;
 	private var forceLive = false;
+	private var _nickInUse = null;
 
 	@:allow(snikket)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions = null, readUpToId = null, readUpToBy = null, ?disco: Caps) {
@@ -958,6 +959,7 @@ class Channel extends Chat {
 						if (err.name == "remote-server-not-found" || err.name == "remote-server-timeout") return checkRename(); // Timeout, retry later
 						if (err.name == "item-not-found") return checkRename(); // Nick was changed?
 						presence = []; // About to ask for a fresh set
+						_nickInUse = null;
 						inSync = false;
 						client.trigger("chats/update", [this]);
 						final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
@@ -990,6 +992,11 @@ class Channel extends Chat {
 
 	override public function setPresence(resource:String, presence:Presence) {
 		final oneTen = presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "110");
+		if (oneTen != null) {
+			_nickInUse = resource;
+		} else if (resource == _nickInUse) {
+			_nickInUse = null;
+		}
 		if (presence != null && presence.mucUser != null && oneTen == null) {
 			final existing = this.presence.get(resource);
 			if (existing != null && existing?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "110") != null) {
@@ -1130,14 +1137,7 @@ class Channel extends Chat {
 	override private function livePresence() {
 		if (forceLive) return true;
 
-		for (nick => p in presence) {
-			for (status in p?.mucUser?.allTags("status") ?? []) {
-				if (status.attr.get("code") == "110") {
-					return true;
-				}
-			}
-		}
-		return false;
+		return _nickInUse != null;
 	}
 
 	override public function syncing() {
@@ -1145,14 +1145,7 @@ class Channel extends Chat {
 	}
 
 	private function nickInUse() {
-		for (nick => p in presence) {
-			for (status in p?.mucUser?.allTags("status") ?? []) {
-				if (status.attr.get("code") == "110") {
-					return nick;
-				}
-			}
-		}
-		return client.displayName();
+		return _nickInUse ?? client.displayName();
 	}
 
 	private function getFullJid() {
