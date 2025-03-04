@@ -25,7 +25,8 @@ class MessageSync {
 	private var serviceJID:String;
 	private var handler:MessageListHandler;
 	private var errorHandler:(Stanza)->Void;
-	private var lastPage:ResultSetPageResult;
+	public var lastPage(default, null):ResultSetPageResult;
+	public var progress(default, null): Int = 0;
 	private var complete:Bool = false;
 	private var newestPageFirst:Bool = true;
 	public var jmi(default, null): Map<String, Stanza> = [];
@@ -60,6 +61,7 @@ class MessageSync {
 		}
 		var query = new MAMQuery(filter, serviceJID);
 		var resultHandler = stream.on("message", function (event) {
+			progress++;
 			var message:Stanza = event.stanza;
 			var from = message.attr.exists("from") ? message.attr.get("from") : client.accountId();
 			if (from != serviceJID) { // Only listen for results from the JID we queried

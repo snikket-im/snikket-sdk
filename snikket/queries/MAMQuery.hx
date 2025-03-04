@@ -108,11 +108,13 @@ class MAMQuery extends GenericQuery {
 				return null;
 			}
 			var rsmInfo = fin.getChild("set", "http://jabber.org/protocol/rsm");
+			final count = rsmInfo.getChildText("count");
 			result = {
 				complete: fin.attr.get("complete") == "true" || fin.attr.get("complete") == "1",
 				page: {
 					first: rsmInfo.getChildText("first"),
 					last: rsmInfo.getChildText("last"),
+					count: count == null ? null : Std.parseInt(count)
 				}
 			};
 		}
