@@ -900,7 +900,7 @@ class DirectChat extends Chat {
 		// Should this remove from roster?
 		uiState = Closed;
 		persistence.storeChats(client.accountId(), [this]);
-		sendChatState("gone", null);
+		if (!isBlocked) sendChatState("gone", null);
 		client.trigger("chats/update", [this]);
 	}
 }
