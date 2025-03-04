@@ -85,7 +85,7 @@ class Hash {
 	}
 
 	public function toBase64() {
-		return Base64.encode(Bytes.ofData(hash));
+		return Base64.encode(Bytes.ofData(hash), true);
 	}
 
 	public function toBase64Url() {
