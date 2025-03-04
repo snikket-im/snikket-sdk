@@ -1042,6 +1042,7 @@ class Channel extends Chat {
 						for (hash in message.inlineHashReferences()) {
 							client.fetchMediaByHash([hash], [message.from]);
 						}
+						message.syncPoint = true;
 						pageChatMessages.push(message);
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {

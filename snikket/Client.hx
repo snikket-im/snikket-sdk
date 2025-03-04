@@ -1441,6 +1441,7 @@ class Client extends EventEmitter {
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
+						message.syncPoint = true;
 						chatMessages.push(message);
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {

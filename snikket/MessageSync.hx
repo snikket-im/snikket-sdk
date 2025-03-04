@@ -88,7 +88,6 @@ class MessageSync {
 				case ChatMessageStanza(chatMessage):
 					chatMessage.serverId = result.attr.get("id");
 					chatMessage.serverIdBy = serviceJID;
-					chatMessage.syncPoint = true;
 				default:
 			}
 
