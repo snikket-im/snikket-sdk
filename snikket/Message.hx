@@ -285,6 +285,7 @@ class Message {
 				// Reply stub
 				final replyToMessage = new ChatMessage();
 				replyToMessage.from = replyToJid == null ? null : JID.parse(replyToJid);
+				replyToMessage.sender = replyToMessage.from;
 				replyToMessage.replyId = replyToID;
 				if (isGroupchat) {
 					replyToMessage.serverId = replyToID;
