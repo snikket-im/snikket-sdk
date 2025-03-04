@@ -1,5 +1,7 @@
 package snikket;
 
+import haxe.crypto.Sha1;
+import haxe.crypto.Sha256;
 import haxe.crypto.Base64;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
@@ -50,6 +52,14 @@ class Hash {
 		}
 
 		return null;
+	}
+
+	public static function sha1(bytes: Bytes) {
+		return new Hash("sha-1", Sha1.make(bytes).getData());
+	}
+
+	public static function sha256(bytes: Bytes) {
+		return new Hash("sha-256", Sha256.make(bytes).getData());
 	}
 
 	public function toUri() {
