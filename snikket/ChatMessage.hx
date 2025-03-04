@@ -384,6 +384,13 @@ class ChatMessage {
 	}
 
 	/**
+		The session id of the call if this message is related to a call
+	**/
+	public function callSid() {
+		return payloads.find((el) -> el.attr.get("xmlns") == "urn:xmpp:jingle-message:0")?.attr?.get("id");
+	}
+
+	/**
 		The duration of the call if this message is related to a call
 	**/
 	public function callDuration(): Null<String> {
