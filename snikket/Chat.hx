@@ -586,6 +586,7 @@ abstract class Chat {
 	@:allow(snikket)
 	private function markReadUpToId(upTo: String, upToBy: String, ?callback: ()->Void) {
 		if (upTo == null) return;
+		if (readUpTo() == upTo) return;
 
 		readUpToId = upTo;
 		readUpToBy = upToBy;
@@ -593,10 +594,21 @@ abstract class Chat {
 		persistence.getMessagesBefore(client.accountId(), chatId, null, null, (messages) -> {
 			var i = messages.length;
 			while (--i >= 0) {
-				if (messages[i].serverId == readUpToId) break;
+				if (messages[i].serverId == readUpToId || !messages[i].isIncoming()) break;
 			}
 			setUnreadCount(messages.length - (i + 1));
 			if (callback != null) callback();
+		});
+	}
+
+	private function markReadUpToMessage(message: ChatMessage, ?callback: ()->Void) {
+		if (message.serverId == null || message.chatId() != chatId) return;
+		if (readUpTo() == message.serverId) return;
+
+		persistence.getMessage(client.accountId(), chatId, readUpTo(), null, (readMessage) -> {
+			if (readMessage != null && Reflect.compare(message.timestamp, readMessage.timestamp) <= 0) return;
+
+			markReadUpToId(message.serverId, message.serverIdBy, callback);
 		});
 	}
 
@@ -822,25 +834,21 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function markReadUpTo(message: ChatMessage) {
-		if (readUpTo() == message.localId || readUpTo() == message.serverId) return;
-		final upTo = message.localId ?? message.serverId;
-		if (upTo == null) return; // Can't mark as read with no id
-
-		// Only send markers for others messages,
-		// it's obvious we've read our own
-		if (message.isIncoming()) {
-			for (recipient in getParticipants()) {
-				// TODO: extended addressing when relevant
-				final stanza = new Stanza("message", { to: recipient, id: ID.long() })
-					.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo }).up();
-				if (message.threadId != null) {
-					stanza.textTag("thread", message.threadId);
+		markReadUpToMessage(message, () -> {
+			// Only send markers for others messages,
+			// it's obvious we've read our own
+			if (message.isIncoming() && message.localId != null) {
+				for (recipient in getParticipants()) {
+					// TODO: extended addressing when relevant
+					final stanza = new Stanza("message", { to: recipient, id: ID.long() })
+						.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: message.localId }).up();
+					if (message.threadId != null) {
+						stanza.textTag("thread", message.threadId);
+					}
+					client.sendStanza(stanza);
 				}
-				client.sendStanza(stanza);
 			}
-		}
 
-		markReadUpToId(message.serverId, message.serverIdBy, () -> {
 			publishMds();
 			client.trigger("chats/update", [this]);
 		});
@@ -1317,17 +1325,14 @@ class Channel extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function markReadUpTo(message: ChatMessage) {
-		if (readUpTo() == message.serverId) return;
-		final upTo = message.serverId;
-		if (upTo == null) return; // Can't mark as read with no id
-		final stanza = new Stanza("message", { to: chatId, id: ID.long(), type: "groupchat" })
-			.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: upTo }).up();
-		if (message.threadId != null) {
-			stanza.textTag("thread", message.threadId);
-		}
-		client.sendStanza(stanza);
+		markReadUpToMessage(message, () -> {
+			final stanza = new Stanza("message", { to: chatId, id: ID.long(), type: "groupchat" })
+				.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: message.serverId }).up();
+			if (message.threadId != null) {
+				stanza.textTag("thread", message.threadId);
+			}
+			client.sendStanza(stanza);
 
-		markReadUpToId(upTo, message.serverIdBy, () -> {
 			publishMds();
 			client.trigger("chats/update", [this]);
 		});
