@@ -25,6 +25,7 @@ import snikket.queries.GenericQuery;
 import snikket.queries.HttpUploadSlot;
 import snikket.queries.JabberIqGatewayGet;
 import snikket.queries.PubsubGet;
+import snikket.queries.Push2Disable;
 import snikket.queries.Push2Enable;
 import snikket.queries.RosterGet;
 import snikket.queries.VcardTempGet;
@@ -601,10 +602,13 @@ class Client extends EventEmitter {
 		@param completely if true chats, messages, etc will be deleted as well
 	**/
 	public function logout(completely: Bool) {
-		// TODO: unregister from all push notifications
-		stream.disconnect();
-		// TODO: FAST invalidate https://xmpp.org/extensions/xep-0484.html#invalidation
 		persistence.removeAccount(accountId(), completely);
+		final disable = new Push2Disable(jid.asBare().asString());
+		disable.onFinished(() -> {
+			stream.disconnect();
+		});
+		sendQuery(disable);
+		// TODO: FAST invalidate https://xmpp.org/extensions/xep-0484.html#invalidation
 	}
 
 	/**
