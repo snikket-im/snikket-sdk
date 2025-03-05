@@ -748,7 +748,7 @@ class DirectChat extends Chat {
 		message.versions = [toSend]; // This is a correction
 		message.localId = localId;
 		client.storeMessages([message], (corrected) -> {
-			toSend.versions = corrected[0].localId == localId ? corrected[0].versions : [message];
+			toSend.versions = corrected[0].versions[corrected[0].versions.length - 1]?.localId == localId ? corrected[0].versions : [message];
 			for (recipient in message.recipients) {
 				message.to = recipient;
 				client.sendStanza(toSend.asStanza());

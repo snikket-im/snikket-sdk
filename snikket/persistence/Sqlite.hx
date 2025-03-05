@@ -43,6 +43,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					mam_id TEXT,
 					mam_by TEXT,
 					stanza_id TEXT,
+					correction_id TEXT NOT NULL,
 					sync_point INTEGER NOT NULL,
 					chat_id TEXT NOT NULL,
 					created_at INTEGER NOT NULL,
@@ -52,6 +53,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					PRIMARY KEY (account_id, mam_id, mam_by, stanza_id)
 				);
 				CREATE INDEX messages_created_at ON messages (account_id, chat_id, created_at);
+				CREATE INDEX messages_correction_id ON messages (correction_id);
 				CREATE TABLE chats (
 					account_id TEXT NOT NULL,
 					chat_id TEXT NOT NULL,
@@ -276,19 +278,22 @@ class Sqlite implements Persistence implements KeyValueStore {
 			Promise.resolve(null);
 		}).then(_ ->
 			db.exec(
-				"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?)").join(","),
-				messages.flatMap(message -> ([
-					accountId, message.serverId, message.serverIdBy,
-					message.localId, message.syncPoint, message.chatId(),
-					message.timestamp, message.status, message.direction,
-					message.asStanza().toString()
-				] : Array<Dynamic>))
+				"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?)").join(","),
+				messages.flatMap(m -> {
+					final correctable = m;
+					final message = m.versions.length == 1 ? m.versions[0] : m; // TODO: storing multiple versions at once? We never do that right now
+					([
+						accountId, message.serverId, message.serverIdBy,
+						message.localId, correctable.localId ?? correctable.serverId, correctable.syncPoint, correctable.chatId(),
+						message.timestamp, message.status, message.direction,
+						message.asStanza().toString()
+					] : Array<Dynamic>);
+				})
 			)
 		).then(_ ->  {
 			hydrateReplyTo(accountId, messages, replyTos).then(callback);
 		});
 
-		// TODO: corrections
 		// TODO: fetch reactions?
 	}
 
@@ -323,15 +328,25 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	private function getMessages(accountId: String, chatId: String, time: Null<String>, op: String): Promise<Array<ChatMessage>> {
-		var q = "SELECT stanza, direction, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, mam_id, mam_by FROM messages WHERE account_id=? AND chat_id=?";
+		var q = "SELECT
+			correction_id AS stanza_id,
+			versions.stanza,
+			json_group_object(COALESCE(versions.mam_id, versions.stanza_id), strftime('%FT%H:%M:%fZ', versions.created_at / 1000.0, 'unixepoch')) AS version_times,
+			json_group_object(COALESCE(versions.mam_id, versions.stanza_id), versions.stanza) AS versions,
+			messages.direction,
+			strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp,
+			messages.mam_id,
+			messages.mam_by,
+			MAX(versions.created_at)
+			FROM messages INNER JOIN messages versions USING (correction_id) WHERE messages.stanza_id=correction_id AND messages.account_id=? AND messages.chat_id=?";
 		final params = [accountId, chatId];
 		if (time != null) {
-			q += " AND created_at " + op + "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)";
+			q += " AND messages.created_at " + op + "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)";
 			params.push(time);
 		}
-		q += " ORDER BY created_at";
+		q += " GROUP BY correction_id ORDER BY messages.created_at";
 		if (op == "<" || op == "<=") q += " DESC";
-		q += ", ROWID";
+		q += ", messages.ROWID";
 		if (op == "<" || op == "<=") q += " DESC";
 		q += " LIMIT 50";
 		return db.exec(q, params).then(result -> ({
@@ -659,14 +674,31 @@ class Sqlite implements Persistence implements KeyValueStore {
 		});
 	}
 
-	private function hydrateMessage(accountId: String, row: { stanza: String, timestamp: String, direction: MessageDirection, mam_id: String, mam_by: String }) {
+	private function hydrateMessage(accountId: String, row: { stanza: String, timestamp: String, direction: MessageDirection, mam_id: String, mam_by: String, ?stanza_id: String, ?versions: String, ?version_times: String }) {
 		// TODO
+		// TODO: Calls can "edit" from multiple senders, but the original direction and sender holds
 		final accountJid = JID.parse(accountId);
-		final x = ChatMessage.fromStanza(Stanza.parse(row.stanza), JID.parse(accountId));
+		final x = ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid);
 		x.timestamp = row.timestamp;
 		x.direction = row.direction;
 		x.serverId = row.mam_id;
 		x.serverIdBy = row.mam_by;
+		if (row.stanza_id != null) Reflect.setField(x, "localId", row.stanza_id);
+		if (row.versions != null) {
+			final versionTimes: DynamicAccess<String> = Json.parse(row.version_times);
+			final versions: DynamicAccess<String> =  Json.parse(row.versions);
+			if (versions.keys().length > 1) {
+				for (version in versions) {
+					final versionM = ChatMessage.fromStanza(Stanza.parse(version), accountJid);
+					final toPush = versionM == null || versionM.versions.length < 1 ? versionM : versionM.versions[0];
+					if (toPush != null) {
+						toPush.timestamp = versionTimes[toPush.serverId ?? toPush.localId];
+						x.versions.push(toPush);
+					}
+				}
+				x.versions.sort((a, b) -> Reflect.compare(b.timestamp, a.timestamp));
+			}
+		}
 		return x;
 	}
 }
