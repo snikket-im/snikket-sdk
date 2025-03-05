@@ -247,6 +247,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 		final chatIds = [];
 		final localIds = [];
+		final replyTos = [];
 		for (message in messages) {
 			if (message.serverId == null && message.localId == null) throw "Cannot store a message with no id";
 			if (message.serverId == null && message.isIncoming()) throw "Cannot store an incoming message with no server id";
@@ -257,6 +258,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 				// Ideally this would be in a transaction with the insert, but then we can't use bind with async api
 				chatIds.push(message.chatId());
 				localIds.push(message.localId);
+			}
+			if (message.replyToMessage != null && message.replyToMessage.serverIdBy == null) {
+				replyTos.push({ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId });
 			}
 		}
 
@@ -279,10 +283,11 @@ class Sqlite implements Persistence implements KeyValueStore {
 					message.timestamp, message.status, message.direction,
 					message.asStanza().toString()
 				] : Array<Dynamic>))
-			).then(_ -> callback(messages))
-		);
+			)
+		).then(_ ->  {
+			hydrateReplyTo(accountId, messages, replyTos).then(callback);
+		});
 
-		// TODO: hydrate reply to stubs?
 		// TODO: corrections
 		// TODO: fetch reactions?
 	}
@@ -305,14 +310,19 @@ class Sqlite implements Persistence implements KeyValueStore {
 		q += "LIMIT 1";
 		db.exec(q, params).then(result -> {
 			for (row in result) {
-				callback(hydrateMessage(accountId, row));
+				final message = hydrateMessage(accountId, row);
+				(if (message.replyToMessage != null) {
+					hydrateReplyTo(accountId, [message], [{ chatId: chatId, serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
+				} else {
+					Promise.resolve([message]);
+				}).then(hydrated -> callback(hydrated[0]));
 				return;
 			}
 			callback(null);
 		});
 	}
 
-	private function getMessages(accountId: String, chatId: String, time: Null<String>, op: String): Promise<Iterator<ChatMessage>> {
+	private function getMessages(accountId: String, chatId: String, time: Null<String>, op: String): Promise<Array<ChatMessage>> {
 		var q = "SELECT stanza, direction, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, mam_id, mam_by FROM messages WHERE account_id=? AND chat_id=?";
 		final params = [accountId, chatId];
 		if (time != null) {
@@ -327,26 +337,30 @@ class Sqlite implements Persistence implements KeyValueStore {
 		return db.exec(q, params).then(result -> ({
 			hasNext: result.hasNext,
 			next: () -> hydrateMessage(accountId, result.next())
-		})).then(iter ->
-			if (op == "<" || op == "<=") {
-				final arr = { iterator: () -> iter }.array();
-				arr.reverse();
-				final reviter = arr.iterator();
-				{ hasNext: reviter.hasNext, next: reviter.next };
-			} else {
-				iter;
+		})).then(iter -> {
+			final arr = [];
+			final replyTos = [];
+			for (message in iter) {
+				arr.push(message);
+				if (message.replyToMessage != null && message.replyToMessage.serverIdBy == null) {
+					replyTos.push({ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId });
+				}
 			}
-		);
+			if (op == "<" || op == "<=") {
+				arr.reverse();
+			}
+			return hydrateReplyTo(accountId, arr, replyTos);
+		});
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		getMessages(accountId, chatId, beforeTime, "<").then(iter -> callback({ iterator: () -> iter }.array()));
+		getMessages(accountId, chatId, beforeTime, "<").then(callback);
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		getMessages(accountId, chatId, afterTime, ">").then(iter -> callback({ iterator: () -> iter }.array()));
+		getMessages(accountId, chatId, afterTime, ">").then(callback);
 	}
 
 	@HaxeCBridge.noemit
@@ -367,7 +381,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				getMessages(accountId, chatId, aroundTime, ">=")
 			])
 		).then(results ->
-			callback(results.flatMap(iter -> { iterator: () -> iter }.array()))
+			 callback(results.flatMap(arr -> arr))
 		);
 	}
 
@@ -442,7 +456,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 			)
 		).then(result -> {
 			for (row in result) {
-				callback(hydrateMessage(accountId, row));
+				final message = hydrateMessage(accountId, row);
+				(if (message.replyToMessage != null) {
+					hydrateReplyTo(accountId, [message], [{ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
+				} else {
+					Promise.resolve([message]);
+				}).then(hydrated -> callback(hydrated[0]));
 				return;
 			}
 		});
@@ -603,6 +622,40 @@ class Sqlite implements Persistence implements KeyValueStore {
 				}
 			}
 			callback(services);
+		});
+	}
+
+	private function hydrateReplyTo(accountId: String, messages: Array<ChatMessage>, replyTos: Array<{ chatId: String, serverId: Null<String>, localId: Null<String> }>) {
+		return (if (replyTos.length < 1) {
+			Promise.resolve(null);
+		} else {
+			final params = [accountId];
+			final q = new StringBuf();
+			q.add("SELECT chat_id, stanza_id, stanza, direction, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, mam_id, mam_by FROM messages WHERE account_id=? AND (");
+			q.add(replyTos.map(parent ->
+				if (parent.serverId != null) {
+					params.push(parent.chatId);
+					params.push(parent.serverId);
+					" (chat_id=? AND mam_id=?)";
+				} else {
+					params.push(parent.chatId);
+					params.push(parent.localId);
+					" (chat_id=? AND stanza_id=?)";
+				}
+			).join(" OR "));
+			q.add(")");
+			db.exec(q.toString(), params);
+		}).then(iter -> {
+			if (iter != null) {
+				final parents = { iterator: () -> iter }.array();
+				for (message in messages) {
+					if (message.replyToMessage != null) {
+						final found: Dynamic = parents.find(p -> p.chat_id == message.chatId() && (message.replyToMessage.serverId == null || p.mam_id == message.replyToMessage.serverId) && (message.replyToMessage.localId == null || p.stanza_id == message.replyToMessage.localId));
+						if (found != null) message.replyToMessage = hydrateMessage(accountId, found);
+					}
+				}
+			}
+			return messages;
 		});
 	}
 
