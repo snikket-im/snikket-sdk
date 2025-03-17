@@ -67,6 +67,25 @@ extern class StropheConn {
 	@:native("xmpp_conn_set_pass")
 	static function set_pass(conn:StropheConn, pass:ConstPointer<Char>):Void;
 
+	@:native("xmpp_conn_set_fast")
+	static function set_fast(conn:StropheConn, token:ConstPointer<Char>, fastCount:Int):Void;
+
+	@:native("xmpp_conn_set_user_agent_id")
+	static function set_user_agent_id(conn:StropheConn, id:ConstPointer<Char>):Void;
+
+	@:native("xmpp_conn_set_user_agent_software")
+	static function set_user_agent_software(conn:StropheConn, software:ConstPointer<Char>):Void;
+
+	@:native("xmpp_conn_set_user_agent_device")
+	static function set_user_agent_device(conn:StropheConn, device:ConstPointer<Char>):Void;
+
+	@:native("xmpp_conn_set_fast_token_handler")
+	static function set_fast_token_handler(
+		conn:StropheConn,
+		callback:cpp.Callable<StropheConn->RawConstPointer<Char>->RawPointer<Void>->Void>,
+		userdata:RawPointer<Void>
+	):Void;
+
 	@:native("xmpp_connect_client")
 	static function connect_client(
 		conn:StropheConn,
@@ -174,11 +193,21 @@ class XmppStropheStream extends GenericStream {
 			null,
 			untyped __cpp__("(void*)this")
 		);
+		StropheConn.set_fast_token_handler(
+			this.conn,
+			cpp.Callable.fromStaticFunction(strophe_fast_token_handler),
+			untyped __cpp__("(void*)this")
+		);
 		NativeGc.addFinalizable(this, false);
 	}
 
 	public function newId():String {
 		return ID.long();
+	}
+
+	public static function strophe_fast_token_handler(conn:StropheConn, token:RawConstPointer<Char>, userdata:RawPointer<Void>) {
+		final stream: XmppStropheStream = untyped __cpp__("static_cast<hx::Object*>(userdata)");
+		stream.trigger("fast-token", { token: NativeString.fromPointer(ConstPointer.fromRaw(token)) });
 	}
 
 	public static function strophe_stanza(conn:StropheConn, sstanza:StropheStanza, userdata:RawPointer<Void>):Int {
@@ -255,8 +284,14 @@ class XmppStropheStream extends GenericStream {
 		StropheConn.set_jid(conn, NativeString.c_str(jid));
 		this.on("auth/password", function (event) {
 			var o = this;
-			var pass = event.password;
-			StropheConn.set_pass(conn, NativeString.c_str(pass));
+			final pass = event.password;
+			if (event.fastCount != null) {
+				StropheConn.set_fast(conn, NativeString.c_str(pass), event.fastCount);
+			} else {
+				StropheConn.set_pass(conn, NativeString.c_str(pass));
+				StropheConn.set_fast(conn, null, -1);
+			}
+			StropheConn.set_user_agent_id(conn, NativeString.c_str(clientId));
 			StropheConn.connect_client(
 				this.conn,
 				null,
