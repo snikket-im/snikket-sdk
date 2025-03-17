@@ -15,7 +15,7 @@ import snikket.Message;
 #end
 class Custom implements Persistence {
 	private final backing: Persistence;
-	private var _storeMessage: Null<(String, ChatMessage, Callback<ChatMessage>)->Bool> = null;
+	private var _storeMessages: Null<(String, Array<ChatMessage>, Callback<Array<ChatMessage>>)->Bool> = null;
 
 	/**
 		Create a persistence layer that wraps another with optional overrides
@@ -32,8 +32,8 @@ class Custom implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeChat(accountId: String, chat: Chat) {
-		backing.storeChat(accountId, chat);
+	public function storeChats(accountId: String, chats: Array<Chat>) {
+		backing.storeChats(accountId, chats);
 	}
 
 	@HaxeCBridge.noemit
@@ -42,20 +42,30 @@ class Custom implements Persistence {
 	}
 
 	/**
-		Override the storeMessage method of the underlying persistence layer
+		Override the storeMessages method of the underlying persistence layer
 
-		@param f takes three arguments, the account ID, the ChatMessage to store, and the Callback to call when done
+		@param f takes three arguments, the account ID, the ChatMessage array to store, and the Callback to call when done
 		       return false to pass control to the wrapped layer (do not call the Callback in this case)
 	**/
-	public function overrideStoreMessage(f: (String, ChatMessage, Callback<ChatMessage>)->Bool) {
-		_storeMessage = f;
+	public function overrideStoreMessages(f: (String, Array<ChatMessage>, Callback<Array<ChatMessage>>)->Bool) {
+		_storeMessages = f;
 	}
 
 	@HaxeCBridge.noemit
-	public function storeMessage(accountId: String, message: ChatMessage, callback: (ChatMessage)->Void) {
-		if (_storeMessage == null || !_storeMessage(accountId, message, new Callback(callback))) {
-			backing.storeMessage(accountId, message, callback);
+	public function storeMessages(accountId: String, messages: Array<ChatMessage>, callback: (Array<ChatMessage>)->Void) {
+		if (_storeMessages == null || !_storeMessages(accountId, messages, new Callback(callback))) {
+			backing.storeMessages(accountId, messages, callback);
 		}
+	}
+
+	@HaxeCBridge.noemit
+	public function updateMessage(accountId: String, message: ChatMessage) {
+		backing.updateMessage(accountId, message);
+	}
+
+	@HaxeCBridge.noemit
+	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>, callback: (Null<ChatMessage>)->Void) {
+		backing.getMessage(accountId, chatId, serverId, localId, callback);
 	}
 
 	@HaxeCBridge.noemit
@@ -89,11 +99,6 @@ class Custom implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function getMediaUri(hashAlgorithm:String, hash:BytesData, callback: (Null<String>)->Void) {
-		backing.getMediaUri(hashAlgorithm, hash, callback);
-	}
-
-	@HaxeCBridge.noemit
 	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (Bool)->Void) {
 		backing.hasMedia(hashAlgorithm, hash, callback);
 	}
@@ -101,6 +106,11 @@ class Custom implements Persistence {
 	@HaxeCBridge.noemit
 	public function storeMedia(mime:String, bd:BytesData, callback: ()->Void) {
 		backing.storeMedia(mime, bd, callback);
+	}
+
+	@HaxeCBridge.noemit
+	public function removeMedia(hashAlgorithm:String, hash:BytesData) {
+		backing.removeMedia(hashAlgorithm, hash);
 	}
 
 	@HaxeCBridge.noemit
