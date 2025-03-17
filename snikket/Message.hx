@@ -217,12 +217,8 @@ class Message {
 
 		final replace = stanza.getChild("replace", "urn:xmpp:message-correct:0");
 		final replaceId  = replace?.attr?.get("id");
-		if (replaceId != null) {
-			msg.versions = [msg.clone()];
-			Reflect.setField(msg, "localId", replaceId);
-		}
 
-		if (msg.text == null && msg.attachments.length < 1 && msg.versions.length < 1) return new Message(msg.chatId(), msg.senderId(), msg.threadId, UnknownMessageStanza(stanza));
+		if (msg.text == null && msg.attachments.length < 1 && replaceId == null) return new Message(msg.chatId(), msg.senderId(), msg.threadId, UnknownMessageStanza(stanza));
 
 		for (fallback in stanza.allTags("fallback", "urn:xmpp:fallback:0")) {
 			msg.payloads.push(fallback);
@@ -294,6 +290,11 @@ class Message {
 				}
 				msg.replyToMessage = replyToMessage;
 			}
+		}
+
+		if (replaceId != null) {
+			msg.versions = [msg.clone()];
+			Reflect.setField(msg, "localId", replaceId);
 		}
 
 		return new Message(msg.chatId(), msg.senderId(), msg.threadId, ChatMessageStanza(msg));
