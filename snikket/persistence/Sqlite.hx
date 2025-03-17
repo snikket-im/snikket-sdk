@@ -12,6 +12,8 @@ import thenshim.Promise;
 import snikket.Caps;
 import snikket.Chat;
 import snikket.Message;
+import snikket.Reaction;
+import snikket.ReactionUpdate;
 using Lambda;
 
 @:expose
@@ -94,6 +96,19 @@ class Sqlite implements Persistence implements KeyValueStore {
 					fast_count INTEGER NOT NULL DEFAULT 0,
 					sm_state BLOB,
 					PRIMARY KEY (account_id)
+				) STRICT;
+				CREATE TABLE reactions (
+					account_id TEXT NOT NULL,
+					update_id TEXT NOT NULL,
+					mam_id TEXT,
+					mam_by TEXT,
+					stanza_id TEXT,
+					chat_id TEXT NOT NULL,
+					sender_id TEXT NOT NULL,
+					created_at INTEGER NOT NULL,
+					reactions BLOB NOT NULL,
+					kind INTEGER NOT NULL,
+					PRIMARY KEY (account_id, chat_id, sender_id, update_id)
 				) STRICT;
 				PRAGMA user_version = 1;");
 			}
@@ -291,10 +306,10 @@ class Sqlite implements Persistence implements KeyValueStore {
 				})
 			)
 		).then(_ ->  {
-			hydrateReplyTo(accountId, messages, replyTos).then(callback);
+			hydrateReplyTo(accountId, messages, replyTos).then(ms -> hydrateReactions(accountId, ms)).then(callback);
 		});
 
-		// TODO: fetch reactions?
+		// TODO: retract custom emoji?
 	}
 
 	@HaxeCBridge.noemit
@@ -320,7 +335,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					hydrateReplyTo(accountId, [message], [{ chatId: chatId, serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
 				} else {
 					Promise.resolve([message]);
-				}).then(hydrated -> callback(hydrated[0]));
+				}).then(messages -> hydrateReactions(accountId, messages)).then(hydrated -> callback(hydrated[0]));
 				return;
 			}
 			callback(null);
@@ -365,7 +380,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				arr.reverse();
 			}
 			return hydrateReplyTo(accountId, arr, replyTos);
-		});
+		}).then(messages -> hydrateReactions(accountId, messages));
 	}
 
 	@HaxeCBridge.noemit
@@ -456,7 +471,16 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function storeReaction(accountId: String, update: ReactionUpdate, callback: (Null<ChatMessage>)->Void) {
-		callback(null); // TODO
+		db.exec(
+			"INSERT OR REPLACE INTO reactions VALUES (?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),jsonb(?),?)",
+			[
+				accountId, update.updateId, update.serverId, update.serverIdBy,
+				update.localId, update.chatId, update.senderId, update.timestamp,
+				Json.stringify(update.reactions), update.kind
+			]
+		).then(_ ->
+			this.getMessage(accountId, update.chatId, update.serverId, update.localId, callback)
+		);
 	}
 
 	@HaxeCBridge.noemit
@@ -476,7 +500,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					hydrateReplyTo(accountId, [message], [{ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
 				} else {
 					Promise.resolve([message]);
-				}).then(hydrated -> callback(hydrated[0]));
+				}).then(messages -> hydrateReactions(accountId, messages)).then(hydrated -> callback(hydrated[0]));
 				return;
 			}
 		});
@@ -637,6 +661,68 @@ class Sqlite implements Persistence implements KeyValueStore {
 				}
 			}
 			callback(services);
+		});
+	}
+
+	private function hydrateReactions(accountId: String, messages: Array<ChatMessage>) {
+		return fetchReactions(accountId, messages.map(m -> ({ chatId: m.chatId(), serverId: m.serverId, serverIdBy: m.serverIdBy, localId: m.localId }))).then(result -> {
+			for (id => reactions in result) {
+				final m = messages.find(m -> ((m.serverId == null ? m.localId : m.serverId + "\n" + m.serverIdBy) + "\n" + m.chatId()) == id);
+				if (m != null) m.reactions = reactions;
+			}
+			return messages;
+		});
+	}
+
+	private function fetchReactions(accountId: String, ids: Array<{ chatId: String, serverId: Null<String>, serverIdBy: Null<String>, localId: Null<String> }>) {
+		final q = new StringBuf();
+		q.add("SELECT kind, chat_id, mam_id, mam_by, stanza_id, sender_id, json(reactions) AS reactions FROM reactions WHERE 1=0");
+		final params = [];
+		for (item in ids) {
+			if (item.serverId != null) {
+				q.add(" OR (mam_id=? AND mam_by=?)");
+				params.push(item.serverId);
+				params.push(item.serverIdBy);
+			} else {
+				q.add(" OR stanza_id=?");
+				params.push(item.localId);
+			}
+		}
+		q.add(" ORDER BY created_at, ROWID");
+		return db.exec(q.toString(), params).then(rows -> {
+			final agg: Map<String, Map<String, Array<Dynamic>>> = [];
+			for (row in rows) {
+				final reactions: Array<Dynamic> = Json.parse(row.reactions);
+				final mapId = (row.mam_id == null ? row.stanza_id : row.mam_id + "\n" + row.mam_by) + "\n" + row.chat_id;
+				if (!agg.exists(mapId)) agg.set(mapId, []);
+				final map = agg[mapId];
+				if (!map.exists(row.sender_id)) map[row.sender_id] = [];
+				if (row.kind == AppendReactions) {
+					for (reaction in reactions) map[row.sender_id].push(reaction);
+				} else if (row.kind == EmojiReactions) {
+					map[row.sender_id] = reactions.concat(map[row.sender_id].filter(r -> r.uri != null));
+				} else if (row.kind == CompleteReactions) {
+					map[row.sender_id] = reactions;
+				}
+			}
+			final result: Map<String, Map<String, Array<Reaction>>> = [];
+			for (id => reactions in agg) {
+				final map: Map<String, Array<Reaction>> = [];
+				for (reactionsBySender in reactions) {
+					for (reactionD in reactionsBySender) {
+						final reaction = if (reactionD.uri == null) {
+							new Reaction(reactionD.senderId, reactionD.timestamp, reactionD.text, reactionD.envelopeId, reactionD.key);
+						} else {
+							new CustomEmojiReaction(reactionD.senderId, reactionD.timestamp, reactionD.text, reactionD.uri, reactionD.envelopeId);
+						}
+
+						if (!map.exists(reaction.key)) map[reaction.key] = [];
+						map[reaction.key].push(reaction);
+					}
+				}
+				result[id] = map;
+			}
+			return result;
 		});
 	}
 
