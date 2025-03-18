@@ -801,7 +801,7 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function removeReaction(m:ChatMessage, reaction:Reaction) {
-		if (Std.is(reaction, CustomEmojiReaction)) {
+		if (Std.isOfType(reaction, CustomEmojiReaction)) {
 			if (reaction.envelopeId == null) throw "Cannot remove custom emoji reaction without envelopeId";
 			final correct = m.reply();
 			correct.localId = ID.long();
@@ -816,7 +816,7 @@ class DirectChat extends Chat {
 		for (areaction => reacts in m.reactions) {
 			if (areaction != reaction.key) {
 				final react = reacts.find(r -> r.senderId == client.accountId());
-				if (react != null && !Std.is(react, CustomEmojiReaction)) {
+				if (react != null && !Std.isOfType(react, CustomEmojiReaction)) {
 					reactions.push(react);
 				}
 			}
@@ -1318,7 +1318,7 @@ class Channel extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function removeReaction(m:ChatMessage, reaction:Reaction) {
-		if (Std.is(reaction, CustomEmojiReaction)) {
+		if (Std.isOfType(reaction, CustomEmojiReaction)) {
 			if (reaction.envelopeId == null) throw "Cannot remove custom emoji reaction without envelopeId";
 			final correct = m.reply();
 			correct.localId = ID.long();
@@ -1333,7 +1333,7 @@ class Channel extends Chat {
 		for (areaction => reacts in m.reactions) {
 			if (areaction != reaction.key) {
 				final react = reacts.find(r -> r.senderId == getFullJid().asString());
-				if (react != null && !Std.is(react, CustomEmojiReaction)) reactions.push(react);
+				if (react != null && !Std.isOfType(react, CustomEmojiReaction)) reactions.push(react);
 			}
 		}
 		final update = new ReactionUpdate(ID.long(), m.serverId, m.chatId(), null, m.chatId(), getFullJid().asString(), Date.format(std.Date.now()), reactions, EmojiReactions);

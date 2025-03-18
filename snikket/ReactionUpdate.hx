@@ -87,7 +87,7 @@ class ReactionUpdate {
 
 		stanza.tag("reactions", { xmlns: "urn:xmpp:reactions:0", id: localId ?? serverId });
 		for (reaction in reactions) {
-			if (!Std.is(reaction, CustomEmojiReaction)) stanza.textTag("reaction", reaction.text);
+			if (!Std.isOfType(reaction, CustomEmojiReaction)) stanza.textTag("reaction", reaction.text);
 		}
 		stanza.up();
 

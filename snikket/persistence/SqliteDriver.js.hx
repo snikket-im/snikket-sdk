@@ -17,7 +17,7 @@ class SqliteDriver {
 	public function new(dbfile: String) {
 		Worker1.v2({
 			worker: () -> new js.html.Worker(
-				untyped new js.html.URL("sqlite-worker1.mjs", untyped __js__('import.meta.url')),
+				untyped new js.html.URL("sqlite-worker1.mjs", js.Syntax.code("import.meta.url")),
 				untyped { type: "module" }
 			)
 		}).then(promiser -> {
