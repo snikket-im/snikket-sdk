@@ -15,7 +15,7 @@ Working towards simplicity in developing Snikket-compatible apps.
     haxelib install hxnodejs
     haxelib git hxtsdgen https://github.com/singpolyma/hxtsdgen
     haxelib install utest
-    haxelib git hxcpp https://github.com/HaxeFoundation/hxcpp
+    haxelib git hxcpp https://github.com/singpolyma/hxcpp update-sqlite
     cd ~/haxe/hxcpp/git/tools/hxcpp
     haxe compile.hxml
     make

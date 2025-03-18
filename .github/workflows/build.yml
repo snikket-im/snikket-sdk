@@ -49,7 +49,7 @@ jobs:
         haxelib --quiet install hxnodejs
         haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
         haxelib --quiet install utest
-        haxelib --quiet git hxcpp https://github.com/HaxeFoundation/hxcpp
+        haxelib --quiet git hxcpp https://github.com/singpolyma/hxcpp update-sqlite
         cd ~/haxe/hxcpp/git/tools/hxcpp
         haxe compile.hxml
 
