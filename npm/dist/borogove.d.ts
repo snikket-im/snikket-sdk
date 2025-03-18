@@ -1,0 +1,1870 @@
+export declare class AvailableChat {
+    	protected constructor(chatId: string, displayName: string | null, note: string, caps: borogove_Caps);
+    	/**
+     	 * The ID of the Chat this search result represents
+     	 */
+    	chatId: string;
+    	/**
+     	 * The display name of this search result
+     	 */
+    	displayName: string | null;
+    	/**
+     	 * A human-readable note associated with this search result
+     	 */
+    	note: string;
+    	/**
+     	 * Is this search result a channel?
+     	 */
+    	isChannel(): boolean;
+}
+
+export declare class AvailableChatIterator {
+    	protected constructor(q: string, client: Client, persistence: Persistence);
+    	/**
+     	 * The query that this iterator is returning results for
+     	 */
+    	q: string;
+    	/**
+     	 * Get the next AvailableChat from this iterator
+     	 */
+    	[Symbol.asyncIterator](): AvailableChatIterator;
+    	next(): Promise<{done: boolean, value?: AvailableChat | null}>;
+}
+
+declare class borogove_calls_Attribute {
+    	constructor(key: string, value: string);
+    	readonly key: string;
+    	readonly value: string;
+    	toSdp(): string;
+    	toString(): string;
+    	static parse(input: string): borogove_calls_Attribute;
+}
+
+declare const enum borogove_calls_CallStatus {
+    NoCall = 0,
+    Incoming = 1,
+    Outgoing = 2,
+    Connecting = 3,
+    Ongoing = 4,
+    Failed = 5
+}
+
+declare class borogove_calls_InitiatedSession implements borogove_calls_Session {
+    	protected constructor(client: Client, counterpart: borogove_JID, sid: string, remoteDescription: borogove_calls_SessionDescription | null);
+    	get_sid(): string;
+    	get_chatId(): string;
+    	accept(): void;
+    	hangup(): void;
+    	addMedia(streams: MediaStream[]): void;
+    	callStatus(): borogove_calls_CallStatus;
+    	audioTracks(): MediaStreamTrack[];
+    	videoTracks(): MediaStreamTrack[];
+    	dtmf(): RTCDTMFSender | null;
+    	supplyMedia(streams: MediaStream[]): void;
+}
+
+declare class borogove_calls_Media {
+    	constructor(mid: string, media: string, connectionData: string, port: string, protocol: string, attributes: borogove_calls_Attribute[], formats: number[]);
+    	readonly mid: string;
+    	readonly media: string;
+    	readonly connectionData: string;
+    	readonly port: string;
+    	readonly protocol: string;
+    	readonly attributes: borogove_calls_Attribute[];
+    	readonly formats: number[];
+    	toSdp(): string;
+    	contentElement(initiator: boolean): borogove_Stanza;
+    	toElement(sessionAttributes: borogove_calls_Attribute[], initiator: boolean): borogove_Stanza;
+    	getUfragPwd(sessionAttributes?: borogove_calls_Attribute[] | null): {pwd: string, ufrag: string};
+    	toTransportElement(sessionAttributes: borogove_calls_Attribute[]): borogove_Stanza;
+    	static fromElement(content: borogove_Stanza, initiator: boolean, hasGroup: boolean, existingDescription?: borogove_calls_SessionDescription | null): borogove_calls_Media;
+}
+
+declare interface borogove_calls_Session {
+    	get_sid(): string;
+    	get_chatId(): string;
+    	accept(): void;
+    	hangup(): void;
+    	addMedia(streams: MediaStream[]): void;
+    	callStatus(): borogove_calls_CallStatus;
+    	audioTracks(): MediaStreamTrack[];
+    	videoTracks(): MediaStreamTrack[];
+    	dtmf(): RTCDTMFSender | null;
+}
+
+declare class borogove_calls_SessionDescription {
+    	constructor(version: number, name: string, media: borogove_calls_Media[], attributes: borogove_calls_Attribute[], identificationTags: string[]);
+    	readonly version: number;
+    	readonly name: string;
+    	readonly media: borogove_calls_Media[];
+    	readonly attributes: borogove_calls_Attribute[];
+    	readonly identificationTags: string[];
+    	getUfragPwd(): {pwd: string, ufrag: string} | null;
+    	getFingerprint(): borogove_calls_Attribute | null;
+    	getDtlsSetup(): string;
+    	addContent(newDescription: borogove_calls_SessionDescription): borogove_calls_SessionDescription;
+    	toSdp(): string;
+    	toStanza(action: string, sid: string, initiator: boolean): borogove_Stanza;
+    	static parse(input: string): borogove_calls_SessionDescription;
+    	static fromStanza(iq: borogove_Stanza, initiator: boolean, existingDescription?: borogove_calls_SessionDescription | null): borogove_calls_SessionDescription;
+}
+
+declare class borogove_Caps {
+    	constructor(node: string, identities: borogove_Identity[], features: string[], data: borogove_Stanza[], ver?: ArrayBuffer | null);
+    	node: string;
+    	identities: borogove_Identity[];
+    	features: string[];
+    	data: borogove_Stanza[];
+    	isChannel(chatId: string): boolean;
+    	discoReply(): borogove_Stanza;
+    	addC(stanza: borogove_Stanza): borogove_Stanza;
+    	verRaw(): Hash;
+    	ver(): string;
+}
+
+declare class borogove_EncryptionInfo {
+    	protected constructor(status: borogove_EncryptionStatus, method: string, methodName?: string | null, reason?: string | null, reasonText?: string | null);
+    	status: borogove_EncryptionStatus;
+    	method: string;
+    	methodName: string | null;
+    	reason: string | null;
+    	reasonText: string | null;
+}
+
+declare const enum borogove_EncryptionStatus {
+    DecryptionSuccess = 0,
+    DecryptionFailure = 1
+}
+
+declare class borogove_GenericStream extends EventEmitter {
+    	constructor();
+    	_hx_constructor(): void;
+    	clientId: string | null;
+    	readonly csi: boolean;
+    	emitSMupdates: boolean;
+    	register(domain: string, preAuth: string | null): Promise<borogove_Stanza>;
+    	connect(jid: string, sm: ArrayBuffer | null): void;
+    	disconnect(): void;
+    	sendStanza(stanza: borogove_Stanza): void;
+    	onIq(type: any, tag: string, xmlns: string, handler: (arg0: borogove_Stanza) => any): void;
+    	sendIq(stanza: borogove_Stanza, callback: (stanza: borogove_Stanza) => void): void;
+}
+
+declare class borogove_Identity {
+    	constructor(category: string, type: string, name: string, lang?: string | null);
+    	category: string;
+    	type: string;
+    	name: string;
+    	lang: string;
+    	addToDisco(stanza: borogove_Stanza): void;
+    	ver(): string;
+    	writeTo(out: haxe_io_Output): void;
+}
+
+declare class borogove_JID {
+    	constructor(node: string | null, domain: string, resource?: string | null, raw?: boolean | null);
+    	node: string | null;
+    	domain: string;
+    	resource: string | null;
+    	asBare(): borogove_JID;
+    	withResource(resource: string): borogove_JID;
+    	isValid(): boolean;
+    	isDomain(): boolean;
+    	isBare(): boolean;
+    	equals(rhs: borogove_JID): boolean;
+    	asString(): string;
+    	static parse(jid: string): borogove_JID;
+}
+
+declare class borogove_persistence_Dummy implements Persistence {
+    	/**
+     	 * Create a basic persistence layer that persists nothing
+     	 * @returns new persistence layer
+     	 */
+    	constructor();
+    	syncPoint(accountId: string, chatId: string | null): Promise<ChatMessage | null>;
+    	storeChats(accountId: string, chat: Chat[]): void;
+    	getChats(accountId: string): Promise<SerializedChat[]>;
+    	storeMessages(accountId: string, messages: ChatMessage[]): Promise<ChatMessage[]>;
+    	updateMessage(accountId: string, message: ChatMessage): void;
+    	getMessage(accountId: string, chatId: string, serverId: string | null, localId: string | null): Promise<ChatMessage | null>;
+    	getMessagesBefore(accountId: string, chatId: string, before: ChatMessage | null): Promise<ChatMessage[]>;
+    	getMessagesAfter(accountId: string, chatId: string, after: ChatMessage | null): Promise<ChatMessage[]>;
+    	getMessagesAround(accountId: string, around: ChatMessage | null): Promise<ChatMessage[]>;
+    	getChatsUnreadDetails(accountId: string, chats: Chat[]): Promise<{chatId: string, message: ChatMessage, unreadCount: number}[]>;
+    	storeReaction(accountId: string, update: borogove_ReactionUpdate): Promise<ChatMessage | null>;
+    	updateMessageStatus(accountId: string, localId: string, status: MessageStatus, statusText: string | null): Promise<ChatMessage>;
+    	hasMedia(hashAlgorithm: string, hash: ArrayBuffer): Promise<boolean>;
+    	storeMedia(mime: string, bd: ArrayBuffer): Promise<boolean>;
+    	removeMedia(hashAlgorithm: string, hash: ArrayBuffer): void;
+    	storeCaps(caps: borogove_Caps): void;
+    	getCaps(ver: string): Promise<borogove_Caps>;
+    	storeLogin(login: string, clientId: string, displayName: string, token: string | null): void;
+    	getLogin(login: string): Promise<{clientId: string | null, displayName: string | null, fastCount: number, token: string | null}>;
+    	removeAccount(accountId: string, completely: boolean): void;
+    	listAccounts(): Promise<string[]>;
+    	storeStreamManagement(accountId: string, sm: ArrayBuffer | null): void;
+    	getStreamManagement(accountId: string): Promise<ArrayBuffer | null>;
+    	storeService(accountId: string, serviceId: string, name: string | null, node: string | null, caps: borogove_Caps): void;
+    	findServicesWithFeature(accountId: string, feature: string): Promise<{caps: borogove_Caps, name: string | null, node: string | null, serviceId: string}[]>;
+}
+
+declare interface borogove_persistence_KeyValueStore {
+    	get(k: string): Promise<string | null>;
+    	set(k: string, v: string | null): Promise<boolean>;
+}
+
+declare interface borogove_persistence_MediaStore {
+    	hasMedia(hashAlgorithm: string, hash: ArrayBuffer): Promise<boolean>;
+    	removeMedia(hashAlgorithm: string, hash: ArrayBuffer): void;
+    	storeMedia(mime: string, bytes: ArrayBuffer): Promise<boolean>;
+}
+
+declare class borogove_Presence {
+    	constructor(caps: borogove_Caps | null, mucUser: borogove_Stanza | null, avatarHash: Hash | null);
+    	caps: borogove_Caps | null;
+    	mucUser: borogove_Stanza | null;
+    	avatarHash: Hash | null;
+}
+
+declare class borogove_ReactionUpdate {
+    	constructor(updateId: string, serverId: string | null, serverIdBy: string | null, localId: string | null, chatId: string, senderId: string, timestamp: string, reactions: Reaction[], kind: ReactionUpdateKind);
+    	updateId: string;
+    	serverId: string | null;
+    	serverIdBy: string | null;
+    	localId: string | null;
+    	chatId: string;
+    	senderId: string;
+    	timestamp: string;
+    	reactions: Reaction[];
+    	kind: ReactionUpdateKind;
+    	getReactions(existingReactions: Reaction[] | null): Reaction[];
+}
+
+declare class borogove_Stanza {
+    	constructor(name: string, attr?: { [key: string]: string } | null);
+    	name: string;
+    	attr: { [key: string]: string };
+    	readonly children: any[];
+    	serialize(): string;
+    	toString(): string;
+    	tag(name: string, attr?: { [key: string]: string } | null): borogove_Stanza;
+    	text(content: string): borogove_Stanza;
+    	textTag(tagName: string, textContent: string, attr?: { [key: string]: string } | null): borogove_Stanza;
+    	up(): borogove_Stanza;
+    	reset(): borogove_Stanza;
+    	insertChild(idx: number, stanza: borogove_Stanza): borogove_Stanza;
+    	addChild(stanza: borogove_Stanza): borogove_Stanza;
+    	addDirectChild(child: any): borogove_Stanza;
+    	clone(): borogove_Stanza;
+    	allTags(name?: string | null, xmlns?: string | null): borogove_Stanza[];
+    	allText(): string[];
+    	getFirstChild(): borogove_Stanza;
+    	getErrorText(): string;
+    	getChild(name?: string | null, xmlns?: string | null): borogove_Stanza | null;
+    	getChildText(name?: string | null, xmlns?: string | null): string | null;
+    	hasChild(name?: string | null, xmlns?: string | null): boolean;
+    	getText(): string;
+    	find(path: string): any | null;
+    	findChild(path: string): borogove_Stanza;
+    	findText(path: string): string | null;
+    	traverse(f: (arg0: borogove_Stanza) => boolean): borogove_Stanza;
+    	reduce<T>(stanza: (arg0: borogove_Stanza, arg1: T[]) => T, text: (arg0: string) => T): T;
+    	getError(): borogove_StanzaError | null;
+    	removeChild(remove: borogove_Stanza): void;
+    	removeChildren(name?: string | null, xmlns_?: string | null): void;
+    	static parse(s: string): borogove_Stanza;
+    	static parseXmlBool(x: string): boolean;
+}
+
+declare class borogove_StanzaError {
+    	constructor(type_: string, condition_: string, text_?: string | null);
+    	type: string;
+    	condition: string;
+    	text: string | null;
+}
+
+declare namespace calls {
+    export {
+        borogove_calls_CallStatus as CallStatus,
+        borogove_calls_InitiatedSession as InitiatedSession,
+        borogove_calls_Session as Session
+    }
+}
+export { calls }
+
+export declare class Channel extends Chat {
+    	protected constructor(client: Client, stream: borogove_GenericStream, persistence: Persistence, chatId: string, uiState?: UiState, isBookmarked?: boolean, isBlocked?: boolean, extensions?: borogove_Stanza | null, readUpToId?: string | null, readUpToBy?: string | null, disco?: borogove_Caps | null);
+    	getDisplayName(): string;
+    	description(): string;
+    	invite(chat: Chat, threadId?: string | null): void;
+    	canInvite(): boolean;
+    	canSend(): boolean;
+    	setTrusted(trusted: boolean): void;
+    	isTrusted(): boolean;
+    	isPrivate(): boolean;
+    	preview(): string;
+    	syncing(): boolean;
+    	canAudioCall(): boolean;
+    	canVideoCall(): boolean;
+    	getParticipants(): string[];
+    	getParticipantDetails(participantId: string): Participant;
+    	getMessagesBefore(before: ChatMessage | null): Promise<ChatMessage[]>;
+    	getMessagesAfter(after: ChatMessage | null): Promise<ChatMessage[]>;
+    	getMessagesAround(around: ChatMessage): Promise<ChatMessage[]>;
+    	correctMessage(correct: ChatMessage, message: ChatMessageBuilder): void;
+    	sendMessage(message: ChatMessageBuilder): void;
+    	removeReaction(m: ChatMessage, reaction: Reaction): void;
+    	lastMessageId(): string | null;
+    	markReadUpTo(message: ChatMessage): void;
+    	bookmark(): void;
+    	close(): void;
+}
+
+export declare class Chat {
+    	protected constructor(client: Client, stream: borogove_GenericStream, persistence: Persistence, chatId: string, uiState?: UiState, isBookmarked?: boolean, isBlocked?: boolean, extensions?: borogove_Stanza | null, readUpToId?: string | null, readUpToBy?: string | null, omemoContactDeviceIDs?: number[] | null);
+    	/**
+     	 * ID of this Chat
+     	 */
+    	readonly chatId: string;
+    	/**
+     	 * Current state of this chat
+     	 */
+    	readonly uiState: UiState;
+    	/**
+     	 * Is this chat blocked?
+     	 */
+    	readonly isBlocked: boolean;
+    	/**
+     	 * The most recent message in this chat
+     	 */
+    	readonly lastMessage: ChatMessage | null;
+    	/**
+     	 * Has this chat ever been bookmarked?
+     	 */
+    	readonly isBookmarked: boolean;
+    	/**
+     	 * Fetch a page of messages before some point
+     	 * @param before ChatMessage to look before, or null to start at the end
+     	 * @returns Promise resolving to an array of ChatMessage that are found
+     	 */
+    	getMessagesBefore(before: ChatMessage | null): Promise<ChatMessage[]>;
+    	/**
+     	 * Fetch a page of messages after some point
+     	 * @param after ChatMessage to look after, or null to start at the beginning
+     	 * @returns Promise resolving to an array of ChatMessage that are found
+     	 */
+    	getMessagesAfter(after: ChatMessage | null): Promise<ChatMessage[]>;
+    	/**
+     	 * Fetch a page of messages around (before, including, and after) some point
+     	 * @param around ChatMessage to look around
+     	 * @returns Promise resolving to an array of ChatMessage that are found
+     	 */
+    	getMessagesAround(around: ChatMessage): Promise<ChatMessage[]>;
+    	/**
+     	 * Send a message to this Chat
+     	 * @param message the ChatMessageBuilder to send
+     	 */
+    	sendMessage(message: ChatMessageBuilder): void;
+    	/**
+     	 * Signals that all messages up to and including this one have probably
+     	 * been displayed to the user
+     	 * @param message the ChatMessage most recently displayed
+     	 */
+    	markReadUpTo(message: ChatMessage): void;
+    	/**
+     	 * Save this Chat on the server
+     	 */
+    	bookmark(): void;
+    	/**
+     	 * Get the list of IDs of participants in this Chat
+     	 * @returns array of IDs
+     	 */
+    	getParticipants(): string[];
+    	/**
+     	 * Get the details for one participant in this Chat
+     	 * @param participantId the ID of the participant to look up
+     	 */
+    	getParticipantDetails(participantId: string): Participant;
+    	/**
+     	 * Correct an already-send message by replacing it with a new one
+     	 * @param localId the ChatMessage to correct
+     	 * @param message the new ChatMessage to replace it with
+     	 */
+    	correctMessage(correct: ChatMessage, message: ChatMessageBuilder): void;
+    	/**
+     	 * Add new reaction to a message in this Chat
+     	 * @param m ChatMessage to react to
+     	 * @param reaction emoji of the reaction
+     	 */
+    	addReaction(m: ChatMessage, reaction: Reaction): void;
+    	/**
+     	 * Remove an already-sent reaction from a message
+     	 * @param m ChatMessage to remove the reaction from
+     	 * @param reaction the emoji to remove
+     	 */
+    	removeReaction(m: ChatMessage, reaction: Reaction): void;
+    	/**
+     	 * Call this whenever the user is typing, can call on every keystroke
+     	 * @param threadId optional, what thread the user has selected if any
+     	 * @param content optional, what the user has typed so far
+     	 */
+    	typing(threadId: string | null, content: string | null): void;
+    	/**
+     	 * Call this whenever the user makes a chat or thread "active" in your UX
+     	 * If you call this with true you MUST later call it will false
+     	 * @param active true if the chat is "active", false otherwise
+     	 * @param threadId optional, what thread the user has selected if any
+     	 */
+    	setActive(active: boolean, threadId: string | null): void;
+    	/**
+     	 * Archive this chat
+     	 */
+    	close(): void;
+    	/**
+     	 * Pin or unpin this chat
+     	 */
+    	togglePinned(): void;
+    	/**
+     	 * Block this chat so it will not re-open
+     	 */
+    	block(reportSpam?: boolean, spamMessage?: ChatMessage | null, onServer?: boolean): void;
+    	/**
+     	 * Unblock this chat so it will open again
+     	 */
+    	unblock(onServer?: boolean): void;
+    	/**
+     	 * Update notification preferences
+     	 */
+    	setNotifications(filtered: boolean, mention: boolean, reply: boolean): void;
+    	/**
+     	 * Should notifications be filtered?
+     	 */
+    	notificationsFiltered(): boolean;
+    	/**
+     	 * Should a mention produce a notification?
+     	 */
+    	notifyMention(): boolean;
+    	/**
+     	 * Should a reply produce a notification?
+     	 */
+    	notifyReply(): boolean;
+    	/**
+     	 * An ID of the most recent message in this chat
+     	 */
+    	lastMessageId(): string | null;
+    	/**
+     	 * Get the URI image to represent this Chat, or null
+     	 */
+    	getPhoto(): string | null;
+    	/**
+     	 * Get the URI to a placeholder image to represent this Chat
+     	 */
+    	getPlaceholder(): string;
+    	/**
+     	 * An ID of the last message displayed to the user
+     	 */
+    	readUpTo(): Promise<ChatMessage | null>;
+    	/**
+     	 * The number of message that have not yet been displayed to the user
+     	 */
+    	unreadCount(): number;
+    	/**
+     	 * A preview of the chat, such as the most recent message body
+     	 */
+    	preview(): string;
+    	/**
+     	 * Set the display name to use for this chat
+     	 * @param displayName String to use as display name
+     	 */
+    	setDisplayName(displayName: string): void;
+    	/**
+     	 * The display name of this Chat
+     	 */
+    	getDisplayName(): string;
+    	/**
+     	 * Set if this chat is to be trusted with our presence, etc
+     	 * @param trusted Bool if trusted or not
+     	 */
+    	setTrusted(trusted: boolean): void;
+    	/**
+     	 * Is this a chat with an entity we trust to see our online status?
+     	 */
+    	isTrusted(): boolean;
+    	/**
+     	 * @returns if this chat is currently syncing with the server
+     	 */
+    	syncing(): boolean;
+    	/**
+     	 * Can audio calls be started in this Chat?
+     	 */
+    	canAudioCall(): boolean;
+    	/**
+     	 * Can video calls be started in this Chat?
+     	 */
+    	canVideoCall(): boolean;
+    	/**
+     	 * Start a new call in this Chat
+     	 * @param audio do we want audio in this call
+     	 * @param video do we want video in this call
+     	 */
+    	startCall(audio: boolean, video: boolean): borogove_calls_Session;
+    	addMedia(streams: MediaStream[]): void;
+    	/**
+     	 * Accept any incoming calls in this Chat
+     	 */
+    	acceptCall(): void;
+    	/**
+     	 * Hangup or reject any calls in this chat
+     	 */
+    	hangup(): void;
+    	/**
+     	 * The current status of a call in this chat
+     	 */
+    	callStatus(): borogove_calls_CallStatus;
+    	/**
+     	 * A DTMFSender for a call in this chat, or NULL
+     	 */
+    	dtmf(): RTCDTMFSender | null;
+    	/**
+     	 * All video tracks in all active calls in this chat
+     	 */
+    	videoTracks(): MediaStreamTrack[];
+    	/**
+     	 * Get encryption mode for this chat
+     	 */
+    	encryptionMode(): string;
+    	/**
+     	 * Can the user send messages to this chat?
+     	 */
+    	canSend(): boolean;
+    	/**
+     	 * Invite another chat's participants to participate in this one
+     	 */
+    	invite(other: Chat, threadId?: string | null): void;
+    	/**
+     	 * Can the user invite others to this chat?
+     	 */
+    	canInvite(): boolean;
+    	/**
+     	 * This chat's primary mode of interaction is via commands
+     	 */
+    	isApp(): boolean;
+    	/**
+     	 * Does this chat provide a menu of commands?
+     	 */
+    	hasCommands(): boolean;
+    	commands(): Promise<Command[]>;
+    	/**
+     	 * The Participant that originally invited us to this Chat, if we were invited
+     	 */
+    	invitedBy(): Participant | null;
+}
+
+export declare class ChatAttachment {
+    	constructor(name: string | null, mime: string, size: number | null, uris: string[], hashes: Hash[]);
+    	/**
+     	 * Filename
+     	 */
+    	name: string | null;
+    	/**
+     	 * MIME Type
+     	 */
+    	mime: string;
+    	/**
+     	 * Size in bytes
+     	 */
+    	size: number | null;
+    	/**
+     	 * URIs to data
+     	 */
+    	uris: string[];
+    	/**
+     	 * Hashes of data
+     	 */
+    	hashes: Hash[];
+}
+
+export declare class ChatMessage {
+    	protected constructor(params: {attachments?: ChatAttachment[] | null, direction?: MessageDirection | null, encryption?: borogove_EncryptionInfo | null, from: borogove_JID, lang?: string | null, linkMetadata?: LinkMetadata[] | null, localId?: string | null, payloads?: borogove_Stanza[] | null, reactions?: Map<string,Reaction[]> | null, recipients?: borogove_JID[] | null, replyId?: string | null, replyTo?: borogove_JID[] | null, replyToMessage?: ChatMessage | null, senderId: string, serverId?: string | null, serverIdBy?: string | null, sortId?: string | null, stanza?: borogove_Stanza | null, status?: MessageStatus | null, statusText?: string | null, syncPoint?: boolean | null, text?: string | null, threadId?: string | null, timestamp: string, to: borogove_JID, type?: MessageType | null, versions?: ChatMessage[] | null});
+    	/**
+     	 * The ID as set by the creator of this message
+     	 */
+    	localId: string | null;
+    	/**
+     	 * The ID as set by the authoritative server
+     	 */
+    	serverId: string | null;
+    	/**
+     	 * The ID of the server which set the serverId
+     	 */
+    	serverIdBy: string | null;
+    	/**
+     	 * The type of this message (Chat, Call, etc)
+     	 */
+    	type: MessageType;
+    	/**
+     	 * The timestamp of this message, in format YYYY-MM-DDThh:mm:ss[.sss]Z
+     	 */
+    	timestamp: string;
+    	/**
+     	 * The ID of the sender of this message
+     	 */
+    	senderId: string;
+    	/**
+     	 * Message this one is in reply to, or NULL
+     	 */
+    	readonly replyToMessage: ChatMessage | null;
+    	/**
+     	 * ID of the thread this message is in, or NULL
+     	 */
+    	threadId: string | null;
+    	/**
+     	 * Array of attachments to this message
+     	 */
+    	attachments: ChatAttachment[];
+    	/**
+     	 * Map of reactions to this message
+     	 */
+    	readonly reactions: Map<string,Reaction[]>;
+    	/**
+     	 * Language code for the body
+     	 */
+    	lang: string | null;
+    	/**
+     	 * Direction of this message
+     	 */
+    	direction: MessageDirection;
+    	/**
+     	 * Status of this message
+     	 */
+    	status: MessageStatus;
+    	/**
+     	 * Message to go along with the message status
+     	 */
+    	statusText: string | null;
+    	/**
+     	 * Array of past versions of this message, if it has been edited
+     	 */
+    	versions: ChatMessage[];
+    	/**
+     	 * Information about the encryption used by the sender of
+     	 * this message.
+     	 */
+    	encryption: borogove_EncryptionInfo | null;
+    	/**
+     	 * Metadata about links associated with this message
+     	 */
+    	linkMetadata: LinkMetadata[];
+    	/**
+     	 * Create a new ChatMessage in reply to this one
+     	 */
+    	reply(): ChatMessageBuilder;
+    	/**
+     	 * HTML representation of the message body
+     	 * WARNING: this is possibly untrusted HTML. You must parse or sanitize appropriately!
+     	 * @param sender optionally specify the full details of the sender
+     	 */
+    	body(sender?: Participant | null): Html;
+    	/**
+     	 * The ID of the Chat this message is associated with
+     	 */
+    	chatId(): string;
+    	/**
+     	 * The ID of the account associated with this message
+     	 */
+    	account(): string;
+    	/**
+     	 * Is this message the same as or a replacement for some other one?
+     	 */
+    	canReplace(other: ChatMessage): boolean;
+    	/**
+     	 * Is this an incoming message?
+     	 */
+    	isIncoming(): boolean;
+    	/**
+     	 * The URI of an icon for the thread associated with this message, or NULL
+     	 */
+    	threadIcon(): string | null | null;
+    	/**
+     	 * The last status of the call if this message is related to a call
+     	 */
+    	callStatus(): string | null;
+    	/**
+     	 * The session id of the call if this message is related to a call
+     	 */
+    	callSid(): string | null;
+    	/**
+     	 * The duration of the call if this message is related to a call
+     	 */
+    	callDuration(): string | null;
+}
+
+export declare class ChatMessageBuilder {
+    	/**
+     	 * Create a new message builder from a parameter object
+     	 * @param params initial values for the message builder
+     	 * @returns a new ChatMessageBuilder
+     	 */
+    	constructor(params?: {attachments?: ChatAttachment[] | null, direction?: MessageDirection | null, encryption?: borogove_EncryptionInfo | null, html?: Html | null, lang?: string | null, localId?: string | null, payloads?: borogove_Stanza[] | null, reactions?: Map<string,Reaction[]> | null, replyId?: string | null, replyToMessage?: ChatMessage | null, senderId?: string | null, serverId?: string | null, serverIdBy?: string | null, status?: MessageStatus | null, syncPoint?: boolean | null, text?: string | null, threadId?: string | null, timestamp?: string | null, type?: MessageType | null, versions?: ChatMessage[] | null} | null);
+    	/**
+     	 * The ID as set by the creator of this message
+     	 */
+    	localId: string | null;
+    	/**
+     	 * The ID as set by the authoritative server
+     	 */
+    	serverId: string | null;
+    	/**
+     	 * The ID of the server which set the serverId
+     	 */
+    	serverIdBy: string | null;
+    	/**
+     	 * The type of this message (Chat, Call, etc)
+     	 */
+    	type: MessageType;
+    	/**
+     	 * The timestamp of this message, in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
+     	 */
+    	timestamp: string | null;
+    	/**
+     	 * The ID of the message sender
+     	 */
+    	/**
+     	 * Message this one is in reply to, or NULL
+     	 */
+    	replyToMessage: ChatMessage | null;
+    	/**
+     	 * ID of the thread this message is in, or NULL
+     	 */
+    	threadId: string | null;
+    	/**
+     	 * Array of attachments to this message
+     	 */
+    	readonly attachments: ChatAttachment[];
+    	/**
+     	 * Map of reactions to this message
+     	 */
+    	reactions: Map<string,Reaction[]>;
+    	/**
+     	 * Language code for the body
+     	 */
+    	lang: string | null;
+    	/**
+     	 * Direction of this message
+     	 */
+    	direction: MessageDirection;
+    	/**
+     	 * Status of this message
+     	 */
+    	status: MessageStatus;
+    	/**
+     	 * Human readable text to go with the status
+     	 */
+    	statusText: string | null;
+    	/**
+     	 * Array of past versions of this message, if it has been edited
+     	 */
+    	versions: ChatMessage[];
+    	/**
+     	 * Information about the encryption used by the sender of
+     	 * this message.
+     	 */
+    	encryption: borogove_EncryptionInfo | null;
+    	/**
+     	 * Metadata about links associated with this message
+     	 */
+    	linkMetadata: LinkMetadata[];
+    	/**
+     	 * Add an attachment to this message
+     	 * @param attachment The ChatAttachment to add
+     	 */
+    	addAttachment(attachment: ChatAttachment): void;
+    	/**
+     	 * Set body from Html
+     	 * @param html rich text body to attach to the message
+     	 */
+    	setBody(html: Html | null): void;
+    	/**
+     	 * The ID of the Chat this message is associated with
+     	 * @returns Chat ID for this message
+     	 */
+    	chatId(): string;
+    	/**
+     	 * The ID of the sender of this message
+     	 * @returns sender ID for this message
+     	 */
+    	get_senderId(): string;
+    	/**
+     	 * Build this builder into an immutable ChatMessage
+     	 * @returns the ChatMessage
+     	 */
+    	build(): ChatMessage;
+}
+
+export declare const enum ChatMessageEvent {
+    DeliveryEvent = 0,
+    CorrectionEvent = 1,
+    ReactionEvent = 2,
+    StatusEvent = 3
+}
+
+export declare class Client extends EventEmitter {
+    	/**
+     	 * Create a new Client to connect to a particular account
+     	 * @param accountId the account to connect to
+     	 * @param persistence the persistence layer to use for storage
+     	 */
+    	constructor(accountId: string, persistence: Persistence);
+    	/**
+     	 * Set to false to suppress sending available presence after connect
+     	 */
+    	sendAvailable: boolean;
+    	/**
+     	 * Start this client running and trying to connect to the server
+     	 */
+    	start(): void;
+    	/**
+     	 * Gets the client ready to use but does not connect to the server
+     	 * @returns Promise resolving to true once the Client is ready
+     	 */
+    	startOffline(): Promise<boolean>;
+    	/**
+     	 * Destroy local data for this account
+     	 * @param completely if true chats, messages, etc will be deleted as well
+     	 */
+    	logout(completely: boolean): void;
+    	/**
+     	 * Sets the password to be used in response to the password needed event
+     	 * @param password
+     	 */
+    	usePassword(password: string): void;
+    	/**
+     	 * Get the account ID for this Client
+     	 * @returns account id
+     	 */
+    	accountId(): string;
+    	/**
+     	 * Get the current display name for this account
+     	 * @returns display name
+     	 */
+    	displayName(): string;
+    	/**
+     	 * Set the current profile for this account on the server
+     	 * @param profile to set
+     	 * @param publicAccess set the access for the profile to public
+     	 */
+    	setProfile(profile: ProfileBuilder, publicAccess: boolean): void;
+    	/**
+     	 * Turn a file into a ChatAttachment for attaching to a ChatMessage
+     	 * @param source The AttachmentSource to use
+     	 * @returns Promise resolving to a ChatAttachment or null
+     	 */
+    	prepareAttachment(source: File): Promise<ChatAttachment | null>;
+    	/**
+     	 * @returns array of open chats, sorted by last activity
+     	 */
+    	getChats(): Chat[];
+    	/**
+     	 * Search for chats the user can start or join
+     	 * @param q the search query to use
+     	 * @returns an async iterator of AvailableChat matching the query
+     	 */
+    	findAvailableChats(q: string): AvailableChatIterator;
+    	/**
+     	 * Start or join a chat from the search results
+     	 * @returns the chat that was started
+     	 */
+    	startChat(availableChat: AvailableChat): Chat;
+    	/**
+     	 * Find a chat by id
+     	 * @returns the chat if known, or NULL
+     	 */
+    	getChat(chatId: string): Chat | null;
+    	/**
+     	 * Create a browser push subscription and register it with the server
+     	 * @param reg service worker registration that owns the PushManager
+     	 * @param push_service address of the push proxy
+     	 * @param vapid_key VAPID key pair used for push registration
+     	 * @param grace optional push suppression grace period, in seconds
+     	 */
+    	subscribePush(reg: ServiceWorkerRegistration, push_service: string, vapid_key: {privateKey: CryptoKey, publicKey: CryptoKey}, grace?: number | null): void;
+    	/**
+     	 * Enable push notifications
+     	 * @param push_service the address of a push proxy
+     	 * @param vapid_private_pkcs8 the private key for signing JWT of the push service
+     	 * @param endpoint the final target for the push proxy to forward to
+     	 * @param p256dh A P-256 uncompressed point in ANSI X9.62 format
+     	 * @param auth Random 16 octed value
+     	 * @param grace Grace period during which not to generate push if another app is active for same account, in seconds (negative for none)
+     	 * @param claims Optional additional JWT claims as key then value
+     	 */
+    	enablePush(push_service: string, endpoint: string, p256dh: ArrayBuffer, auth: ArrayBuffer, grace: number, vapid_private_pkcs8?: ArrayBuffer | null, claims?: string[] | null): void;
+    	/**
+     	 * Event fired when client needs a password for authentication
+     	 * @param handler takes one argument, the Client that needs a password
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addPasswordNeededListener(handler: (arg0: Client) => void): number;
+    	/**
+     	 * Event fired when client is connected and fully synchronized
+     	 * @param handler takes no arguments
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addStatusOnlineListener(handler: () => void): number;
+    	/**
+     	 * Event fired when client is disconnected
+     	 * @param handler takes no arguments
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addStatusOfflineListener(handler: () => void): number;
+    	/**
+     	 * Event fired when connection fails with a fatal error and will not be retried
+     	 * @param handler takes no arguments
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addConnectionFailedListener(handler: () => void): number;
+    	/**
+     	 * Event fired when TLS checks fail, to give client the chance to override
+     	 * @param handler takes two arguments, the PEM of the cert and an array of DNS names, and must return true to accept or false to reject
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addTlsCheckListener(handler: (arg0: string, arg1: string[]) => boolean): number;
+    	/**
+     	 * Event fired when another participant changes state (such as typing/not typing)
+     	 * @param handler takes sender ID, Chat ID, thread ID, and the new user state
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addUserStateListener(handler: (arg0: string, arg1: string, arg2: string | null, arg3: UserState) => void): number;
+    	/**
+     	 * Event fired when a new ChatMessage comes in on any Chat
+     	 * Also fires when status of a ChatMessage changes,
+     	 * when a ChatMessage is edited, or when a reaction is added
+     	 * @param handler takes two arguments, the ChatMessage and ChatMessageEvent enum describing what happened
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addChatMessageListener(handler: (arg0: ChatMessage, arg1: ChatMessageEvent) => void): number;
+    	/**
+     	 * Event fired when syncing a new ChatMessage that was send when offline.
+     	 * Normally you don't want this, but it may be useful if you want to notify on app start.
+     	 * @param handler takes one argument, the ChatMessage
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addSyncMessageListener(handler: (arg0: ChatMessage) => void): number;
+    	/**
+     	 * Event fired when a Chat's metadata is updated, or when a new Chat is added
+     	 * @param handler takes one argument, an array of Chats that were updated
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addChatsUpdatedListener(handler: (arg0: Chat[]) => void): number;
+    	/**
+     	 * Event fired when a new call comes in
+     	 * @param handler takes one argument, the call Session
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addCallRingListener(handler: (arg0: borogove_calls_Session) => void): number;
+    	/**
+     	 * Event fired when a call is retracted or hung up
+     	 * @param handler takes two arguments, the associated Chat ID and Session ID
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addCallRetractListener(handler: (arg0: string, arg1: string) => void): number;
+    	/**
+     	 * Event fired when an outgoing call starts ringing
+     	 * @param handler takes one argument, the associated Session
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addCallRingingListener(handler: (arg0: borogove_calls_Session) => void): number;
+    	/**
+     	 * Event fired when an existing call changes status (connecting, failed, etc)
+     	 * @param handler takes one argument, the associated Session
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addCallUpdateStatusListener(handler: (arg0: borogove_calls_InitiatedSession) => void): number;
+    	/**
+     	 * Event fired when a call is asking for media to send
+     	 * @param handler takes three arguments, the call Session,
+     	 * a boolean indicating if audio is desired,
+     	 * and a boolean indicating if video is desired
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addCallMediaListener(handler: (arg0: borogove_calls_InitiatedSession, arg1: boolean, arg2: boolean) => void): number;
+    	/**
+     	 * Event fired when call has a new MediaStreamTrack to play
+     	 * @param handler takes three arguments, the associated Chat ID,
+     	 * the new MediaStreamTrack, and an array of any associated MediaStreams
+     	 * @returns token for use with removeEventListener
+     	 */
+    	addCallTrackListener(handler: (arg0: borogove_calls_InitiatedSession, arg1: MediaStreamTrack, arg2: MediaStream[]) => void): number;
+    	/**
+     	 * Let the SDK know the UI is in the foreground
+     	 */
+    	setInForeground(): void;
+    	/**
+     	 * Let the SDK know the UI is not in the foreground
+     	 */
+    	setNotInForeground(): void;
+}
+
+export declare class Command {
+    	protected constructor(client: Client, params: {jid: borogove_JID, name: string | null, node: string});
+    	/**
+     	 * Human-readable name for this command
+     	 */
+    	name: string;
+    	/**
+     	 * Start a new session for this command. May have side effects!
+     	 */
+    	execute(): Promise<CommandSession>;
+}
+
+export declare class CommandSession {
+    	protected constructor(status: string, sessionid: string, actions: FormOption[], forms: Form[], command: Command);
+    	/**
+     	 * Human-readable title for the current command session
+     	 */
+    	name: string;
+    	/**
+     	 * Current command execution status
+     	 */
+    	status: string;
+    	/**
+     	 * Actions the server currently allows for this session
+     	 */
+    	actions: FormOption[];
+    	/**
+     	 * Forms to display for the current session step
+     	 */
+    	forms: Form[];
+    	/**
+     	 * Continue this command session, optionally submitting form data
+     	 * @param action requested action, or null for the default action
+     	 * @param data form values to submit for the selected form
+     	 * @param formIdx index of the form in `forms` to submit
+     	 * @returns Promise resolving to the next command session state
+     	 */
+    	execute(action?: string | null, data?: { [key: string]: string | string[] } | Map<string,string | string[]> | FormData | null, formIdx?: number): Promise<CommandSession>;
+}
+
+export declare class Config {
+    	protected constructor();
+    	/**
+     	 * Produce /.well-known/ni/ paths instead of ni:/// URIs
+     	 * for referencing media by hash.
+     	 * This can be useful eg for intercepting with a Service Worker.
+     	 */
+    	static relativeHashUri: boolean;
+}
+
+export declare class CustomEmojiReaction extends Reaction {
+    	protected constructor(senderId: string, timestamp: string, text: string, uri: string, envelopeId?: string | null);
+    	/**
+     	 * URI of the custom emoji image
+     	 */
+    	uri: string;
+    	/**
+     	 * Render this reaction using either a text or image callback
+     	 * @param forText called for plain unicode reactions
+     	 * @param forImage called for custom emoji reactions with name and image URI
+     	 * @returns the value returned by the chosen callback
+     	 */
+    	render<T>(forText: (arg0: string) => T, forImage: (arg0: string, arg1: string) => T): T;
+    	/**
+     	 * Create a new custom emoji reaction to send
+     	 * @param text name of custom emoji
+     	 * @param uri URI for media of custom emoji
+     	 * @returns Reaction
+     	 */
+    	static custom(text: string, uri: string): CustomEmojiReaction;
+}
+
+declare function _default(dbname: any, media: any, tokenize: any, stemmer: any): Promise<{
+    syncPoint: (account: any, chatId: any) => Promise<ChatMessage>;
+    storeChats: (account: any, chats: any) => void;
+    getChats: (account: any) => Promise<any[]>;
+    getChatUnreadDetails: (account: any, chat: any) => Promise<{
+        message: ChatMessage;
+        unreadCount: number;
+    }>;
+    getChatsUnreadDetails: (account: any, chatsArray: any) => Promise<any[]>;
+    getMessage: (account: any, chatId: any, serverId: any, localId: any) => Promise<ChatMessage>;
+    storeReaction: (account: any, update: any) => Promise<ChatMessage>;
+    storeMessages(account: any, messages: any): Promise<any[]>;
+    storeMessage: (account: any, message: any, callback: any) => void;
+    updateMessage: (account: any, message: any) => void;
+    updateMessageStatus: (account: any, localId: any, status: any, statusText: any) => Promise<ChatMessage>;
+    getMessagesBefore: (account: any, chatId: any, before: any) => Promise<ChatMessage[]>;
+    getMessagesAfter: (account: any, chatId: any, after: any) => Promise<ChatMessage[]>;
+    getMessagesAround: (account: any, around: any) => Promise<ChatMessage[]>;
+    getMessagesFromCursor: (cursor: any, notIncluding: any, filter: any) => Promise<ChatMessage[]>;
+    searchMessages: (account: any, chatId: any, q: any) => Promise<ChatMessage[]>;
+    hasMedia: (hashAlgorithm: any, hash: any) => any;
+    removeMedia: (hashAlgorithm: any, hash: any) => void;
+    storeMedia: (mime: any, buffer: any) => any;
+    storeCaps: (caps: any) => void;
+    getCaps: (ver: any) => Promise<borogove_Caps>;
+    storeLogin: (login: any, clientId: any, displayName: any, token: any) => void;
+    storeOmemoId: (account: any, omemoId: any) => void;
+    storeOmemoIdentityKey: (account: any, keypair: any) => void;
+    storeOmemoDeviceList: (chatId: any, deviceIds: any) => void;
+    getOmemoDeviceList: (chatId: any, callback: any) => void;
+    storeOmemoPreKey: (account: any, keyId: any, keyPair: any) => void;
+    removeOmemoPreKey: (account: any, keyId: any) => void;
+    getOmemoPreKey: (account: any, keyId: any, callback: any) => void;
+    getOmemoPreKeys: (account: any, callback: any) => void;
+    storeStreamManagement: (account: any, sm: any) => void;
+    getStreamManagement(account: any): Promise<ArrayBuffer>;
+    getLogin: (login: any) => Promise<{
+        clientId: any;
+        token: any;
+        fastCount: any;
+        displayName: any;
+    }>;
+    getOmemoId: (account: any, callback: any) => void;
+    getOmemoIdentityKey: (account: any, callback: any) => void;
+    getOmemoSignedPreKey: (account: any, keyId: any, callback: any) => void;
+    storeOmemoSignedPreKey: (account: any, signedKey: any) => void;
+    removeAccount(account: any, completely: any): void;
+    listAccounts(): Promise<any>;
+    storeService(account: any, serviceId: any, name: any, node: any, caps: any): void;
+    findServicesWithFeature(account: any, feature: any): Promise<any[]>;
+    getOmemoContactIdentityKey: (account: any, address: any, callback: any) => void;
+    storeOmemoContactIdentityKey: (account: any, address: any, identityKey: any) => void;
+    getOmemoSession: (account: any, address: any, callback: any) => void;
+    storeOmemoSession: (account: any, address: any, session: any) => void;
+    storeOmemoMetadata: (account: any, address: any, metadata: any) => void;
+    getOmemoMetadata: (account: any, address: any, callback: any) => void;
+    removeOmemoSession: (account: any, address: any) => void;
+    get(k: any): Promise<any>;
+    set(k: any, v: any): Promise<any>;
+}>;
+
+declare function _default_2(cacheName: any): Promise<{
+    setKV(kv: any): void;
+    storeMedia(mime: any, buffer: any): Promise<boolean>;
+    removeMedia(hashAlgorithm: any, hash: any): void;
+    routeHashPathSW(): void;
+    getMediaResponse(uri: any): Promise<Response>;
+    hasMedia(hashAlgorithm: any, hash: any): Promise<boolean>;
+}>;
+
+export declare class DirectChat extends Chat {
+    	protected constructor(client: Client, stream: borogove_GenericStream, persistence: Persistence, chatId: string, uiState?: UiState, isBookmarked?: boolean, isBlocked?: boolean, extensions?: borogove_Stanza | null, readUpToId?: string | null, readUpToBy?: string | null, omemoContactDeviceIDs?: number[] | null);
+    	getParticipants(): string[];
+    	getParticipantDetails(participantId: string): Participant;
+    	getMessagesBefore(before: ChatMessage | null): Promise<ChatMessage[]>;
+    	getMessagesAfter(after: ChatMessage | null): Promise<ChatMessage[]>;
+    	getMessagesAround(around: ChatMessage): Promise<ChatMessage[]>;
+    	correctMessage(correct: ChatMessage, message: ChatMessageBuilder): void;
+    	sendMessage(message: ChatMessageBuilder): void;
+    	removeReaction(m: ChatMessage, reaction: Reaction): void;
+    	lastMessageId(): string | null;
+    	markReadUpTo(message: ChatMessage): void;
+    	bookmark(): void;
+    	close(): void;
+}
+
+export declare class EventEmitter {
+    	protected constructor();
+    	/**
+     	 * Remove an event listener of any type, no matter how it was added
+     	 * or what event it is for.
+     	 * @param token the token that was returned when the listener was added
+     	 */
+    	removeEventListener(token: number): void;
+}
+
+export declare class Form implements FormSection {
+    	protected constructor(form: borogove_Stanza | null, oob: borogove_Stanza | null);
+    	/**
+     	 * Is this form entirely results / read-only?
+     	 */
+    	isResult(): boolean;
+    	/**
+     	 * Title of this form
+     	 */
+    	title(): string | null;
+    	/**
+     	 * URL to use instead of this form
+     	 */
+    	url(): string | null;
+    	/**
+     	 * Items to render inside this form
+     	 */
+    	items(): FormItem[];
+}
+
+export declare class FormField {
+    	protected constructor(field: borogove_Stanza);
+    	name: string;
+    	label: string | null;
+    	desc: string | null;
+    	value: string[];
+    	required: boolean;
+    	type: string;
+    	datatype: string;
+    	options: FormOption[];
+    	open: boolean;
+    	rangeMin: string | null;
+    	rangeMax: string | null;
+    	regex: string | null;
+}
+
+export declare class FormItem {
+    	/**
+     	 * Rows when this item represents a result table
+     	 */
+    	protected constructor(text: string | null, field: FormField | null, section: FormSection | null, tableHeader?: FormField[] | null, tableRows?: FormField[][] | null, status?: string | null);
+    	/**
+     	 * Plain text content for this item, or null when the item is not text-only
+     	 */
+    	text: string | null;
+    	/**
+     	 * Form field for this item, or null when the item is not a field
+     	 */
+    	field: FormField | null;
+    	/**
+     	 * Nested section for this item, or null when the item is not a section
+     	 */
+    	section: FormSection | null;
+    	/**
+     	 * Optional status type associated with instructional text
+     	 */
+    	status: string | null;
+    	/**
+     	 * Column definitions when this item represents a result table
+     	 */
+    	tableHeader: FormField[] | null;
+    	tableRows: FormField[][] | null;
+}
+
+export declare class FormOption {
+    	protected constructor(label: string | null, value: string | null);
+    	label: string;
+    	value: string;
+}
+
+export declare interface FormSection {
+    	/**
+     	 * Title to show for this section, or null when it is untitled
+     	 */
+    	title(): string | null;
+    	/**
+     	 * Renderable items contained in this section
+     	 */
+    	items(): FormItem[];
+}
+
+export declare class Hash {
+    	protected constructor(algorithm: string, hash: ArrayBuffer);
+    	/**
+     	 * Hash algorithm name
+     	 */
+    	algorithm: string;
+    	/**
+     	 * Represent this Hash as a URI
+     	 * @returns URI as a string
+     	 */
+    	toUri(): string;
+    	/**
+     	 * Represent this Hash as a hex string
+     	 * @returns hex string
+     	 */
+    	toHex(): string;
+    	/**
+     	 * Represent this Hash as a Base64 string
+     	 * @returns Base64-encoded string
+     	 */
+    	toBase64(): string;
+    	/**
+     	 * Represent this Hash as a Base64url string
+     	 * @returns Base64url-encoded string
+     	 */
+    	toBase64Url(): string;
+    	/**
+     	 * Create a new Hash from a hex string
+     	 * @param algorithm name per https://xmpp.org/extensions/xep-0300.html
+     	 * @param hash in hex format
+     	 * @returns Hash or null on error
+     	 */
+    	static fromHex(algorithm: string, hash: string): Hash | null;
+    	/**
+     	 * Create a new Hash from a ni:, cid: or similar URI
+     	 * @param uri The URI
+     	 * @returns Hash or null on error
+     	 */
+    	static fromUri(uri: string): Hash | null;
+}
+
+declare class haxe_io_Bytes {
+    	protected constructor(data: ArrayBuffer);
+    	readonly length: number;
+    	/**
+     	 * Copies `len` bytes from `src` into this instance.
+     	 * @param pos Zero-based location in `this` instance at which to start writing
+     	 * bytes.
+     	 * @param src Source `Bytes` instance from which to copy bytes.
+     	 * @param srcpos Zero-based location at `src` from which bytes will be copied.
+     	 * @param len Number of bytes to be copied.
+     	 */
+    	blit(pos: number, src: haxe_io_Bytes, srcpos: number, len: number): void;
+    	/**
+     	 * Returns a new `Bytes` instance that contains a copy of `len` bytes of
+     	 * `this` instance, starting at index `pos`.
+     	 */
+    	sub(pos: number, len: number): haxe_io_Bytes;
+    	/**
+     	 * Returns the 16-bit unsigned integer at the given position `pos` (in
+     	 * little-endian encoding).
+     	 */
+    	getUInt16(pos: number): number;
+    	/**
+     	 * Returns the `len`-bytes long string stored at the given position `pos`,
+     	 * interpreted with the given `encoding` (UTF-8 by default).
+     	 */
+    	getString(pos: number, len: number, encoding?: any | null): string;
+    	/**
+     	 * Returns a `String` representation of the bytes interpreted as UTF-8.
+     	 */
+    	toString(): string;
+    	/**
+     	 * Returns a hexadecimal `String` representation of the bytes of `this`
+     	 * instance.
+     	 */
+    	toHex(): string;
+    	/**
+     	 * Returns the `Bytes` representation of the given `String`, using the
+     	 * specified encoding (UTF-8 by default).
+     	 */
+    	static ofString(s: string, encoding?: any | null): haxe_io_Bytes;
+    	/**
+     	 * Returns the `Bytes` representation of the given `BytesData`.
+     	 */
+    	static ofData(b: ArrayBuffer): haxe_io_Bytes;
+    	/**
+     	 * Converts the given hexadecimal `String` to `Bytes`. `s` must be a string of
+     	 * even length consisting only of hexadecimal digits. For example:
+     	 * `"0FDA14058916052309"`.
+     	 */
+    	static ofHex(s: string): haxe_io_Bytes;
+}
+
+/**
+ * An Output is an abstract write. A specific output implementation will only
+ * have to override the `writeByte` and maybe the `write`, `flush` and `close`
+ * methods. See `File.write` and `String.write` for two ways of creating an
+ * Output.
+ */
+declare class haxe_io_Output {
+    	protected constructor();
+    	/**
+     	 * Write one byte.
+     	 */
+    	writeByte(c: number): void;
+    	/**
+     	 * Write `len` bytes from `s` starting by position specified by `pos`.
+     	 * Returns the actual length of written data that can differ from `len`.
+     	 * See `writeFullBytes` that tries to write the exact amount of specified bytes.
+     	 */
+    	writeBytes(s: haxe_io_Bytes, pos: number, len: number): number;
+    	/**
+     	 * Close the output.
+     	 * Behaviour while writing after calling this method is unspecified.
+     	 */
+    	close(): void;
+}
+
+export declare class Html {
+    	protected constructor(xml: any[], sender: Participant | null);
+    	/**
+     	 * Walk the HTML tree to produce a new value
+     	 */
+    	reduce<T>(f: (arg0: string, arg1: string[] | null, arg2: string[] | null, arg3: T[] | null) => T): T[];
+    	/**
+     	 * Get HTML source as a string
+     	 */
+    	toString(): string;
+    	/**
+     	 * Get plain text suitable for showing to a user
+     	 */
+    	toPlainText(): string;
+    	/**
+     	 * Get HTML as a DocumentFragment
+     	 */
+    	asDOM(): DocumentFragment;
+    	/**
+     	 * HTML builder, make an element
+     	 */
+    	static element(tag: string, attrs: { [key: string]: string }, children: Html[]): Html;
+    	/**
+     	 * HTML builder, make some text
+     	 */
+    	static text(text: string): Html;
+    	/**
+     	 * HTML builder, make a fragment
+     	 */
+    	static fragment(nodes: Html[]): Html;
+    	/**
+     	 * Build HTML payload from source
+     	 */
+    	static fromString(html: string): Html;
+}
+
+export declare class Identicon {
+    	protected constructor();
+    	static svg(source: string): string;
+}
+
+export declare class LinkMetadata {
+    	protected constructor(about: string, url: string | null, title: string | null, description: string | null, image: string[], video: string[]);
+    	about: string;
+    	url: string;
+    	title: string | null;
+    	description: string | null;
+    	image: string[];
+    	video: string[];
+}
+
+export declare const enum MessageDirection {
+    MessageReceived = 0,
+    MessageSent = 1
+}
+
+export declare const enum MessageStatus {
+    MessagePending = 0,
+    MessageDeliveredToServer = 1,
+    MessageDeliveredToDevice = 2,
+    MessageFailedToSend = 3
+}
+
+export declare const enum MessageType {
+    MessageChat = 0,
+    MessageCall = 1,
+    MessageChannel = 2,
+    MessageChannelPrivate = 3
+}
+
+declare class Notification_2 {
+    	protected constructor(title: string, body: string, accountId: string, chatId: string, senderId: string, messageId: string, type: MessageType, callStatus: string | null, callSid: string | null, imageUri: string | null, lang: string | null, timestamp: string | null);
+    	/**
+     	 * The title
+     	 */
+    	title: string;
+    	/**
+     	 * The body text
+     	 */
+    	body: string;
+    	/**
+     	 * The ID of the associated account
+     	 */
+    	accountId: string;
+    	/**
+     	 * The ID of the associated chat
+     	 */
+    	chatId: string;
+    	/**
+     	 * The ID of the message sender
+     	 */
+    	senderId: string;
+    	/**
+     	 * The serverId of the message
+     	 */
+    	messageId: string;
+    	/**
+     	 * The type of the message
+     	 */
+    	type: MessageType;
+    	/**
+     	 * If this is a call notification, the call status
+     	 */
+    	callStatus: string | null;
+    	/**
+     	 * If this is a call notification, the call session ID
+     	 */
+    	callSid: string | null;
+    	/**
+     	 * Optional image URI
+     	 */
+    	imageUri: string | null;
+    	/**
+     	 * Optional language code
+     	 */
+    	lang: string | null;
+    	/**
+     	 * Optional date and time of the event
+     	 */
+    	timestamp: string | null;
+}
+export { Notification_2 as Notification }
+
+export declare class Participant {
+    	protected constructor(displayName: string, photoUri: string | null, placeholderUri: string, isSelf: boolean, jid: borogove_JID, chat: AvailableChat | null);
+    	/**
+     	 * Display name to show for this participant
+     	 */
+    	displayName: string;
+    	/**
+     	 * Avatar URI for this participant, or null when none is known
+     	 */
+    	photoUri: string | null;
+    	/**
+     	 * Fallback avatar URI to use when no photo is available
+     	 */
+    	placeholderUri: string;
+    	/**
+     	 * True when this participant is the connected account
+     	 */
+    	isSelf: boolean;
+    	/**
+     	 * Chat metadata for this participant when it is available as a direct Chat
+     	 */
+    	chat: AvailableChat | null;
+    	/**
+     	 * Load the participant's profile
+     	 * @param client connected client used to send the profile query
+     	 * @returns Promise resolving to the participant profile
+     	 */
+    	profile(client: Client): Promise<Profile>;
+}
+
+export declare interface Persistence {
+    	/**
+     	 * Get the last message in an account or chat that is is safe to sync forward from
+     	 * @param accountId the account whose state should be queried
+     	 * @param chatId chat to inspect, or null for the account-wide sync point
+     	 * @returns Promise resolving to the sync point or null
+     	 */
+    	syncPoint(accountId: string, chatId: string | null): Promise<ChatMessage | null>;
+    	/**
+     	 * Persist the current metadata for a set of Chats
+     	 * @param accountId the account that owns the Chats
+     	 * @param chats chats to write to storage
+     	 */
+    	storeChats(accountId: string, chats: Chat[]): void;
+    	/**
+     	 * Load the stored Chats for an account
+     	 * @param accountId the account to load Chats for
+     	 * @returns Promise resolving to serialized chat records
+     	 */
+    	getChats(accountId: string): Promise<SerializedChat[]>;
+    	/**
+     	 * Load unread counters and most recent unread message per Chat
+     	 * @param accountId the account to load unread details for
+     	 * @param chats chats to inspect
+     	 * @returns Promise resolving to unread details for the requested chats
+     	 */
+    	getChatsUnreadDetails(accountId: string, chats: Chat[]): Promise<{chatId: string, message: ChatMessage, unreadCount: number}[]>;
+    	/**
+     	 * Apply a reaction update to the stored message state
+     	 * @param accountId the account that owns the message
+     	 * @param update reaction update to apply
+     	 * @returns Promise resolving to the updated message or null if no message matched
+     	 */
+    	storeReaction(accountId: string, update: borogove_ReactionUpdate): Promise<ChatMessage | null>;
+    	/**
+     	 * Persist one or more messages
+     	 * @param accountId the account that owns the messages
+     	 * @param message messages to store
+     	 * @returns Promise resolving to the stored message values
+     	 */
+    	storeMessages(accountId: string, message: ChatMessage[]): Promise<ChatMessage[]>;
+    	/**
+     	 * Replace the stored record for a message
+     	 * @param accountId the account that owns the message
+     	 * @param message message to write
+     	 */
+    	updateMessage(accountId: string, message: ChatMessage): void;
+    	/**
+     	 * Update delivery state for a locally-created message
+     	 * @param accountId the account that owns the message
+     	 * @param localId local message ID to update
+     	 * @param status new delivery state
+     	 * @param statusText optional human-readable status detail
+     	 * @returns Promise resolving to the updated message
+     	 */
+    	updateMessageStatus(accountId: string, localId: string, status: MessageStatus, statusText: string | null): Promise<ChatMessage>;
+    	/**
+     	 * Find a message by Chat ID and known IDs
+     	 * @param accountId the account that owns the message
+     	 * @param chatId Chat containing the message
+     	 * @param serverId authoritative server-assigned ID, if known
+     	 * @param localId client-assigned ID, if known
+     	 * @returns Promise resolving to the matching message or null
+     	 */
+    	getMessage(accountId: string, chatId: string, serverId: string | null, localId: string | null): Promise<ChatMessage | null>;
+    	/**
+     	 * Load messages older than a reference message
+     	 * @param accountId the account to load messages for
+     	 * @param chatId Chat to query
+     	 * @param before return messages older than this message, or start from the newest when null
+     	 * @returns Promise resolving to older messages
+     	 */
+    	getMessagesBefore(accountId: string, chatId: string, before: ChatMessage | null): Promise<ChatMessage[]>;
+    	/**
+     	 * Load messages newer than a reference message
+     	 * @param accountId the account to load messages for
+     	 * @param chatId Chat to query
+     	 * @param afterId return messages newer than this message, or start from the oldest when null
+     	 * @returns Promise resolving to newer messages
+     	 */
+    	getMessagesAfter(accountId: string, chatId: string, afterId: ChatMessage | null): Promise<ChatMessage[]>;
+    	/**
+     	 * Load messages surrounding a reference message
+     	 * @param accountId the account to load messages for
+     	 * @param around message to center the result set around
+     	 * @returns Promise resolving to nearby messages
+     	 */
+    	getMessagesAround(accountId: string, around: ChatMessage): Promise<ChatMessage[]>;
+    	/**
+     	 * Check whether a media blob is already stored
+     	 * @param hashAlgorithm hash algorithm for the content ID
+     	 * @param hash raw hash bytes
+     	 * @returns Promise resolving to true when the media exists
+     	 */
+    	hasMedia(hashAlgorithm: string, hash: ArrayBuffer): Promise<boolean>;
+    	/**
+     	 * Store media bytes and any metadata needed to retrieve them later
+     	 * @param mime MIME type of the media
+     	 * @param bytes raw media bytes
+     	 * @returns Promise resolving to true when storage succeeded
+     	 */
+    	storeMedia(mime: string, bytes: ArrayBuffer): Promise<boolean>;
+    	/**
+     	 * Delete previously stored media
+     	 * @param hashAlgorithm hash algorithm for the content ID
+     	 * @param hash raw hash bytes
+     	 */
+    	removeMedia(hashAlgorithm: string, hash: ArrayBuffer): void;
+    	/**
+     	 * Store service discovery capabilities for later reuse
+     	 * @param caps capabilities record to save
+     	 */
+    	storeCaps(caps: borogove_Caps): void;
+    	/**
+     	 * Load previously stored service discovery capabilities
+     	 * @param ver capability version hash
+     	 * @returns Promise resolving to the stored capability record or null
+     	 */
+    	getCaps(ver: string): Promise<borogove_Caps | null>;
+    	/**
+     	 * Store login-related state for an account
+     	 * @param accountId the account to store login state for
+     	 * @param clientId negotiated client ID
+     	 * @param displayName last known display name
+     	 * @param token persisted token or null to clear it
+     	 */
+    	storeLogin(accountId: string, clientId: string, displayName: string, token: string | null): void;
+    	/**
+     	 * Load persisted login-related state for an account
+     	 * @param accountId the account to load login state for
+     	 * @returns Promise resolving to stored login data
+     	 */
+    	getLogin(accountId: string): Promise<{clientId: string | null, displayName: string | null, fastCount: number, token: string | null}>;
+    	/**
+     	 * Remove stored data for an account
+     	 * @param accountId the account to remove
+     	 * @param completely true to delete all account data, false to keep recoverable state
+     	 */
+    	removeAccount(accountId: string, completely: boolean): void;
+    	/**
+     	 * List all accounts present in storage
+     	 * @returns Promise resolving to stored account IDs
+     	 */
+    	listAccounts(): Promise<string[]>;
+    	/**
+     	 * Store stream management resumption data for an account
+     	 * @param accountId the account to store resumption data for
+     	 * @param data stream management payload, or null to clear it
+     	 */
+    	storeStreamManagement(accountId: string, data: ArrayBuffer | null): void;
+    	/**
+     	 * Load stream management resumption data for an account
+     	 * @param accountId the account to load resumption data for
+     	 * @returns Promise resolving to stored resumption data or null
+     	 */
+    	getStreamManagement(accountId: string): Promise<ArrayBuffer | null>;
+    	/**
+     	 * Store metadata about a discovered service
+     	 * @param accountId the account that discovered the service
+     	 * @param serviceId ID of the service
+     	 * @param name advertised display name, if any
+     	 * @param node disco node, if any
+     	 * @param caps service capabilities
+     	 */
+    	storeService(accountId: string, serviceId: string, name: string | null, node: string | null, caps: borogove_Caps): void;
+    	/**
+     	 * Find known services that advertise a feature
+     	 * @param accountId the account to search services for
+     	 * @param feature disco feature to search for
+     	 * @returns Promise resolving to matching services
+     	 */
+    	findServicesWithFeature(accountId: string, feature: string): Promise<{caps: borogove_Caps, name: string | null, node: string | null, serviceId: string}[]>;
+}
+
+declare namespace persistence {
+    export {
+        _default as IDB,
+        _default_2 as MediaStoreCache,
+        borogove_persistence_Dummy as Dummy,
+        borogove_persistence_KeyValueStore as KeyValueStore,
+        borogove_persistence_MediaStore as MediaStore
+    }
+}
+export { persistence }
+
+export declare class Profile {
+    	protected constructor(vcard: borogove_Stanza, items?: ProfileItem[] | null);
+    	/**
+     	 * All items in the profile
+     	 */
+    	items: ProfileItem[];
+}
+
+export declare class ProfileBuilder {
+    	constructor(profile: Profile);
+    	/**
+     	 * Add a new field to this profile
+     	 */
+    	add(k: string, v: string): void;
+    	/**
+     	 * Set the value of an existing field on this profile
+     	 */
+    	set(id: string, v: string): void;
+    	/**
+     	 * Move a profile item
+     	 * @param id the item to move
+     	 * @param moveTo the item currently in the position where it should move to
+     	 */
+    	move(id: string, moveTo: string): void;
+    	/**
+     	 * Remove a field from this profile
+     	 */
+    	remove(id: string): void;
+    	build(): Profile;
+}
+
+export declare class ProfileItem {
+    	protected constructor(item: borogove_Stanza, id: string);
+    	id: string;
+    	key: string;
+    	parameters(): ProfileItem[];
+    	text(): string[];
+    	uri(): string[];
+    	date(): string[];
+    	time(): string[];
+    	datetime(): string[];
+    	boolean(): boolean[];
+    	integer(): number[];
+    	languageTag(): string[];
+}
+
+export declare class Push {
+    	protected constructor();
+    	/**
+     	 * Receive a new push notification from some external system
+     	 * @param data the raw data from the push
+     	 * @param persistence the persistence layer to write into
+     	 * @returns a Notification representing the push data
+     	 */
+    	static receive(data: string, persistence: Persistence): Notification_2 | null;
+}
+
+export declare class Reaction {
+    	protected constructor(senderId: string, timestamp: string, text: string, envelopeId?: string | null, key?: string | null);
+    	/**
+     	 * ID of who sent this Reaction
+     	 */
+    	senderId: string;
+    	/**
+     	 * Date and time when this Reaction was sent,
+     	 * in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
+     	 */
+    	timestamp: string;
+    	/**
+     	 * Key for grouping reactions
+     	 */
+    	key: string;
+    	/**
+     	 * Create a new Unicode reaction to send
+     	 * @param forText Callback called if this is a textual reaction.
+     	 * Called with the unicode String.
+     	 * @param forImage Callback called if this is a custom/image reaction.
+     	 * Called with the name and the URI to the image.
+     	 * @returns the return value of the callback
+     	 */
+    	render<T>(forText: (arg0: string) => T, forImage: (arg0: string, arg1: string) => T): T;
+    	/**
+     	 * Create a new Unicode reaction to send
+     	 * @param unicode emoji of the reaction
+     	 * @returns Reaction
+     	 */
+    	static unicode(unicode: string): Reaction;
+}
+
+export declare const enum ReactionUpdateKind {
+    EmojiReactions = 0,
+    AppendReactions = 1,
+    CompleteReactions = 2
+}
+
+export declare class Register {
+    	protected constructor(domain: string, preAuth: string | null, username: string | null);
+    	/**
+     	 * Fetch registration form options from the server.
+     	 * If you already know what fields your server wants, this is optional.
+     	 */
+    	getForm(): Promise<Form[]>;
+    	/**
+     	 * Submit registration data to the server
+     	 */
+    	submit(data: { [key: string]: string | string[] } | Map<string,string | string[]> | FormData): Promise<string>;
+    	/**
+     	 * Disconnect from the server after registration is done
+     	 */
+    	disconnect(): void;
+    	/**
+     	 * Start new registration flow for a given domain or invite URL
+     	 */
+    	static fromDomainOrInvite(domainOrInvite: string): Promise<Register>;
+}
+
+export declare class SerializedChat {
+    	constructor(chatId: string, trusted: boolean, isBookmarked: boolean, avatarSha1: ArrayBuffer | null, presence: Map<string,borogove_Presence>, displayName: string | null, uiState: UiState | null, isBlocked: boolean | null, extensions: string | null, readUpToId: string | null, readUpToBy: string | null, notificationsFiltered: boolean | null, notifyMention: boolean, notifyReply: boolean, disco: borogove_Caps | null, omemoContactDeviceIDs: number[], klass: string);
+    	chatId: string;
+    	trusted: boolean;
+    	isBookmarked: boolean;
+    	avatarSha1: ArrayBuffer | null;
+    	presence: Map<string,borogove_Presence>;
+    	displayName: string | null;
+    	uiState: UiState;
+    	isBlocked: boolean;
+    	extensions: string;
+    	readUpToId: string | null;
+    	readUpToBy: string | null;
+    	disco: borogove_Caps | null;
+    	omemoContactDeviceIDs: number[];
+    	klass: string;
+    	notificationsFiltered: boolean | null;
+    	notifyMention: boolean;
+    	notifyReply: boolean;
+    	toChat(client: Client, stream: borogove_GenericStream, persistence: Persistence): Chat;
+}
+
+export declare const enum UiState {
+    Pinned = 0,
+    Open = 1,
+    Closed = 2,
+    Invited = 3
+}
+
+export declare const enum UserState {
+    Gone = 0,
+    Inactive = 1,
+    Active = 2,
+    Composing = 3,
+    Paused = 4
+}
+
+export declare const VERSION: string;
+
+export { }
