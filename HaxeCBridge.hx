@@ -286,7 +286,7 @@ class HaxeCBridge {
 					}
 			case FVar(t, e):
 					switch (t) {
-					case TPath(path) if (path.name == "Array"):
+					case TPath(path) if (path.name == "Array" || path.name == "ReadOnlyArray"):
 						final ptrT = TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(convertSecondaryType(t).args[0])]});
 						fields.insert(insertTo, {
 							name: field.name + "__fromC",
@@ -1867,6 +1867,11 @@ abstract HaxeShortArray<T>(cpp.RawPointer<cpp.Int16>) from cpp.RawPointer<cpp.In
 
 abstract HaxeStringArray<T>(cpp.RawPointer<cpp.ConstCharStar>) from cpp.RawPointer<cpp.ConstCharStar> to cpp.RawPointer<cpp.ConstCharStar> {
 	@:from
+	public static inline function fromReadOnlyArrayString(x: haxe.ds.ReadOnlyArray<String>): HaxeStringArray<cpp.ConstCharStar> {
+		return fromArrayString(cast x);
+	}
+
+	@:from
 	public static inline function fromArrayString(x: Array<String>): HaxeStringArray<cpp.ConstCharStar> {
 		final arr: Array<cpp.SizeT> = cpp.NativeArray.create(x.length);
 		for (i => el in x) {
@@ -1878,6 +1883,11 @@ abstract HaxeStringArray<T>(cpp.RawPointer<cpp.ConstCharStar>) from cpp.RawPoint
 }
 
 abstract HaxeArray<T>(cpp.RawPointer<cpp.RawPointer<cpp.Void>>) from cpp.RawPointer<cpp.RawPointer<cpp.Void>> to cpp.RawPointer<cpp.RawPointer<cpp.Void>> {
+	@:from
+	public static inline function fromReadOnlyArrayT<T>(x: haxe.ds.ReadOnlyArray<T>): HaxeArray<HaxeObject<T>> {
+		return fromArrayT(cast x);
+	}
+
 	@:from
 	public static inline function fromArrayT<T>(x: Array<T>): HaxeArray<HaxeObject<T>> {
 		for (el in x) {
