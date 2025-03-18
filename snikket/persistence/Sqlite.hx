@@ -48,9 +48,11 @@ class Sqlite implements Persistence implements KeyValueStore {
 					correction_id TEXT NOT NULL,
 					sync_point INTEGER NOT NULL,
 					chat_id TEXT NOT NULL,
+					sender_id TEXT NOT NULL,
 					created_at INTEGER NOT NULL,
 					status INTEGER NOT NULL,
 					direction INTEGER NOT NULL,
+					type INTEGER NOT NULL,
 					stanza TEXT NOT NULL,
 					PRIMARY KEY (account_id, mam_id, mam_by, stanza_id)
 				);
@@ -293,14 +295,15 @@ class Sqlite implements Persistence implements KeyValueStore {
 			Promise.resolve(null);
 		}).then(_ ->
 			db.exec(
-				"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?)").join(","),
+				"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?,?)").join(","),
 				messages.flatMap(m -> {
 					final correctable = m;
 					final message = m.versions.length == 1 ? m.versions[0] : m; // TODO: storing multiple versions at once? We never do that right now
 					([
 						accountId, message.serverId, message.serverIdBy,
-						message.localId, correctable.localId ?? correctable.serverId, correctable.syncPoint, correctable.chatId(),
-						message.timestamp, message.status, message.direction,
+						message.localId, correctable.localId ?? correctable.serverId, correctable.syncPoint,
+						correctable.chatId(), correctable.senderId,
+						message.timestamp, message.status, message.direction, message.type,
 						message.asStanza().toString()
 					] : Array<Dynamic>);
 				})
@@ -318,7 +321,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>, callback: (Null<ChatMessage>)->Void) {
-		var q = "SELECT stanza, direction, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, mam_id, mam_by FROM messages WHERE account_id=? AND chat_id=?";
+		var q = "SELECT stanza, direction, type, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND chat_id=?";
 		final params = [accountId, chatId];
 		if (serverId != null) {
 			q += " AND mam_id=?";
@@ -328,9 +331,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 			params.push(localId);
 		}
 		q += "LIMIT 1";
-		db.exec(q, params).then(result -> {
-			for (row in result) {
-				final message = hydrateMessage(accountId, row);
+		db.exec(q, params).then(result -> hydrateMessages(accountId, result)).then(messages -> {
+			for (message in messages) {
 				(if (message.replyToMessage != null) {
 					hydrateReplyTo(accountId, [message], [{ chatId: chatId, serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
 				} else {
@@ -349,9 +351,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 			json_group_object(COALESCE(versions.mam_id, versions.stanza_id), strftime('%FT%H:%M:%fZ', versions.created_at / 1000.0, 'unixepoch')) AS version_times,
 			json_group_object(COALESCE(versions.mam_id, versions.stanza_id), versions.stanza) AS versions,
 			messages.direction,
+			messages.type,
 			strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp,
+			messages.sender_id,
 			messages.mam_id,
 			messages.mam_by,
+			messages.sync_point,
 			MAX(versions.created_at)
 			FROM messages INNER JOIN messages versions USING (correction_id) WHERE messages.stanza_id=correction_id AND messages.account_id=? AND messages.chat_id=?";
 		final params = [accountId, chatId];
@@ -364,10 +369,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		q += ", messages.ROWID";
 		if (op == "<" || op == "<=") q += " DESC";
 		q += " LIMIT 50";
-		return db.exec(q, params).then(result -> ({
-			hasNext: result.hasNext,
-			next: () -> hydrateMessage(accountId, result.next())
-		})).then(iter -> {
+		return db.exec(q, params).then(result -> hydrateMessages(accountId, result)).then(iter -> {
 			final arr = [];
 			final replyTos = [];
 			for (message in iter) {
@@ -425,7 +427,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		final params: Array<Dynamic> = [accountId]; // subq is first in final q, so subq params first
 
 		final subq = new StringBuf();
-		subq.add("SELECT chat_id, MAX(ROWID) AS row FROM messages WHERE account_id=?");
+		subq.add("SELECT chat_id, MAX(created_at) AS created_at FROM messages WHERE account_id=?");
 		subq.add(" AND chat_id IN (");
 		for (i => chat in chats) {
 			if (i != 0) subq.add(",");
@@ -446,7 +448,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		params.push(MessageSent);
 
 		final q = new StringBuf();
-		q.add("SELECT chat_id AS chatId, stanza, direction, mam_id, mam_by, CASE WHEN subq.row IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
+		q.add("SELECT chat_id AS chatId, stanza, direction, type, sender_id, mam_id, mam_by, sync_point, CASE WHEN subq.created_at IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
 		q.add(subq.toString());
 		q.add(") subq USING (chat_id) WHERE account_id=? AND chat_id IN (");
 		params.push(accountId);
@@ -455,17 +457,20 @@ class Sqlite implements Persistence implements KeyValueStore {
 			q.add("?");
 			params.push(chat.chatId);
 		}
-		q.add(") AND (subq.row IS NULL OR messages.ROWID >= subq.row) GROUP BY chat_id;");
+		q.add(") AND (subq.created_at IS NULL OR messages.created_at >= subq.created_at) GROUP BY chat_id;");
 		db.exec(q.toString(), params).then(result -> {
 			final details = [];
-			for (row in result) {
-				details.push({
-					unreadCount: row.unreadCount,
-					chatId: row.chatId,
-					message: hydrateMessage(accountId, row)
-				});
-			}
-			callback(details);
+			final rows: Array<Dynamic> = { iterator: () -> result }.array();
+			Promise.resolve(hydrateMessages(accountId, rows.iterator())).then(messages -> {
+				for (i => m in messages) {
+					details.push({
+						unreadCount: rows[i].unreadCount,
+						chatId: rows[i].chatId,
+						message: m
+					});
+				}
+				callback(details);
+			});
 		});
 	}
 
@@ -490,12 +495,11 @@ class Sqlite implements Persistence implements KeyValueStore {
 			[status, accountId, localId, MessageSent, MessageDeliveredToDevice]
 		).then(_ ->
 			db.exec(
-				"SELECT stanza, strftime('%FT%H:%M:%fZ') AS timestamp, mam_id, mam_by FROM messages WHERE account_id=? AND stanza_id=? AND direction=?",
+				"SELECT stanza, direction, type, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND stanza_id=? AND direction=?",
 				[accountId, localId, MessageSent]
 			)
-		).then(result -> {
-			for (row in result) {
-				final message = hydrateMessage(accountId, row);
+		).then(result -> hydrateMessages(accountId, result)).then(messages -> {
+			for (message in messages) {
 				(if (message.replyToMessage != null) {
 					hydrateReplyTo(accountId, [message], [{ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
 				} else {
@@ -668,7 +672,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		return fetchReactions(accountId, messages.map(m -> ({ chatId: m.chatId(), serverId: m.serverId, serverIdBy: m.serverIdBy, localId: m.localId }))).then(result -> {
 			for (id => reactions in result) {
 				final m = messages.find(m -> ((m.serverId == null ? m.localId : m.serverId + "\n" + m.serverIdBy) + "\n" + m.chatId()) == id);
-				if (m != null) m.reactions = reactions;
+				if (m != null) m.set_reactions(reactions);
 			}
 			return messages;
 		});
@@ -732,7 +736,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		} else {
 			final params = [accountId];
 			final q = new StringBuf();
-			q.add("SELECT chat_id, stanza_id, stanza, direction, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, mam_id, mam_by FROM messages WHERE account_id=? AND (");
+			q.add("SELECT chat_id, stanza_id, stanza, direction, type, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND (");
 			q.add(replyTos.map(parent ->
 				if (parent.serverId != null) {
 					params.push(parent.chatId);
@@ -752,7 +756,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				for (message in messages) {
 					if (message.replyToMessage != null) {
 						final found: Dynamic = parents.find(p -> p.chat_id == message.chatId() && (message.replyToMessage.serverId == null || p.mam_id == message.replyToMessage.serverId) && (message.replyToMessage.localId == null || p.stanza_id == message.replyToMessage.localId));
-						if (found != null) message.replyToMessage = hydrateMessage(accountId, found);
+						if (found != null) message.set_replyToMessage(hydrateMessages(accountId, [found].iterator())[0]);
 					}
 				}
 			}
@@ -760,31 +764,36 @@ class Sqlite implements Persistence implements KeyValueStore {
 		});
 	}
 
-	private function hydrateMessage(accountId: String, row: { stanza: String, timestamp: String, direction: MessageDirection, mam_id: String, mam_by: String, ?stanza_id: String, ?versions: String, ?version_times: String }) {
-		// TODO
+	private function hydrateMessages(accountId: String, rows: Iterator<{ stanza: String, timestamp: String, direction: MessageDirection, type: MessageType, mam_id: String, mam_by: String, sync_point: Bool, sender_id: String, ?stanza_id: String, ?versions: String, ?version_times: String }>): Array<ChatMessage> {
 		// TODO: Calls can "edit" from multiple senders, but the original direction and sender holds
 		final accountJid = JID.parse(accountId);
-		final x = ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid);
-		x.timestamp = row.timestamp;
-		x.direction = row.direction;
-		x.serverId = row.mam_id;
-		x.serverIdBy = row.mam_by;
-		if (row.stanza_id != null) Reflect.setField(x, "localId", row.stanza_id);
-		if (row.versions != null) {
-			final versionTimes: DynamicAccess<String> = Json.parse(row.version_times);
-			final versions: DynamicAccess<String> =  Json.parse(row.versions);
-			if (versions.keys().length > 1) {
-				for (version in versions) {
-					final versionM = ChatMessage.fromStanza(Stanza.parse(version), accountJid);
-					final toPush = versionM == null || versionM.versions.length < 1 ? versionM : versionM.versions[0];
-					if (toPush != null) {
-						toPush.timestamp = versionTimes[toPush.serverId ?? toPush.localId];
-						x.versions.push(toPush);
+		return { iterator: () -> rows }.map(row -> ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid, (builder, _) -> {
+			builder.syncPoint = row.sync_point;
+			builder.timestamp = row.timestamp;
+			builder.direction = row.direction;
+			builder.type = row.type;
+			builder.senderId = row.sender_id;
+			builder.serverId = row.mam_id;
+			builder.serverIdBy = row.mam_by;
+			if (row.stanza_id != null) builder.localId = row.stanza_id;
+			if (row.versions != null) {
+				final versionTimes: DynamicAccess<String> = Json.parse(row.version_times);
+				final versions: DynamicAccess<String> =  Json.parse(row.versions);
+				if (versions.keys().length > 1) {
+					for (version in versions) {
+						final versionM = ChatMessage.fromStanza(Stanza.parse(version), accountJid, (toPushB, _) -> {
+							toPushB.timestamp = versionTimes[toPushB.serverId ?? toPushB.localId];
+							return toPushB;
+						});
+						final toPush = versionM == null || versionM.versions.length < 1 ? versionM : versionM.versions[0];
+						if (toPush != null) {
+							builder.versions.push(toPush);
+						}
 					}
+					builder.versions.sort((a, b) -> Reflect.compare(b.timestamp, a.timestamp));
 				}
-				x.versions.sort((a, b) -> Reflect.compare(b.timestamp, a.timestamp));
 			}
-		}
-		return x;
+			return builder;
+		}));
 	}
 }

@@ -1,10 +1,11 @@
 package snikket;
 
 import datetime.DateTime;
+import haxe.Exception;
 import haxe.crypto.Base64;
+import haxe.ds.ReadOnlyArray;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
-import haxe.Exception;
 using Lambda;
 using StringTools;
 
@@ -23,7 +24,7 @@ import snikket.Stanza;
 import snikket.Util;
 
 @:expose
-@:nullSafety(Strict)
+@:nullSafety(StrictThreaded)
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
@@ -32,8 +33,8 @@ class ChatAttachment {
 	public final name: Null<String>;
 	public final mime: String;
 	public final size: Null<Int>;
-	public final uris: Array<String>;
-	public final hashes: Array<Hash>;
+	public final uris: ReadOnlyArray<String>;
+	public final hashes: ReadOnlyArray<Hash>;
 
 	#if cpp
 	@:allow(snikket)
@@ -51,7 +52,7 @@ class ChatAttachment {
 }
 
 @:expose
-@:nullSafety(Strict)
+@:nullSafety(StrictThreaded)
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
@@ -60,94 +61,155 @@ class ChatMessage {
 	/**
 		The ID as set by the creator of this message
 	**/
-	public var localId (default, set) : Null<String> = null;
+	public final localId: Null<String>;
+
 	/**
 		The ID as set by the authoritative server
 	**/
-	public var serverId (default, set) : Null<String> = null;
+	public final serverId: Null<String>;
+
 	/**
 		The ID of the server which set the serverId
 	**/
-	public var serverIdBy : Null<String> = null;
+	public final serverIdBy: Null<String>;
+
 	/**
 		The type of this message (Chat, Call, etc)
 	**/
-	public var type : MessageType = MessageChat;
+	public final type: MessageType;
 
 	@:allow(snikket)
-	private var syncPoint : Bool = false;
+	private final syncPoint : Bool;
 
 	@:allow(snikket)
-	private var replyId : Null<String> = null;
+	private final replyId : Null<String>;
 
 	/**
-		The timestamp of this message, in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
+		The timestamp of this message, in format YYYY-MM-DDThh:mm:ss[.sss]Z
 	**/
-	public var timestamp (default, set) : Null<String> = null;
+	public final timestamp: String;
 
 	@:allow(snikket)
-	private var to: Null<JID> = null;
+	private final to: JID;
 	@:allow(snikket)
-	private var from: Null<JID> = null;
+	private final from: JID;
 	@:allow(snikket)
-	private var sender: Null<JID> = null;
+	private final recipients: ReadOnlyArray<JID>;
 	@:allow(snikket)
-	private var recipients: Array<JID> = [];
-	@:allow(snikket)
-	private var replyTo: Array<JID> = [];
+	private final replyTo: ReadOnlyArray<JID>;
+
+	/**
+		The ID of the sender of this message
+	**/
+	public final senderId: String;
 
 	/**
 		Message this one is in reply to, or NULL
 	**/
-	public var replyToMessage: Null<ChatMessage> = null;
+	public var replyToMessage(default, null): Null<ChatMessage>;
+
 	/**
 		ID of the thread this message is in, or NULL
 	**/
-	public var threadId: Null<String> = null;
+	public final threadId: Null<String>;
 
 	/**
 		Array of attachments to this message
 	**/
-	public var attachments (default, null): Array<ChatAttachment> = [];
+	public final attachments: ReadOnlyArray<ChatAttachment>;
+
 	/**
 		Map of reactions to this message
 	**/
 	@HaxeCBridge.noemit
-	public var reactions: Map<String, Array<Reaction>> = [];
+	public var reactions(default, null): Map<String, Array<Reaction>>;
 
 	/**
 		Body text of this message or NULL
 	**/
-	public var text: Null<String> = null;
+	public final text: Null<String>;
+
 	/**
 		Language code for the body text
 	**/
-	public var lang: Null<String> = null;
+	public final lang: Null<String>;
 
 	/**
 		Direction of this message
 	**/
-	public var direction: MessageDirection = MessageReceived;
+	public final direction: MessageDirection;
+
 	/**
 		Status of this message
 	**/
-	public var status: MessageStatus = MessagePending;
+	public var status: MessageStatus;
+
 	/**
 		Array of past versions of this message, if it has been edited
 	**/
 	@:allow(snikket)
-	public var versions (default, null): Array<ChatMessage> = [];
-	@:allow(snikket, test)
-	private var payloads: Array<Stanza> = [];
+	public final versions: ReadOnlyArray<ChatMessage>;
 
-	/**
-		@returns a new blank ChatMessage
-	**/
-	public function new() { }
+	@:allow(snikket, test)
+	private final payloads: ReadOnlyArray<Stanza>;
 
 	@:allow(snikket)
-	private static function fromStanza(stanza:Stanza, localJid:JID):Null<ChatMessage> {
-		switch Message.fromStanza(stanza, localJid).parsed {
+	public final stanza: Null<Stanza>;
+
+	@:allow(snikket)
+	private function new(params: {
+		?localId: Null<String>,
+		?serverId: Null<String>,
+		?serverIdBy: Null<String>,
+		?type: MessageType,
+		?syncPoint: Bool,
+		?replyId: Null<String>,
+		timestamp: String,
+		to: JID,
+		from: JID,
+		senderId: String,
+		?recipients: Array<JID>,
+		?replyTo: Array<JID>,
+		?replyToMessage: Null<ChatMessage>,
+		?threadId: Null<String>,
+		?attachments: Array<ChatAttachment>,
+		?reactions: Map<String, Array<Reaction>>,
+		?text: Null<String>,
+		?lang: Null<String>,
+		?direction: MessageDirection,
+		?status: MessageStatus,
+		?versions: Array<ChatMessage>,
+		?payloads: Array<Stanza>,
+		?stanza: Null<Stanza>,
+	}) {
+		this.localId = params.localId;
+		this.serverId = params.serverId;
+		this.serverIdBy = params.serverIdBy;
+		this.type = params.type ?? MessageChat;
+		this.syncPoint = params.syncPoint ?? false;
+		this.replyId = params.replyId;
+		this.timestamp = params.timestamp;
+		this.to = params.to;
+		this.from = params.from;
+		this.senderId = params.senderId;
+		this.recipients = params.recipients ?? [];
+		this.replyTo = params.replyTo ?? [];
+		this.replyToMessage = params.replyToMessage;
+		this.threadId = params.threadId;
+		this.attachments = params.attachments ?? [];
+		this.reactions = params.reactions ?? ([] : Map<String, Array<Reaction>>);
+		this.text = params.text;
+		this.lang = params.lang;
+		this.direction = params.direction ?? MessageSent;
+		this.status = params.status ?? MessagePending;
+		this.versions = params.versions ?? [];
+		this.payloads = params.payloads ?? [];
+		this.stanza = params.stanza;
+	}
+
+	@:allow(snikket)
+	private static function fromStanza(stanza:Stanza, localJid:JID, ?addContext: (ChatMessageBuilder, Stanza)->ChatMessageBuilder):Null<ChatMessage> {
+		switch Message.fromStanza(stanza, localJid, addContext).parsed {
 			case ChatMessageStanza(message):
 				return message;
 			default:
@@ -155,31 +217,11 @@ class ChatMessage {
 		}
 	}
 
-	@:allow(snikket)
-	private function attachSims(sims: Stanza) {
-		var mime = sims.findText("{urn:xmpp:jingle:apps:file-transfer:5}/media-type#");
-		if (mime == null) mime = sims.findText("{urn:xmpp:jingle:apps:file-transfer:3}/media-type#");
-		if (mime == null) mime = "application/octet-stream";
-		var name = sims.findText("{urn:xmpp:jingle:apps:file-transfer:5}/name#");
-		if (name == null) name = sims.findText("{urn:xmpp:jingle:apps:file-transfer:3}/name#");
-		var size = sims.findText("{urn:xmpp:jingle:apps:file-transfer:5}/size#");
-		if (size == null) size = sims.findText("{urn:xmpp:jingle:apps:file-transfer:3}/size#");
-		final hashes = ((sims.getChild("file", "urn:xmpp:jingle:apps:file-transfer:5") ?? sims.getChild("file", "urn:xmpp:jingle:apps:file-transfer:3"))
-			?.allTags("hash", "urn:xmpp:hashes:2") ?? []).map((hash) -> new Hash(hash.attr.get("algo") ?? "", Base64.decode(hash.getText()).getData()));
-		final sources = sims.getChild("sources");
-		final uris = (sources?.allTags("reference", "urn:xmpp:reference:0") ?? []).map((ref) -> ref.attr.get("uri") ?? "").filter((uri) -> uri != "");
-		if (uris.length > 0) attachments.push(new ChatAttachment(name, mime, size == null ? null : Std.parseInt(size), uris, hashes));
-	}
-
-	public function addAttachment(attachment: ChatAttachment) {
-		attachments.push(attachment);
-	}
-
 	/**
 		Create a new ChatMessage in reply to this one
 	**/
 	public function reply() {
-		final m = new ChatMessage();
+		final m = new ChatMessageBuilder();
 		m.type = type;
 		m.threadId = threadId ?? ID.long();
 		m.replyToMessage = this;
@@ -192,42 +234,18 @@ class ChatMessage {
 	}
 
 	@:allow(snikket)
-	private function makeModerated(timestamp: String, moderatorId: Null<String>, reason: Null<String>) {
-		text = null;
-		attachments = [];
-		payloads = [];
-		versions = [];
-		final cleanedStub = clone();
-		final payload = new Stanza("retracted", { xmlns: "urn:xmpp:message-retract:1", stamp: timestamp });
-		if (reason != null) payload.textTag("reason", reason);
-		payload.tag("moderated", { by: moderatorId, xmlns: "urn:xmpp:message-moderate:1" }).up();
-		payloads.push(payload);
-		final head = clone();
-		head.timestamp = timestamp;
-		versions = [head, cleanedStub];
-	}
-
-	private function set_localId(localId:Null<String>) {
-		if(this.localId != null) {
-			throw new Exception("Message already has a localId set");
-		}
-		return this.localId = localId;
-	}
-
-	private function set_serverId(serverId:Null<String>) {
-		if(this.serverId != null && this.serverId != serverId) {
-			throw new Exception("Message already has a serverId set");
-		}
-		return this.serverId = serverId;
-	}
-
-	private function set_timestamp(timestamp:Null<String>) {
-		return this.timestamp = timestamp;
+	private function set_replyToMessage(m: ChatMessage) {
+		final rtm = replyToMessage;
+		if (rtm == null) throw "Cannot hydrate null replyToMessage";
+		if (rtm.serverId != null && rtm.serverId != m.serverId) throw "Hydrate serverId mismatch";
+		if (rtm.localId != null && rtm.localId != m.localId) throw "Hydrate localId mismatch";
+		return replyToMessage = m;
 	}
 
 	@:allow(snikket)
-	private function resetLocalId() {
-		Reflect.setField(this, "localId", null);
+	private function set_reactions(r: Map<String, Array<Reaction>>) {
+		if (reactions != null && !{ iterator: () -> reactions.keys() }.empty()) throw "Reactions already hydrated";
+		return reactions = r;
 	}
 
 	@:allow(snikket)
@@ -294,50 +312,6 @@ class ChatMessage {
 	}
 
 	/**
-		Set rich text using an HTML string
-		Also sets the plain text body appropriately
-	**/
-	public function setHtml(html: String) {
-		final htmlEl = new Stanza("html", { xmlns: "http://jabber.org/protocol/xhtml-im" });
-		final body = new Stanza("body", { xmlns: "http://www.w3.org/1999/xhtml" });
-		htmlEl.addChild(body);
-		final nodes = htmlparser.HtmlParser.run(html, true);
-		for (node in nodes) {
-			final el = Util.downcast(node, htmlparser.HtmlNodeElement);
-			if (el != null && (el.name == "html" || el.name == "body")) {
-				for (inner in el.nodes) {
-					body.addDirectChild(htmlToNode(inner));
-				}
-			} else {
-				body.addDirectChild(htmlToNode(node));
-			}
-		}
-		final htmlIdx = payloads.findIndex((p) -> p.attr.get("xmlns") == "http://jabber.org/protocol/xhtml-im" && p.name == "html");
-		if (htmlIdx >= 0) payloads.splice(htmlIdx, 1);
-		payloads.push(htmlEl);
-		text = XEP0393.render(body);
-	}
-
-	private function htmlToNode(node: htmlparser.HtmlNode) {
-		final txt = Util.downcast(node, htmlparser.HtmlNodeText);
-		if (txt != null) {
-			return CData(new TextNode(txt.toText()));
-		}
-		final el = Util.downcast(node, htmlparser.HtmlNodeElement);
-		if (el != null) {
-			final s = new Stanza(el.name, {});
-			for (attr in el.attributes) {
-				s.attr.set(attr.name, attr.value);
-			}
-			for (child in el.nodes) {
-				s.addDirectChild(htmlToNode(child));
-			}
-			return Element(s);
-		}
-		throw "node was neither text nor element?";
-	}
-
-	/**
 		The ID of the Chat this message is associated with
 	**/
 	public function chatId():String {
@@ -346,13 +320,6 @@ class ChatMessage {
 		} else {
 			return recipients.map((r) -> r.asString()).join("\n");
 		}
-	}
-
-	/**
-		The ID of the sender of this message
-	**/
-	public function senderId():String {
-		return sender?.asString() ?? throw "sender is null";
 	}
 
 	/**
@@ -418,6 +385,8 @@ class ChatMessage {
 
 	@:allow(snikket)
 	private function asStanza():Stanza {
+		if (stanza != null) return stanza;
+
 		var body = text;
 		var attrs: haxe.DynamicAccess<String> = { type: type == MessageChannel ? "groupchat" : "chat" };
 		if (from != null) attrs.set("from", from.asString());
@@ -462,7 +431,7 @@ class ChatMessage {
 						addedReactions[reaction] = true;
 
 						for (areaction => reactions in replyToM.reactions) {
-							if (!(addedReactions[areaction] ?? false) && reactions.find(r -> r.senderId == senderId()) != null) {
+							if (!(addedReactions[areaction] ?? false) && reactions.find(r -> r.senderId == senderId) != null) {
 								addedReactions[areaction] = true;
 								stanza.textTag("reaction", areaction);
 							}
@@ -520,21 +489,5 @@ class ChatMessage {
 			stanza.addDirectChild(Element(payload));
 		}
 		return stanza;
-	}
-
-	/**
-		Duplicate this ChatMessage
-	**/
-	public function clone() {
-		final cls:Class<ChatMessage> = untyped Type.getClass(this);
-		final inst = Type.createEmptyInstance(cls);
-		final fields = Type.getInstanceFields(cls);
-		for (field in fields) {
-			final val:Dynamic = Reflect.field(this, field);
-			if (!Reflect.isFunction(val)) {
-				Reflect.setField(inst,field,val);
-			}
-		}
-		return inst;
 	}
 }

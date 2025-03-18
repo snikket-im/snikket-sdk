@@ -89,7 +89,7 @@ export default (dbname, media, tokenize, stemmer) => {
 		const tx = db.transaction(["messages"], "readonly");
 		const store = tx.objectStore("messages");
 
-		const message = new snikket.ChatMessage();
+		const message = new snikket.ChatMessageBuilder();
 		message.localId = value.localId ? value.localId : null;
 		message.serverId = value.serverId ? value.serverId : null;
 		message.serverIdBy = value.serverIdBy ? value.serverIdBy : null;
@@ -101,6 +101,7 @@ export default (dbname, media, tokenize, stemmer) => {
 		message.to = value.to && snikket.JID.parse(value.to);
 		message.from = value.from && snikket.JID.parse(value.from);
 		message.sender = value.sender && snikket.JID.parse(value.sender);
+		message.senderId = value.senderId;
 		message.recipients = value.recipients.map((r) => snikket.JID.parse(r));
 		message.replyTo = value.replyTo.map((r) => snikket.JID.parse(r));
 		message.threadId = value.threadId;
@@ -110,7 +111,8 @@ export default (dbname, media, tokenize, stemmer) => {
 		message.lang = value.lang;
 		message.type = value.type || (value.isGroupchat || value.groupchat ? enums.MessageType.Channel : enums.MessageType.Chat);
 		message.payloads = (value.payloads || []).map(snikket.Stanza.parse);
-		return message;
+		message.stanza = value.stanza && snikket.Stanza.parse(value.stanza);
+		return message.build();
 	}
 
 	async function hydrateMessage(value) {
@@ -137,13 +139,14 @@ export default (dbname, media, tokenize, stemmer) => {
 			chatId: message.chatId(),
 			to: message.to?.asString(),
 			from: message.from?.asString(),
-			sender: message.sender?.asString(),
+			senderId: message.senderId,
 			recipients: message.recipients.map((r) => r.asString()),
 			replyTo: message.replyTo.map((r) => r.asString()),
 			timestamp: new Date(message.timestamp),
 			replyToMessage: message.replyToMessage && [account, message.replyToMessage.serverId || "", message.replyToMessage.serverIdBy || "", message.replyToMessage.localId || ""],
 			versions: message.versions.map((m) => serializeMessage(account, m)),
 			payloads: message.payloads.map((p) => p.toString()),
+			stanza: message.stanza?.toString(),
 		}
 	}
 
@@ -165,7 +168,7 @@ export default (dbname, media, tokenize, stemmer) => {
 		// Calls can "edit" from multiple senders, but the original direction and sender holds
 		if (result.value.type === enums.MessageType.MessageCall) {
 			head.direction = result.value.direction;
-			head.sender = result.value.sender;
+			head.senderId = result.value.senderId;
 			head.from = result.value.from;
 			head.to = result.value.to;
 			head.replyTo = result.value.replyTo;
@@ -373,7 +376,7 @@ export default (dbname, media, tokenize, stemmer) => {
 				const store = tx.objectStore("messages");
 				return Promise.all([
 					promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, message.localId || [], message.chatId()]))),
-					promisifyRequest(tx.objectStore("reactions").openCursor(IDBKeyRange.only([account, message.chatId(), message.senderId(), message.localId || ""])))
+					promisifyRequest(tx.objectStore("reactions").openCursor(IDBKeyRange.only([account, message.chatId(), message.senderId, message.localId || ""])))
 				]).then(([result, reactionResult]) => {
 					if (reactionResult?.value?.append && message.html().trim() == "") {
 						this.getMessage(account, message.chatId(), reactionResult.value.serverId, reactionResult.value.localId, (reactToMessage) => {
@@ -381,16 +384,16 @@ export default (dbname, media, tokenize, stemmer) => {
 							const reactions = [];
 							for (const [k, reacts] of reactToMessage?.reactions || []) {
 								for (const react of reacts) {
-									if (react.senderId === message.senderId() && !previouslyAppended.includes(k)) reactions.push(react);
+									if (react.senderId === message.senderId && !previouslyAppended.includes(k)) reactions.push(react);
 								}
 							}
-							this.storeReaction(account, new snikket.ReactionUpdate(message.localId, reactionResult.value.serverId, reactionResult.value.serverIdBy, reactionResult.value.localId, message.chatId(), message.senderId(), message.timestamp, reactions, enums.ReactionUpdateKind.CompleteReactions), callback);
+							this.storeReaction(account, new snikket.ReactionUpdate(message.localId, reactionResult.value.serverId, reactionResult.value.serverIdBy, reactionResult.value.localId, message.chatId(), message.senderId, message.timestamp, reactions, enums.ReactionUpdateKind.CompleteReactions), callback);
 						});
 						return true;
 					} else if (result?.value && !message.isIncoming() && result?.value.direction === enums.MessageDirection.MessageSent && message.versions.length < 1) {
 						// Duplicate, we trust our own sent ids
 						return promisifyRequest(result.delete());
-					} else if (result?.value && (result.value.sender == message.senderId() || result.value.type == enums.MessageType.MessageCall) && (message.versions.length > 0 || (result.value.versions || []).length > 0)) {
+					} else if (result?.value && (result.value.sender == message.senderId || result.value.type == enums.MessageType.MessageCall) && (message.versions.length > 0 || (result.value.versions || []).length > 0)) {
 						hydrateMessage(correctMessage(account, message, result)).then(callback);
 						return true;
 					}

@@ -38,7 +38,7 @@ interface Session {
 }
 
 private function mkCallMessage(to: JID, from: JID, event: Stanza) {
-	final m = new ChatMessage();
+	final m = new ChatMessageBuilder();
 	m.type = MessageCall;
 	m.to = to;
 	m.recipients = [to.asBare()];
@@ -51,10 +51,10 @@ private function mkCallMessage(to: JID, from: JID, event: Stanza) {
 	m.payloads.push(event);
 	m.localId = ID.long();
 	if (event.name != "propose") {
-		m.versions = [m.clone()];
+		m.versions = [m.build()];
 	}
-	Reflect.setField(m, "localId", event.attr.get("id"));
-	return m;
+	m.localId = event.attr.get("id");
+	return m.build();
 }
 
 class IncomingProposedSession implements Session {

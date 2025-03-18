@@ -45,14 +45,14 @@ class Message {
 		this.parsed = parsed;
 	}
 
-	public static function fromStanza(stanza:Stanza, localJid:JID, ?inputTimestamp: String):Message {
+	public static function fromStanza(stanza:Stanza, localJid:JID, ?addContext: (ChatMessageBuilder, Stanza)->ChatMessageBuilder):Message {
 		final fromAttr = stanza.attr.get("from");
 		final from = fromAttr == null ? localJid.domain : fromAttr;
 		if (stanza.attr.get("type") == "error") return new Message(from, from, null, ErrorMessageStanza(stanza));
 
-		var msg = new ChatMessage();
-		final timestamp = stanza.findText("{urn:xmpp:delay}delay@stamp") ?? inputTimestamp ?? Date.format(std.Date.now());
-		msg.timestamp = timestamp;
+		var msg = new ChatMessageBuilder();
+		msg.stanza = stanza;
+		msg.timestamp =stanza.findText("{urn:xmpp:delay}delay@stamp");
 		msg.threadId = stanza.getChildText("thread");
 		msg.lang = stanza.attr.get("xml:lang");
 		msg.text = stanza.getChildText("body");
@@ -62,7 +62,7 @@ class Message {
 		msg.from = JID.parse(from);
 		final isGroupchat = stanza.attr.get("type") == "groupchat";
 		msg.type = isGroupchat ? MessageChannel : MessageChat;
-		msg.sender = isGroupchat ? msg.from : msg.from?.asBare();
+		msg.senderId = (isGroupchat ? msg.from : msg.from?.asBare())?.asString();
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;
 		final to = stanza.attr.get("to");
@@ -126,7 +126,7 @@ class Message {
 					replyTo.clear();
 				} else if (jid == null) {
 					trace("No support for addressing to non-jid", address);
-					return new Message(msg.chatId(), msg.senderId(), msg.threadId, UnknownMessageStanza(stanza));
+					return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza));
 				} else if (address.attr.get("type") == "to" || address.attr.get("type") == "cc") {
 					recipients[JID.parse(jid).asBare().asString()] = true;
 					if (!anyExtendedReplyTo) replyTo[JID.parse(jid).asString()] = true; // reply all
@@ -137,9 +137,9 @@ class Message {
 					}
 					replyTo[JID.parse(jid).asString()] = true;
 				} else if (address.attr.get("type") == "ofrom") {
-					if (JID.parse(jid).domain == msg.sender?.domain) {
+					if (JID.parse(jid).domain == msg.from?.domain) {
 						// TODO: check that domain supports extended addressing
-						msg.sender = JID.parse(jid).asBare();
+						msg.senderId = JID.parse(jid).asBare().asString();
 					}
 				}
 			}
@@ -153,8 +153,12 @@ class Message {
 		final msgFrom = msg.from;
 		if (msg.direction == MessageReceived && msgFrom != null && msg.replyTo.find((r) -> r.asBare().equals(msgFrom.asBare())) == null) {
 			trace("Don't know what chat message without from in replyTo belongs in", stanza);
-			return new Message(msg.chatId(), msg.senderId(), msg.threadId, UnknownMessageStanza(stanza));
+			return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza));
 		}
+
+		if (addContext != null) msg = addContext(msg, stanza);
+		final timestamp = msg.timestamp ?? Date.format(std.Date.now());
+		msg.timestamp = timestamp;
 
 		final reactionsEl = stanza.getChild("reactions", "urn:xmpp:reactions:0");
 		if (reactionsEl != null) {
@@ -162,15 +166,15 @@ class Message {
 			final reactions = reactionsEl.allTags("reaction").map((r) -> r.getText());
 			final reactionId = reactionsEl.attr.get("id");
 			if (reactionId != null) {
-				return new Message(msg.chatId(), msg.senderId(), msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
+				return new Message(msg.chatId(), msg.senderId, msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
 					stanza.attr.get("id") ?? ID.long(),
 					isGroupchat ? reactionId : null,
 					isGroupchat ? msg.chatId() : null,
 					isGroupchat ? null : reactionId,
 					msg.chatId(),
-					msg.senderId(),
+					msg.senderId,
 					timestamp,
-					reactions.map(text -> new Reaction(msg.senderId(), timestamp, text, msg.localId)),
+					reactions.map(text -> new Reaction(msg.senderId, timestamp, text, msg.localId)),
 					EmojiReactions
 				)));
 			}
@@ -193,10 +197,10 @@ class Message {
 			msg.payloads.push(jmi);
 			if (msg.text == null) msg.text = "call " + jmi.name;
 			if (jmi.name != "propose") {
-				msg.versions = [msg.clone()];
+				msg.versions = [msg.build()];
 			}
 			// The session id is what really identifies us
-			Reflect.setField(msg, "localId", jmi.attr.get("id"));
+			msg.localId = jmi.attr.get("id");
 		}
 
 		final retract = stanza.getChild("replace", "urn:xmpp:message-retract:1");
@@ -209,7 +213,7 @@ class Message {
 			// TODO: occupant id as well / instead of by?
 			return new Message(
 				msg.chatId(),
-				msg.senderId(),
+				msg.senderId,
 				msg.threadId,
 				ModerateMessageStanza(new ModerationAction(msg.chatId(), moderateServerId, timestamp, by, reason))
 			);
@@ -218,7 +222,7 @@ class Message {
 		final replace = stanza.getChild("replace", "urn:xmpp:message-correct:0");
 		final replaceId  = replace?.attr?.get("id");
 
-		if (msg.text == null && msg.attachments.length < 1 && replaceId == null) return new Message(msg.chatId(), msg.senderId(), msg.threadId, UnknownMessageStanza(stanza));
+		if (msg.text == null && msg.attachments.length < 1 && replaceId == null) return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza));
 
 		for (fallback in stanza.allTags("fallback", "urn:xmpp:fallback:0")) {
 			msg.payloads.push(fallback);
@@ -241,15 +245,15 @@ class Message {
 
 			final text = msg.text;
 			if (text != null && EmojiUtil.isOnlyEmoji(text.trim())) {
-				return new Message(msg.chatId(), msg.senderId(), msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
+				return new Message(msg.chatId(), msg.senderId, msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
 					stanza.attr.get("id") ?? ID.long(),
 					isGroupchat ? replyToID : null,
 					isGroupchat ? msg.chatId() : null,
 					isGroupchat ? null : replyToID,
 					msg.chatId(),
-					msg.senderId(),
+					msg.senderId,
 					timestamp,
-					[new Reaction(msg.senderId(), timestamp, text.trim(), msg.localId)],
+					[new Reaction(msg.senderId, timestamp, text.trim(), msg.localId)],
 					AppendReactions
 				)));
 			}
@@ -261,15 +265,15 @@ class Message {
 					if (els.length == 1 && els[0].name == "img") {
 						final hash = Hash.fromUri(els[0].attr.get("src") ?? "");
 						if (hash != null) {
-							return new Message(msg.chatId(), msg.senderId(), msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
+							return new Message(msg.chatId(), msg.senderId, msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
 								stanza.attr.get("id") ?? ID.long(),
 								isGroupchat ? replyToID : null,
 								isGroupchat ? msg.chatId() : null,
 								isGroupchat ? null : replyToID,
 								msg.chatId(),
-								msg.senderId(),
+								msg.senderId,
 								timestamp,
-								[new CustomEmojiReaction(msg.senderId(), timestamp, els[0].attr.get("alt") ?? "", hash.serializeUri(), msg.localId)],
+								[new CustomEmojiReaction(msg.senderId, timestamp, els[0].attr.get("alt") ?? "", hash.serializeUri(), msg.localId)],
 								AppendReactions
 							)));
 						}
@@ -279,24 +283,25 @@ class Message {
 
 			if (replyToID != null) {
 				// Reply stub
-				final replyToMessage = new ChatMessage();
+				final replyToMessage = new ChatMessageBuilder();
+				replyToMessage.to = replyToJid == msg.senderId ? msg.to : msg.from;
 				replyToMessage.from = replyToJid == null ? null : JID.parse(replyToJid);
-				replyToMessage.sender = replyToMessage.from;
+				replyToMessage.senderId = replyToMessage.from?.asString();
 				replyToMessage.replyId = replyToID;
-				if (isGroupchat) {
+				if (msg.serverIdBy != null && msg.serverIdBy != localJid.asBare().asString()) {
 					replyToMessage.serverId = replyToID;
 				} else {
 					replyToMessage.localId = replyToID;
 				}
-				msg.replyToMessage = replyToMessage;
+				msg.replyToMessage = replyToMessage.build();
 			}
 		}
 
 		if (replaceId != null) {
-			msg.versions = [msg.clone()];
-			Reflect.setField(msg, "localId", replaceId);
+			msg.versions = [msg.build()];
+			msg.localId = replaceId;
 		}
 
-		return new Message(msg.chatId(), msg.senderId(), msg.threadId, ChatMessageStanza(msg));
+		return new Message(msg.chatId(), msg.senderId, msg.threadId, ChatMessageStanza(msg.build()));
 	}
 }

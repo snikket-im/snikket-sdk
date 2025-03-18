@@ -307,7 +307,7 @@ class Stanza implements NodeInterface {
 		};
 	}
 
-	public function findText(path:String):String {
+	public function findText(path:String):Null<String> {
 		var result = find(path);
 		if(result == null) {
 			return null;

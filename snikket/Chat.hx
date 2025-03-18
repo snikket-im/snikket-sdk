@@ -91,7 +91,7 @@ abstract class Chat {
 	}
 
 	@:allow(snikket)
-	abstract private function prepareIncomingMessage(message:ChatMessage, stanza:Stanza):ChatMessage;
+	abstract private function prepareIncomingMessage(message:ChatMessageBuilder, stanza:Stanza):ChatMessageBuilder;
 
 	/**
 		Fetch a page of messages before some point
@@ -129,7 +129,7 @@ abstract class Chat {
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
-						chatMessages.push(prepareIncomingMessage(message, new Stanza("message", { from: message.senderId() })));
+						chatMessages.push(message);
 					case ReactionUpdateStanza(update):
 						persistence.storeReaction(client.accountId(), update, (m)->{});
 					case ModerateMessageStanza(action):
@@ -150,7 +150,7 @@ abstract class Chat {
 
 		@param message the ChatMessage to send
 	**/
-	abstract public function sendMessage(message:ChatMessage):Void;
+	abstract public function sendMessage(message:ChatMessageBuilder):Void;
 
 	/**
 		Signals that all messages up to and including this one have probably
@@ -186,7 +186,7 @@ abstract class Chat {
 		       must be the localId of the first version ever sent, not a subsequent correction
 		@param message the new ChatMessage to replace it with
 	**/
-	abstract public function correctMessage(localId:String, message:ChatMessage):Void;
+	abstract public function correctMessage(localId:String, message:ChatMessageBuilder):Void;
 
 	/**
 		Add new reaction to a message in this Chat
@@ -725,12 +725,12 @@ class DirectChat extends Chat {
 	}
 
 	@:allow(snikket)
-	private function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
+	private function prepareIncomingMessage(message:ChatMessageBuilder, stanza:Stanza) {
 		message.syncPoint = !syncing();
 		return message;
 	}
 
-	private function prepareOutgoingMessage(message:ChatMessage) {
+	private function prepareOutgoingMessage(message:ChatMessageBuilder) {
 		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
 		message.direction = MessageSent;
 		message.from = client.jid;
@@ -741,17 +741,17 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function correctMessage(localId:String, message:ChatMessage) {
-		final toSend = prepareOutgoingMessage(message.clone());
+	public function correctMessage(localId:String, message:ChatMessageBuilder) {
+		final toSendId = message.localId;
 		message = prepareOutgoingMessage(message);
-		message.resetLocalId();
-		message.versions = [toSend]; // This is a correction
+		message.versions = [message.build()]; // This is a correction
 		message.localId = localId;
-		client.storeMessages([message], (corrected) -> {
-			toSend.versions = corrected[0].versions[corrected[0].versions.length - 1]?.localId == localId ? corrected[0].versions : [message];
+		client.storeMessages([message.build()], (corrected) -> {
+			message.versions = corrected[0].versions[corrected[0].versions.length - 1]?.localId == localId ? cast corrected[0].versions : [message.build()];
+			message.localId = toSendId;
 			for (recipient in message.recipients) {
 				message.to = recipient;
-				client.sendStanza(toSend.asStanza());
+				client.sendStanza(message.build().asStanza());
 			}
 			if (localId == lastMessage?.localId) {
 				setLastMessage(corrected[0]);
@@ -762,17 +762,18 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function sendMessage(message:ChatMessage):Void {
+	public function sendMessage(message: ChatMessageBuilder):Void {
 		if (typingTimer != null) typingTimer.stop();
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);
-		final fromStanza = Message.fromStanza(message.asStanza(), client.jid).parsed;
+		message.to = message.recipients[0]; // Just pick one for the stanza we re-parse
+		final fromStanza = Message.fromStanza(message.build().asStanza(), client.jid).parsed;
 		switch (fromStanza) {
 			case ChatMessageStanza(_):
-				client.storeMessages([message], (stored) -> {
+				client.storeMessages([message.build()], (stored) -> {
 					for (recipient in message.recipients) {
 						message.to = recipient;
-						final stanza = message.asStanza();
+						final stanza = message.build().asStanza();
 						if (isActive != null) {
 							isActive = true;
 							activeThread = message.threadId;
@@ -780,7 +781,7 @@ class DirectChat extends Chat {
 						}
 						client.sendStanza(stanza);
 					}
-					setLastMessage(message);
+					setLastMessage(message.build());
 					client.trigger("chats/update", [this]);
 					client.notifyMessageHandlers(stored[0], stored[0].versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 				});
@@ -788,7 +789,7 @@ class DirectChat extends Chat {
 				persistence.storeReaction(client.accountId(), update, (stored) -> {
 					for (recipient in message.recipients) {
 						message.to = recipient;
-						client.sendStanza(message.asStanza());
+						client.sendStanza(message.build().asStanza());
 					}
 					if (stored != null) client.notifyMessageHandlers(stored, ReactionEvent);
 				});
@@ -1032,6 +1033,11 @@ class Channel extends Chat {
 			chatId
 		);
 		sync.setNewestPageFirst(false);
+		sync.addContext((builder, stanza) -> {
+			builder = prepareIncomingMessage(builder, stanza);
+			builder.syncPoint = true;
+			return builder;
+		});
 		final chatMessages = [];
 		sync.onMessages((messageList) -> {
 			final promises = [];
@@ -1042,7 +1048,6 @@ class Channel extends Chat {
 						for (hash in message.inlineHashReferences()) {
 							client.fetchMediaByHash([hash], [message.from]);
 						}
-						message.syncPoint = true;
 						pageChatMessages.push(message);
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {
@@ -1131,7 +1136,7 @@ class Channel extends Chat {
 	override public function preview() {
 		if (lastMessage == null) return super.preview();
 
-		return getParticipantDetails(lastMessage.senderId()).displayName + ": " + super.preview();
+		return getParticipantDetails(lastMessage.senderId).displayName + ": " + super.preview();
 	}
 
 	@:allow(snikket)
@@ -1188,6 +1193,11 @@ class Channel extends Chat {
 				var filter:MAMQueryParams = {};
 				if (beforeId != null) filter.page = { before: beforeId };
 				var sync = new MessageSync(this.client, this.stream, filter, chatId);
+				sync.addContext((builder, stanza) -> {
+					builder = prepareIncomingMessage(builder, stanza);
+					builder.syncPoint = false;
+					return builder;
+				});
 				fetchFromSync(sync, handler);
 			}
 		});
@@ -1206,6 +1216,11 @@ class Channel extends Chat {
 				var filter:MAMQueryParams = {};
 				if (afterId != null) filter.page = { after: afterId };
 				var sync = new MessageSync(this.client, this.stream, filter, chatId);
+				sync.addContext((builder, stanza) -> {
+					builder = prepareIncomingMessage(builder, stanza);
+					builder.syncPoint = false;
+					return builder;
+				});
 				fetchFromSync(sync, handler);
 			}
 		});
@@ -1224,18 +1239,18 @@ class Channel extends Chat {
 	}
 
 	@:allow(snikket)
-	private function prepareIncomingMessage(message:ChatMessage, stanza:Stanza) {
+	private function prepareIncomingMessage(message:ChatMessageBuilder, stanza:Stanza) {
 		message.syncPoint = !syncing();
 		if (message.type == MessageChat) message.type = MessageChannelPrivate;
 		message.sender = JID.parse(stanza.attr.get("from")); // MUC always needs full JIDs
-		if (message.senderId() == getFullJid().asString()) {
+		if (message.senderId == getFullJid().asString()) {
 			message.recipients = message.replyTo;
 			message.direction = MessageSent;
 		}
 		return message;
 	}
 
-	private function prepareOutgoingMessage(message:ChatMessage) {
+	private function prepareOutgoingMessage(message:ChatMessageBuilder) {
 		message.type = MessageChannel;
 		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
 		message.direction = MessageSent;
@@ -1248,15 +1263,15 @@ class Channel extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function correctMessage(localId:String, message:ChatMessage) {
-		final toSend = prepareOutgoingMessage(message.clone());
+	public function correctMessage(localId:String, message:ChatMessageBuilder) {
+		final toSendId = message.localId;
 		message = prepareOutgoingMessage(message);
-		message.resetLocalId();
-		message.versions = [toSend]; // This is a correction
+		message.versions = [message.build()]; // This is a correction
 		message.localId = localId;
-		client.storeMessages([message], (corrected) -> {
-			toSend.versions = corrected[0].localId == localId ? corrected[0].versions : [message];
-			client.sendStanza(toSend.asStanza());
+		client.storeMessages([message.build()], (corrected) -> {
+			message.versions = corrected[0].localId == localId ? cast corrected[0].versions : [message.build()];
+			message.localId = toSendId;
+			client.sendStanza(message.build().asStanza());
 			client.notifyMessageHandlers(corrected[0], CorrectionEvent);
 			if (localId == lastMessage?.localId) {
 				setLastMessage(corrected[0]);
@@ -1266,11 +1281,11 @@ class Channel extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function sendMessage(message:ChatMessage):Void {
+	public function sendMessage(message:ChatMessageBuilder):Void {
 		if (typingTimer != null) typingTimer.stop();
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);
-		final stanza = message.asStanza();
+		final stanza = message.build().asStanza();
 		// Fake from as it will look on reflection for storage purposes
 		stanza.attr.set("from", getFullJid().asString());
 		final fromStanza = Message.fromStanza(stanza, client.jid).parsed;
@@ -1282,7 +1297,7 @@ class Channel extends Chat {
 					activeThread = message.threadId;
 					stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
 				}
-				client.storeMessages([message], (stored) -> {
+				client.storeMessages([message.build()], (stored) -> {
 					client.sendStanza(stanza);
 					setLastMessage(stored[0]);
 					client.notifyMessageHandlers(stored[0], stored[0].versions.length > 1 ? CorrectionEvent : DeliveryEvent);

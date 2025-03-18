@@ -162,14 +162,18 @@ class Client extends EventEmitter {
 				}
 			}
 
-			final message = Message.fromStanza(stanza, this.jid);
+			final message = Message.fromStanza(stanza, this.jid, (builder, stanza) -> {
+				var chat = getChat(builder.chatId());
+				if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(builder.chatId());
+				if (chat == null) return builder;
+				return chat.prepareIncomingMessage(builder, stanza);
+			});
 			switch (message.parsed) {
 				case ChatMessageStanza(chatMessage):
 					for (hash in chatMessage.inlineHashReferences()) {
 						fetchMediaByHash([hash], [chatMessage.from]);
 					}
-					var chat = getChat(chatMessage.chatId());
-					if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(chatMessage.chatId());
+					final chat = getChat(chatMessage.chatId());
 					if (chat != null) {
 						final updateChat = (chatMessage) -> {
 							notifyMessageHandlers(chatMessage, chatMessage.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
@@ -179,7 +183,6 @@ class Client extends EventEmitter {
 								chatActivity(chat);
 							}
 						};
-						chatMessage = chat.prepareIncomingMessage(chatMessage, stanza);
 						if (chatMessage.serverId == null) {
 							updateChat(chatMessage);
 						} else {
@@ -915,7 +918,7 @@ class Client extends EventEmitter {
 						persistence.removeMedia(hash.algorithm, hash.hash);
 					}
 				}
-				moderateMessage.makeModerated(action.timestamp, action.moderatorId, action.reason);
+				moderateMessage = ChatMessageBuilder.makeModerated(moderateMessage, action.timestamp, action.moderatorId, action.reason);
 				persistence.updateMessage(accountId(), moderateMessage);
 				resolve(moderateMessage);
 			})
@@ -1435,13 +1438,16 @@ class Client extends EventEmitter {
 			lastId == null ? { startTime: thirtyDaysAgo } : { page: { after: lastId } }
 		);
 		sync.setNewestPageFirst(false);
+		sync.addContext((builder, stanza) -> {
+			builder.syncPoint = true;
+			return builder;
+		});
 		sync.onMessages((messageList) -> {
 			final promises = [];
 			final chatMessages = [];
 			for (m in messageList.messages) {
 				switch (m) {
 					case ChatMessageStanza(message):
-						message.syncPoint = true;
 						chatMessages.push(message);
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {

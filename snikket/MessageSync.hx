@@ -24,6 +24,7 @@ class MessageSync {
 	private var filter:MessageFilter;
 	private var serviceJID:String;
 	private var handler:MessageListHandler;
+	private var contextHandler:(ChatMessageBuilder, Stanza)->ChatMessageBuilder = (b,_)->b;
 	private var errorHandler:(Stanza)->Void;
 	public var lastPage(default, null):ResultSetPageResult;
 	public var progress(default, null): Int = 0;
@@ -82,14 +83,12 @@ class MessageSync {
 				jmi.set(jmiChildren[0].attr.get("id"), originalMessage);
 			}
 
-			final msg = Message.fromStanza(originalMessage, client.jid, timestamp).parsed;
-
-			switch (msg) {
-				case ChatMessageStanza(chatMessage):
-					chatMessage.serverId = result.attr.get("id");
-					chatMessage.serverIdBy = serviceJID;
-				default:
-			}
+			final msg = Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
+				builder.serverId = result.attr.get("id");
+				builder.serverIdBy = serviceJID;
+				if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
+				return contextHandler(builder, stanza);
+			}).parsed;
 
 			messages.push(msg);
 
@@ -118,6 +117,10 @@ class MessageSync {
 
 	public function hasMore():Bool {
 		return !complete;
+	}
+
+	public function addContext(handler: (ChatMessageBuilder, Stanza)->ChatMessageBuilder) {
+		this.contextHandler = handler;
 	}
 
 	public function onMessages(handler:MessageListHandler):Void {

@@ -10,6 +10,7 @@ export import Channel = snikket.Channel;
 export import Chat = snikket.Chat;
 export import ChatAttachment = snikket.ChatAttachment;
 export import ChatMessage = snikket.ChatMessage;
+export import ChatMessageBuilder = snikket.ChatMessageBuilder;
 export import Client = snikket.Client;
 export import Config = snikket.Config;
 export import CustomEmojiReaction = snikket.CustomEmojiReaction;
