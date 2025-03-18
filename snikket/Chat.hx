@@ -956,9 +956,9 @@ class Channel extends Chat {
 				(response) -> {
 					if (response.attr.get("type") == "error") {
 						final err = response.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
-						if (err.name == "service-unavailable" || err.name == "feature-not-implemented") return checkRename(); // Error, success!
-						if (err.name == "remote-server-not-found" || err.name == "remote-server-timeout") return checkRename(); // Timeout, retry later
-						if (err.name == "item-not-found") return checkRename(); // Nick was changed?
+						if (err.name == "service-unavailable" || err.name == "feature-not-implemented") return selfPingSuccess(); // Error, success!
+						if (err.name == "remote-server-not-found" || err.name == "remote-server-timeout") return selfPingSuccess(); // Timeout, retry later
+						if (err.name == "item-not-found") return selfPingSuccess(); // Nick was changed?
 						presence = []; // About to ask for a fresh set
 						_nickInUse = null;
 						inSync = false;
@@ -975,20 +975,22 @@ class Channel extends Chat {
 							}
 						);
 					} else {
-						inSync = false;
-						persistence.lastId(client.accountId(), chatId, doSync);
-						checkRename();
+						selfPingSuccess();
 					}
 				}
 			);
 		});
 	}
 
-	private function checkRename() {
+	private function selfPingSuccess() {
 		if (nickInUse() != client.displayName()) {
 			final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
 			client.sendPresence(desiredFullJid.asString());
 		}
+		// We did a self ping to see if we were in the room and found we are
+		// But we may have missed messages if we were disconnected in the middle
+		inSync = false;
+		persistence.lastId(client.accountId(), chatId, doSync);
 	}
 
 	override public function setPresence(resource:String, presence:Presence) {
