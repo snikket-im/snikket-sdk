@@ -98,11 +98,11 @@ export default (dbname, media, tokenize, stemmer) => {
 		message.direction = value.direction;
 		message.status = value.status;
 		message.timestamp = value.timestamp && value.timestamp.toISOString();
-		message.to = value.to && snikket.JID.parse(value.to);
 		message.from = value.from && snikket.JID.parse(value.from);
 		message.sender = value.sender && snikket.JID.parse(value.sender);
 		message.senderId = value.senderId;
 		message.recipients = value.recipients.map((r) => snikket.JID.parse(r));
+		message.to = value.to ? snikket.JID.parse(value.to) : message.recipients[0];
 		message.replyTo = value.replyTo.map((r) => snikket.JID.parse(r));
 		message.threadId = value.threadId;
 		message.attachments = value.attachments;
@@ -112,6 +112,7 @@ export default (dbname, media, tokenize, stemmer) => {
 		message.type = value.type || (value.isGroupchat || value.groupchat ? enums.MessageType.Channel : enums.MessageType.Chat);
 		message.payloads = (value.payloads || []).map(snikket.Stanza.parse);
 		message.stanza = value.stanza && snikket.Stanza.parse(value.stanza);
+		if (!message.localId && !message.serverId) message.localId = "NO_ID"; // bad data
 		return message.build();
 	}
 
@@ -367,6 +368,7 @@ export default (dbname, media, tokenize, stemmer) => {
 			if (!message.serverId && !message.localId) throw "Cannot store a message with no id";
 			if (!message.serverId && message.isIncoming()) throw "Cannot store an incoming message with no server id";
 			if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";
+
 			new Promise((resolve) =>
 				// Hydrate reply stubs
 				message.replyToMessage && !message.replyToMessage.serverIdBy ? this.getMessage(account, message.chatId(), message.replyToMessage.serverId, message.replyToMessage.localId, resolve) : resolve(message.replyToMessage)
@@ -425,6 +427,11 @@ export default (dbname, media, tokenize, stemmer) => {
 		},
 
 		updateMessage: function(account, message) {
+			if (!message.chatId()) throw "Cannot store a message with no chatId";
+			if (!message.serverId && !message.localId) throw "Cannot store a message with no id";
+			if (!message.serverId && message.isIncoming()) throw "Cannot store an incoming message with no server id";
+			if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";
+
 			const tx = db.transaction(["messages"], "readwrite");
 			const store = tx.objectStore("messages");
 			store.put(serializeMessage(account, message));
