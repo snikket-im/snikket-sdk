@@ -780,9 +780,10 @@ class Sqlite implements Persistence implements KeyValueStore {
 				final versionTimes: DynamicAccess<String> = Json.parse(row.version_times);
 				final versions: DynamicAccess<String> =  Json.parse(row.versions);
 				if (versions.keys().length > 1) {
-					for (version in versions) {
+					for (versionId => version in versions) {
 						final versionM = ChatMessage.fromStanza(Stanza.parse(version), accountJid, (toPushB, _) -> {
-							toPushB.timestamp = versionTimes[toPushB.serverId ?? toPushB.localId];
+							if (toPushB.serverId == null && versionId != toPushB.localId)toPushB.serverId = versionId;
+							toPushB.timestamp = versionTimes[versionId];
 							return toPushB;
 						});
 						final toPush = versionM == null || versionM.versions.length < 1 ? versionM : versionM.versions[0];
