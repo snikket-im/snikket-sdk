@@ -737,6 +737,7 @@ class DirectChat extends Chat {
 		message.sender = message.from.asBare();
 		message.replyTo = [message.sender];
 		message.recipients = getParticipants().map((p) -> JID.parse(p));
+		message.to = message.recipients[0];
 		return message;
 	}
 
