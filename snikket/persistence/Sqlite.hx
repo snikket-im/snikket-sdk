@@ -658,10 +658,14 @@ class Sqlite implements Persistence implements KeyValueStore {
 			final services = [];
 			for (row in result) {
 				final json = Json.parse(row.caps);
-				final features = json.features;
+				final features = json?.features ?? [];
 				if (features.contains(feature)) {
-					row.set("caps", new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), features.array()));
-					services.push(row);
+					services.push({
+						serviceId: row.service_id,
+						name: row.name,
+						node: row.node,
+						caps: new Caps(json.node, (json.identities ?? []).map(i -> new Identity(i.category, i.type, i.name)), features)
+					});
 				}
 			}
 			callback(services);
