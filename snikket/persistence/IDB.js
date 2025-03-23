@@ -395,7 +395,7 @@ export default (dbname, media, tokenize, stemmer) => {
 					} else if (result?.value && !message.isIncoming() && result?.value.direction === enums.MessageDirection.MessageSent && message.versions.length < 1) {
 						// Duplicate, we trust our own sent ids
 						return promisifyRequest(result.delete());
-					} else if (result?.value && (result.value.sender == message.senderId || result.value.type == enums.MessageType.MessageCall) && (message.versions.length > 0 || (result.value.versions || []).length > 0)) {
+					} else if (result?.value && (result.value.senderId == message.senderId || result.value.type == enums.MessageType.MessageCall) && (message.versions.length > 0 || (result.value.versions || []).length > 0)) {
 						hydrateMessage(correctMessage(account, message, result)).then(callback);
 						return true;
 					}
