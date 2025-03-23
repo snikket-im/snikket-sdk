@@ -298,7 +298,7 @@ class Message {
 		}
 
 		if (replaceId != null) {
-			msg.versions = [msg.build()];
+			if (msg.versions.length < 1) msg.versions = [msg.build()];
 			msg.localId = replaceId;
 		}
 
