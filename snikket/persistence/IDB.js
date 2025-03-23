@@ -156,7 +156,7 @@ export default (dbname, media, tokenize, stemmer) => {
 		const newVersions = message.versions.length < 2 ? [message] : message.versions;
 		const storedVersions = result.value.versions || [];
 		// TODO: dedupe? There shouldn't be dupes...
-		const versions = (storedVersions.length < 1 ? [result.value] : storedVersions).concat(newVersions.map((nv) => serializeMessage(account, nv))).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+		const versions = (storedVersions.length < 1 ? [result.value] : storedVersions).concat(newVersions.filter(nv => !storedVersions.find(sv => nv.serverId === sv.serverId)).map((nv) => serializeMessage(account, nv))).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 		const head = {...versions[0]};
 		// Can't change primary key
 		head.serverIdBy = result.value.serverIdBy;
