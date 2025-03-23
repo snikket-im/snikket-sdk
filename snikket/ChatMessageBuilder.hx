@@ -118,8 +118,7 @@ class ChatMessageBuilder {
 	/**
 		Array of past versions of this message, if it has been edited
 	**/
-	@:allow(snikket)
-	public var versions (default, null): Array<ChatMessage> = [];
+	public var versions: Array<ChatMessage> = [];
 
 	@:allow(snikket, test)
 	private var payloads: Array<Stanza> = [];
