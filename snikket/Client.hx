@@ -962,6 +962,7 @@ class Client extends EventEmitter {
 	}
 
 	public function enablePush(push_service: String, vapid_private_key: js.html.CryptoKey, endpoint: String, p256dh: BytesData, auth: BytesData) {
+		final chatSettings = []; // TODO
 		js.Browser.window.crypto.subtle.exportKey("pkcs8", vapid_private_key).then((vapid_private_pkcs8) -> {
 			sendQuery(new Push2Enable(
 				jid.asBare().asString(),
@@ -971,7 +972,8 @@ class Client extends EventEmitter {
 				Bytes.ofData(auth),
 				"ES256",
 				Bytes.ofData(vapid_private_pkcs8),
-				[ "aud" => new js.html.URL(endpoint).origin ]
+				[ "aud" => new js.html.URL(endpoint).origin ],
+				chatSettings
 			));
 		});
 	}
