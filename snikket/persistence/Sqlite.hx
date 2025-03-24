@@ -774,11 +774,16 @@ class Sqlite implements Persistence implements KeyValueStore {
 		return { iterator: () -> rows }.map(row -> ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid, (builder, _) -> {
 			builder.syncPoint = row.sync_point;
 			builder.timestamp = row.timestamp;
-			builder.direction = row.direction;
 			builder.type = row.type;
 			builder.senderId = row.sender_id;
 			builder.serverId = row.mam_id;
 			builder.serverIdBy = row.mam_by;
+			if (builder.direction != row.direction) {
+				builder.direction = row.direction;
+				final replyTo = builder.replyTo;
+				builder.replyTo = builder.recipients;
+				builder.recipients = replyTo;
+			}
 			if (row.stanza_id != null) builder.localId = row.stanza_id;
 			if (row.versions != null) {
 				final versionTimes: DynamicAccess<String> = Json.parse(row.version_times);
