@@ -358,7 +358,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			messages.mam_by,
 			messages.sync_point,
 			MAX(versions.created_at)
-			FROM messages INNER JOIN messages versions USING (correction_id) WHERE messages.stanza_id=correction_id AND messages.account_id=? AND messages.chat_id=?";
+			FROM messages INNER JOIN messages versions USING (correction_id) WHERE (messages.stanza_id IS NULL OR messages.stanza_id=correction_id) AND messages.account_id=? AND messages.chat_id=?";
 		final params = [accountId, chatId];
 		if (time != null) {
 			q += " AND messages.created_at " + op + "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)";
@@ -450,7 +450,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		final q = new StringBuf();
 		q.add("SELECT chat_id AS chatId, stanza, direction, type, sender_id, mam_id, mam_by, sync_point, CASE WHEN subq.created_at IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
 		q.add(subq.toString());
-		q.add(") subq USING (chat_id) WHERE account_id=? AND stanza_id=correction_id AND chat_id IN (");
+		q.add(") subq USING (chat_id) WHERE account_id=? AND (stanza_id IS NULL OR stanza_id=correction_id) AND chat_id IN (");
 		params.push(accountId);
 		for (i => chat in chats) {
 			if (i != 0) q.add(",");
