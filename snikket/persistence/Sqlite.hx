@@ -413,7 +413,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				getMessages(accountId, chatId, aroundTime, ">=")
 			])
 		).then(results ->
-			 callback(results.flatMap(arr -> arr))
+			callback(results.flatMap(arr -> arr))
 		);
 	}
 
