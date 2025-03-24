@@ -1249,7 +1249,7 @@ class Channel extends Chat {
 	private function prepareIncomingMessage(message:ChatMessageBuilder, stanza:Stanza) {
 		message.syncPoint = !syncing();
 		if (message.type == MessageChat) message.type = MessageChannelPrivate;
-		message.sender = JID.parse(stanza.attr.get("from")); // MUC always needs full JIDs
+		message.senderId = stanza.attr.get("from"); // MUC always needs full JIDs
 		if (message.senderId == getFullJid().asString()) {
 			message.recipients = message.replyTo;
 			message.direction = MessageSent;
