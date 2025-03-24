@@ -450,7 +450,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		final q = new StringBuf();
 		q.add("SELECT chat_id AS chatId, stanza, direction, type, sender_id, mam_id, mam_by, sync_point, CASE WHEN subq.created_at IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
 		q.add(subq.toString());
-		q.add(") subq USING (chat_id) WHERE account_id=? AND chat_id IN (");
+		q.add(") subq USING (chat_id) WHERE account_id=? AND stanza_id=correction_id AND chat_id IN (");
 		params.push(accountId);
 		for (i => chat in chats) {
 			if (i != 0) q.add(",");
