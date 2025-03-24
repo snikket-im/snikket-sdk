@@ -960,27 +960,34 @@ class Channel extends Chat {
 						if (err.name == "service-unavailable" || err.name == "feature-not-implemented") return selfPingSuccess(); // Error, success!
 						if (err.name == "remote-server-not-found" || err.name == "remote-server-timeout") return selfPingSuccess(); // Timeout, retry later
 						if (err.name == "item-not-found") return selfPingSuccess(); // Nick was changed?
-						presence = []; // About to ask for a fresh set
-						_nickInUse = null;
-						inSync = false;
-						client.trigger("chats/update", [this]);
-						final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
-						client.sendPresence(
-							desiredFullJid.asString(),
-							(stanza) -> {
-								stanza.tag("x", { xmlns: "http://jabber.org/protocol/muc" });
-								if (disco.features.contains("urn:xmpp:mam:2")) stanza.tag("history", { maxchars: "0" }).up();
-								// TODO: else since (last message we know about)
-								stanza.up();
-								return stanza;
-							}
-						);
+						trace("SYNC: self-ping fail, join", chatId);
+						join();
 					} else {
 						selfPingSuccess();
 					}
 				}
 			);
 		});
+	}
+
+	@:allow(snikket)
+	private function join() {
+		presence = []; // About to ask for a fresh set
+		_nickInUse = null;
+		inSync = false;
+		client.trigger("chats/update", [this]);
+		final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
+		client.sendPresence(
+			desiredFullJid.asString(),
+			(stanza) -> {
+				stanza.tag("x", { xmlns: "http://jabber.org/protocol/muc" });
+				if (disco.features.contains("urn:xmpp:mam:2")) stanza.tag("history", { maxchars: "0" }).up();
+				// TODO: else since (last message we know about)
+				stanza.up();
+				return stanza;
+			}
+		);
+		persistence.lastId(client.accountId(), chatId, doSync);
 	}
 
 	private function selfPingSuccess() {
@@ -1011,9 +1018,6 @@ class Channel extends Chat {
 		}
 		super.setPresence(resource, presence);
 		final tripleThree = presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "333");
-		if (!inSync && sync == null && oneTen != null) {
-			persistence.lastId(client.accountId(), chatId, doSync);
-		}
 		if (oneTen != null && tripleThree != null) {
 			selfPing(true);
 		}

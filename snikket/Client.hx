@@ -719,7 +719,7 @@ class Client extends EventEmitter {
 								.up()
 						);
 						sendPresence();
-						pingAllChannels(true);
+						joinAllChannels();
 					}
 					this.trigger("status/online", {});
 					trace("SYNC: done");
@@ -1506,6 +1506,22 @@ class Client extends EventEmitter {
 		for (chat in getChats()) {
 			final channel = Std.downcast(chat, Channel);
 			channel?.selfPing(refresh || channel?.disco == null);
+		}
+	}
+
+	private function joinAllChannels() {
+		for (chat in getChats()) {
+			final channel = Std.downcast(chat, Channel);
+			if (channel != null) {
+				if (channel.disco.identities.length < 1) {
+					channel.refreshDisco(() -> {
+						channel.join();
+					});
+				} else {
+					channel.join();
+					haxe.Timer.delay(() -> channel.refreshDisco(), 30000);
+				}
+			}
 		}
 	}
 }
