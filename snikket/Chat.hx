@@ -1228,7 +1228,7 @@ class Channel extends Chat {
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipants() {
 		final jid = JID.parse(chatId);
-		return { iterator: () -> presence.keys() }.map((resource) -> new JID(jid.node, jid.domain, resource).asString());
+		return { iterator: () -> presence.keys() }.filter(resource -> resource != null).map((resource) -> new JID(jid.node, jid.domain, resource).asString());
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
