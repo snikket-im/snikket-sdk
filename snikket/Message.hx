@@ -62,6 +62,9 @@ class Message {
 		msg.from = JID.parse(from);
 		final isGroupchat = stanza.attr.get("type") == "groupchat";
 		msg.type = isGroupchat ? MessageChannel : MessageChat;
+		if (msg.type == MessageChat && stanza.getChild("x", "http://jabber.org/protocol/muc#user") != null) {
+			msg.type = MessageChannelPrivate;
+		}
 		msg.senderId = (isGroupchat ? msg.from : msg.from?.asBare())?.asString();
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;

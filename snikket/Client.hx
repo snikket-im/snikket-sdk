@@ -1461,6 +1461,7 @@ class Client extends EventEmitter {
 			builder.syncPoint = true;
 			return builder;
 		});
+		final chatIds: Map<String, Bool> = [];
 		sync.onMessages((messageList) -> {
 			final promises = [];
 			final chatMessages = [];
@@ -1468,6 +1469,7 @@ class Client extends EventEmitter {
 				switch (m) {
 					case ChatMessageStanza(message):
 						chatMessages.push(message);
+						if (message.type == MessageChat) chatIds[message.chatId()] = true;
 					case ReactionUpdateStanza(update):
 						promises.push(new thenshim.Promise((resolve, reject) -> {
 							persistence.storeReaction(accountId(), update, (_) -> resolve(null));
@@ -1500,6 +1502,11 @@ class Client extends EventEmitter {
 				} else {
 					for (sid => stanza in sync.jmi) {
 						onMAMJMI(sid, stanza);
+					}
+					for (chatId => _ in chatIds) {
+						// If this is a message from a prevoiusly unknown direct chat, record the chat
+						final chat = getChat(chatId);
+						if (chat == null) getDirectChat(chatId);
 					}
 					if (callback != null) callback(true);
 				}
