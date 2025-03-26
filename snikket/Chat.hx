@@ -713,6 +713,10 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipants(): Array<String> {
+		return counterparts().concat([client.accountId()]);
+	}
+
+	private function counterparts() {
 		return chatId.split("\n");
 	}
 
@@ -778,7 +782,7 @@ class DirectChat extends Chat {
 		message.from = client.jid;
 		message.sender = message.from.asBare();
 		message.replyTo = [message.sender];
-		message.recipients = getParticipants().map((p) -> JID.parse(p));
+		message.recipients = counterparts().map((p) -> JID.parse(p));
 		message.to = message.recipients[0];
 		return message;
 	}
@@ -867,7 +871,7 @@ class DirectChat extends Chat {
 		final update = new ReactionUpdate(ID.long(), null, null, m.localId, m.chatId(), client.accountId(), Date.format(std.Date.now()), reactions, EmojiReactions);
 		persistence.storeReaction(client.accountId(), update, (stored) -> {
 			final stanza = update.asStanza();
-			for (recipient in getParticipants()) {
+			for (recipient in counterparts()) {
 				stanza.attr.set("to", recipient);
 				client.sendStanza(stanza);
 			}
@@ -886,7 +890,7 @@ class DirectChat extends Chat {
 			// Only send markers for others messages,
 			// it's obvious we've read our own
 			if (message.isIncoming() && message.localId != null) {
-				for (recipient in getParticipants()) {
+				for (recipient in counterparts()) {
 					// TODO: extended addressing when relevant
 					final stanza = new Stanza("message", { to: recipient, id: ID.long() })
 						.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: message.localId }).up();
@@ -922,7 +926,7 @@ class DirectChat extends Chat {
 	}
 
 	private function sendChatState(state: String, threadId: Null<String>) {
-		for (recipient in getParticipants()) {
+		for (recipient in counterparts()) {
 			final stanza = new Stanza("message", {
 					id: ID.long(),
 					type: "chat",
