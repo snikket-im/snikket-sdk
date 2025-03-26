@@ -112,6 +112,13 @@ class Sqlite implements Persistence implements KeyValueStore {
 					PRIMARY KEY (account_id, chat_id, sender_id, update_id)
 				) STRICT;
 				PRAGMA user_version = 1;");
+			} else if (version < 2) {
+				db.exec("ALTER TABLE chats ADD COLUMN notifications_filtered INTEGER;
+				ALTER TABLE chats ADD COLUMN notify_mention INTEGER NOT NULL DEFAULT 0;
+				ALTER TABLE chats ADD COLUMN notify_reply INTEGER NOT NULL DEFAULT 0;
+				PRAGMA user_version = 2;");
+			} else {
+				Promise.resolve(null);
 			}
 		});
 	}
@@ -189,7 +196,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			for (_ in storeChatBuffer) {
 				if (!first) q.add(",");
 				first = false;
-				q.add("(?,?,?,?,?,?,?,?,?,?,?,jsonb(?),?)");
+				q.add("(?,?,?,?,?,?,?,?,?,?,?,jsonb(?),?,?,?,?)");
 			}
 			db.exec(
 				q.toString(),
@@ -201,7 +208,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 						chat.getDisplayName(), chat.uiState, chat.isBlocked,
 						chat.extensions.toString(), chat.readUpTo(), chat.readUpToBy,
 						channel?.disco?.verRaw().hash, Json.stringify(mapPresence(chat)),
-						Type.getClassName(Type.getClass(chat)).split(".").pop()
+						Type.getClassName(Type.getClass(chat)).split(".").pop(),
+						chat.notificationsFiltered(), chat.notifyMention(), chat.notifyReply()
 					];
 					return row;
 				})
@@ -214,7 +222,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 	@HaxeCBridge.noemit
 	public function getChats(accountId: String, callback: (Array<SerializedChat>)->Void) {
 		db.exec(
-			"SELECT chat_id, trusted, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, json(caps) AS caps, json(presence) AS presence, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
+			"SELECT chat_id, trusted, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, notifications_filtered, notify_mention, notify_reply, json(caps) AS caps, json(presence) AS presence, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
 			[accountId]
 		).then(result -> {
 			final fetchCaps: Map<BytesData, Bool> = [];
@@ -250,7 +258,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 						presence.mucUser == null ? null : Stanza.parse(presence.mucUser)
 					);
 				}
-				chats.push(new SerializedChat(row.chat_id, row.trusted, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked, row.extensions, row.read_up_to_id, row.read_up_to_by, row.capsObj, Reflect.field(row, "class")));
+				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, row.capsObj, Reflect.field(row, "class")));
 			}
 			callback(chats);
 		});
@@ -767,11 +775,11 @@ class Sqlite implements Persistence implements KeyValueStore {
 		});
 	}
 
-	private function hydrateMessages(accountId: String, rows: Iterator<{ stanza: String, timestamp: String, direction: MessageDirection, type: MessageType, mam_id: String, mam_by: String, sync_point: Bool, sender_id: String, ?stanza_id: String, ?versions: String, ?version_times: String }>): Array<ChatMessage> {
+	private function hydrateMessages(accountId: String, rows: Iterator<{ stanza: String, timestamp: String, direction: MessageDirection, type: MessageType, mam_id: String, mam_by: String, sync_point: Int, sender_id: String, ?stanza_id: String, ?versions: String, ?version_times: String }>): Array<ChatMessage> {
 		// TODO: Calls can "edit" from multiple senders, but the original direction and sender holds
 		final accountJid = JID.parse(accountId);
 		return { iterator: () -> rows }.map(row -> ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid, (builder, _) -> {
-			builder.syncPoint = row.sync_point;
+			builder.syncPoint = row.sync_point != 0;
 			builder.timestamp = row.timestamp;
 			builder.type = row.type;
 			builder.senderId = row.sender_id;

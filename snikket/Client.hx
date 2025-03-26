@@ -940,7 +940,8 @@ class Client extends EventEmitter {
 	}
 
 	#if js
-	public function subscribePush(reg: js.html.ServiceWorkerRegistration, push_service: String, vapid_key: { publicKey: js.html.CryptoKey, privateKey: js.html.CryptoKey}) {
+	private var enabledPushData: Null<{ push_service: String, vapid_private_key: js.html.CryptoKey, endpoint: String, p256dh: BytesData, auth: BytesData, grace: Int }> = null;
+	public function subscribePush(reg: js.html.ServiceWorkerRegistration, push_service: String, vapid_key: { publicKey: js.html.CryptoKey, privateKey: js.html.CryptoKey }, ?grace: Int) {
 		js.Browser.window.crypto.subtle.exportKey("raw", vapid_key.publicKey).then((vapid_public_raw) -> {
 			reg.pushManager.subscribe(untyped {
 				userVisibleOnly: true,
@@ -955,14 +956,23 @@ class Client extends EventEmitter {
 					vapid_key.privateKey,
 					pushSubscription.endpoint,
 					pushSubscription.getKey(js.html.push.PushEncryptionKeyName.P256DH),
-					pushSubscription.getKey(js.html.push.PushEncryptionKeyName.AUTH)
+					pushSubscription.getKey(js.html.push.PushEncryptionKeyName.AUTH),
+					grace ?? -1
 				);
 			});
 		});
 	}
 
-	public function enablePush(push_service: String, vapid_private_key: js.html.CryptoKey, endpoint: String, p256dh: BytesData, auth: BytesData) {
-		final chatSettings = []; // TODO
+	private function enablePush(push_service: String, vapid_private_key: js.html.CryptoKey, endpoint: String, p256dh: BytesData, auth: BytesData, grace: Int) {
+		enabledPushData = { push_service: push_service, vapid_private_key: vapid_private_key, endpoint: endpoint, p256dh: p256dh, auth: auth, grace: grace };
+
+		final filters = [];
+		for (chat in chats) {
+			if (chat.notificationsFiltered()) {
+				filters.push({ jid: chat.chatId, mention: chat.notifyMention(), reply: chat.notifyReply() });
+			}
+		}
+
 		js.Browser.window.crypto.subtle.exportKey("pkcs8", vapid_private_key).then((vapid_private_pkcs8) -> {
 			sendQuery(new Push2Enable(
 				jid.asBare().asString(),
@@ -973,9 +983,16 @@ class Client extends EventEmitter {
 				"ES256",
 				Bytes.ofData(vapid_private_pkcs8),
 				[ "aud" => new js.html.URL(endpoint).origin ],
-				chatSettings
+				grace,
+				filters
 			));
 		});
+	}
+
+	@:allow(snikket)
+	private function updatePushIfEnabled() {
+		if (enabledPushData == null) return;
+		enablePush(enabledPushData.push_service, enabledPushData.vapid_private_key, enabledPushData.endpoint, enabledPushData.p256dh, enabledPushData.auth, enabledPushData.grace);
 	}
 	#end
 

@@ -75,6 +75,7 @@ abstract class Chat {
 	private var typingTimer: haxe.Timer = null;
 	private var isActive: Null<Bool> = null;
 	private var activeThread: Null<String> = null;
+	private var notificationSettings: Null<{reply: Bool, mention: Bool}> = null;
 
 	@:allow(snikket)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
@@ -337,6 +338,42 @@ abstract class Chat {
 				(response) -> {}
 			);
 		}
+	}
+
+	/**
+		Update notification preferences
+	**/
+	public function setNotifications(filtered: Bool, mention: Bool, reply: Bool) {
+		if (filtered) {
+			notificationSettings = { mention: mention, reply: reply };
+		} else {
+			notificationSettings = null;
+		}
+		persistence.storeChats(client.accountId(), [this]);
+		#if js
+		client.updatePushIfEnabled();
+		#end
+	}
+
+	/**
+		Should notifications be filtered?
+	**/
+	public function notificationsFiltered() {
+		return notificationSettings != null;
+	}
+
+	/**
+		Should a mention produce a notification?
+	**/
+	public function notifyMention() {
+		return notificationSettings == null || notificationSettings.mention;
+	}
+
+	/**
+		Should a reply produce a notification?
+	**/
+	public function notifyReply() {
+		return notificationSettings == null || notificationSettings.reply;
 	}
 
 	/**
@@ -1126,12 +1163,18 @@ class Channel extends Chat {
 		return uiState != Closed;
 	}
 
+	public function isPrivate() {
+		return disco.features.contains("muc_membersonly");
+	}
+
 	@:allow(snikket)
 	private function refreshDisco(?callback: ()->Void) {
 		final discoGet = new DiscoInfoGet(chatId);
 		discoGet.onFinished(() -> {
 			if (discoGet.getResult() != null) {
+				final setupNotifications = disco == null && notificationSettings == null;
 				disco = discoGet.getResult();
+				if (setupNotifications && !isPrivate()) notificationSettings = { mention: true, reply: false };
 				persistence.storeCaps(discoGet.getResult());
 				persistence.storeChats(client.accountId(), [this]);
 			}
@@ -1499,8 +1542,11 @@ class SerializedChat {
 	public final readUpToBy:Null<String>;
 	public final disco:Null<Caps>;
 	public final klass:String;
+	public final notificationsFiltered: Null<Bool>;
+	public final notifyMention: Bool;
+	public final notifyReply: Bool;
 
-	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, disco: Null<Caps>, klass: String) {
+	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, disco: Null<Caps>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.avatarSha1 = avatarSha1;
@@ -1511,22 +1557,31 @@ class SerializedChat {
 		this.extensions = extensions ?? "<extensions xmlns='urn:app:bookmarks:1' />";
 		this.readUpToId = readUpToId;
 		this.readUpToBy = readUpToBy;
+		this.notificationsFiltered = notificationsFiltered;
+		this.notifyMention = notifyMention;
+		this.notifyReply = notifyReply;
 		this.disco = disco;
 		this.klass = klass;
 	}
 
 	public function toChat(client: Client, stream: GenericStream, persistence: Persistence) {
 		final extensionsStanza = Stanza.fromXml(Xml.parse(extensions));
+		var filterN = notificationsFiltered ?? false;
+		var mention = notifyMention;
 
 		final chat = if (klass == "DirectChat") {
 			new DirectChat(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy);
 		} else if (klass == "Channel") {
 			final channel = new Channel(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy);
 			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"]);
+			if (notificationsFiltered == null && !channel.isPrivate()) {
+				mention = filterN = true;
+			}
 			channel;
 		} else {
 			throw "Unknown class of " + chatId + ": " + klass;
 		}
+		chat.setNotifications(filterN, mention, notifyReply);
 		if (displayName != null) chat.displayName = displayName;
 		if (avatarSha1 != null) chat.setAvatarSha1(avatarSha1);
 		chat.setTrusted(trusted);
