@@ -642,6 +642,11 @@ abstract class Chat {
 		if (message.serverId == null || message.chatId() != chatId) return;
 		if (readUpTo() == message.serverId) return;
 
+		if (readUpTo() == null) {
+			markReadUpToId(message.serverId, message.serverIdBy, callback);
+			return;
+		}
+
 		persistence.getMessage(client.accountId(), chatId, readUpTo(), null, (readMessage) -> {
 			if (readMessage != null && Reflect.compare(message.timestamp, readMessage.timestamp) <= 0) return;
 
