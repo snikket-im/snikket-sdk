@@ -465,7 +465,7 @@ abstract class Chat {
 		The display name of this Chat
 	**/
 	public function getDisplayName() {
-		return this.displayName;
+		return this.displayName == chatId && chatId == client.accountId() ? client.displayName() : this.displayName;
 	}
 
 	@:allow(snikket)
