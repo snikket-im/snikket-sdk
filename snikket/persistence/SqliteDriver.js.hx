@@ -28,7 +28,7 @@ class SqliteDriver {
 		});
 	}
 
-	public function exec(sql: haxe.extern.EitherType<String, Array<String>>, ?params: Array<Dynamic>) {
+	public function exec(sql: haxe.extern.EitherType<String, Array<String>>, ?params: Array<Dynamic>): Promise<haxe.iterators.ArrayIterator<Dynamic>> {
 		if (sqlite == null || dbId == null) {
 			// Not ready yet
 			return new Promise((resolve, reject) -> haxe.Timer.delay(() -> resolve(null), 100))
