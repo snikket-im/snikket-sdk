@@ -616,6 +616,13 @@ class Sqlite implements Persistence implements KeyValueStore {
 		db.exec("DELETE FROM services WHERE account_id=?", [accountId]);
 	}
 
+
+	public function listAccounts(callback:(Array<String>)->Void) {
+		db.exec("SELECT account_id FROM accounts").then(result ->
+			callback(result == null ? [] :  { iterator: () -> result }.map(row -> row.account_id))
+		);
+	}
+
 	private var smStoreInProgress = false;
 	private var smStoreNext: Null<BytesData> = null;
 	@HaxeCBridge.noemit

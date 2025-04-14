@@ -30,6 +30,7 @@ interface Persistence {
 	public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>):Void;
 	public function getLogin(login:String, callback:(clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String>)->Void):Void;
 	public function removeAccount(accountId: String, completely:Bool):Void;
+	public function listAccounts(callback:(Array<String>)->Void):Void;
 	public function storeStreamManagement(accountId:String, data:Null<BytesData>):Void;
 	public function getStreamManagement(accountId:String, callback: (Null<BytesData>)->Void):Void;
 	public function storeService(accountId:String, serviceId:String, name:Null<String>, node:Null<String>, caps:Caps):Void;
