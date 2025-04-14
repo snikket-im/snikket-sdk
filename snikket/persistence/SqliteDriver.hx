@@ -12,9 +12,22 @@ class SqliteDriver {
 		db = sys.db.Sqlite.open(dbfile);
 	}
 
-	public function exec(sql: String, ?params: Array<Dynamic>) {
+	public function exec(sql: haxe.extern.EitherType<String, Array<String>>, ?params: Array<Dynamic>) {
+		var result = null;
+		final qs = if (Std.isOfType(sql, String)) {
+			[sql];
+		} else {
+			cast (sql, Array<Dynamic>);
+		}
 		try {
-			final result = db.request(prepare(sql, params ?? []));
+			for (q in qs) {
+				if (result == null) {
+					final prepared = prepare(q, params ?? []);
+					result = db.request(prepared);
+				} else {
+					db.request(q);
+				}
+			}
 			return Promise.resolve(result);
 		} catch (e) {
 			return Promise.reject(e);
@@ -35,6 +48,9 @@ class SqliteDriver {
 					Std.string(p);
 				case TNull:
 					"NULL";
+				case TClass(Array):
+					var bytes:Bytes = Bytes.ofData(p);
+					"X'" + bytes.toHex() + "'";
 				case TClass(haxe.io.Bytes):
 					var bytes:Bytes = cast p;
 					"X'" + bytes.toHex() + "'";

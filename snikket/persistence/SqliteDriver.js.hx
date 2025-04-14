@@ -28,20 +28,21 @@ class SqliteDriver {
 		});
 	}
 
-	public function exec(sql: String, ?params: Array<Dynamic>): Promise<haxe.iterators.ArrayIterator<Dynamic>> {
+	public function exec(sql: haxe.extern.EitherType<String, Array<String>>, ?params: Array<Dynamic>) {
 		if (sqlite == null || dbId == null) {
 			// Not ready yet
 			return new Promise((resolve, reject) -> haxe.Timer.delay(() -> resolve(null), 100))
 				.then(_ -> exec(sql, params));
 		}
 
+		final qs = Std.isOfType(sql, String) ? sql : (cast sql).join("");
 		final items: Array<Dynamic> = [];
 		var signalAllDone;
 		final allDone = new Promise((resolve, reject) -> signalAllDone = resolve);
 		return sqlite('exec', {
 			dbId: dbId,
-			sql: sql,
-			bind: params,
+			sql: qs,
+			bind: params.map(formatParam),
 			rowMode: "object",
 			callback: (r) -> {
 				if (r.rowNumber == null) {
@@ -52,5 +53,15 @@ class SqliteDriver {
 				null;
 			}
 		}).then(_ -> allDone).then(_ -> items.iterator());
+	}
+
+	private function formatParam(p: Dynamic): Dynamic {
+		return switch (Type.typeof(p)) {
+			case TClass(haxe.io.Bytes):
+				var bytes:Bytes = cast p;
+				return bytes.getData();
+			case _:
+				return p;
+		}
 	}
 }
