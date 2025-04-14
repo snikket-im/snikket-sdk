@@ -11,6 +11,7 @@ import thenshim.Promise;
 
 #if cpp
 @:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
 #end
 class MediaStoreFS implements MediaStore {
 	private final blobpath: String;

@@ -2,6 +2,9 @@ package snikket.persistence;
 
 import haxe.io.BytesData;
 
+#if cpp
+@:build(HaxeSwiftBridge.expose())
+#end
 interface MediaStore {
 	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (has:Bool)->Void):Void;
 	public function removeMedia(hashAlgorithm:String, hash:BytesData):Void;

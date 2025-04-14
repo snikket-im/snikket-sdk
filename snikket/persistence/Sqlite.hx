@@ -605,7 +605,6 @@ class Sqlite implements Persistence implements KeyValueStore {
 		});
 	}
 
-	@HaxeCBridge.noemit
 	public function removeAccount(accountId:String, completely:Bool) {
 		db.exec("DELETE FROM accounts WHERE account_id=?", [accountId]);
 
