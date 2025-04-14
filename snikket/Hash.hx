@@ -54,11 +54,13 @@ class Hash {
 		return null;
 	}
 
-	public static function sha1(bytes: Bytes) {
+	@:allow(snikket)
+	private static function sha1(bytes: Bytes) {
 		return new Hash("sha-1", Sha1.make(bytes).getData());
 	}
 
-	public static function sha256(bytes: Bytes) {
+	@:allow(snikket)
+	private static function sha256(bytes: Bytes) {
 		return new Hash("sha-256", Sha256.make(bytes).getData());
 	}
 
