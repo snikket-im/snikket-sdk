@@ -199,10 +199,11 @@ class Autolink {
 	/**
 	 * Valid UCS characters defined in RFC 3987. Excludes space characters.
 	 */
-	private static final UCS_CHAR = "[" +
-			"\\u00A0-\\uD7FF" +
-			"\\uF900-\\uFDCF" +
-			"\\uFDF0-\\uFFEF";
+	#if cpp
+	private static final UCS_CHAR =
+			"\\x{00A0}-\\x{D7FF}" +
+			"\\x{F900}-\\x{FDCF}" +
+			"\\x{FDF0}-\\x{FFEF}";
 			/*"\\uD800\\uDC00-\\uD83F\\uDFFD" +
 			"\\uD840\\uDC00-\\uD87F\\uDFFD" +
 			"\\uD880\\uDC00-\\uD8BF\\uDFFD" +
@@ -217,7 +218,13 @@ class Autolink {
 			"\\uDAC0\\uDC00-\\uDAFF\\uDFFD" +
 			"\\uDB00\\uDC00-\\uDB3F\\uDFFD" +
 			"\\uDB44\\uDC00-\\uDB7F\\uDFFD" +*/
-			//"&&[^\\u00A0[\\u2000-\\u200A]\\u2028\\u2029\\u202F\\u3000]]";
+			//"&&[^\\u00A0[\\u2000-\\u200A]\\u2028\\u2029\\u202F\\u3000]";
+	#else
+	private static final UCS_CHAR =
+			"\\u00A0-\\uD7FF" +
+			"\\uF900-\\uFDCF" +
+			"\\uFDF0-\\uFFEF";
+	#end
 	/**
 	 * Valid characters for IRI label defined in RFC 3987.
 	 */
