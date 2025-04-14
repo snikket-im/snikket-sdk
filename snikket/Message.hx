@@ -289,7 +289,7 @@ class Message {
 				final replyToMessage = new ChatMessageBuilder();
 				replyToMessage.to = replyToJid == msg.senderId ? msg.to : msg.from;
 				replyToMessage.from = replyToJid == null ? null : JID.parse(replyToJid);
-				replyToMessage.senderId = replyToMessage.from?.asString();
+				replyToMessage.senderId = isGroupchat ? replyToMessage.from?.asString() : replyToMessage.from?.asBare()?.asString();
 				replyToMessage.replyId = replyToID;
 				if (msg.serverIdBy != null && msg.serverIdBy != localJid.asBare().asString()) {
 					replyToMessage.serverId = replyToID;
