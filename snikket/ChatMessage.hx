@@ -49,6 +49,12 @@ class ChatAttachment {
 		this.uris = uris;
 		this.hashes = hashes;
 	}
+
+	#if cpp
+	public static function create(name: Null<String>, mime: String, size: Int, uri: String) {
+		return new ChatAttachment(name, mime, size > 0 ? size : null, [uri], []);
+	}
+	#end
 }
 
 @:expose
