@@ -160,7 +160,7 @@ class ChatMessage {
 	private final payloads: ReadOnlyArray<Stanza>;
 
 	@:allow(snikket)
-	public final stanza: Null<Stanza>;
+	private final stanza: Null<Stanza>;
 
 	@:allow(snikket)
 	private function new(params: {
