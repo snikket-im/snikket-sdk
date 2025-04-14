@@ -1,5 +1,14 @@
 package snikket;
 
+#if cpp
+import HaxeCBridge;
+#end
+
+@:expose
+#if cpp
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
 class AttachmentSource {
 	public final path: String;
 	public final type: String;
@@ -13,7 +22,8 @@ class AttachmentSource {
 		this.type = mime;
 	}
 
-	public inline function tinkSource() {
+	@:allow(snikket)
+	private inline function tinkSource() {
 		return tink.io.Source.ofInput(this.name, sys.io.File.read(path));
 	}
 }
