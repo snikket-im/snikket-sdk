@@ -790,7 +790,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			builder.type = row.type;
 			builder.senderId = row.sender_id;
 			builder.serverId = row.mam_id == "" ? null : row.mam_id;
-			builder.serverIdBy = row.mam_by;
+			builder.serverIdBy = row.mam_by == "" ? null : row.mam_by;
 			if (builder.direction != row.direction) {
 				builder.direction = row.direction;
 				final replyTo = builder.replyTo;
