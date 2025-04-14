@@ -4,7 +4,7 @@ import snikket.Autolink;
 import snikket.Stanza;
 
 class XEP0393 {
-	public static function parse(styled: String) {
+	public static function parse(styled: UnicodeString) {
 		final blocks = [];
 		while (styled.length > 0) {
 			final result = parseBlock(styled);
@@ -87,7 +87,7 @@ class XEP0393 {
 		};
 	}
 
-	public static function parseSpans(styled: String) {
+	public static function parseSpans(styled: UnicodeString) {
 		final spans = [];
 		var start = 0;
 		var nextLink = null;
@@ -133,7 +133,7 @@ class XEP0393 {
 		return spans;
 	}
 
-	public static function parseSpan(tagName: String, marker: String, styled: String, start: Int) {
+	public static function parseSpan(tagName: UnicodeString, marker: String, styled: String, start: Int) {
 		var end = start + 1;
 		while (end < styled.length && styled.charAt(end) != marker) {
 			if (StringTools.isSpace(styled, end)) end++; // the closing styling directive MUST NOT be preceeded by a whitespace character
@@ -152,7 +152,7 @@ class XEP0393 {
 		}
 	}
 
-	public static function parseBlock(styled: String) {
+	public static function parseBlock(styled: UnicodeString) {
 		if (styled.charAt(0) == ">") {
 			return parseQuote(styled);
 		} else if (styled.substr(0, 3) == "```") {
@@ -165,7 +165,7 @@ class XEP0393 {
 		}
 	}
 
-	public static function parseQuote(styled: String) {
+	public static function parseQuote(styled: UnicodeString) {
 		final lines = [];
 		var line = "";
 		var end = 1; // Skip leading >
@@ -192,7 +192,7 @@ class XEP0393 {
 	}
 
 
-	public static function parsePreformatted(styled: String) {
+	public static function parsePreformatted(styled: UnicodeString) {
 		final lines = [];
 		var line = null;
 		var end = 0;
