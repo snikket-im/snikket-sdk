@@ -26,23 +26,22 @@ class MediaStoreFS implements MediaStore {
 		this.kv = kv;
 	}
 
-	@HaxeCBridge.noemit
-	public function getMediaPath(hashAlgorithm: String, hash: BytesData, callback: (Null<String>)->Void) {
-		if (hashAlgorithm == "sha-256") {
-			final path = blobpath + "/f" + new Hash(hashAlgorithm, hash).toHex();
+	public function getMediaPath(uri: String, callback: (Null<String>)->Void) {
+		final hash = Hash.fromUri(uri);
+		if (hash.algorithm == "sha-256") {
+			final path = blobpath + "/f" + hash.toHex();
 			if (FileSystem.exists(path)) {
 				callback(FileSystem.absolutePath(path));
 			} else {
 				callback(null);
 			}
 		} else {
-			final hash = new Hash(hashAlgorithm, hash);
 			get(hash.serializeUri()).then(sha256uri -> {
 				final sha256 = sha256uri == null ? null : Hash.fromUri(sha256uri);
 				if (sha256 == null) {
 					callback(null);
 				} else {
-					getMediaPath(sha256.algorithm, sha256.hash, callback);
+					getMediaPath(sha256.toUri(), callback);
 				}
 			});
 		}
@@ -50,12 +49,14 @@ class MediaStoreFS implements MediaStore {
 
 	@HaxeCBridge.noemit
 	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (Bool)->Void) {
-		getMediaPath(hashAlgorithm, hash, path -> callback(path != null));
+		final hash = new Hash(hashAlgorithm, hash);
+		getMediaPath(hash.toUri(), path -> callback(path != null));
 	}
 
 	@HaxeCBridge.noemit
 	public function removeMedia(hashAlgorithm: String, hash: BytesData) {
-		getMediaPath(hashAlgorithm, hash, (path) -> {
+		final hash = new Hash(hashAlgorithm, hash);
+		getMediaPath(hash.toUri(), (path) -> {
 			if (path != null) FileSystem.deleteFile(path);
 		});
 	}
