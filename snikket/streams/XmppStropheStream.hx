@@ -329,7 +329,7 @@ class XmppStropheStream extends GenericStream {
 						StropheStanza.add_child_ex(xml, convertFromStanza(stanza), false);
 					case CData(text):
 						var text_node = StropheStanza.create(ctx);
-						StropheStanza.set_text(text_node, NativeString.c_str(text.serialize()));
+						StropheStanza.set_text(text_node, NativeString.c_str(text.content));
 						StropheStanza.add_child_ex(xml, text_node, false);
 				};
 			}
