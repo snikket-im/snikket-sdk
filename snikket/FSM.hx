@@ -93,7 +93,7 @@ class FSM extends EventEmitter {
 		return states.get(currentState).get(name) != null;
 	}
 
-	public function getState():String {
+	public function getCurrentState():String {
 		return currentState;
 	}
 
