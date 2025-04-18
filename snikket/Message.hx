@@ -29,6 +29,7 @@ enum MessageStanza {
 	ModerateMessageStanza(action: ModerationAction);
 	ReactionUpdateStanza(update: ReactionUpdate);
 	UnknownMessageStanza(stanza: Stanza);
+	UndecryptableMessageStanza(decryptionFailure: EncryptionInfo);
 }
 
 @:nullSafety(Strict)
@@ -36,19 +37,30 @@ class Message {
 	public final chatId: String;
 	public final senderId: String;
 	public final threadId: Null<String>;
+	public final encryption: Null<EncryptionInfo>;
 	public final parsed: MessageStanza;
 
-	private function new(chatId: String, senderId: String, threadId: Null<String>, parsed: MessageStanza) {
+	private function new(chatId: String, senderId: String, threadId: Null<String>, parsed: MessageStanza, encryption:Null<EncryptionInfo>) {
 		this.chatId = chatId;
 		this.senderId = senderId;
 		this.threadId = threadId;
 		this.parsed = parsed;
+		this.encryption = encryption;
 	}
 
 	public static function fromStanza(stanza:Stanza, localJid:JID, ?addContext: (ChatMessageBuilder, Stanza)->ChatMessageBuilder):Message {
 		final fromAttr = stanza.attr.get("from");
 		final from = fromAttr == null ? localJid.domain : fromAttr;
-		if (stanza.attr.get("type") == "error") return new Message(from, from, null, ErrorMessageStanza(stanza));
+		final encryptionInfo = EncryptionInfo.fromStanza(stanza);
+
+		if (stanza.attr.get("type") == "error") {
+			return new Message(from, from, null, ErrorMessageStanza(stanza), encryptionInfo);
+		}
+
+		if(encryptionInfo != null && encryptionInfo.status == DecryptionFailure) {
+			trace("Message decryption failure: " + encryptionInfo.reasonText);
+			return new Message(from, from, stanza.getChildText("thread"), UndecryptableMessageStanza(encryptionInfo), encryptionInfo);
+		}
 
 		var msg = new ChatMessageBuilder();
 		msg.stanza = stanza;
@@ -70,6 +82,7 @@ class Message {
 		final domain = localJid.domain;
 		final to = stanza.attr.get("to");
 		msg.to = to == null ? localJid : JID.parse(to);
+		msg.encryption = encryptionInfo;
 
 		if (msg.from != null && msg.from.equals(localJidBare)) {
 			var carbon = stanza.getChild("received", "urn:xmpp:carbons:2");
@@ -129,7 +142,7 @@ class Message {
 					replyTo.clear();
 				} else if (jid == null) {
 					trace("No support for addressing to non-jid", address);
-					return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza));
+					return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza), encryptionInfo);
 				} else if (address.attr.get("type") == "to" || address.attr.get("type") == "cc") {
 					recipients[JID.parse(jid).asBare().asString()] = true;
 					if (!anyExtendedReplyTo) replyTo[JID.parse(jid).asString()] = true; // reply all
@@ -157,7 +170,7 @@ class Message {
 		// Not sure why the compiler things we need to use Null<JID> with findFast
 		if (msg.direction == MessageReceived && msgFrom != null && Util.findFast(msg.replyTo, @:nullSafety(Off) (r: Null<JID>) -> r.asBare().equals(msgFrom.asBare())) == null) {
 			trace("Don't know what chat message without from in replyTo belongs in", stanza);
-			return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza));
+			return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza), encryptionInfo);
 		}
 
 		if (addContext != null) msg = addContext(msg, stanza);
@@ -180,7 +193,7 @@ class Message {
 					timestamp,
 					reactions.map(text -> new Reaction(msg.senderId, timestamp, text, msg.localId)),
 					EmojiReactions
-				)));
+				)), encryptionInfo);
 			}
 		}
 
@@ -219,14 +232,15 @@ class Message {
 				msg.chatId(),
 				msg.senderId,
 				msg.threadId,
-				ModerateMessageStanza(new ModerationAction(msg.chatId(), moderateServerId, timestamp, by, reason))
+				ModerateMessageStanza(new ModerationAction(msg.chatId(), moderateServerId, timestamp, by, reason)),
+				encryptionInfo
 			);
 		}
 
 		final replace = stanza.getChild("replace", "urn:xmpp:message-correct:0");
 		final replaceId  = replace?.attr?.get("id");
 
-		if (msg.text == null && msg.attachments.length < 1 && replaceId == null) return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza));
+		if (msg.text == null && msg.attachments.length < 1 && replaceId == null) return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza), encryptionInfo);
 
 		for (fallback in stanza.allTags("fallback", "urn:xmpp:fallback:0")) {
 			msg.payloads.push(fallback);
@@ -259,7 +273,7 @@ class Message {
 					timestamp,
 					[new Reaction(msg.senderId, timestamp, text.trim(), msg.localId)],
 					AppendReactions
-				)));
+				)), encryptionInfo);
 			}
 
 			if (html != null) {
@@ -279,7 +293,7 @@ class Message {
 								timestamp,
 								[new CustomEmojiReaction(msg.senderId, timestamp, els[0].attr.get("alt") ?? "", hash.serializeUri(), msg.localId)],
 								AppendReactions
-							)));
+							)), encryptionInfo);
 						}
 					}
 				}
@@ -306,6 +320,6 @@ class Message {
 			msg.localId = replaceId;
 		}
 
-		return new Message(msg.chatId(), msg.senderId, msg.threadId, ChatMessageStanza(msg.build()));
+		return new Message(msg.chatId(), msg.senderId, msg.threadId, ChatMessageStanza(msg.build()), encryptionInfo);
 	}
 }

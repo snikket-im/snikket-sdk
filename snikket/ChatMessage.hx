@@ -178,6 +178,12 @@ class ChatMessage {
 	@:allow(snikket, test)
 	private final payloads: ReadOnlyArray<Stanza>;
 
+	/**
+		Information about the encryption used by the sender of
+		this message.
+	**/
+	public var encryption: Null<EncryptionInfo>;
+
 	@:allow(snikket)
 	private final stanza: Null<Stanza>;
 
@@ -205,6 +211,7 @@ class ChatMessage {
 		?status: MessageStatus,
 		?versions: Array<ChatMessage>,
 		?payloads: Array<Stanza>,
+		?encryption: Null<EncryptionInfo>,
 		?stanza: Null<Stanza>,
 	}) {
 		this.localId = params.localId;
@@ -229,6 +236,7 @@ class ChatMessage {
 		this.status = params.status ?? MessagePending;
 		this.versions = params.versions ?? [];
 		this.payloads = params.payloads ?? [];
+		this.encryption = params.encryption;
 		this.stanza = params.stanza;
 	}
 

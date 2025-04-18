@@ -49,11 +49,14 @@ interface Persistence {
 	public function storeOmemoDeviceList(identifier:String, deviceIds:Array<Int>):Void;
 	public function storeOmemoPreKey(identifier:String, keyId:Int, keyPair:PreKeyPair):Void;
 	public function getOmemoPreKey(identifier:String, keyId:Int, callback: (PreKeyPair)->Void):Void;
-	public function storeOmemoSignedPreKey(login:String, signedPreKey:OMEMOBundleSignedPreKey):Void;
-	public function getOmemoSignedPreKey(login:String, keyId:Int, callback: (OMEMOBundleSignedPreKey)->Void):Void;
+	public function removeOmemoPreKey(identifier:String, keyId:Int):Void;
+	public function storeOmemoSignedPreKey(login:String, signedPreKey:SignedPreKey):Void;
+	public function getOmemoSignedPreKey(login:String, keyId:Int, callback: (SignedPreKey)->Void):Void;
 	public function getOmemoPreKeys(login:String, callback: (Array<PreKeyPair>)->Void):Void;
 	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Void;
 	public function getOmemoContactIdentityKey(account:String, address:String, callback:(IdentityPublicKey)->Void):Void;
+	public function getOmemoSession(account:String, address:String, callback:(SignalSession)->Void):Void;
+	public function storeOmemoSession(account:String, address:String, session:SignalSession):Void;
 #end
 
 

@@ -156,6 +156,8 @@ class Dummy implements Persistence {
 	public function storeOmemoPreKey(identifier:String, keyId:Int, keyPair:PreKeyPair):Void { }
 	@HaxeCBridge.noemit
 	public function getOmemoPreKey(identifier:String, keyId:Int, callback: (PreKeyPair)->Void):Void { }
+	@HaxeCBridge.noemit
+	public function removeOmemoPreKey(identifier:String, keyId:Int):Void { }
 
 	@HaxeCBridge.noemit
 	public function storeOmemoIdentityKey(login:String, keypair:IdentityKeyPair):Void { }
@@ -163,9 +165,9 @@ class Dummy implements Persistence {
 	public function getOmemoIdentityKey(login:String, callback: (IdentityKeyPair)->Void):Void { }
 
 	@HaxeCBridge.noemit
-	public function storeOmemoSignedPreKey(login:String, signedPreKey:OMEMOBundleSignedPreKey):Void { }
+	public function storeOmemoSignedPreKey(login:String, signedPreKey:SignedPreKey):Void { }
 	@HaxeCBridge.noemit
-	public function getOmemoSignedPreKey(login:String, keyId:Int, callback: (OMEMOBundleSignedPreKey)->Void):Void { }
+	public function getOmemoSignedPreKey(login:String, keyId:Int, callback: (SignedPreKey)->Void):Void { }
 
 	@HaxeCBridge.noemit
 	public function getOmemoPreKeys(login:String, callback: (Array<PreKeyPair>)->Void):Void { }
@@ -174,5 +176,10 @@ class Dummy implements Persistence {
 	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Void { }
 	@HaxeCBridge.noemit
 	public function getOmemoContactIdentityKey(account:String, address:String, callback:(IdentityPublicKey)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoSession(account:String, address:String, callback:(SignalSession)->Void):Void { }
+	@HaxeCBridge.noemit
+	public function storeOmemoSession(account:String, address:String, session:SignalSession):Void { }
 #end
 }

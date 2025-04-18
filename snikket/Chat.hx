@@ -39,6 +39,16 @@ enum abstract UserState(Int) {
 	var Paused;
 }
 
+// Describes the current encryption mode of the conversation
+// This mode is a high-level representation of the user/app *intent*
+// for the current conversation - e.g. not a guarantee that incoming
+// messages will always match this expectation. It is used to determine
+// the logic for outgoing messages, though.
+enum abstract EncryptionMode(Int) {
+	var Unencrypted; // No end-to-end encryption
+	var EncryptedOMEMO; // Use OMEMO
+}
+
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
@@ -81,6 +91,8 @@ abstract class Chat {
 	private var isActive: Null<Bool> = null;
 	private var activeThread: Null<String> = null;
 	private var notificationSettings: Null<{reply: Bool, mention: Bool}> = null;
+
+	private var _encryptionMode: EncryptionMode = Unencrypted;
 
 	@:allow(snikket)
 	private var omemoContactDeviceIDs: Array<Int> = [];
@@ -650,6 +662,17 @@ abstract class Chat {
 		return jingleSessions.flatMap((session) -> session.videoTracks());
 	}
 #end
+	/**
+		Get encryption mode for this chat
+	**/
+	public function encryptionMode(): String {
+		switch(_encryptionMode) {
+			case Unencrypted:
+				return "unencrypted";
+			case EncryptedOMEMO:
+				return "omemo";
+		}
+	}
 
 	@:allow(snikket)
 	private function markReadUpToId(upTo: String, upToBy: String, ?callback: ()->Void) {
@@ -863,7 +886,10 @@ class DirectChat extends Chat {
 							activeThread = message.threadId;
 							stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
 						}
-						client.sendStanza(stanza);
+						// FIXME: Preserve ordering with a per-chat outbox of pending messages
+						client.omemo.encryptMessage(recipient, stanza).then((encryptedStanza) -> {
+							client.sendStanza(encryptedStanza);
+						});
 					}
 					setLastMessage(message.build());
 					client.trigger("chats/update", [this]);
