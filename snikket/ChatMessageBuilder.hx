@@ -124,6 +124,12 @@ class ChatMessageBuilder {
 	private var payloads: Array<Stanza> = [];
 
 	/**
+		Information about the encryption used by the sender of
+		this message.
+	**/
+	public var encryption: Null<EncryptionInfo>;
+
+	/**
 		WARNING: if you set this, you promise all the attributes of this builder match it
 	**/
 	@:allow(snikket)
@@ -154,6 +160,7 @@ class ChatMessageBuilder {
 		?status: MessageStatus,
 		?versions: Array<ChatMessage>,
 		?payloads: Array<Stanza>,
+		?encryption: Null<EncryptionInfo>,
 		?html: Null<String>,
 	}) {
 		this.localId = params?.localId;
@@ -174,6 +181,7 @@ class ChatMessageBuilder {
 		this.status = params?.status ?? MessagePending;
 		this.versions = params?.versions ?? [];
 		this.payloads = params?.payloads ?? [];
+		this.encryption = params?.encryption;
 		final html = params?.html;
 		if (html != null) setHtml(html);
 	}
@@ -326,6 +334,7 @@ class ChatMessageBuilder {
 			status: status,
 			versions: versions,
 			payloads: payloads,
+			encryption: encryption,
 			stanza: stanza,
 		});
 	}

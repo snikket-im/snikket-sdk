@@ -335,7 +335,6 @@ class Client extends EventEmitter {
 			}
 
 			trace("pubsubEvent "+Std.string(pubsubEvent!=null));
-			if (pubsubEvent != null && pubsubEvent.getFrom() != null {
 			if (pubsubEvent != null && pubsubEvent.getFrom() != null) {
 				final fromBare = JID.parse(pubsubEvent.getFrom()).asBare();
 				final isOwnAccount = fromBare.asString() == accountId();
@@ -363,19 +362,19 @@ class Client extends EventEmitter {
 				}
 
 				trace("pubsubNode == "+pubsubNode);
-
-#if !NO_OMEMO
-				if(pubsubNode == "eu.siacs.conversations.axolotl.devicelist") {
-					if(isOwnAccount) {
-						omemo.onAccountUpdatedDeviceList(pubsubEvent.getItems());
-					} else {
-						omemo.onContactUpdatedDeviceList(fromBare, pubsubEvent.getItems());
-					}
-				}
-#end
 			}
-
-			return EventUnhandled; // Allow others to get this event as well
+#if !NO_OMEMO
+			if(stanza.hasChild("encrypted", NS.OMEMO)) {
+				omemo.decryptMessage(stanza).then((decryptedStanza) -> {
+					trace("OMEMO: Decrypted message, now processing...");
+					processLiveMessage(decryptedStanza);
+					return true;
+				});
+				return EventHandled;
+			}
+#end
+			processLiveMessage(stanza);
+			return EventHandled;
 		});
 
 #if !NO_JINGLE
@@ -588,6 +587,218 @@ class Client extends EventEmitter {
 
 			return EventUnhandled;
 		});
+	}
+
+	@:allow(snikket)
+	private function processLiveMessage(stanza:Stanza):Void {
+		final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
+
+		if (stanza.attr.get("type") == "error" && from != null) {
+			final chat = getChat(from.asBare().asString());
+			final channel = Std.downcast(chat, Channel);
+			if (channel != null) channel.selfPing(true);
+		}
+
+		var fwd = null;
+		if (from != null && from.asBare().asString() == accountId()) {
+			var carbon = stanza.getChild("received", "urn:xmpp:carbons:2");
+			if (carbon == null) carbon = stanza.getChild("sent", "urn:xmpp:carbons:2");
+			if (carbon != null) {
+				fwd = carbon.getChild("forwarded", "urn:xmpp:forward:0")?.getFirstChild();
+			}
+		}
+
+
+		final message = Message.fromStanza(stanza, this.jid, (builder, stanza) -> {
+			var chat = getChat(builder.chatId());
+			if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(builder.chatId());
+			if (chat == null) return builder;
+			return chat.prepareIncomingMessage(builder, stanza);
+		});
+
+		switch (message.parsed) {
+			case ChatMessageStanza(chatMessage):
+				for (hash in chatMessage.inlineHashReferences()) {
+					fetchMediaByHash([hash], [chatMessage.from]);
+				}
+				final chat = getChat(chatMessage.chatId());
+				if (chat != null) {
+					final updateChat = (chatMessage) -> {
+						notifyMessageHandlers(chatMessage, chatMessage.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
+						if (chatMessage.versions.length < 1 || chat.lastMessageId() == chatMessage.serverId || chat.lastMessageId() == chatMessage.localId) {
+							chat.setLastMessage(chatMessage);
+							if (chatMessage.versions.length < 1) chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
+							chatActivity(chat);
+						}
+					};
+					if (chatMessage.serverId == null) {
+						updateChat(chatMessage);
+					} else {
+						storeMessages([chatMessage], (stored) -> updateChat(stored[0]));
+					}
+				}
+			case ReactionUpdateStanza(update):
+				for (hash in update.inlineHashReferences()) {
+					fetchMediaByHash([hash], [from]);
+				}
+				persistence.storeReaction(accountId(), update, (stored) -> if (stored != null) notifyMessageHandlers(stored, ReactionEvent));
+			default:
+				// ignore
+				trace("Ignoring non-chat message: " + stanza.toString());
+		}
+
+#if !NO_JINGLE
+		final jmiP = stanza.getChild("propose", "urn:xmpp:jingle-message:0");
+		if (jmiP != null && jmiP.attr.get("id") != null) {
+			final session = new IncomingProposedSession(this, from, jmiP.attr.get("id"));
+			final chat = getDirectChat(from.asBare().asString());
+			if (!chat.jingleSessions.exists(session.sid)) {
+				chat.jingleSessions.set(session.sid, session);
+				chatActivity(chat);
+				session.ring();
+			}
+		}
+
+		final jmiR = stanza.getChild("retract", "urn:xmpp:jingle-message:0");
+		if (jmiR != null && jmiR.attr.get("id") != null) {
+			final chat = getDirectChat(from.asBare().asString());
+			final session = chat.jingleSessions.get(jmiR.attr.get("id"));
+			if (session != null) {
+				session.retract();
+				chat.jingleSessions.remove(session.sid);
+			}
+		}
+
+		// Another resource picked this up
+		final jmiProFwd = fwd?.getChild("proceed", "urn:xmpp:jingle-message:0");
+		if (jmiProFwd != null && jmiProFwd.attr.get("id") != null) {
+			final chat = getDirectChat(JID.parse(fwd.attr.get("to")).asBare().asString());
+			final session = chat.jingleSessions.get(jmiProFwd.attr.get("id"));
+			if (session != null) {
+				session.retract();
+				chat.jingleSessions.remove(session.sid);
+			}
+		}
+
+		final jmiPro = stanza.getChild("proceed", "urn:xmpp:jingle-message:0");
+		if (jmiPro != null && jmiPro.attr.get("id") != null) {
+			final chat = getDirectChat(from.asBare().asString());
+			final session = chat.jingleSessions.get(jmiPro.attr.get("id"));
+			if (session != null) {
+				try {
+					chat.jingleSessions.set(session.sid, session.initiate(stanza));
+				} catch (e) {
+					trace("JMI proceed failed", e);
+				}
+			}
+		}
+
+		final jmiRej = stanza.getChild("reject", "urn:xmpp:jingle-message:0");
+		if (jmiRej != null && jmiRej.attr.get("id") != null) {
+			final chat = getDirectChat(from.asBare().asString());
+			final session = chat.jingleSessions.get(jmiRej.attr.get("id"));
+			if (session != null) {
+				session.retract();
+				chat.jingleSessions.remove(session.sid);
+			}
+		}
+#end
+
+		if (stanza.attr.get("type") != "error") {
+			final chatState = stanza.getChild(null, "http://jabber.org/protocol/chatstates");
+			final userState = switch (chatState?.name) {
+				case "active": UserState.Active;
+				case "inactive": UserState.Inactive;
+				case "gone": UserState.Gone;
+				case "composing": UserState.Composing;
+				case "paused": UserState.Paused;
+				default: null;
+			};
+			if (userState != null) {
+				final chat = getChat(from.asBare().asString());
+				if (chat == null || !chat.getParticipantDetails(message.senderId).isSelf) {
+					for (handler in chatStateHandlers) {
+						handler(message.senderId, message.chatId, message.threadId, userState);
+					}
+				}
+			}
+		}
+
+		final pubsubEvent = PubsubEvent.fromStanza(stanza);
+		if (pubsubEvent != null && pubsubEvent.getFrom() != null && pubsubEvent.getNode() == "urn:xmpp:avatar:metadata" && pubsubEvent.getItems().length > 0) {
+			final item = pubsubEvent.getItems()[0];
+			final avatarSha1Hex = pubsubEvent.getItems()[0].attr.get("id");
+			final avatarSha1 = Hash.fromHex("sha-1", avatarSha1Hex)?.hash;
+			final metadata = item.getChild("metadata", "urn:xmpp:avatar:metadata");
+			var mime = "image/png";
+			if (metadata != null) {
+				final info = metadata.getChild("info"); // should have xmlns matching metadata
+				if (info != null && info.attr.get("type") != null) {
+					mime = info.attr.get("type");
+				}
+			}
+			if (avatarSha1 != null) {
+				final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
+				chat.setAvatarSha1(avatarSha1);
+				persistence.storeChats(accountId(), [chat]);
+				persistence.hasMedia("sha-1", avatarSha1, (has) -> {
+					if (has) {
+						this.trigger("chats/update", [chat]);
+					} else {
+						final pubsubGet = new PubsubGet(pubsubEvent.getFrom(), "urn:xmpp:avatar:data", avatarSha1Hex);
+						pubsubGet.onFinished(() -> {
+							final item = pubsubGet.getResult()[0];
+							if (item == null) return;
+							final dataNode = item.getChild("data", "urn:xmpp:avatar:data");
+							if (dataNode == null) return;
+							persistence.storeMedia(mime, Base64.decode(StringTools.replace(dataNode.getText(), "\n", "")).getData(), () -> {
+								this.trigger("chats/update", [chat]);
+							});
+						});
+						sendQuery(pubsubGet);
+					}
+				});
+			}
+		}
+
+		trace("pubsubEvent "+Std.string(pubsubEvent!=null));
+		if (pubsubEvent != null && pubsubEvent.getFrom() != null) {
+			final fromBare = JID.parse(pubsubEvent.getFrom()).asBare();
+			final isOwnAccount = fromBare.asString() == accountId();
+			final pubsubNode = pubsubEvent.getNode();
+
+			if (isOwnAccount && pubsubNode == "http://jabber.org/protocol/nick" && pubsubEvent.getItems().length > 0) {
+				updateDisplayName(pubsubEvent.getItems()[0].getChildText("nick", "http://jabber.org/protocol/nick"));
+			}
+
+			if (isOwnAccount && pubsubNode == "urn:xmpp:mds:displayed:0" && pubsubEvent.getItems().length > 0) {
+				for (item in pubsubEvent.getItems()) {
+					if (item.attr.get("id") != null) {
+						final upTo = item.getChild("displayed", "urn:xmpp:mds:displayed:0")?.getChild("stanza-id", "urn:xmpp:sid:0");
+						final chat = getChat(item.attr.get("id"));
+						if (chat == null) {
+							startChatWith(item.attr.get("id"), (caps) -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
+						} else {
+							chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by"), () -> {
+								persistence.storeChats(accountId(), [chat]);
+								this.trigger("chats/update", [chat]);
+							});
+						}
+					}
+				}
+			}
+			trace("pubsubNode == "+pubsubNode);
+
+#if !NO_OMEMO
+			if(pubsubNode == "eu.siacs.conversations.axolotl.devicelist") {
+				if(isOwnAccount) {
+					omemo.onAccountUpdatedDeviceList(pubsubEvent.getItems());
+				} else {
+					omemo.onContactUpdatedDeviceList(fromBare, pubsubEvent.getItems());
+				}
+			}
+#end
+		}
 	}
 
 	/**
