@@ -1,21 +1,39 @@
 package snikket;
 
+import haxe.io.BytesBuffer;
+import snikket.EncryptedMessage;
+import snikket.Message;
+
 import snikket.queries.PubsubGet;
 import snikket.queries.PubsubPublish;
 
 import haxe.crypto.Base64;
 import haxe.io.Bytes;
+import haxe.io.BytesData;
 
 import thenshim.Promise;
 import thenshim.PromiseTools;
 
 using snikket.SignalProtocol;
 
+#if js
+import js.Browser;
+#end
+
 @:structInit
 class OMEMOBundleSignedPreKey {
 	public final id: Int;
 	public final public_key: String;
 	public final signature: String;
+
+	static public function fromSignedPreKeyPair(signedPreKey:SignedPreKey):OMEMOBundleSignedPreKey {
+		final bundlePreKey:OMEMOBundleSignedPreKey = {
+			id: signedPreKey.keyId,
+			public_key: Base64.encode(Bytes.ofData(signedPreKey.keyPair.pubKey)),
+			signature: Base64.encode(Bytes.ofData(signedPreKey.signature)),
+		};
+		return bundlePreKey;
+	}
 }
 
 @:structInit
@@ -45,11 +63,246 @@ class OMEMOBundle {
 		bundleTag.up();
 		return bundleTag;
 	}
+
+	static public function fromXml(stanza:Stanza, deviceId:Int):OMEMOBundle {
+		return {
+			identity_key: stanza.getChildText("identityKey"),
+			device_id: deviceId,
+			signed_prekey: {
+				id: Std.parseInt(stanza.findText("signedPreKeyPublic@signedPreKeyId")),
+				public_key: stanza.getChildText("signedPreKeyPublic"),
+				signature: stanza.getChildText("signedPreKeySignature"),
+			},
+			prekeys: [
+				for(keyTag in stanza.getChild("prekeys").allTags("preKeyPublic")) {
+					{
+						keyId: Std.parseInt(keyTag.attr.get("preKeyId")),
+						pubKey: keyTag.getText(),
+					}
+				}
+			],
+		}
+	}
+
+	public function getRandomPreKey():PublicPreKey {
+		return prekeys[Std.random(prekeys.length-1)];
+	}
 }
 
+class OMEMOStore extends SignalProtocolStore {
+	private final accountId: String;
+	private final persistence: Persistence;
+
+	public function new(accountId:String, persistence:Persistence) {
+		this.accountId = accountId;
+		this.persistence = persistence;
+	}
+
+	// Load the identity keypair for our account
+	public function getIdentityKeyPair():Promise<IdentityKeyPair> {
+		return new Promise((resolve, reject)->persistence.getOmemoIdentityKey(accountId, resolve));
+	}
+
+	public function getLocalRegistrationId():Promise<Int> {
+		return new Promise((resolve, reject)->persistence.getOmemoId(accountId, resolve));
+	}
+
+	public function isTrustedIdentity(identifier:String, identityKey:IdentityPublicKey, _direction:Int):Promise<Bool> {
+		return Promise.resolve(true); // FIXME?
+	}
+
+	// Load the identity key of a contact (partners with saveIdentity())
+	public function loadIdentityKey(identifier:SignalProtocolAddress):Promise<IdentityPublicKey> {
+		return new Promise((resolve, reject)->persistence.getOmemoContactIdentityKey(accountId, identifier.toString(), resolve));
+	}
+
+	public function saveIdentity(identifier:SignalProtocolAddress, identityKey:IdentityPublicKey):Promise<Bool> {
+		return new Promise((resolve, reject)-> {
+			persistence.getOmemoContactIdentityKey(accountId, identifier.toString(), (prevKey)->{
+				persistence.storeOmemoContactIdentityKey(accountId, identifier.toString(), identityKey);
+				// Return true if the key was updated, false if it matches what we already had stored
+				resolve(prevKey != identityKey);
+			});
+		});
+	}
+
+	public function loadPreKey(keyId:Int):Promise<PreKeyPair> {
+		return new Promise((resolve, reject) -> {
+			persistence.getOmemoPreKey(accountId, keyId, resolve);
+		});
+	}
+
+	
+
+	public function storePreKey(keyId:Int, keyPair:PreKeyPair):Promise<Bool> {
+		return new Promise((resolve, reject) -> {
+			persistence.storeOmemoPreKey(accountId, keyId, keyPair);
+			resolve(true);
+		});
+	}
+
+	public function removePreKey(keyId:Int):Promise<Bool> {
+		persistence.removeOmemoPreKey(accountId, keyId);
+		// FIXME: Need to signal that we need to generate a replacement
+		// for the consumed prekey and republish our bundle
+		return Promise.resolve(true);
+	}
+
+	public function loadSignedPreKey(keyId:Int):Promise<PreKeyPair> {
+		trace("OMEMO: FIXME A: Loading signed prekey "+keyId);
+		return new Promise((resolve, reject) -> {
+			persistence.getOmemoSignedPreKey(accountId, keyId, (signedPreKey) -> {
+				resolve(signedPreKey.keyPair);
+			});
+		});
+	}
+
+	public function storeSignedPreKey(keyId:Int, keyPair:SignedPreKey):Promise<Bool> {
+		trace("OMEMO: FIXME B: Storing signed prekey "+keyId);
+		return new Promise((resolve, reject) -> {
+			persistence.storeOmemoSignedPreKey(accountId, keyPair);
+			resolve(true);
+		});
+	}
+
+	public function removeSignedPreKey(keyId:Int):Promise<Bool> {
+		throw new haxe.exceptions.NotImplementedException();
+	}
+
+	public function loadSession(identifier:SignalProtocolAddress):Promise<SignalSession> {
+		return new Promise<SignalSession>((resolve, reject) -> {
+			persistence.getOmemoSession(accountId, identifier.toString(), resolve);
+		});
+	}
+
+	public function storeSession(identifier:SignalProtocolAddress, session:SignalSession):Promise<Bool> {
+		persistence.storeOmemoSession(accountId, identifier.toString(), session);
+		return Promise.resolve(true);
+	}
+
+	public function removeSession(identifier:SignalProtocolAddress):Promise<Bool> {
+		throw new haxe.exceptions.NotImplementedException();
+	}
+
+	public function removeAllSessions(identifier:SignalProtocolAddress):Promise<Bool> {
+		throw new haxe.exceptions.NotImplementedException();
+	}
+}
+
+@:structInit
+class OMEMOPayloadKey {
+	public final rid:Int;
+	public final prekey:Bool;
+	public final encodedKey:String;
+
+	public function getRawKey():BytesData {
+		return Base64.decode(encodedKey).getData();
+	}
+}
+
+// Represents an OMEMO payload in a message
+@:structInit
+class OMEMOPayload {
+	public final sid:Int;
+	public final keys:Array<OMEMOPayloadKey>;
+	public final encodedIv:String;
+	public final encodedPayload:String;
+
+	public function toXml():Stanza {
+		final el = new Stanza("encrypted", { xmlns: "eu.siacs.conversations.axolotl" });
+		el.tag("header", { sid: Std.string(sid) });
+		for (key in keys) {
+			if(key.prekey) {
+				el.textTag("key", key.encodedKey, { rid: Std.string(key.rid), prekey: "true" });
+			} else {
+				el.textTag("key", key.encodedKey, { rid: Std.string(key.rid) });
+			}
+		}
+		el.textTag("iv", encodedIv);
+		el.up();
+		el.textTag("payload", encodedPayload);
+		return el;
+	}
+
+	public static function fromXml(tag:Stanza):Null<OMEMOPayload> {
+		final header = tag.getChild("header");
+		final sid = header.attr.get("sid");
+		final encodedIv = header.getChildText("iv");
+		final encodedPayload = tag.getChildText("payload");
+		final keys:Array<OMEMOPayloadKey> = [
+			for(key in header.allTags("key")) {
+				{
+					rid: Std.parseInt(key.attr.get("rid")),
+					prekey: Stanza.parseXmlBool(key.attr.get("prekey")),
+					encodedKey: key.getText(),
+				}
+			}
+		];
+		return {
+			sid: Std.parseInt(sid),
+			keys: keys,
+			encodedIv: encodedIv,
+			encodedPayload: encodedPayload,
+		};
+	}
+
+	public static function fromMessageStanza(message:Stanza):Null<OMEMOPayload> {
+		final encrypted = message.getChild("encrypted", "eu.siacs.conversations.axolotl");
+		if(encrypted == null) {
+			return null;
+		}
+		return fromXml(encrypted);
+	}
+	
+	public function getRawIv():BytesData {
+		return Base64.decode(encodedIv).getData();
+	}
+
+	public function getRawPayload():BytesData {
+		return Base64.decode(encodedPayload).getData();
+	}
+
+	public function findKey(deviceId:Int):Null<OMEMOPayloadKey> {
+		for(key in keys) {
+			if(key.rid == deviceId) {
+				return key;
+			}
+		}
+		trace("OMEMO: Key missing in OMEMO header of "+keys.length+" keys. Looked for "+deviceId+" in "+([for (key in keys) key.rid].join(", ")));
+		return null; // Key not found
+	}
+}
+
+// The result of the OMEMO encryption step
+// Combine with recipient sessions to produce an OMEMOPayload
+class OMEMOEncryptionResult {
+	public var iv:BytesData;
+	public var key:BytesData;
+	public var ciphertext:BytesData;
+	public var tag:BytesData;
+
+	public function new() {}
+
+	private var keyWithTag:BytesData = null;
+	public function getKeyWithTag():BytesData {
+		if(keyWithTag != null) {
+			return keyWithTag;
+		}
+		final keyBytes = Bytes.ofData(key);
+		final tagBytes = Bytes.ofData(tag);
+		final buffer = Bytes.alloc(keyBytes.length + tagBytes.length);
+		buffer.blit(0, keyBytes, 0, keyBytes.length);
+		buffer.blit(keyBytes.length, tagBytes, 0, tagBytes.length);
+		keyWithTag = buffer.getData();
+		return keyWithTag;
+	}
+}
+
+//@:nullSafety(Strict)
 class OMEMO {
 	private final client: Client;
 	private final persistence: Persistence;
+	private final signalStore: OMEMOStore;
 
 	// Track the status of our bundle state locally
 	private final bundleLocalState:FSM;
@@ -61,6 +314,17 @@ class OMEMO {
 
 	// An array of all our device IDs on our account
 	public var deviceList:Array<Int>;
+
+	#if js
+	// Constant used by JS's subtle encrypt/decrypt routines
+	private final keyAlgorithm = {
+		name: "AES-GCM",
+		length: 128,
+	};
+	private final keyPurposeDecrypt = ["decrypt"];
+	private final keyPurposeEncrypt = ["encrypt"];
+	private final keyPurposeBoth = ["encrypt", "decrypt"];
+	#end
 
 	// Recommended number of prekeys, per the XEP
 	private final NUM_PREKEYS = 100;
@@ -75,6 +339,7 @@ class OMEMO {
 	public function new(client_: Client, persistence_: Persistence) {
 		client = client_;
 		persistence = persistence_;
+		signalStore = new OMEMOStore(client.accountId(), persistence);
 
 		 bundleLocalState = new FSM({
 			transitions: [
@@ -85,6 +350,7 @@ class OMEMO {
 			state_handlers: [
 				"loading" => loadBundle,
 				"creating" => createLocalBundle,
+				"ok" => onLocalBundleReady,
 			],
 			transition_handlers: [
 			],
@@ -108,9 +374,20 @@ class OMEMO {
 		}, "unverified");
 
 		client.on("session-started", function (event) {
-			bundlePublicState.event("verify");
+			// If we're not already busy, verify our published
+			// bundle after starting a new session (since we 
+			// may have missed notifications about it changing)
+			if(bundleLocalState.getCurrentState() == "ok" && bundlePublicState.can("verify")) {
+				bundlePublicState.event("verify");
+			}
 			return EventHandled;
 		});
+	}
+
+	private function onLocalBundleReady(event) {
+		if(bundlePublicState.getCurrentState() == "unverified") {
+			bundlePublicState.event("verify");
+		}
 	}
 
 	private function loadBundle(event) {
@@ -149,14 +426,14 @@ class OMEMO {
 		});
 
 		final pSignedPreKey = new Promise(function (resolve, reject) {
-			persistence.getOmemoSignedPreKey(client.accountId(), 1, resolve);
+			persistence.getOmemoSignedPreKey(client.accountId(), 0, resolve);
 		}).then(function (signedPreKey) {
 			if(signedPreKey == null) {
 				trace("No signed prekey stored");
 				return false;
 			}
 			trace("Loaded signed prekey");
-			newBundle.signed_prekey = signedPreKey;
+			newBundle.signed_prekey = OMEMOBundleSignedPreKey.fromSignedPreKeyPair(signedPreKey);
 			return true;
 		});
 
@@ -210,7 +487,7 @@ class OMEMO {
 
 	// Wait for our local bundle to be ready for publication
 	private function waitForBundleReady(event) {
-		if(bundleLocalState.getState() == "ok") {
+		if(bundleLocalState.getCurrentState() == "ok") {
 			// No need to wait!
 			bundlePublicState.event("needs-update");
 			return;
@@ -237,7 +514,7 @@ class OMEMO {
 	}
 
 	private function updatePublishedBundle(event) {
-		if(bundleLocalState.getState() != "ok") {
+		if(bundleLocalState.getCurrentState() != "ok") {
 			trace("Can't publish yet - waiting for local bundle");
 			bundlePublicState.event("wait");
 			return;
@@ -265,6 +542,20 @@ class OMEMO {
 		return devices;
 	}
 
+	private function bundleFromPubsubItems(items:Array<Stanza>, deviceId:Int):Null<OMEMOBundle> {
+		if(items.length == 0) {
+			trace("No items in bundle");
+			return null;
+		}
+		var item = items[0].getChild("bundle", "eu.siacs.conversations.axolotl");
+		if (item == null) {
+			trace("First item did not contain valid bundle");
+			return null;
+		}
+		// FIXME - extract stuff
+		return OMEMOBundle.fromXml(item, deviceId);
+	}
+
 	// Called when we receive an updated device list for our own account
 	public function onAccountUpdatedDeviceList(items:Array<Stanza>) {
 		trace("OMEMO: onAccountUpdatedDeviceList");
@@ -289,7 +580,7 @@ class OMEMO {
 		var devices = deviceIdsFromPubsubItems(items);
 		if(devices != null) {
 			chat.omemoContactDeviceIDs = devices;
-			persistence.storeChat(client.accountId(), chat);
+			persistence.storeChats(client.accountId(), [chat]);
 		}
 	}
 
@@ -363,19 +654,15 @@ class OMEMO {
 			
 			return KeyHelper.generateSignedPreKey(identityKeyPair, 0);
 		}).then(cast function (signedPreKey:SignedPreKey):Bool {
-			// store.js:283
-			final stored_signed_prekey:OMEMOBundleSignedPreKey = {
-					id: signedPreKey.keyId,
-					public_key: Base64.encode(Bytes.ofData(signedPreKey.keyPair.pubKey)),
-					signature: Base64.encode(Bytes.ofData(signedPreKey.signature)),
-			};
-			persistence.storeOmemoSignedPreKey(client.accountId(), stored_signed_prekey);
-			
+			trace("OMEMO: Built bundle");
+			persistence.storeOmemoSignedPreKey(client.accountId(), signedPreKey);
+
+			final public_signed_prekey = OMEMOBundleSignedPreKey.fromSignedPreKeyPair(signedPreKey);
 			this.bundle = {
 				identity_key: Base64.encode(Bytes.ofData(identityKeyPair.pubKey)),
 				device_id: deviceId,
 				prekeys: prekeys,
-				signed_prekey: stored_signed_prekey,
+				signed_prekey: public_signed_prekey,
 			};
 			return true;
 		});
@@ -409,5 +696,396 @@ class OMEMO {
 		});
 
 		return publicStoredPreKeys;
+	}
+
+	public function getDeviceId():Promise<Int> {
+		if(bundleLocalState.getCurrentState() == "ok") {
+			return Promise.resolve(this.bundle.device_id);
+		}
+
+		return new Promise((resolve, reject)->{
+			persistence.getOmemoId(client.accountId(), (deviceId) -> {
+				if(deviceId == null) {
+					// No device ID in storage yet. We need to trigger the
+					// bundle generation
+					bundleLocalState.once("enter/ok", (event) -> {
+						resolve(bundle.device_id);
+						return EventHandled;
+					});
+					bundleLocalState.event("missing");
+				} else {
+					resolve(deviceId);
+				}
+			});
+		});
+	}
+
+	private function decryptPayload(deviceId:Int, deviceKey:OMEMOPayloadKey, fromBare:String, payload:OMEMOPayload):Promise<BytesData> {
+		var cipher:SessionCipher;
+		final promCipher = new Promise<SessionCipher>((resolve, reject) -> {
+			if(deviceKey.prekey) {
+				// Incoming message used a prekey - build a new session between
+				// us and the sender
+				trace("OMEMO: Received an encrypted message using a prekey. Creating session...");
+				final promSession = buildSession(deviceId, fromBare, payload.sid);
+				promSession.then((session) -> {
+					getSessionCipher(deviceId, fromBare, payload.sid).then((cipher) -> {
+						resolve(cipher);
+					});
+				});
+				
+			} else {
+				trace("OMEMO: Received message from existing session");
+				getSessionCipher(deviceId, fromBare, payload.sid).then((cipher) -> {
+					resolve(cipher);
+				});
+			}
+		});
+
+		final promRawKeyWithTag = promCipher.then((cipher) -> {
+			if(deviceKey.prekey) {
+				return cipher.decryptPreKeyWhisperMessage(deviceKey.getRawKey());
+			} else {
+				return cipher.decryptWhisperMessage(deviceKey.getRawKey());
+			}
+		});
+		final promPayload = promRawKeyWithTag.then((rawKeyWithTag) -> {
+			return decryptPayloadWithKey(payload.getRawPayload(), rawKeyWithTag, payload.getRawIv());
+		});
+		return promPayload;
+			/*
+			final promBundle = getContactBundle(fromBare, payload.sid);
+			final promSenderSession = promBundle.then((bundle:OMEMOBundle) -> {
+				trace("OMEMO: Have contact bundle");
+				final sender = new SignalProtocolAddress(fromBare, payload.sid);
+				final contactPreKey = bundle.getRandomPreKey();
+				new SessionBuilder(signalStore, sender).processPreKey({
+					registrationId: payload.sid,
+					identityKey: Base64.decode(bundle.identity_key).getData(),
+					signedPreKey: {
+						keyId: bundle.signed_prekey.id,
+						publicKey: Base64.decode(bundle.signed_prekey.public_key).getData(),
+						signature: Base64.decode(bundle.signed_prekey.signature).getData(),
+					},
+					preKey: {
+						keyId: contactPreKey.keyId,
+						publicKey: Base64.decode(contactPreKey.pubKey).getData(),
+					},
+				});
+				trace("OMEMO: Processed prekey");
+				return sender;
+			});
+			final promPayload = promSenderSession.then((sender:SignalProtocolAddress) -> {
+				final sessionCipher = new SessionCipher(signalStore, sender);
+				final ciphertext = deviceKey.getRawKey();
+				
+				return sessionCipher.decryptPreKeyWhisperMessage(ciphertext).then(function(rawKeyWithTag:BytesData) {
+					return decryptPayloadWithKey(payload.getRawPayload(), rawKeyWithTag, payload.getRawIv());
+				});
+			});
+			return promPayload;
+		} else {
+			// Decrypt using existing session
+			final promCipher = getSessionCipher(deviceId, fromBare, payload.sid);
+			final promRawKeyWithTag = promCipher.then((cipher) -> {
+				return cipher.decryptWhisperMessage(deviceKey.getRawKey());
+			});
+			final promPayload = promRawKeyWithTag.then((rawKeyWithTag) -> {
+				return decryptPayloadWithKey(payload.getRawPayload(), rawKeyWithTag, payload.getRawIv());
+			});
+			return promPayload;
+		} */
+	}
+
+	private function sendKeyExchange(deviceId:Int, jid:String, rid:Int) {
+		trace("OMEMO: Preparing key exchange stanza...");
+		final emptyPayload = Bytes.alloc(32).toString();
+		final promEncryptedMessage = encryptPayloadWithNewKey(emptyPayload);
+
+		final promHeader = new Promise<Stanza>((resolve, reject) -> {
+			promEncryptedMessage.then((encryptionResult) -> {
+				buildOMEMOHeader(encryptionResult, deviceId, jid, [rid]).then(resolve, reject);
+			});
+		});
+
+		final promStanza = promHeader.then((header) -> {
+			final newStanza = new Stanza("message", { type: "chat" });
+			header.removeChildren("payload");
+			newStanza.addChild(header);
+			// FIXME: Probably need to add a store hint here
+			return newStanza;
+		});
+
+		return promStanza.then((stanza) -> {
+			trace("OMEMO: Sending key exchange stanza...");
+			client.sendStanza(stanza);
+			return stanza;
+		});
+	}
+
+	public function decryptMessage(stanza: Stanza):Promise<Stanza> {
+		final header = OMEMOPayload.fromMessageStanza(stanza);
+		return client.omemo.getDeviceId().then((deviceId:Int) -> {
+			final deviceKey = header.findKey(deviceId);
+			if(deviceKey == null) {
+				trace("OMEMO: Message not encrypted for our device (looked for "+deviceId+")");
+				stanza.removeChildren("encrypted", NS.OMEMO);
+				return Promise.resolve(stanza);
+			}
+			// FIXME: Identify correct JID for group chats
+			trace("OMEMO: Decrypting payload...");
+			final from = JID.parse(stanza.attr.get("from")).asBare();
+			final promPayload = decryptPayload(deviceId, deviceKey, from.asString(), header);
+			return promPayload.then((decryptedPayload:BytesData) -> {
+				if(decryptedPayload != null) {
+					stanza.removeChildren("body");
+					// FIXME: Verify valid UTF-8, etc.
+					stanza.textTag("body", Bytes.ofData(decryptedPayload).toString());
+					stanza.tag("decryption-status", {
+							xmlns: "https://snikket.org/protocol/sdk",
+							result: "success",
+							encryption: "eu.siacs.conversations.axolotl",
+					});
+					trace("OMEMO: Payload decrypted OK!");
+				} else {
+					trace("OMEMO: Decrypted payload is null?");
+				}
+				return Promise.resolve(stanza);
+			}, (err:Any) -> {
+				trace("OMEMO: Failed to decrypt message: " + err);
+				stanza.tag("decryption-status", {
+					xmlns: "https://snikket.org/protocol/sdk",
+					result: "failure",
+					encryption: "eu.siacs.conversations.axolotl",
+					reason: "generic",
+					text: err,
+				});
+				buildSession(deviceId, from.asString(), header.sid).then((session) -> {
+					// Broken session? Send key to start new session...
+					sendKeyExchange(deviceId, from.asString(), header.sid);
+				});
+				return Promise.resolve(stanza);
+			});
+		});
+	}
+
+	private function decryptPayloadWithKey(rawPayload:BytesData, rawKeyWithTag:BytesData, rawIv:BytesData):Promise<BytesData> {
+		trace("OMEMO: Decrypting payload with key...");
+		#if js
+		// 16-byte key followed by 16-byte tag
+		final bRawKeyWithTag = Bytes.ofData(rawKeyWithTag);
+		final rawKey = bRawKeyWithTag.sub(0, 16).getData();
+		// Produce new buffer with payload, followed by appended tag
+		final payloadWithTag = Bytes.alloc(rawPayload.byteLength + 16);
+		payloadWithTag.blit(0, Bytes.ofData(rawPayload), 0, rawPayload.byteLength);
+		payloadWithTag.blit(rawPayload.byteLength, bRawKeyWithTag, 16, 16);
+		final subtle = Browser.window.crypto.subtle;
+
+		// We have to wrap subtle's js.lib.Promise in a thenshim Promise *shrug*
+		return new Promise((resolve, reject) -> {
+			subtle.importKey("raw", rawKey, keyAlgorithm, false, keyPurposeDecrypt).then((key) -> {
+				subtle.decrypt({
+					name: "AES-GCM",
+					iv: rawIv,
+				}, key, payloadWithTag.getData()).then(resolve, reject);
+			});
+		});
+		#else
+		throw new haxe.exceptions.NotImplementedException();
+		#end
+	}
+
+	private function encryptPayloadWithNewKey(plaintext:String):Promise<OMEMOEncryptionResult> {
+		#if js
+		final subtle = Browser.window.crypto.subtle;
+		final encryptedPayload = new OMEMOEncryptionResult();
+		return new Promise((resolve, reject) -> {
+			encryptedPayload.iv = Browser.window.crypto.getRandomValues(new js.lib.Uint8Array(12)).buffer;
+
+			subtle.generateKey(keyAlgorithm, true, keyPurposeEncrypt).then((generatedKey) -> {
+				subtle.encrypt({
+					name: "AES-GCM",
+					iv: encryptedPayload.iv,
+				}, generatedKey, Bytes.ofString(plaintext).getData()).then((encryptionResult:BytesData) -> {
+					// Process result of encryption
+					final encryptedBytes = Bytes.ofData(encryptionResult);
+					final ciphertextLength = encryptionResult.byteLength - 16; // Exclude GCM tag
+					encryptedPayload.ciphertext = encryptedBytes.sub(0, ciphertextLength).getData();
+					encryptedPayload.tag = encryptedBytes.sub(ciphertextLength, 16).getData();
+					// Get the raw key data for the payload
+					new Promise((resolveKey, rejectKey) -> {
+						subtle.exportKey("raw", generatedKey).then(resolveKey, rejectKey);
+					}).then((exportedKey:BytesData) -> {
+						encryptedPayload.key = exportedKey;
+						resolve(encryptedPayload);
+					});
+				});
+			});	
+		});
+		#else
+		throw new haxe.exceptions.NotImplementedException();
+		#end
+	}
+
+	private function getContactBundle(jid:String, deviceId:Int):Promise<OMEMOBundle> {
+		final node = "eu.siacs.conversations.axolotl.bundles:"+Std.string(deviceId);
+		final query = new PubsubGet(jid, node);
+		return new Promise<OMEMOBundle>((resolve, reject) -> {
+			query.onFinished(() -> {
+				resolve(bundleFromPubsubItems(query.getResult(), deviceId));
+			});
+			client.sendQuery(query);
+		});
+	}
+
+	private function getContactDevices(jid:JID):Promise<Array<Int>> {
+		return new Promise((resolve, reject) -> {
+			// FIXME: Use local storage
+			final deviceListGet = new PubsubGet(jid.asString(), "eu.siacs.conversations.axolotl.devicelist");
+			deviceListGet.onFinished(() -> {
+				final devices = deviceIdsFromPubsubItems(deviceListGet.getResult());
+				if(devices != null) {
+					resolve(devices??[]);
+				} else {
+					reject("no-devices");
+				}
+			});
+			client.sendQuery(deviceListGet);
+		});
+	}
+
+	public function encryptMessage(recipient:JID, stanza:Stanza):Promise<Stanza> {
+		final promEncryptedMessage = encryptPayloadWithNewKey(stanza.getChildText("body"));
+
+		final promDeviceId = this.getDeviceId();
+
+		final promRecipientDevices = getContactDevices(recipient);
+
+		final promHeader = new Promise<Stanza>((resolve, reject) -> {
+			promDeviceId.then((deviceId) -> {
+				promRecipientDevices.then((recipientDevices) -> {
+					promEncryptedMessage.then((encryptionResult) -> {
+						buildOMEMOHeader(encryptionResult, deviceId, recipient.asString(), recipientDevices).then(resolve, reject);
+					});
+				});
+			});
+		});
+
+		final promStanza = promHeader.then((header) -> {
+			final newStanza = stanza.clone();
+			newStanza.removeChildren("body");
+			newStanza.addChild(header);
+			newStanza.textTag("encryption", "", { xmlns: "urn:xmpp:eme:0", namespace: "eu.siacs.conversations.axolotl" });
+			newStanza.textTag("body", "I sent you an OMEMO encrypted message but your client doesn’t seem to support that. Find more information on https://conversations.im/omemo");
+			return newStanza;
+		});
+
+		return promStanza;
+	}
+
+	private function buildSession(sid:Int, jid:String, rid:Int):Promise<SignalSession> {
+		final address = new SignalProtocolAddress(jid, rid);
+		final promBundle = getContactBundle(jid, rid);
+		trace("OMEMO: Building session (fetching bundle)...");
+		final promSession = promBundle.then((bundle:OMEMOBundle) -> {
+			trace("OMEMO: Fetched bundle");
+			final contactPreKey = bundle.getRandomPreKey();
+			return new SessionBuilder(signalStore, address).processPreKey({
+				registrationId: sid,
+				identityKey: Base64.decode(bundle.identity_key).getData(),
+				signedPreKey: {
+					keyId: bundle.signed_prekey.id,
+					publicKey: Base64.decode(bundle.signed_prekey.public_key).getData(),
+					signature: Base64.decode(bundle.signed_prekey.signature).getData(),
+				},
+				preKey: {
+					keyId: contactPreKey.keyId,
+					publicKey: Base64.decode(contactPreKey.pubKey).getData(),
+				},
+			});
+		}).then((_) -> {
+			trace("OMEMO: Built session!");
+			return signalStore.loadSession(address);
+		}, (err:Any) -> {
+			trace("OMEMO: Failed to build session: "+err);
+			return signalStore.loadSession(address);
+		});
+
+		return promSession;
+	}
+
+	private function getSessionCipher(sid:Int, jid:String, rid:Int):Promise<SessionCipher> {
+		final address = new SignalProtocolAddress(jid, rid);
+		final promSession = signalStore.loadSession(address);
+
+		// Load or start a session
+		final promReadySession = promSession.then((session) -> {
+			if(session == null) {
+				trace("OMEMO: No session for "+address.toString());
+				return buildSession(sid, jid, rid);
+			}
+			return session;
+		});
+
+		final promCipher = promReadySession.then((session) -> {
+			return new SessionCipher(signalStore, address);
+		});
+
+		return promCipher;
+	}
+
+	private function getRecipientSessions(sid:Int, jid:String, deviceList:Array<Int>):Promise<Array<SessionCipher>> {
+		return PromiseTools.all([
+			for (rid in deviceList) {
+				getSessionCipher(sid, jid, rid);
+			}
+		]);
+	}
+
+	private function encryptPayloadKeyForSession(encryptionResult:OMEMOEncryptionResult, sessionCipher:SessionCipher):Promise<SignalCipherText> {
+		final keyWithTag = encryptionResult.getKeyWithTag();
+		return sessionCipher.encrypt(keyWithTag);
+	}
+
+	private function buildOMEMOHeader(encryptionResult:OMEMOEncryptionResult, sid:Int, jid:String, deviceList:Array<Int>):Promise<Stanza> {
+		final promKeys = [
+			for(rid in deviceList) {
+				final promSessionCipher = getSessionCipher(sid, jid, rid);
+				promSessionCipher.then((sessionCipher) -> {
+					return encryptPayloadKeyForSession(encryptionResult, sessionCipher).then((encryptedKey) -> {
+						final payloadKey:OMEMOPayloadKey = {
+							rid: rid,
+							prekey: encryptedKey.type == 3,
+#if js
+							// Haxe cannot natively convert this string to a byte array. It only supports two
+							// encodings - 'UTF8' and 'RawNative'. The former wrongly tries to interpret
+							// the binary data as UTF-8 sequences, and the latter translates each character
+							// to a pair of bytes (since JS uses UTF-16).
+							encodedKey: Browser.window.btoa(encryptedKey.body)
+#else
+							encodedKey: Base64.encode(Bytes.ofString(encryptedKey.body, RawNative))
+#end
+						};
+						return payloadKey;
+					});
+				});
+			}
+		];
+
+		final promHeader = new Promise((resolve, reject) -> {
+			PromiseTools.all(promKeys).then((recipientKeys) -> {
+				final header:OMEMOPayload = {
+					sid: sid,
+					keys: recipientKeys,
+					encodedIv: Base64.encode(Bytes.ofData(encryptionResult.iv)),
+					encodedPayload: Base64.encode(Bytes.ofData(encryptionResult.ciphertext)),
+				};
+				resolve(header);
+			});
+		});
+
+		return promHeader.then((header) -> {
+			return header.toXml();
+		});
 	}
 }
