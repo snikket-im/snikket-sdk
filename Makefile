@@ -62,3 +62,7 @@ cpp/output.dso:
 
 libsnikket.so: cpp/output.dso
 	cp cpp/output.dso libsnikket.so
+
+clean:
+	rm -f npm/browser.js npm/index.js npm/snikket.js npm/snikket-enums.js
+	rm -f npm/index.d.ts npm/snikket.d.ts npm/snikket-enums.d.ts npm/snikket-enums.ts
