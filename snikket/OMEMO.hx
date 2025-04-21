@@ -769,7 +769,7 @@ class OMEMO {
 			final newStanza = new Stanza("message", { type: "chat" });
 			header.removeChildren("payload");
 			newStanza.addChild(header);
-			// FIXME: Probably need to add a store hint here
+			newStanza.tag("store", { xmlns: "urn:xmpp:hints" }).up();
 			return newStanza;
 		});
 
