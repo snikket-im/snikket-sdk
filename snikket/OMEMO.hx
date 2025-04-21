@@ -149,7 +149,7 @@ class OMEMOStore extends SignalProtocolStore {
 	}
 
 	public function loadSignedPreKey(keyId:Int):Promise<PreKeyPair> {
-		trace("OMEMO: FIXME A: Loading signed prekey "+keyId);
+		trace("OMEMO: Loading signed prekey "+keyId);
 		return new Promise((resolve, reject) -> {
 			persistence.getOmemoSignedPreKey(accountId, keyId, (signedPreKey) -> {
 				resolve(signedPreKey.keyPair);
@@ -158,7 +158,7 @@ class OMEMOStore extends SignalProtocolStore {
 	}
 
 	public function storeSignedPreKey(keyId:Int, keyPair:SignedPreKey):Promise<Bool> {
-		trace("OMEMO: FIXME B: Storing signed prekey "+keyId);
+		trace("OMEMO: Storing signed prekey "+keyId);
 		return new Promise((resolve, reject) -> {
 			persistence.storeOmemoSignedPreKey(accountId, keyPair);
 			resolve(true);
@@ -552,7 +552,6 @@ class OMEMO {
 			trace("First item did not contain valid bundle");
 			return null;
 		}
-		// FIXME - extract stuff
 		return OMEMOBundle.fromXml(item, deviceId);
 	}
 
@@ -753,48 +752,6 @@ class OMEMO {
 			return decryptPayloadWithKey(payload.getRawPayload(), rawKeyWithTag, payload.getRawIv());
 		});
 		return promPayload;
-			/*
-			final promBundle = getContactBundle(fromBare, payload.sid);
-			final promSenderSession = promBundle.then((bundle:OMEMOBundle) -> {
-				trace("OMEMO: Have contact bundle");
-				final sender = new SignalProtocolAddress(fromBare, payload.sid);
-				final contactPreKey = bundle.getRandomPreKey();
-				new SessionBuilder(signalStore, sender).processPreKey({
-					registrationId: payload.sid,
-					identityKey: Base64.decode(bundle.identity_key).getData(),
-					signedPreKey: {
-						keyId: bundle.signed_prekey.id,
-						publicKey: Base64.decode(bundle.signed_prekey.public_key).getData(),
-						signature: Base64.decode(bundle.signed_prekey.signature).getData(),
-					},
-					preKey: {
-						keyId: contactPreKey.keyId,
-						publicKey: Base64.decode(contactPreKey.pubKey).getData(),
-					},
-				});
-				trace("OMEMO: Processed prekey");
-				return sender;
-			});
-			final promPayload = promSenderSession.then((sender:SignalProtocolAddress) -> {
-				final sessionCipher = new SessionCipher(signalStore, sender);
-				final ciphertext = deviceKey.getRawKey();
-				
-				return sessionCipher.decryptPreKeyWhisperMessage(ciphertext).then(function(rawKeyWithTag:BytesData) {
-					return decryptPayloadWithKey(payload.getRawPayload(), rawKeyWithTag, payload.getRawIv());
-				});
-			});
-			return promPayload;
-		} else {
-			// Decrypt using existing session
-			final promCipher = getSessionCipher(deviceId, fromBare, payload.sid);
-			final promRawKeyWithTag = promCipher.then((cipher) -> {
-				return cipher.decryptWhisperMessage(deviceKey.getRawKey());
-			});
-			final promPayload = promRawKeyWithTag.then((rawKeyWithTag) -> {
-				return decryptPayloadWithKey(payload.getRawPayload(), rawKeyWithTag, payload.getRawIv());
-			});
-			return promPayload;
-		} */
 	}
 
 	private function sendKeyExchange(deviceId:Int, jid:String, rid:Int) {
