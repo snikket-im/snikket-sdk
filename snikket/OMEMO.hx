@@ -923,9 +923,9 @@ class OMEMO {
 				promRecipientDevices.then((recipientDevices) -> {
 					promEncryptedMessage.then((encryptionResult) -> {
 						buildOMEMOHeader(encryptionResult, deviceId, recipient.asString(), recipientDevices).then(resolve, reject);
-					});
-				});
-			});
+					}, reject);
+				}, reject);
+			}, reject);
 		});
 
 		final promStanza = promHeader.then((header) -> {
@@ -935,6 +935,35 @@ class OMEMO {
 			newStanza.textTag("encryption", "", { xmlns: "urn:xmpp:eme:0", namespace: "eu.siacs.conversations.axolotl" });
 			newStanza.textTag("body", "I sent you an OMEMO encrypted message but your client doesn’t seem to support that. Find more information on https://conversations.im/omemo");
 			return newStanza;
+		}, (failureReason) -> {
+			final noRecipientSupport = failureReason == "no-devices";
+			var allowUnencrypted:Bool = client.encryptionPolicy.allowUnencryptedOutgoing;
+
+			var errMsg:String;
+			if(noRecipientSupport) {
+				errMsg = "Encryption failed because no recipient devices could be found";
+			} else {
+				errMsg = "Encryption failed due to internal error: " + failureReason;
+				// Since this failure is not expected, we'll only allow the stanza
+				// through if the policy does not prefer encrypted communications. If
+				// encrypted communication *is* preferred, we need a good excuse to
+				// send unencrypted (such as no recipient support), but no such excuse
+				// is found here.
+				allowUnencrypted = allowUnencrypted && !client.encryptionPolicy.preferEncryptedOutgoing;
+			}
+
+			if(!allowUnencrypted) {
+				// Policy forbids outgoing unencrypted messages or some unexpected
+				// error occurred (the latter is not a reason to override preferences)
+				// FIXME: We need to report this to the UI somehow
+				throw "Unable to send message: " + errMsg;
+			}
+
+			trace("OMEMO: Skipping encryption (permitted by policy): " + errMsg);
+
+			// Encryption failed, but policy says this is ok.
+			// Just pass through the original stanza to be sent.
+			return stanza;
 		});
 
 		return promStanza;
