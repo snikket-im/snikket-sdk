@@ -52,7 +52,7 @@ interface Persistence {
 	public function removeOmemoPreKey(identifier:String, keyId:Int):Void;
 	public function storeOmemoSignedPreKey(login:String, signedPreKey:SignedPreKey):Void;
 	public function getOmemoSignedPreKey(login:String, keyId:Int, callback: (SignedPreKey)->Void):Void;
-	public function getOmemoPreKeys(login:String, callback: (Array<PreKeyPair>)->Void):Void;
+	public function getOmemoPreKeys(login:String, callback: (Array<PreKey>)->Void):Void;
 	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Void;
 	public function getOmemoContactIdentityKey(account:String, address:String, callback:(IdentityPublicKey)->Void):Void;
 	public function getOmemoSession(account:String, address:String, callback:(SignalSession)->Void):Void;

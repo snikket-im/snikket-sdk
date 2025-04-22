@@ -170,7 +170,7 @@ class Dummy implements Persistence {
 	public function getOmemoSignedPreKey(login:String, keyId:Int, callback: (SignedPreKey)->Void):Void { }
 
 	@HaxeCBridge.noemit
-	public function getOmemoPreKeys(login:String, callback: (Array<PreKeyPair>)->Void):Void { }
+	public function getOmemoPreKeys(login:String, callback: (Array<PreKey>)->Void):Void { }
 
 	@HaxeCBridge.noemit
 	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Void { }

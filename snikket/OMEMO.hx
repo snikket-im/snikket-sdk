@@ -87,6 +87,11 @@ class OMEMOBundle {
 	public function getRandomPreKey():PublicPreKey {
 		return prekeys[Std.random(prekeys.length-1)];
 	}
+
+	// Return a new bundle with an updated set of prekeys
+	public function withNewPreKeys(newPreKeys:Array<PublicPreKey>):OMEMOBundle {
+		return new OMEMOBundle(this.identity_key, this.device_id, newPreKeys, this.signed_prekey);
+	}
 }
 
 class OMEMOStore extends SignalProtocolStore {
@@ -142,6 +147,7 @@ class OMEMOStore extends SignalProtocolStore {
 	}
 
 	public function removePreKey(keyId:Int):Promise<Bool> {
+		trace("OMEMO: Removing prekey "+keyId);
 		persistence.removeOmemoPreKey(accountId, keyId);
 		// FIXME: Need to signal that we need to generate a replacement
 		// for the consumed prekey and republish our bundle
@@ -444,8 +450,8 @@ class OMEMO {
 			newBundle.prekeys = [
 				for(i in 0...prekeys.length) {
 					{
-						keyId: i+1,
-						pubKey: Base64.encode(Bytes.ofData(prekeys[i].pubKey)),
+						keyId: prekeys[i].keyId,
+						pubKey: Base64.encode(Bytes.ofData(prekeys[i].keyPair.pubKey)),
 					};
 				}
 			];
@@ -630,6 +636,8 @@ class OMEMO {
 	// Stuff that touches libsignal
 
 	// Build and store an OMEMO identity bundle
+	// This should only be called once, when setting up a
+	// new client!
 	private function buildBundle():Promise<Bool> {
 		final deviceId = KeyHelper.generateRegistrationId(); // FIXME: Check for collision
 		var identityKeyPair:IdentityKeyPair;
@@ -667,34 +675,75 @@ class OMEMO {
 		});
 	}
 
-	private function generatePreKeys(_:Bool):Promise<Array<PublicPreKey>> {
-		final amount = NUM_PREKEYS;
-		final keys = [];
+	private function storePreKeys(prekeys:Array<PreKey>):Promise<Array<PublicPreKey>> {
+		for(prekey in prekeys) {
+			// Store the full keypair
+			persistence.storeOmemoPreKey(client.accountId(), prekey.keyId, prekey.keyPair);
+		}
+		return Promise.resolve([
+			for(prekey in prekeys) {
+				// Emit the base64 public part for the application to publish
+				{
+					keyId: prekey.keyId,
+					pubKey: Base64.encode(Bytes.ofData(prekey.keyPair.pubKey))
+				};
+			}
+		]);
+	}
 
+	// Generate new prekeys
+	private function generatePreKeys(_:Bool):Promise<Array<PublicPreKey>> {
 		final generatedPreKeys:Promise<Array<PreKey>> = PromiseTools.all([
-			for(i in 1...(amount+1)) {
+			for(i in 1...(NUM_PREKEYS+1)) {
 				trace("Generating prekey "+Std.string(i));
 				KeyHelper.generatePreKey(i);
 			}
 		]);
 
-		final publicStoredPreKeys:Promise<Array<PublicPreKey>> = cast generatedPreKeys.then(cast function (prekeys:Array<PreKey>):Array<PublicPreKey> {
-			for(prekey in prekeys) {
-				// Store the full keypair
-				persistence.storeOmemoPreKey(client.accountId(), prekey.keyId, prekey.keyPair);
-			}
-			return [
-				for(prekey in prekeys) {
-					// Emit the base64 public part for the application to publish
-					{
-						keyId: prekey.keyId,
-						pubKey: Base64.encode(Bytes.ofData(prekey.keyPair.pubKey))
-					};
-				}
-			];
-		});
+		return generatedPreKeys.then(storePreKeys);
+	}
 
-		return publicStoredPreKeys;
+	// Generate only prekeys which are "missing" (i.e. consumed)
+	// Returns an array of all prekeys, which can be used to update the
+	// published bundle.
+	private function generateMissingPreKeys():Promise<Array<PublicPreKey>> {
+		return new Promise((resolve, reject) -> {
+			persistence.getOmemoPreKeys(client.accountId(), function (prekeys:Array<PreKey>) {
+				// Generate an array of all keyIds we currently have in storage
+				final currentKeyIds:Array<Int> = prekeys.map(function (prekey) {
+					return prekey.keyId;
+				});
+
+				currentKeyIds.sort(function (a:Int, b:Int):Int {
+					if(a == b) {
+						return 0;
+					}
+					return a < b ? -1 : 1;
+				});
+
+				final generatedKeys:Array<Promise<PreKey>> = [];
+				var idx = 0;
+				for(keyId in 1...(NUM_PREKEYS+1)) {
+					if(currentKeyIds[idx] == keyId) {
+						// Key already present
+						idx++;
+					} else {
+						trace("Generating replacement prekey "+Std.string(keyId));
+						generatedKeys.push(KeyHelper.generatePreKey(keyId));
+					}
+				}
+
+				PromiseTools.all(generatedKeys).then(storePreKeys).then((storedPreKeys) -> {
+					resolve(prekeys.map(preKeyToPublicPreKey).concat(storedPreKeys));
+				});
+			});
+		});
+	}
+
+	private function publishNewPreKeys(newPreKeys:Array<PublicPreKey>):Bool {
+		this.bundle = this.bundle.withNewPreKeys(newPreKeys);
+		publishBundle();
+		return true;
 	}
 
 	public function getDeviceId():Promise<Int> {
@@ -748,6 +797,17 @@ class OMEMO {
 				return cipher.decryptWhisperMessage(deviceKey.getRawKey());
 			}
 		});
+
+		if(deviceKey.prekey) {
+			promRawKeyWithTag.then((cipher) -> {
+				// Now it has been used, we need to replace the prekey that
+				// was used for this incoming message. libsignal has already
+				// removed it from the store, so we just need to regenerate
+				// any missing keys
+				generateMissingPreKeys().then(publishNewPreKeys);
+			});
+		}
+
 		final promPayload = promRawKeyWithTag.then((rawKeyWithTag) -> {
 			return decryptPayloadWithKey(payload.getRawPayload(), rawKeyWithTag, payload.getRawIv());
 		});
@@ -1073,5 +1133,12 @@ class OMEMO {
 		return promHeader.then((header) -> {
 			return header.toXml();
 		});
+	}
+
+	static private function preKeyToPublicPreKey(prekey:PreKey):PublicPreKey {
+		return {
+			keyId: prekey.keyId,
+			pubKey: Base64.encode(Bytes.ofData(prekey.keyPair.pubKey)),
+		};
 	}
 }

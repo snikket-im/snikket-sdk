@@ -709,9 +709,14 @@ export default (dbname, media, tokenize, stemmer) => {
 			req.onsuccess = (event) => {
 				const cursor = event.target.result;
 				if(cursor) {
+					const splitDbKey = cursor.key.split(":");
+					const keyId = parseInt(splitDbKey[splitDbKey.length - 1], 10);
 					prekeys.push({
-						"privKey": base64ToArrayBuffer(cursor.value.privKey),
-						"pubKey": base64ToArrayBuffer(cursor.value.pubKey),
+						keyId: keyId,
+						keyPair: {
+							"privKey": base64ToArrayBuffer(cursor.value.privKey),
+							"pubKey": base64ToArrayBuffer(cursor.value.pubKey),
+						},
 					});
 					cursor.continue();
 				} else {
