@@ -15,6 +15,5 @@ compile with the NO_OMEMO flag.
 - Persistence: only IndexedDB backend is currently implemented
 - Encryption status reported by the API can be forged by sender
 - Consumed prekeys are not removed and replaced
-- Messages to recipients with no published keys fail to send
 - Outgoing messages are not encrypted to the sending account's other devices
 - No support for group chats
