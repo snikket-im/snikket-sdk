@@ -11,6 +11,7 @@ import snikket.ChatMessage;
 import snikket.Message;
 import snikket.EventEmitter;
 import snikket.EventHandler;
+import snikket.EncryptionPolicy;
 #if !NO_OMEMO
 import snikket.OMEMO;
 #end
@@ -95,6 +96,12 @@ class Client extends EventEmitter {
 	private var token: Null<String> = null;
 	private var fastCount: Null<Int> = null;
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
+	@:allow(snikket)
+	private final encryptionPolicy:EncryptionPolicy = {
+		allowUnencryptedOutgoing: true,
+		allowUnencryptedIncoming: true,
+		preferEncryptedOutgoing: true,
+	};
 
 #if !NO_OMEMO
 	@:allow(snikket)
