@@ -1,11 +1,26 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 
-.PHONY: all test cpp/output.dso npm/snikket-browser.js npm/snikket.js
+.PHONY: all test hx-build-dep cpp/output.dso npm/snikket-browser.js npm/snikket.js
 
 all: npm libsnikket.so
 
 test:
 	haxe test.hxml
+
+hx-build-dep:
+	haxelib --quiet git jsImport https://github.com/back2dos/jsImport
+	haxelib --quiet install datetime
+	haxelib --quiet install haxe-strings
+	haxelib --quiet install hsluv
+	haxelib --quiet install tink_http
+	haxelib --quiet install sha
+	haxelib --quiet install thenshim
+	haxelib --quiet install HtmlParser
+	haxelib --quiet install hxnodejs
+	haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
+	haxelib --quiet install utest
+	haxelib --quiet git hxcpp https://github.com/HaxeFoundation/hxcpp
+
 
 npm/snikket-browser.js:
 	haxe browserjs.hxml
