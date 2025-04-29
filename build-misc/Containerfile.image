@@ -1,0 +1,64 @@
+FROM docker.io/debian:testing-slim AS build
+
+WORKDIR /usr/src/snikket-sdk
+
+ARG HAXE_VERSION=4.3.4
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates \
+        gpgv \
+        wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/*
+
+RUN wget https://www.deb-multimedia.org/pool/main/d/deb-multimedia-keyring/deb-multimedia-keyring_2024.9.1_all.deb \
+ && (sha256sum deb-multimedia-keyring_2024.9.1_all.deb | grep -q '^8dc6cbb266c701cfe58bd1d2eb9fe2245a1d6341c7110cfbfe3a5a975dcf97ca ') \
+ && dpkg -i deb-multimedia-keyring_2024.9.1_all.deb
+
+COPY build-misc/dmo.sources /etc/apt/sources.list.d/dmo.sources
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        build-essential \
+        git \
+        npm \
+        libdatachannel-dev \
+        libopus-dev \
+        libstrophe-dev \
+        neko \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/*
+
+ADD https://github.com/HaxeFoundation/haxe/releases/download/${HAXE_VERSION}/haxe-${HAXE_VERSION}-linux64.tar.gz /tmp/haxe.tar.gz
+
+RUN mkdir /opt/haxe \
+ && tar xzf /tmp/haxe.tar.gz --strip-components=1 -C /opt/haxe \
+ && mv /opt/haxe/haxe /opt/haxe/haxelib /usr/local/bin
+
+RUN npm install typescript
+
+RUN haxelib setup /opt/haxe
+
+ENV HAXE_STD_PATH=/opt/haxe/std
+
+COPY *.hxml /usr/src/snikket-sdk
+
+COPY . /usr/src/snikket-sdk
+
+RUN make hx-build-dep
+
+RUN cd /opt/haxe/hxcpp/git/tools/hxcpp && haxe compile.hxml
+
+RUN make
+
+RUN haxe test.hxml
+
+FROM docker.io/debian:bookworm-slim
+
+WORKDIR /opt/snikket-sdk
+
+COPY --from=build /usr/src/snikket-sdk/cpp ./cpp
+COPY --from=build /usr/src/snikket-sdk/npm ./npm
+
+CMD ["cp", "-R", "/opt/snikket-sdk", "/output"]
