@@ -36,7 +36,13 @@ RUN mkdir /opt/haxe \
  && tar xzf /tmp/haxe.tar.gz --strip-components=1 -C /opt/haxe \
  && mv /opt/haxe/haxe /opt/haxe/haxelib /usr/local/bin
 
-RUN npm install typescript
+# Hack to disable TLS 1.3: OpenSSL 3.5.0 (currently in Debian testing) emits
+# signficiantly larger ClientHello packets due to post-quantum key algorithms.
+# The large packets get fragmented and this causes handshakes to fail in some
+# networks, including on our CI workers. Warrants further investigation.
+RUN printf '#!/bin/bash\nexec /usr/bin/node --tls-max-v1.2 "$@"' > /usr/local/bin/node \
+ && chmod a+x /usr/local/bin/node \
+ && npm install typescript
 
 RUN haxelib setup /opt/haxe
 
