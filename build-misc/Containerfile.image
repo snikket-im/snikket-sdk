@@ -48,9 +48,9 @@ RUN haxelib setup /opt/haxe
 
 ENV HAXE_STD_PATH=/opt/haxe/std
 
-COPY *.hxml /usr/src/snikket-sdk
+COPY Makefile *.hxml /usr/src/snikket-sdk/
 
-COPY . /usr/src/snikket-sdk
+COPY . /usr/src/snikket-sdk/
 
 RUN make hx-build-dep
 
