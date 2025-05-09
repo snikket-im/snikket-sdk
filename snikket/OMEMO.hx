@@ -956,14 +956,22 @@ class OMEMO {
 	}
 
 	private function getContactDevices(jid:JID):Promise<Array<Int>> {
+		final jidBareStr = jid.asBare().asString();
 		return new Promise((resolve, reject) -> {
 			// FIXME: Use local storage
-			final deviceListGet = new PubsubGet(jid.asString(), "eu.siacs.conversations.axolotl.devicelist");
+			var chat = client.getDirectChat(jidBareStr, false);
+			if(chat.omemoContactDeviceIDs != null) {
+				resolve(chat.omemoContactDeviceIDs);
+				return;
+			}
+			final deviceListGet = new PubsubGet(jidBareStr, "eu.siacs.conversations.axolotl.devicelist");
 			deviceListGet.onFinished(() -> {
 				final devices = deviceIdsFromPubsubItems(deviceListGet.getResult());
 				if(devices != null) {
-					resolve(devices??[]);
+					chat.omemoContactDeviceIDs = devices;
+					resolve(devices);
 				} else {
+					chat.omemoContactDeviceIDs = [];
 					reject("no-devices");
 				}
 			});
