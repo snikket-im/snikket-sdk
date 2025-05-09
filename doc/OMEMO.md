@@ -15,7 +15,7 @@ compile with the NO_OMEMO flag.
 - [x] Allow non-OMEMO messages to recipients with no published keys when policy allows
 - [x] Encrypt outgoing messages to the sending account's other devices
 - [x] Persistence: IndexedDB (for web)
-- [ ] Use cache for remote contact devices
+- [x] Use cache for remote contact devices
 - [ ] Persistence: SQLite backend (for native)
 - [ ] API to control encryption of outgoing messages
 - [ ] API to determine cryptographic identity of message sender
