@@ -1093,30 +1093,49 @@ class OMEMO {
 		return sessionCipher.encrypt(keyWithTag);
 	}
 
+	// Convert a key from a string of raw bytes to base64
+	private static function b64EncodeKey(keyStr:String) {
+		#if js
+			// Haxe cannot natively convert this string to a byte array. It only supports two
+			// encodings - 'UTF8' and 'RawNative'. The former wrongly tries to interpret
+			// the binary data as UTF-8 sequences, and the latter translates each character
+			// to a pair of bytes (since JS uses UTF-16).
+			return Browser.window.btoa(keyStr);
+		#else
+			return Base64.encode(Bytes.ofString(keyStr, RawNative));
+		#end
+	}
+
+	private function encryptForDevice(sid:Int, jid:String, rid:Int, encryptionResult:OMEMOEncryptionResult):Promise<OMEMOPayloadKey> {
+		final promSessionCipher = getSessionCipher(sid, jid, rid);
+		return promSessionCipher.then((sessionCipher) -> {
+			return encryptPayloadKeyForSession(encryptionResult, sessionCipher).then((encryptedKey) -> {
+				final payloadKey:OMEMOPayloadKey = {
+					rid: rid,
+					prekey: encryptedKey.type == 3,
+					encodedKey: b64EncodeKey(encryptedKey.body),
+				};
+				return payloadKey;
+			});
+		});
+	}
+
 	private function buildOMEMOHeader(encryptionResult:OMEMOEncryptionResult, sid:Int, jid:String, deviceList:Array<Int>):Promise<Stanza> {
 		final promKeys = [
 			for(rid in deviceList) {
-				final promSessionCipher = getSessionCipher(sid, jid, rid);
-				promSessionCipher.then((sessionCipher) -> {
-					return encryptPayloadKeyForSession(encryptionResult, sessionCipher).then((encryptedKey) -> {
-						final payloadKey:OMEMOPayloadKey = {
-							rid: rid,
-							prekey: encryptedKey.type == 3,
-#if js
-							// Haxe cannot natively convert this string to a byte array. It only supports two
-							// encodings - 'UTF8' and 'RawNative'. The former wrongly tries to interpret
-							// the binary data as UTF-8 sequences, and the latter translates each character
-							// to a pair of bytes (since JS uses UTF-16).
-							encodedKey: Browser.window.btoa(encryptedKey.body)
-#else
-							encodedKey: Base64.encode(Bytes.ofString(encryptedKey.body, RawNative))
-#end
-						};
-						return payloadKey;
-					});
-				});
+				encryptForDevice(sid, jid, rid, encryptionResult);
 			}
 		];
+
+		// We've included keys for our contact's devices, now we need
+		// to include any of our own devices, so they can read the outgoing
+		// message also.
+		for(rid in this.deviceList) {
+			// Don't encrypt to our own device (we already have the original message locally)
+			if(sid != rid) {
+				promKeys.push(encryptForDevice(sid, this.client.accountId(), rid, encryptionResult));
+			}
+		}
 
 		final promHeader = new Promise((resolve, reject) -> {
 			PromiseTools.all(promKeys).then((recipientKeys) -> {
