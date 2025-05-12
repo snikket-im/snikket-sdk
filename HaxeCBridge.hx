@@ -199,7 +199,7 @@ class HaxeCBridge {
 					var passArgs = [];
 					var outPtr = false;
 					for (arg in fun.args) {
-						switch arg.type {
+						switch Context.toComplexType(TypeTools.followWithAbstracts(Context.resolveType(arg.type, Context.currentPos()), false)) {
 						case TFunction(taargs, aret):
 							wrap = true;
 							final aargs = taargs.map(convertSecondaryType);
@@ -221,7 +221,15 @@ class HaxeCBridge {
 							passArgs.push({expr: EFunction(null, { args: lambdafargs, expr: macro return $i{arg.name}($a{lambdaargs}) }), pos: field.pos});
 						case TPath(path) if (path.name == "Array"):
 							wrap = true;
-							passArgs.push(macro $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).copy());
+							final isString = switch path.params[0] {
+							case TPType(TPath(_.name => "String")): true;
+							default: false;
+							}
+							if (isString) {
+								passArgs.push(macro $i{arg.name} == null ? null : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).map(cpp.NativeString.fromPointer).copy());
+							} else {
+								passArgs.push(macro $i{arg.name} == null ? null : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).copy());
+							}
 							args.push({ name: arg.name, type: TPath({name: "ConstPointer", pack: ["cpp"], params: path.params.map(tp -> convertSecondaryTP(tp))}) });
 							args.push({ name: arg.name + "__len", type: TPath({name: "SizeT", pack: ["cpp"]}) });
 						default:
