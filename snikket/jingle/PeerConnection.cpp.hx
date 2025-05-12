@@ -346,7 +346,7 @@ class MediaStreamTrack {
 	private var rtpPacketizationConfig: SharedPtr<RtpPacketizationConfig>;
 	private final eventLoop: sys.thread.EventLoop;
 	private var timer: haxe.Timer;
-	private var audioQ: Array<{stamp: Float, channels: Int, payloadType: cpp.UInt8, clockRate: Int, payload: Array<cpp.UInt8>}> = [];
+	private var audioQ: Array<{stamp: Float, channels: Int, payloadType: cpp.UInt8, clockRate: Int, payload: Array<cpp.UInt8>, samples: Int}> = [];
 	private var alive = true;
 	private var waitForQ = false;
 	private var bufferSizeInSeconds = 0.0;
@@ -385,7 +385,7 @@ class MediaStreamTrack {
 			if (audioQ.length > 0 && audioQ[audioQ.length - 1].stamp <= haxe.Timer.stamp()) {
 				final packet = audioQ.pop();
 				write(packet.payload, packet.payloadType, packet.clockRate);
-				advanceTimestamp(Std.int(packet.payload.length / packet.channels));
+				advanceTimestamp(packet.samples);
 			}
 			if (waitForQ && audioQ.length < (50+50*bufferSizeInSeconds)) {
 				waitForQ = false;
@@ -552,16 +552,17 @@ class MediaStreamTrack {
 		final format = Lambda.find(supportedAudioFormats, format -> format.clockRate == clockRate && format.channels == channels);
 		if (format == null) throw "Unsupported audo format: " + clockRate + "/" + channels;
 		eventLoop.run(() -> {
+			final samples = Std.int(pcm.length / channels);
 			mutex.acquire();
 			final stamp = if (audioQ.length < 1) {
 				bufferSizeInSeconds = Math.max(bufferSizeInSeconds, bufferSizeInSeconds + 0.1);
 				haxe.Timer.stamp() + bufferSizeInSeconds;
 			} else {
-				audioQ[0].stamp + (pcm.length / (clockRate / 1000)) / 1000.0;
+				audioQ[0].stamp + (samples / (clockRate / 1000)) / 1000.0;
 			}
 			mutex.release();
 			if (format.format == "PCMU") {
-				final packet = { channels: channels, payloadType: format.payloadType, clockRate: clockRate, payload: pcm.map(pcmToUlaw), stamp: stamp };
+				final packet = { channels: channels, payloadType: format.payloadType, clockRate: clockRate, payload: pcm.map(pcmToUlaw), stamp: stamp, samples: samples };
 				mutex.acquire();
 				audioQ.unshift(packet);
 				mutex.release();
@@ -573,12 +574,18 @@ class MediaStreamTrack {
 					untyped __cpp__("opus_encoder_ctl({0}, OPUS_SET_INBAND_FEC(1))", opusEncoder);
 				}
 				final rawOpus = new haxe.ds.Vector(pcm.length * 2).toData(); // Shoudn't be bigger than the input
-				final encoded = OpusEncoder.encode(opusEncoder, cpp.Pointer.ofArray(pcm), Std.int(pcm.length / channels), cpp.Pointer.ofArray(rawOpus), rawOpus.length);
-				rawOpus.resize(encoded);
-				final packet = { channels: channels, payloadType: format.payloadType, clockRate: clockRate, payload: rawOpus, stamp: stamp };
-				mutex.acquire();
-				audioQ.unshift(packet);
-				mutex.release();
+				// TODO: samples MUST be 120, 240, 480, or 960. Buffer and fix as needed
+				final encoded = OpusEncoder.encode(opusEncoder, cpp.Pointer.ofArray(pcm), samples, cpp.Pointer.ofArray(rawOpus), rawOpus.length);
+				if (encoded < 0) {
+					trace("Opus encode failed", encoded);
+				} else {
+					rawOpus.resize(encoded);
+trace("opus write", encoded, rawOpus);
+					final packet = { channels: channels, payloadType: format.payloadType, clockRate: clockRate, payload: rawOpus, stamp: stamp, samples: samples };
+					mutex.acquire();
+					audioQ.unshift(packet);
+					mutex.release();
+				}
 			} else {
 				trace("Ignoring audio meant to go out as", format.format, format.clockRate, format.channels);
 			}
