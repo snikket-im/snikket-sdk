@@ -774,7 +774,7 @@ class Client extends EventEmitter {
 			if (slot == null) {
 				prepareAttachmentFor(source, services.slice(1), hashes, callback);
 			} else {
-				tink.http.Client.fetch(slot.put, { method: PUT, headers: slot.putHeaders.concat([new tink.http.Header.HeaderField("Content-Length", source.size)]), body: tink.io.Source.RealSourceTools.idealize(source.tinkSource(), (e) -> throw e) }).all()
+				tink.http.Client.fetch(slot.put, { method: PUT, headers: slot.putHeaders.concat([new tink.http.Header.HeaderField("Content-Length", source.size)]), body: tink.io.Source.RealSourceTools.idealize(source.tinkSource(), (e) -> { trace("WUT", e); throw e; }) }).all()
 					.handle((o) -> switch o {
 						case Success(res) if (res.header.statusCode == 201):
 							callback(new ChatAttachment(source.name, source.type, source.size, [slot.get], hashes));
