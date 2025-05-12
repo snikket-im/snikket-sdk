@@ -328,7 +328,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>, callback: (Null<ChatMessage>)->Void) {
-		var q = "SELECT stanza, direction, type, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND chat_id=?";
+		var q = "SELECT stanza, direction, type, status, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND chat_id=?";
 		final params = [accountId, chatId];
 		if (serverId != null) {
 			q += " AND mam_id=?";
@@ -359,6 +359,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			json_group_object(CASE WHEN versions.mam_id IS NULL OR versions.mam_id='' THEN versions.stanza_id ELSE versions.mam_id END, versions.stanza) AS versions,
 			messages.direction,
 			messages.type,
+			messages.status,
 			strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp,
 			messages.sender_id,
 			messages.mam_id,
@@ -455,7 +456,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		params.push(MessageSent);
 
 		final q = new StringBuf();
-		q.add("SELECT chat_id AS chatId, stanza, direction, type, sender_id, mam_id, mam_by, sync_point, CASE WHEN subq.created_at IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
+		q.add("SELECT chat_id AS chatId, stanza, direction, type, status, sender_id, mam_id, mam_by, sync_point, CASE WHEN subq.created_at IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
 		q.add(subq.toString());
 		q.add(") subq USING (chat_id) WHERE account_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND chat_id IN (");
 		params.push(accountId);
@@ -502,7 +503,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			[status, accountId, localId, MessageSent, MessageDeliveredToDevice]
 		).then(_ ->
 			db.exec(
-				"SELECT stanza, direction, type, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND stanza_id=? AND direction=?",
+				"SELECT stanza, direction, type, status, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND stanza_id=? AND direction=?",
 				[accountId, localId, MessageSent]
 			)
 		).then(result -> hydrateMessages(accountId, result)).then(messages -> {
@@ -753,7 +754,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		} else {
 			final params = [accountId];
 			final q = new StringBuf();
-			q.add("SELECT chat_id, stanza_id, stanza, direction, type, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND (");
+			q.add("SELECT chat_id, stanza_id, stanza, direction, type, status, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND (");
 			q.add(replyTos.map(parent ->
 				if (parent.serverId != null) {
 					params.push(parent.chatId);
@@ -781,13 +782,14 @@ class Sqlite implements Persistence implements KeyValueStore {
 		});
 	}
 
-	private function hydrateMessages(accountId: String, rows: Iterator<{ stanza: String, timestamp: String, direction: MessageDirection, type: MessageType, mam_id: String, mam_by: String, sync_point: Int, sender_id: String, ?stanza_id: String, ?versions: String, ?version_times: String }>): Array<ChatMessage> {
+	private function hydrateMessages(accountId: String, rows: Iterator<{ stanza: String, timestamp: String, direction: MessageDirection, type: MessageType, status: MessageStatus, mam_id: String, mam_by: String, sync_point: Int, sender_id: String, ?stanza_id: String, ?versions: String, ?version_times: String }>): Array<ChatMessage> {
 		// TODO: Calls can "edit" from multiple senders, but the original direction and sender holds
 		final accountJid = JID.parse(accountId);
 		return { iterator: () -> rows }.map(row -> ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid, (builder, _) -> {
 			builder.syncPoint = row.sync_point != 0;
 			builder.timestamp = row.timestamp;
 			builder.type = row.type;
+			builder.status = row.status;
 			builder.senderId = row.sender_id;
 			builder.serverId = row.mam_id == "" ? null : row.mam_id;
 			builder.serverIdBy = row.mam_by == "" ? null : row.mam_by;
