@@ -83,6 +83,7 @@ class Client extends EventEmitter {
 	private var _displayName: String;
 	private var fastMechanism: Null<String> = null;
 	private var token: Null<String> = null;
+	private var fastCount: Null<Int> = null;
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
 	@:allow(snikket)
 	private var inSync(default, null) = false;
@@ -550,49 +551,59 @@ class Client extends EventEmitter {
 		Start this client running and trying to connect to the server
 	**/
 	public function start() {
-		persistence.getLogin(accountId(), (clientId, loadedToken, fastCount, displayName) -> {
-			token = loadedToken;
+		startOffline(() -> {
 			persistence.getStreamManagement(accountId(), (sm) -> {
-				stream.clientId = clientId ?? ID.long();
-				jid = jid.withResource(stream.clientId);
-				if (!updateDisplayName(displayName) && clientId == null) {
-					persistence.storeLogin(jid.asBare().asString(), stream.clientId, this.displayName(), null);
+				stream.on("auth/password-needed", (data) -> {
+					fastMechanism = data.mechanisms?.find((mech) -> mech.canFast)?.name;
+					if (token == null || (fastMechanism == null && data.mechanimsms != null)) {
+						this.trigger("auth/password-needed", { accountId: accountId() });
+					} else {
+						this.stream.trigger("auth/password", { password: token, mechanism: fastMechanism, fastCount: fastCount });
+					}
+				});
+				stream.on("auth/fail", (data) -> {
+					if (token != null) {
+						token = null;
+						stream.connect(jid.asString(), sm);
+					} else {
+						stream.connect(jid.asString(), sm);
+					}
+					return EventHandled;
+				});
+				stream.connect(jid.asString(), sm);
+			});
+		});
+	}
+
+	/**
+		Gets the client ready to use but does not connect to the server
+	**/
+	public function startOffline(ready: ()->Void) {
+		persistence.getLogin(accountId(), (clientId, loadedToken, loadedFastCount, displayName) -> {
+			token = loadedToken;
+			fastCount = loadedFastCount;
+			stream.clientId = clientId ?? ID.long();
+			jid = jid.withResource(stream.clientId);
+			if (!updateDisplayName(displayName) && clientId == null) {
+				persistence.storeLogin(jid.asBare().asString(), stream.clientId, this.displayName(), null);
+			}
+
+			persistence.getChats(accountId(), (protoChats) -> {
+				for (protoChat in protoChats) {
+					chats.push(protoChat.toChat(this, stream, persistence));
 				}
 
-				persistence.getChats(accountId(), (protoChats) -> {
-					for (protoChat in protoChats) {
-						chats.push(protoChat.toChat(this, stream, persistence));
-					}
-					persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
-						for (detail in details) {
-							var chat = getChat(detail.chatId);
-							if (chat != null) {
-								chat.setLastMessage(detail.message);
-								chat.setUnreadCount(detail.unreadCount);
-							}
+				persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
+					for (detail in details) {
+						var chat = getChat(detail.chatId);
+						if (chat != null) {
+							chat.setLastMessage(detail.message);
+							chat.setUnreadCount(detail.unreadCount);
 						}
-						sortChats();
-						this.trigger("chats/update", chats);
-
-						stream.on("auth/password-needed", (data) -> {
-							fastMechanism = data.mechanisms?.find((mech) -> mech.canFast)?.name;
-							if (token == null || (fastMechanism == null && data.mechanimsms != null)) {
-								this.trigger("auth/password-needed", { accountId: accountId() });
-							} else {
-								this.stream.trigger("auth/password", { password: token, mechanism: fastMechanism, fastCount: fastCount });
-							}
-						});
-						stream.on("auth/fail", (data) -> {
-							if (token != null) {
-								token = null;
-								stream.connect(jid.asString(), sm);
-							} else {
-								stream.connect(jid.asString(), sm);
-							}
-							return EventHandled;
-						});
-						stream.connect(jid.asString(), sm);
-					});
+					}
+					sortChats();
+					this.trigger("chats/update", chats);
+					ready();
 				});
 			});
 		});
