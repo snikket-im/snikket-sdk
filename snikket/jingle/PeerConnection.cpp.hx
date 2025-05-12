@@ -810,6 +810,7 @@ class PeerConnection {
 		pc.ref.onGatheringStateChange(cast untyped __cpp__("[this](auto s) { this->onGatheringStateChange(s); }"));
 	}
 
+	@:keep
 	private function onLocalDescription() {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		mainLoop.run(() -> {
@@ -820,6 +821,7 @@ class PeerConnection {
 		untyped __cpp__("hx::SetTopOfStack((int*)0, true);"); // unregister with GC
 	}
 
+	@:keep
 	private function onLocalCandidate(candidate: Candidate) {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		mainLoop.run(() -> {
@@ -834,6 +836,7 @@ class PeerConnection {
 		untyped __cpp__("hx::SetTopOfStack((int*)0, true);"); // unregister with GC
 	}
 
+	@:keep
 	private function onStateChange(state: cpp.Struct<PCState>) {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		mainLoop.run(() -> {
@@ -844,6 +847,7 @@ class PeerConnection {
 		untyped __cpp__("hx::SetTopOfStack((int*)0, true);"); // unregister with GC
 	}
 
+	@:keep
 	private function onGatheringStateChange(state: cpp.Struct<GatheringState>) {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		final c: cpp.Struct<GatheringState> = Complete;
@@ -857,6 +861,7 @@ class PeerConnection {
 		untyped __cpp__("hx::SetTopOfStack((int*)0, true);"); // unregister with GC
 	}
 
+	@:keep
 	private function onTrack(track: SharedPtr<Track>) {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		mainLoop.run(() -> {

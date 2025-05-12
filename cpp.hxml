@@ -1,3 +1,5 @@
+--dce full
+
 --library datetime
 --library haxe-strings
 --library hsluv
