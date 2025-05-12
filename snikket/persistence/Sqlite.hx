@@ -689,7 +689,10 @@ class Sqlite implements Persistence implements KeyValueStore {
 	private function hydrateReactions(accountId: String, messages: Array<ChatMessage>) {
 		return fetchReactions(accountId, messages.map(m -> ({ chatId: m.chatId(), serverId: m.serverId, serverIdBy: m.serverIdBy, localId: m.localId }))).then(result -> {
 			for (id => reactions in result) {
-				final m = messages.find(m -> ((m.serverId == null ? m.localId : m.serverId + "\n" + m.serverIdBy) + "\n" + m.chatId()) == id);
+				final m = messages.find(m ->
+					((m.serverId == null ? m.localId : m.serverId + "\n" + m.serverIdBy) + "\n" + m.chatId()) == id ||
+					((m.localId == null ? m.serverId + "\n" + m.serverIdBy : m.localId) + "\n" + m.chatId()) == id
+				);
 				if (m != null) m.set_reactions(reactions);
 			}
 			return messages;
@@ -705,7 +708,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 				q.add(" OR (mam_id=? AND mam_by=?)");
 				params.push(item.serverId);
 				params.push(item.serverIdBy);
-			} else {
+			}
+			if (item.localId != null) {
 				q.add(" OR stanza_id=?");
 				params.push(item.localId);
 			}
