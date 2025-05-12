@@ -489,7 +489,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			[
 				accountId, update.updateId, update.serverId, update.serverIdBy,
 				update.localId, update.chatId, update.senderId, update.timestamp,
-				Json.stringify(update.reactions), update.kind
+				JsonPrinter.print(update.reactions), update.kind
 			]
 		).then(_ ->
 			this.getMessage(accountId, update.chatId, update.serverId, update.localId, callback)
