@@ -350,9 +350,7 @@ abstract class Chat {
 			notificationSettings = null;
 		}
 		persistence.storeChats(client.accountId(), [this]);
-		#if js
 		client.updatePushIfEnabled();
-		#end
 	}
 
 	/**

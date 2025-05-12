@@ -940,7 +940,6 @@ class Client extends EventEmitter {
 	}
 
 	#if js
-	private var enabledPushData: Null<{ push_service: String, vapid_private_key: js.html.CryptoKey, endpoint: String, p256dh: BytesData, auth: BytesData, grace: Int }> = null;
 	public function subscribePush(reg: js.html.ServiceWorkerRegistration, push_service: String, vapid_key: { publicKey: js.html.CryptoKey, privateKey: js.html.CryptoKey }, ?grace: Int) {
 		js.Browser.window.crypto.subtle.exportKey("raw", vapid_key.publicKey).then((vapid_public_raw) -> {
 			reg.pushManager.subscribe(untyped {
@@ -951,20 +950,37 @@ class Client extends EventEmitter {
 					trace("WebPush subscription failed");
 					return;
 				}
-				enablePush(
-					push_service,
-					vapid_key.privateKey,
-					pushSubscription.endpoint,
-					pushSubscription.getKey(js.html.push.PushEncryptionKeyName.P256DH),
-					pushSubscription.getKey(js.html.push.PushEncryptionKeyName.AUTH),
-					grace ?? -1
-				);
+				js.Browser.window.crypto.subtle.exportKey("pkcs8", vapid_key.privateKey).then((vapid_private_pkcs8) -> {
+					enablePush(
+						push_service,
+						pushSubscription.endpoint,
+						pushSubscription.getKey(js.html.push.PushEncryptionKeyName.P256DH),
+						pushSubscription.getKey(js.html.push.PushEncryptionKeyName.AUTH),
+						grace ?? -1,
+						vapid_private_pkcs8,
+						[]
+					);
+				});
 			});
 		});
 	}
+	#end
 
-	private function enablePush(push_service: String, vapid_private_key: js.html.CryptoKey, endpoint: String, p256dh: BytesData, auth: BytesData, grace: Int) {
-		enabledPushData = { push_service: push_service, vapid_private_key: vapid_private_key, endpoint: endpoint, p256dh: p256dh, auth: auth, grace: grace };
+	private var enabledPushData: Null<{ push_service: String, endpoint: String, p256dh: BytesData, auth: BytesData, grace: Int, vapid_private_pkcs8: Null<BytesData>, claims: Array<String> }> = null;
+
+	/**
+		Enable push notifications
+
+		@param push_service the address of a push proxy
+		@param vapid_private_pkcs8 the private key for signing JWT of the push service
+		@param endpoint the final target for the push proxy to forward to
+		@param p256dh A P-256 uncompressed point in ANSI X9.62 format
+		@param auth Random 16 octed value
+		@param grace Grace period during which not to generate push if another app is active for same account, in seconds (negative for none)
+		@param claims Optional additional JWT claims as key then value
+	**/
+	public function enablePush(push_service: String, endpoint: String, p256dh: BytesData, auth: BytesData, grace: Int, ?vapid_private_pkcs8: BytesData, ?claims: Array<String>) {
+		enabledPushData = { push_service: push_service, vapid_private_pkcs8: vapid_private_pkcs8, endpoint: endpoint, p256dh: p256dh, auth: auth, grace: grace, claims: claims ?? [] };
 
 		final filters = [];
 		for (chat in chats) {
@@ -973,28 +989,32 @@ class Client extends EventEmitter {
 			}
 		}
 
-		js.Browser.window.crypto.subtle.exportKey("pkcs8", vapid_private_key).then((vapid_private_pkcs8) -> {
-			sendQuery(new Push2Enable(
-				jid.asBare().asString(),
-				push_service,
-				endpoint,
-				Bytes.ofData(p256dh),
-				Bytes.ofData(auth),
-				"ES256",
-				Bytes.ofData(vapid_private_pkcs8),
-				[ "aud" => new js.html.URL(endpoint).origin ],
-				grace,
-				filters
-			));
-		});
+		final claimMap = [ "aud" => tink.Url.parse(endpoint).host.toString() ];
+		for (i in 0...(claims ?? []).length) {
+			if (i % 2 == 0) {
+				claimMap[claims[i]] = claims[i+1];
+			}
+		}
+
+		sendQuery(new Push2Enable(
+			jid.asBare().asString(),
+			push_service,
+			endpoint,
+			Bytes.ofData(p256dh),
+			Bytes.ofData(auth),
+			vapid_private_pkcs8 == null ? null : "ES256",
+			vapid_private_pkcs8 == null ? null : Bytes.ofData(vapid_private_pkcs8),
+			claimMap,
+			grace,
+			filters
+		));
 	}
 
 	@:allow(snikket)
 	private function updatePushIfEnabled() {
 		if (enabledPushData == null) return;
-		enablePush(enabledPushData.push_service, enabledPushData.vapid_private_key, enabledPushData.endpoint, enabledPushData.p256dh, enabledPushData.auth, enabledPushData.grace);
+		enablePush(enabledPushData.push_service, enabledPushData.endpoint, enabledPushData.p256dh, enabledPushData.auth, enabledPushData.grace, enabledPushData.vapid_private_pkcs8, enabledPushData.claims);
 	}
-	#end
 
 	/**
 		Event fired when client needs a password for authentication
