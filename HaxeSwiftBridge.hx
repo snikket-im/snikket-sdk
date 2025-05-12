@@ -435,6 +435,93 @@ class HaxeSwiftBridge {
 							ibuilder.add("(\n\t\t\tself.o");
 							for (arg in targs) {
 								ibuilder.add(",\n\t\t\t");
+								final allowNull = switch arg.t {
+								case TAbstract(_.get().name => "Null", [param]): true;
+								default: false;
+								};
+								switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
+								case TFun(fargs, fret):
+									ibuilder.add("{ (");
+									for (i => farg in fargs) {
+										if (i > 0) ibuilder.add(", ");
+										ibuilder.add("a" + i);
+										switch (farg.t) {
+										case TInst(_.get().name => "Array", params):
+											ibuilder.add(", a" + i + "_length");
+										default:
+										}
+									}
+									if (fargs.length > 0) ibuilder.add(", ");
+									ibuilder.add("ctx");
+									// TODO unretained vs retained
+									ibuilder.add(") in\n\t\t\t\tlet ");
+									ibuilder.add(arg.name);
+									ibuilder.add(" = Unmanaged<AnyObject>.fromOpaque(ctx!).takeUnretainedValue() as! ");
+									ibuilder.add(getSwiftType(arg.t));
+									ibuilder.add("\n\t\t\t\t");
+									final cbuilder = new hx.strings.StringBuilder(arg.name);
+									cbuilder.add("(");
+									for (i => farg in fargs) {
+										if (i > 0) cbuilder.add(", ");
+										cbuilder.add(castToSwift("a" + i, farg.t));
+									}
+									cbuilder.add(")");
+									ibuilder.add(castToSwift(cbuilder.toString(), fret, false, true));
+									ibuilder.add("\n\t\t\t},\n\t\t\t__");
+									ibuilder.add(arg.name);
+									ibuilder.add("_ptr");
+								case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+									ibuilder.add("__");
+									ibuilder.add(arg.name);
+									ibuilder.add(", ");
+									ibuilder.add(arg.name + (allowNull ? "?" : "") + ".count" + (allowNull ? " ?? 0" : ""));
+								case TInst(_.get().name => "Array", [param]):
+									ibuilder.add(castToC(arg.name, arg.t));
+									ibuilder.add(", ");
+									ibuilder.add(arg.name + (allowNull ? "?" : "") + ".count" + (allowNull ? " ?? 0" : ""));
+								default:
+									ibuilder.add(castToC(arg.name, arg.t));
+								}
+							}
+							ibuilder.add("\n\t\t)");
+							builder.add(castToSwift(ibuilder.toString(), tret, false, true));
+							for (arg in targs) {
+								switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
+								case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+								builder.add("}");
+								default:
+								}
+							}
+							builder.add("\n\t}\n\n");
+						case Static:
+							builder.add("\tpublic static func ");
+							builder.add(funcName);
+							builder.add("(");
+							convertArgs(builder, targs);
+							builder.add(") -> ");
+							builder.add(getSwiftType(tret));
+							builder.add(" {\n\t\t");
+							for (arg in targs) {
+								switch (arg.t) {
+								case TFun(fargs, fret):
+									builder.add("let __");
+									builder.add(arg.name);
+									builder.add("_ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(");
+									builder.add(arg.name);
+									builder.add(" as AnyObject).toOpaque())\n\t\t");
+								default:
+								}
+							}
+							final ibuilder = new hx.strings.StringBuilder("c_");
+							ibuilder.add(libName);
+							ibuilder.add(".");
+							ibuilder.add(cFuncName);
+							ibuilder.add("(");
+							var isFirst = true;
+							for (arg in targs) {
+								if (!isFirst) ibuilder.add(",");
+								isFirst = false;
+								ibuilder.add("\n\t\t\t");
 								switch (arg.t) {
 								case TFun(fargs, fret):
 									ibuilder.add("{ (");
@@ -477,8 +564,7 @@ class HaxeSwiftBridge {
 							ibuilder.add("\n\t\t)");
 							builder.add(castToSwift(ibuilder.toString(), tret, false, true));
 							builder.add("\n\t}\n\n");
-						case Static:
-							Context.fatalError('Swift bridging for statics not implemented yet', f.pos);
+
 					}
 
 				default: Context.fatalError('Internal error: Expected function expression for ${f.name} got: ' + f.type, f.pos);
@@ -491,6 +577,11 @@ class HaxeSwiftBridge {
 
 		for (f in cls.statics.get()) {
 			// TODO: this also includes everything on an abstract?
+			switch (f.kind) {
+			case FMethod(MethMacro):
+			case FMethod(_): convertFunction(f, Static);
+			case FVar(read, write): convertVar(f, read, write);
+			}
 		}
 
 		for (f in cls.fields.get()) {
