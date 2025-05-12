@@ -177,7 +177,7 @@ class HaxeSwiftBridge {
 			builder.add(": ");
 			builder.add(getSwiftType(arg.t, true));
 			if (arg.opt) {
-				Context.fatalError("default? " + arg.name, Context.currentPos());
+				builder.add(" = nil");
 			}
 		}
 	}
@@ -414,6 +414,17 @@ class HaxeSwiftBridge {
 									builder.add("_ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(");
 									builder.add(arg.name);
 									builder.add(" as AnyObject).toOpaque())\n\t\t");
+								default:
+								}
+							}
+							for (arg in targs) {
+								final allowNull = switch arg.t {
+								case TAbstract(_.get().name => "Null", [param]): true;
+								default: false;
+								};
+								switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
+								case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+								builder.add("with" + (allowNull ? "Optional" : "") + "ArrayOfCStrings(" + arg.name + ") { __" + arg.name + " in ");
 								default:
 								}
 							}
