@@ -4,21 +4,30 @@ import snikket.ChatMessage;
 import snikket.JID;
 import snikket.Message;
 
-@:expose
-class Notification {
-	public var title (default, null) : String;
-	public var body (default, null) : String;
-	public var accountId (default, null) : String;
-	public var chatId (default, null) : String;
-	public var messageId (default, null) : String;
-	public var type (default, null) : MessageType;
-	public var callStatus (default, null) : Null<String>;
-	public var callSid (default, null) : Null<String>;
-	public var imageUri (default, null) : Null<String>;
-	public var lang (default, null) : Null<String>;
-	public var timestamp (default, null) : Null<String>;
+#if cpp
+import HaxeCBridge;
+#end
 
-	public function new(title: String, body: String, accountId: String, chatId: String, messageId: String, type: MessageType, callStatus: Null<String>, callSid: Null<String>, imageUri: Null<String>, lang: Null<String>, timestamp: Null<String>) {
+@:expose
+#if cpp
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
+class Notification {
+	public final title: String;
+	public final body: String;
+	public final accountId: String;
+	public final chatId: String;
+	public final messageId: String;
+	public final type: MessageType;
+	public final callStatus: Null<String>;
+	public final callSid: Null<String>;
+	public final imageUri: Null<String>;
+	public final lang: Null<String>;
+	public final timestamp: Null<String>;
+
+	@:allow(snikket)
+	private function new(title: String, body: String, accountId: String, chatId: String, messageId: String, type: MessageType, callStatus: Null<String>, callSid: Null<String>, imageUri: Null<String>, lang: Null<String>, timestamp: Null<String>) {
 		this.title = title;
 		this.body = body;
 		this.accountId = accountId;
@@ -32,7 +41,8 @@ class Notification {
 		this.timestamp = timestamp;
 	}
 
-	public static function fromChatMessage(m: ChatMessage) {
+	@:allow(snikket)
+	private static function fromChatMessage(m: ChatMessage) {
 		var imageUri = null;
 		final attachment = m.attachments[0];
 		if (attachment != null) {
@@ -55,7 +65,8 @@ class Notification {
 
 	// Sometimes a stanza has not much in it, so make something generic
 	// Assume it is an incoming message of some kind
-	public static function fromThinStanza(stanza: Stanza) {
+	@:allow(snikket)
+	private static function fromThinStanza(stanza: Stanza) {
 		return new Notification(
 			"New Message",
 			"",
