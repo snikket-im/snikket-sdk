@@ -10,6 +10,7 @@ class SqliteDriver {
 
 	public function new(dbfile: String) {
 		db = sys.db.Sqlite.open(dbfile);
+		db.request("PRAGMA journal_mode=WAL");
 	}
 
 	public function exec(sql: haxe.extern.EitherType<String, Array<String>>, ?params: Array<Dynamic>) {
