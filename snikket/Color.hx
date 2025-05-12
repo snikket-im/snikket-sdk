@@ -19,7 +19,7 @@ class Color {
 	public static function defaultPhoto(input:String, letter:String) {
 		final hex = forString(input).substr(1);
 		final encodedLetter = try {
-			StringTools.urlEncode(letter);
+			StringTools.urlEncode(letter.toUpperCase());
 		} catch (e) {
 			" ";
 		}
