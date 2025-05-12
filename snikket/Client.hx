@@ -764,6 +764,7 @@ class Client extends EventEmitter {
 
 	private function prepareAttachmentFor(source: AttachmentSource, services: Array<{ serviceId: String }>, hashes: Array<Hash>, callback: (Null<ChatAttachment>)->Void) {
 		if (services.length < 1) {
+			trace("No HTTP upload service found");
 			callback(null);
 			return;
 		}
