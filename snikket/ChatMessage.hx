@@ -130,6 +130,25 @@ class ChatMessage {
 	@HaxeCBridge.noemit
 	public var reactions(default, null): Map<String, Array<Reaction>>;
 
+	#if cpp
+	/**
+		List of reactions to this message
+	**/
+	public var reactionKeys(get, never): Array<String>;
+
+	@HaxeCBridge.noemit
+	public function get_reactionKeys() {
+		return { iterator: reactions.keys }.array();
+	}
+
+	/**
+		Details of a set of reaction to this message
+	**/
+	public function reactionDetails(reactionKey: String): Array<Reaction> {
+		return reactions[reactionKey] ?? [];
+	}
+	#end
+
 	/**
 		Body text of this message or NULL
 	**/
