@@ -426,7 +426,7 @@ class Media {
 			}
 		}
 		description.addChildren(fbs.filter((fb) -> fb.id == "*").map((fb) -> fb.el));
-		description.addChildren(attributes.filter((attr) -> attr.key == "rtpmap").map((rtpmap) -> {
+		final rtpmaps = attributes.filter((attr) -> attr.key == "rtpmap").map((rtpmap) -> {
 			final pos = rtpmap.value.indexOf(" ");
 			if (pos < 0) throw "invalid rtpmap";
 			final id = rtpmap.value.substr(0, pos);
@@ -438,7 +438,9 @@ class Media {
 			return new Stanza("payload-type", attrs)
 				.addChildren(fbs.filter((fb) -> fb.id == id).map((fb) -> fb.el))
 				.addChildren(fmtp.get(id) == null ? [] : fmtp.get(id));
-		}));
+		});
+		rtpmaps.sort((a, b) -> formats.indexOf(Std.parseInt(a.attr.get("id"))) - formats.indexOf(Std.parseInt(b.attr.get("id"))));
+		description.addChildren(rtpmaps);
 		if (attributes.exists((attr) -> attr.key == "extmap-allow-mixed") || sessionAttributes.exists((attr) -> attr.key == "extmap-allow-mixed")) {
 			description.tag("extmap-allow-mixed", { xmlns: "urn:xmpp:jingle:apps:rtp:rtp-hdrext:0" }).up();
 		}
