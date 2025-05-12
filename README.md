@@ -18,6 +18,7 @@ Working towards simplicity in developing Snikket-compatible apps.
     haxelib git hxcpp https://github.com/singpolyma/hxcpp update-sqlite
     cd ~/haxe/hxcpp/git/tools/hxcpp
     haxe compile.hxml
+    cd -
     make
 
 # JavaScript
