@@ -569,7 +569,7 @@ class MediaStreamTrack {
 			} else if (format.format == "opus") {
 				if (untyped __cpp__("!{0}", opusEncoder)) {
 					opusEncoder = OpusEncoder.create(clockRate, channels, untyped __cpp__("OPUS_APPLICATION_VOIP"), null); // assume only one opus clockRate+channels for this track
-					untyped __cpp__("opus_encoder_ctl({0}, OPUS_SET_BITRATE(24))", opusEncoder);
+					untyped __cpp__("opus_encoder_ctl({0}, OPUS_SET_BITRATE(24000))", opusEncoder);
 					untyped __cpp__("opus_encoder_ctl({0}, OPUS_SET_PACKET_LOSS_PERC(5))", opusEncoder);
 					untyped __cpp__("opus_encoder_ctl({0}, OPUS_SET_INBAND_FEC(1))", opusEncoder);
 				}
