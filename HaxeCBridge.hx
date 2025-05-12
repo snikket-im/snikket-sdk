@@ -257,8 +257,37 @@ class HaxeCBridge {
 					}
 			case FProp(get, set, t, e):
 					switch (t) {
+					case TPath(path) if (path.name == "Map"):
+						if (get != "null" && get != "never") {
+							final ptrTo = convertSecondaryType(TPath({ name: "Array", pack: [], params: [path.params[0]] })).args[0];
+							final ptrT = TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(ptrTo)]});
+							fields.insert(insertTo, {
+								name: field.name + "_keys__fromC",
+								doc: field.doc + " (keys)",
+								meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
+								access: field.access,
+								pos: field.pos,
+								kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrT}], expr: macro { final x = Lambda.array({iterator: $i{field.name}.keys }); if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(x); } return x.length; } })
+							});
+
+							final ptrToV = convertSecondaryType(TPath({ name: "Array", pack: [], params: [path.params[1]] })).args[0];
+							final ptrTV = TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(ptrTo)]});
+							fields.insert(insertTo, {
+								name: field.name + "_keys__fromC",
+								doc: field.doc + " (values)",
+								meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
+								access: field.access,
+								pos: field.pos,
+								kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrTV}], expr: macro { final x = Lambda.array($i{field.name}); if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(x); } return x.length; } })
+							});
+							insertTo++;
+						}
+						if (set != "null" && set != "never") {
+							throw "Cannot bridge Map<> setter to C";
+						}
 					case TPath(path) if (path.name == "Array"):
-						final ptrT = TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({name: "HaxeArray", pack: [], params: path.params.map(t -> convertSecondaryTP(t))}))]});
+						final ptrTo = convertSecondaryType(t).args[0];
+						final ptrT = TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(ptrTo)]});
 						fields.insert(insertTo, {
 							name: field.name + "__fromC",
 							doc: field.doc,
@@ -304,6 +333,17 @@ class HaxeCBridge {
 							pos: field.pos,
 							kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrT}], expr: macro { final x = $i{field.name}; if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(x); } return x.length; } })
 						});
+						if (!field.access.contains(AFinal)) {
+							final cptrT = TPath({name: "ConstPointer", pack: ["cpp"], params: path.params.map(tp -> convertSecondaryTP(tp))});
+							fields.insert(insertTo, {
+								name: "set_" + field.name + "__fromC",
+								doc: field.doc,
+								meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
+								access: field.access,
+								pos: field.pos,
+								kind: FFun({ret: TPath({name: "Void", pack: []}), params: [], args: [{name: "inPtr", type: cptrT}, {name: "count", type: TPath({name: "SizeT", pack: ["cpp"]})}], expr: macro $i{field.name} = inPtr.reinterpret().toUnmanagedArray(count).copy() })
+							});
+						}
 						insertTo++;
 					default:
 						fields.insert(insertTo, {

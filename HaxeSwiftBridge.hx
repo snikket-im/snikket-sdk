@@ -233,8 +233,8 @@ class HaxeSwiftBridge {
 		return switch type {
 		case TInst(_.get().name => "String", params):
 			return item;
-		case TInst(_.get().name => "Array", [TInst(_)]):
-			return item + ".map { $0.o }";
+		case TInst(_.get().name => "Array", [param = TInst(_)]):
+			return item + ".map { " + castToC("$0", param, canNull) + " }";
 		case TInst(_.get().name => "Array", [param]):
 			return item;
 		case TInst(_.get() => t, []):
@@ -344,6 +344,12 @@ class HaxeSwiftBridge {
 				builder.add(cFuncNameSet);
 				builder.add("(o, ");
 				builder.add(castToC("newValue", f.type));
+				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(f.type), Context.currentPos()), false) {
+				case TInst(_.get().name => "Array", [param]):
+					builder.add(", ");
+					builder.add("newValue.count");
+				default:
+				}
 				builder.add(")\n\t\t}\n");
 			}
 			builder.add("\t}\n\n");
@@ -570,6 +576,54 @@ class HaxeSwiftBridge {
 
 			internal func useString(_ mptr: UnsafeMutableRawPointer?) -> String? {
 				return useString(UnsafePointer(mptr?.assumingMemoryBound(to: CChar.self)))
+			}
+
+			// From https://github.com/swiftlang/swift/blob/dfc3933a05264c0c19f7cd43ea0dca351f53ed48/stdlib/private/SwiftPrivate/SwiftPrivate.swift
+			public func scan<
+				S : Sequence, U
+			>(_ seq: S, _ initial: U, _ combine: (U, S.Iterator.Element) -> U) -> [U] {
+				var result: [U] = []
+				result.reserveCapacity(seq.underestimatedCount)
+				var runningResult = initial
+				for element in seq {
+					runningResult = combine(runningResult, element)
+					result.append(runningResult)
+				}
+				return result
+			}
+
+			// From https://github.com/swiftlang/swift/blob/dfc3933a05264c0c19f7cd43ea0dca351f53ed48/stdlib/private/SwiftPrivate/SwiftPrivate.swift
+			internal func withArrayOfCStrings<R>(
+				_ args: [String], _ body: ([UnsafePointer<CChar>?]) -> R
+			) -> R {
+				let argsCounts = Array(args.map { $0.utf8.count + 1 })
+				let argsOffsets = [ 0 ] + scan(argsCounts, 0, +)
+				let argsBufferSize = argsOffsets.last!
+
+				var argsBuffer: [UInt8] = []
+				argsBuffer.reserveCapacity(argsBufferSize)
+				for arg in args {
+					argsBuffer.append(contentsOf: arg.utf8)
+					argsBuffer.append(0)
+				}
+
+				return argsBuffer.withUnsafeMutableBufferPointer {
+					(argsBuffer) in
+					let ptr = UnsafeRawPointer(argsBuffer.baseAddress!).bindMemory(
+						to: CChar.self, capacity: argsBuffer.count)
+					var cStrings: [UnsafePointer<CChar>?] = argsOffsets.dropLast().map { ptr + $0 }
+					return body(cStrings)
+				}
+			}
+
+			internal func withOptionalArrayOfCStrings<R>(
+				_ args: [String]?, _ body: ([UnsafePointer<CChar>?]?) -> R
+			) -> R {
+				if let args = args {
+					return withArrayOfCStrings(args, body)
+				} else {
+					return body(nil)
+				}
 			}
 
 		')
