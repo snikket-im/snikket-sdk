@@ -375,7 +375,7 @@ class OMEMO {
 
 		 bundlePublicState = new FSM({
 			transitions: [
-				{ name: "verify", from: ["unverified"], to: "verifying" },
+				{ name: "verify", from: ["unverified", "ok"], to: "verifying" },
 				{ name: "needs-update", from: ["unverified", "verifying", "waiting", "updating", "ok"], to: "updating" },
 				{ name: "wait", from: ["updating"], to: "waiting" },
 				{ name: "updated", from: ["updating"], to: "ok" },
@@ -394,7 +394,7 @@ class OMEMO {
 			// If we're not already busy, verify our published
 			// bundle after starting a new session (since we 
 			// may have missed notifications about it changing)
-			if(bundleLocalState.getCurrentState() == "ok" && bundlePublicState.can("verify")) {
+			if(bundleLocalState.getCurrentState() == "ok" || bundlePublicState.can("verify")) {
 				bundlePublicState.event("verify");
 			}
 			return EventHandled;
@@ -521,6 +521,9 @@ class OMEMO {
 		final deviceListGet = new PubsubGet(null, "eu.siacs.conversations.axolotl.devicelist");
 		deviceListGet.onFinished(() -> {
 			final devices = deviceIdsFromPubsubItems(deviceListGet.getResult());
+			if(devices != null) {
+				this.deviceList = devices;
+			}
 			if(devices != null && devices.contains(this.bundle.device_id)) {
 				bundlePublicState.event("verified");
 			} else {
@@ -1014,6 +1017,20 @@ class OMEMO {
 		});
 	}
 
+	private function getOwnDevices():Promise<Array<Int>> {
+		return new Promise((resolve, reject) -> {
+			if(this.deviceList != null) {
+				resolve(this.deviceList);
+			} else {
+				trace("OMEMO: We don't have deviceList initialized yet, waiting for bundle ("+bundleLocalState.getCurrentState()+")");
+				bundleLocalState.once("enter/ok", function (event) {
+					resolve(this.deviceList);
+					return EventHandled;
+				});
+			}
+		});
+	}
+
 	public function encryptMessage(recipient:JID, stanza:Stanza):Promise<Stanza> {
 		final promEncryptedMessage = encryptPayloadWithNewKey(stanza.getChildText("body"));
 
@@ -1024,7 +1041,12 @@ class OMEMO {
 		final promHeader = new Promise<Stanza>((resolve, reject) -> {
 			promDeviceId.then((deviceId) -> {
 				promRecipientDevices.then((recipientDevices) -> {
+					if(recipientDevices.length == 0) {
+						reject("no-devices");
+						return;
+					}
 					promEncryptedMessage.then((encryptionResult) -> {
+						trace("OMEMO: Encrypting for recipient devices: " + recipientDevices.toString());
 						buildOMEMOHeader(encryptionResult, deviceId, recipient.asString(), recipientDevices).then(resolve, reject);
 					}, reject);
 				}, reject);
@@ -1164,31 +1186,39 @@ class OMEMO {
 	}
 
 	private function buildOMEMOHeader(encryptionResult:OMEMOEncryptionResult, sid:Int, jid:String, deviceList:Array<Int>):Promise<Stanza> {
-		final promKeys = [
-			for(rid in deviceList) {
-				encryptForDevice(sid, jid, rid, encryptionResult);
-			}
-		];
-
-		// We've included keys for our contact's devices, now we need
+		// We'll include keys for our contact's devices, but we also need
 		// to include any of our own devices, so they can read the outgoing
-		// message also.
-		for(rid in this.deviceList) {
-			// Don't encrypt to our own device (we already have the original message locally)
-			if(sid != rid) {
-				promKeys.push(encryptForDevice(sid, this.client.accountId(), rid, encryptionResult));
+		// message
+		final promKeys = getOwnDevices().then((ownDeviceList) -> {
+			trace("OMEMO: Have contact and own device lists");
+			final keys = [];
+			for(rid in ownDeviceList) {
+				// Don't encrypt to our own device (we already have the original message locally)
+				if(sid != rid) {
+					keys.push(encryptForDevice(sid, this.client.accountId(), rid, encryptionResult));
+				}
 			}
-		}
+
+			for(rid in deviceList) {
+				keys.push(encryptForDevice(sid, jid, rid, encryptionResult));
+			}
+
+			// Return an array of promises which each resolve to an OMEMOPayloadKey
+			return keys;
+		});
 
 		final promHeader = new Promise((resolve, reject) -> {
-			PromiseTools.all(promKeys).then((recipientKeys) -> {
-				final header:OMEMOPayload = {
-					sid: sid,
-					keys: recipientKeys,
-					encodedIv: Base64.encode(Bytes.ofData(encryptionResult.iv)),
-					encodedPayload: Base64.encode(Bytes.ofData(encryptionResult.ciphertext)),
-				};
-				resolve(header);
+			promKeys.then((keys) -> {
+				PromiseTools.all(keys).then((recipientKeys) -> {
+					trace("OMEMO: Generating OMEMO header");
+					final header:OMEMOPayload = {
+						sid: sid,
+						keys: recipientKeys,
+						encodedIv: Base64.encode(Bytes.ofData(encryptionResult.iv)),
+						encodedPayload: Base64.encode(Bytes.ofData(encryptionResult.ciphertext)),
+					};
+					resolve(header);
+				});
 			});
 		});
 
