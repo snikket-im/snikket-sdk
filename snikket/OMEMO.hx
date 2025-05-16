@@ -197,6 +197,7 @@ class OMEMOStore extends SignalProtocolStore {
 
 @:structInit
 class OMEMOPayloadKey {
+	// FIXME: Add identifier here, required for OMEMO 2
 	public final rid:Int;
 	public final prekey:Bool;
 	public final encodedKey:String;
