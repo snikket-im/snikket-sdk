@@ -16,9 +16,9 @@ compile with the NO_OMEMO flag.
 - [x] Encrypt outgoing messages to the sending account's other devices
 - [x] Persistence: IndexedDB (for web)
 - [x] Use cache for remote contact devices
+- [x] Fix that encryption status reported by the API can be forged by sender
 - [ ] Persistence: SQLite backend (for native)
 - [ ] API to control encryption of outgoing messages
 - [ ] API to determine cryptographic identity of message sender
-- [ ] Fix that encryption status reported by the API can be forged by sender
 - [ ] Group chat support
 

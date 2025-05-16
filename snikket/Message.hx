@@ -48,10 +48,12 @@ class Message {
 		this.encryption = encryption;
 	}
 
-	public static function fromStanza(stanza:Stanza, localJid:JID, ?addContext: (ChatMessageBuilder, Stanza)->ChatMessageBuilder):Message {
+	public static function fromStanza(stanza:Stanza, localJid:JID, ?addContext: (ChatMessageBuilder, Stanza)->ChatMessageBuilder, ?encryptionInfo:EncryptionInfo):Message {
 		final fromAttr = stanza.attr.get("from");
 		final from = fromAttr == null ? localJid.domain : fromAttr;
-		final encryptionInfo = EncryptionInfo.fromStanza(stanza);
+		if(encryptionInfo==null) {
+			encryptionInfo = EncryptionInfo.fromStanza(stanza);
+		}
 
 		if (stanza.attr.get("type") == "error") {
 			return new Message(from, from, null, ErrorMessageStanza(stanza), encryptionInfo);

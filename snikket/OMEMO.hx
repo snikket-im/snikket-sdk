@@ -304,6 +304,16 @@ class OMEMOEncryptionResult {
 	}
 }
 
+class OMEMODecryptionResult {
+	public final stanza:Stanza;
+	public final encryptionInfo:EncryptionInfo;
+
+	public function new(stanza:Stanza, encryptionInfo:EncryptionInfo) {
+		this.stanza = stanza;
+		this.encryptionInfo = encryptionInfo;
+	}
+}
+
 //@:nullSafety(Strict)
 class OMEMO {
 	private final client: Client;
@@ -840,48 +850,72 @@ class OMEMO {
 		});
 	}
 
-	public function decryptMessage(stanza: Stanza):Promise<Stanza> {
+	public function decryptMessage(stanza: Stanza):Promise<OMEMODecryptionResult> {
 		final header = OMEMOPayload.fromMessageStanza(stanza);
 		return client.omemo.getDeviceId().then((deviceId:Int) -> {
 			final deviceKey = header.findKey(deviceId);
 			if(deviceKey == null) {
 				trace("OMEMO: Message not encrypted for our device (looked for "+deviceId+")");
 				stanza.removeChildren("encrypted", NS.OMEMO);
-				return Promise.resolve(stanza);
+				return Promise.resolve(
+					new OMEMODecryptionResult(
+						stanza,
+						new EncryptionInfo(
+							DecryptionFailure,
+							NS.OMEMO,
+							"missing-key",
+							"Sender did not include this device in recipients"
+						)
+					)
+				);
 			}
 			// FIXME: Identify correct JID for group chats
 			trace("OMEMO: Decrypting payload...");
 			final from = JID.parse(stanza.attr.get("from")).asBare();
 			final promPayload = decryptPayload(deviceId, deviceKey, from.asString(), header);
 			return promPayload.then((decryptedPayload:BytesData) -> {
-				if(decryptedPayload != null) {
-					stanza.removeChildren("body");
-					// FIXME: Verify valid UTF-8, etc.
-					stanza.textTag("body", Bytes.ofData(decryptedPayload).toString());
-					stanza.tag("decryption-status", {
-							xmlns: "https://snikket.org/protocol/sdk",
-							result: "success",
-							encryption: "eu.siacs.conversations.axolotl",
-					});
-					trace("OMEMO: Payload decrypted OK!");
-				} else {
+				if(decryptedPayload == null) {
 					trace("OMEMO: Decrypted payload is null?");
+					return Promise.resolve(new OMEMODecryptionResult(
+						stanza,
+						new EncryptionInfo(
+							DecryptionFailure,
+							NS.OMEMO,
+							"invalid-payload",
+							"The encrypted message was malformed"
+						)
+					));
 				}
-				return Promise.resolve(stanza);
+
+				stanza.removeChildren("body");
+				// FIXME: Verify valid UTF-8, etc.
+				stanza.textTag("body", Bytes.ofData(decryptedPayload).toString());
+				trace("OMEMO: Payload decrypted OK!");
+				return Promise.resolve(new OMEMODecryptionResult(
+					stanza,
+					new EncryptionInfo(
+						DecryptionSuccess,
+						NS.OMEMO,
+					)
+				));
 			}, (err:Any) -> {
 				trace("OMEMO: Failed to decrypt message: " + err);
-				stanza.tag("decryption-status", {
-					xmlns: "https://snikket.org/protocol/sdk",
-					result: "failure",
-					encryption: "eu.siacs.conversations.axolotl",
-					reason: "generic",
-					text: err,
-				});
+				// FIXME: Rebuilding the session should not be unconditional, as this
+				// can be triggered by a MITM and effectively bypass the double ratchet
+				// part of the protocol.
 				buildSession(deviceId, from.asString(), header.sid).then((session) -> {
 					// Broken session? Send key to start new session...
 					sendKeyExchange(deviceId, from.asString(), header.sid);
 				});
-				return Promise.resolve(stanza);
+				return Promise.resolve(new OMEMODecryptionResult(
+					stanza,
+					new EncryptionInfo(
+						DecryptionFailure,
+						NS.OMEMO,
+						"generic",
+						err,
+					)
+				));
 			});
 		});
 	}
