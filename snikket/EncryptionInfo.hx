@@ -46,53 +46,30 @@ class EncryptionInfo {
         return el;
     }
 
+    // Typically used to deduce an EncryptionInfo when none has been provided
+    // May return null if the stanza is not recognizably encrypted.
     static public function fromStanza(stanza:Stanza):Null<EncryptionInfo> {
-        final decryptionStatus = stanza.getChild("decryption-status", "https://snikket.org/protocol/sdk");
 		final emeElement = stanza.getChild("encryption", "urn:xmpp:eme:0");
-
-        if(decryptionStatus != null) {
-            if(decryptionStatus.attr.get("result") == "failure") {
-                // We attempted to decrypt this stanza, but something
-                // went wrong. The decryption-status element contains
-                // more information.
-                final ns = decryptionStatus.attr.get("encryption");
-                return new EncryptionInfo(
-                    DecryptionFailure,
-                    ns??"unknown",
-                    ns != null?knownEncryptionSchemes.get(ns):"Unknown encryption",
-                    decryptionStatus.getChildText("reason"), // Machine-readable reason (depends on encryption method)
-                    decryptionStatus.getChildText("text"), // Human-readable explanation
-                );
-            } else {
-                final encryptionMethod = decryptionStatus.attr.get("encryption")??"unknown";
-                return new EncryptionInfo(
-                    DecryptionSuccess,
-                    encryptionMethod,
-                    knownEncryptionSchemes.get(encryptionMethod)??"Unknown encryption"
-                );
-            }
-        } else {
-			// We did not decrypt this stanza, so check for any signs
-			// that it was encrypted in the first place...
-			var ns = null, name = null;
-			if(emeElement != null) {
-				ns = emeElement.attr.get("namespace");
-				name = emeElement.attr.get("name");
-			} else if(stanza.getChild("encrypted", "eu.siacs.conversations.axolotl") != null) {
-				// Special handling for OMEMO without EME, just because it is
-				// so widely used.
-				ns = "eu.siacs.conversations.axolotl";
-			}
-            if(ns != null) {
-                return new EncryptionInfo(
-                    DecryptionFailure,
-                    ns??"unknown",
-                    knownEncryptionSchemes.get(ns)??name??"Unknown encryption",
-                    "unsupported-encryption",
-                    "Unsupported encryption method"
-                );
-            }
-		}
+        // We did not decrypt this stanza, so check for any signs
+        // that it was encrypted in the first place...
+        var ns = null, name = null;
+        if(emeElement != null) {
+            ns = emeElement.attr.get("namespace");
+            name = emeElement.attr.get("name");
+        } else if(stanza.getChild("encrypted", "eu.siacs.conversations.axolotl") != null) {
+            // Special handling for OMEMO without EME, just because it is
+            // so widely used.
+            ns = "eu.siacs.conversations.axolotl";
+        }
+        if(ns != null) {
+            return new EncryptionInfo(
+                DecryptionFailure,
+                ns??"unknown",
+                knownEncryptionSchemes.get(ns)??name??"Unknown encryption",
+                "unsupported-encryption",
+                "Unsupported encryption method"
+            );
+        }
         return null; // Probably not encrypted
     }
 }

@@ -371,9 +371,9 @@ class Client extends EventEmitter {
 			}
 #if !NO_OMEMO
 			if(stanza.hasChild("encrypted", NS.OMEMO)) {
-				omemo.decryptMessage(stanza).then((decryptedStanza) -> {
+				omemo.decryptMessage(stanza).then((decryptionResult) -> {
 					trace("OMEMO: Decrypted message, now processing...");
-					processLiveMessage(decryptedStanza);
+					processLiveMessage(decryptionResult.stanza, decryptionResult.encryptionInfo);
 					return true;
 				});
 				return EventHandled;
@@ -596,7 +596,7 @@ class Client extends EventEmitter {
 	}
 
 	@:allow(snikket)
-	private function processLiveMessage(stanza:Stanza):Void {
+	private function processLiveMessage(stanza:Stanza, ?encryptionInfo:EncryptionInfo):Void {
 		final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
 
 		if (stanza.attr.get("type") == "error" && from != null) {
@@ -620,7 +620,7 @@ class Client extends EventEmitter {
 			if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(builder.chatId());
 			if (chat == null) return builder;
 			return chat.prepareIncomingMessage(builder, stanza);
-		});
+		}, encryptionInfo);
 
 		switch (message.parsed) {
 			case ChatMessageStanza(chatMessage):
