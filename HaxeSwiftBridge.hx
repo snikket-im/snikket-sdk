@@ -305,6 +305,9 @@ class HaxeSwiftBridge {
 			builder.add(", ");
 			builder.add(iface.t.get().name);
 		}
+		if (!cls.isInterface) {
+			builder.add(", @unchecked Sendable");
+		}
 
 		builder.add(" {\n");
 		if (!cls.isInterface && superClass == null) {
