@@ -38,7 +38,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		db = new SqliteDriver(dbfile);
 		db.exec("PRAGMA user_version;").then(iter -> {
 			final version = Std.parseInt(iter.next()?.user_version) ?? 0;
-			return if (version < 1) {
+			if (version < 1) {
 				db.exec(["CREATE TABLE messages (
 					account_id TEXT NOT NULL,
 					mam_id TEXT NOT NULL,
@@ -112,13 +112,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 					PRIMARY KEY (account_id, chat_id, sender_id, update_id)
 				) STRICT;",
 				"PRAGMA user_version = 1;"]);
-			} else if (version < 2) {
+			}
+			if (version < 2) {
 				db.exec(["ALTER TABLE chats ADD COLUMN notifications_filtered INTEGER;",
 				"ALTER TABLE chats ADD COLUMN notify_mention INTEGER NOT NULL DEFAULT 0;",
 				"ALTER TABLE chats ADD COLUMN notify_reply INTEGER NOT NULL DEFAULT 0;",
 				"PRAGMA user_version = 2;"]);
-			} else {
-				Promise.resolve(null);
 			}
 		});
 	}
