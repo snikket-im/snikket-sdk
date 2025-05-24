@@ -93,7 +93,7 @@ class MessageSync {
 			if (originalMessage.hasChild("encrypted", NS.OMEMO)) {
 #if !NO_OMEMO
 				trace("MAM: Processing OMEMO message from " + originalMessage.attr.get("from"));
-				promisedMessages.push(client.omemo.decryptMessage(originalMessage).then((decryptionResult) -> {
+				promisedMessages.push(client.omemo.decryptMessage(originalMessage, null).then((decryptionResult) -> {
 					final decryptedStanza = decryptionResult.stanza;
 					trace("MAM: Decrypted stanza: "+decryptedStanza);
 

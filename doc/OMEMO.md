@@ -14,6 +14,7 @@ compile with the NO_OMEMO flag.
 - [x] Remove and replace consumed prekeys
 - [x] Allow non-OMEMO messages to recipients with no published keys when policy allows
 - [x] Encrypt outgoing messages to the sending account's other devices
+- [x] OMEMO carbons working
 - [x] Persistence: IndexedDB (for web)
 - [x] Use cache for remote contact devices
 - [x] Fix that encryption status reported by the API can be forged by sender

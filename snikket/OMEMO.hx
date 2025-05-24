@@ -814,7 +814,7 @@ class OMEMO {
 				// Incoming message used a prekey - build a new session between
 				// us and the sender
 				trace("OMEMO: Received an encrypted message using a prekey. Creating session...");
-				final promSession = buildSession(deviceId, fromBare, payload.sid);
+				final promSession = buildSession(deviceId, fromBare, payload.sid, "prekey");
 				promSession.then((session) -> {
 					getSessionCipher(deviceId, fromBare, payload.sid).then((cipher) -> {
 						resolve(cipher);
@@ -879,13 +879,38 @@ class OMEMO {
 		});
 	}
 
-	public function decryptMessage(stanza: Stanza):Promise<OMEMODecryptionResult> {
-		final header = OMEMOPayload.fromMessageStanza(stanza);
-		return client.omemo.getDeviceId().then((deviceId:Int) -> {
-			final deviceKey = header.findKey(deviceId);
+	public function decryptMessage(stanza: Stanza, fwd: Null<Stanza>):Promise<OMEMODecryptionResult> {
+		// Check for carbon-forwarded message
+		final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from")).asBare();
+		final header = OMEMOPayload.fromMessageStanza(fwd??stanza);
+		final senderAddress = new SignalProtocolAddress(from.asString(), header.sid);
+		final sessionMeta = new Promise<OMEMOSessionMetadata>((resolve, reject) -> {
+			persistence.getOmemoMetadata(client.accountId(), senderAddress.toString(), resolve);
+		});
+		final promDeviceId = client.omemo.getDeviceId();
+		var deviceKey:Null<OMEMOPayloadKey>;
+		final promResult = promDeviceId.then((deviceId:Int) -> {
+			if(deviceId == header.sid) {
+				// Message was sent by us (it was probably fetched from MAM)
+				// We're not going to build a session with ourself (that won't
+				// work!). We either have the original message locally, or we
+				// don't, but we can't decrypt this copy.
+				return Promise.resolve(
+					new OMEMODecryptionResult(
+						stanza,
+						new EncryptionInfo(
+							DecryptionFailure,
+							NS.OMEMO,
+							"own-message",
+							"Past message sent from this device (cannot be decrypted)"
+						)
+					)
+				);
+			}
+			deviceKey = header.findKey(deviceId);
 			if(deviceKey == null) {
 				trace("OMEMO: Message not encrypted for our device (looked for "+deviceId+")");
-				stanza.removeChildren("encrypted", NS.OMEMO);
+				(fwd??stanza).removeChildren("encrypted", NS.OMEMO);
 				return Promise.resolve(
 					new OMEMODecryptionResult(
 						stanza,
@@ -900,7 +925,6 @@ class OMEMO {
 			}
 			// FIXME: Identify correct JID for group chats
 			trace("OMEMO: Decrypting payload...");
-			final from = JID.parse(stanza.attr.get("from")).asBare();
 			final promPayload = decryptPayload(deviceId, deviceKey, from.asString(), header);
 			return promPayload.then((decryptedPayload:BytesData) -> {
 				if(decryptedPayload == null) {
@@ -916,9 +940,9 @@ class OMEMO {
 					));
 				}
 
-				stanza.removeChildren("body");
+				(fwd??stanza).removeChildren("body");
 				// FIXME: Verify valid UTF-8, etc.
-				stanza.textTag("body", Bytes.ofData(decryptedPayload).toString());
+				(fwd??stanza).textTag("body", Bytes.ofData(decryptedPayload).toString());
 				trace("OMEMO: Payload decrypted OK!");
 				return Promise.resolve(new OMEMODecryptionResult(
 					stanza,
@@ -929,13 +953,6 @@ class OMEMO {
 				));
 			}, (err:Any) -> {
 				trace("OMEMO: Failed to decrypt message: " + err);
-				// FIXME: Rebuilding the session should not be unconditional, as this
-				// can be triggered by a MITM and effectively bypass the double ratchet
-				// part of the protocol.
-				buildSession(deviceId, from.asString(), header.sid).then((session) -> {
-					// Broken session? Send key to start new session...
-					sendKeyExchange(deviceId, from.asString(), header.sid);
-				});
 				return Promise.resolve(new OMEMODecryptionResult(
 					stanza,
 					new EncryptionInfo(
@@ -947,6 +964,38 @@ class OMEMO {
 				));
 			});
 		});
+
+		// Some post-decryption tasks, such as updating the session metadata
+		// and sending a key exchange if necessary
+		promResult.then((decryptionResult) -> {
+			sessionMeta.then((metadata) -> {
+				promDeviceId.then((deviceId) -> {
+					if(metadata == null) {
+						// No metadata in storage, so create a default
+						metadata = new OMEMOSessionMetadata(false, false, false);
+					}
+					final decryptedOk = decryptionResult.encryptionInfo.status == DecryptionSuccess;
+					var needUpdate = metadata.lastMessageDecryptedOk != decryptedOk;
+					final receivedSessionMessage = deviceKey != null && !deviceKey.prekey;
+					needUpdate = needUpdate || receivedSessionMessage != metadata.receivedSessionMessageOk;
+					// Send a key exchange if decryption failed, this wasn't a prekey message, and
+					// if we haven't already sent a key exchange
+					final shouldSendKeyExchange = !decryptedOk && receivedSessionMessage && !metadata.sentKeyExchange;
+					if(shouldSendKeyExchange) {
+						needUpdate = true;
+						trace("OMEMO: Possible broken session with <"+senderAddress.toString()+">, sending key exchange...");
+						buildSession(deviceId, from.asString(), header.sid, "replacement").then((session) -> {
+							sendKeyExchange(deviceId, from.asString(), header.sid);
+						});
+					}
+					if(needUpdate) {
+						persistence.storeOmemoMetadata(client.accountId(), senderAddress.toString(), new OMEMOSessionMetadata(receivedSessionMessage||metadata.receivedSessionMessageOk, decryptedOk, shouldSendKeyExchange));
+					}
+				});
+			});
+		});
+
+		return promResult;
 	}
 
 	private function decryptPayloadWithKey(rawPayload:BytesData, rawKeyWithTag:BytesData, rawIv:BytesData):Promise<BytesData> {
@@ -1119,10 +1168,10 @@ class OMEMO {
 		return promStanza;
 	}
 
-	private function buildSession(sid:Int, jid:String, rid:Int):Promise<SignalSession> {
+	private function buildSession(sid:Int, jid:String, rid:Int, reason:String):Promise<SignalSession> {
 		final address = new SignalProtocolAddress(jid, rid);
 		final promBundle = getContactBundle(jid, rid);
-		trace("OMEMO: Building session (fetching bundle)...");
+		trace("OMEMO: Building session for <"+address.toString()+"> for "+reason+" (fetching bundle)...");
 		final promSession = promBundle.then((bundle:OMEMOBundle) -> {
 			trace("OMEMO: Fetched bundle");
 			final contactPreKey = bundle.getRandomPreKey();
@@ -1140,10 +1189,10 @@ class OMEMO {
 				},
 			});
 		}).then((_) -> {
-			trace("OMEMO: Built session!");
+			trace("OMEMO: Built session! ("+address.toString()+" for "+reason+")");
 			return signalStore.loadSession(address);
 		}, (err:Any) -> {
-			trace("OMEMO: Failed to build session: "+err);
+			trace("OMEMO: Failed to build "+reason+" session for <"+address.toString()+">: "+err);
 			return signalStore.loadSession(address);
 		});
 
@@ -1158,7 +1207,7 @@ class OMEMO {
 		final promReadySession = promSession.then((session) -> {
 			if(session == null) {
 				trace("OMEMO: No session for "+address.toString());
-				return buildSession(sid, jid, rid);
+				return buildSession(sid, jid, rid, "new");
 			}
 			return session;
 		});
