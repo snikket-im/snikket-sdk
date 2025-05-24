@@ -213,7 +213,7 @@ class OMEMOPayload {
 	public final sid:Int;
 	public final keys:Array<OMEMOPayloadKey>;
 	public final encodedIv:String;
-	public final encodedPayload:String;
+	public final encodedPayload:Null<String>;
 
 	public function toXml():Stanza {
 		final el = new Stanza("encrypted", { xmlns: "eu.siacs.conversations.axolotl" });
@@ -265,7 +265,10 @@ class OMEMOPayload {
 		return Base64.decode(encodedIv).getData();
 	}
 
-	public function getRawPayload():BytesData {
+	public function getRawPayload():Null<BytesData> {
+		if(encodedPayload == null) {
+			return null;
+		}
 		return Base64.decode(encodedPayload).getData();
 	}
 
@@ -784,6 +787,11 @@ class OMEMO {
 
 	private function decryptPayload(deviceId:Int, deviceKey:OMEMOPayloadKey, fromBare:String, payload:OMEMOPayload):Promise<BytesData> {
 		var cipher:SessionCipher;
+		if(payload.getRawPayload() == null) {
+			// Probably a key transport message, which we don't
+			// currently handle.
+			return Promise.reject("no-payload");
+		}
 		final promCipher = new Promise<SessionCipher>((resolve, reject) -> {
 			if(deviceKey.prekey) {
 				// Incoming message used a prekey - build a new session between
