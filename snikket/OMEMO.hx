@@ -397,7 +397,7 @@ class OMEMO {
 			// If we're not already busy, verify our published
 			// bundle after starting a new session (since we 
 			// may have missed notifications about it changing)
-			if(bundleLocalState.getCurrentState() == "ok" || bundlePublicState.can("verify")) {
+			if(bundlePublicState.can("verify")) {
 				bundlePublicState.event("verify");
 			}
 			return EventHandled;
