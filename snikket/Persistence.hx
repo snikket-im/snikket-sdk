@@ -56,6 +56,9 @@ interface Persistence {
 	public function getOmemoContactIdentityKey(account:String, address:String, callback:(IdentityPublicKey)->Void):Void;
 	public function getOmemoSession(account:String, address:String, callback:(SignalSession)->Void):Void;
 	public function storeOmemoSession(account:String, address:String, session:SignalSession):Void;
+	public function removeOmemoSession(account:String, address:String):Void;
+	public function storeOmemoMetadata(account:String, address:String, metadata:OMEMOSessionMetadata):Void;
+	public function getOmemoMetadata(account:String, address:String, callback:(OMEMOSessionMetadata)->Void):Void;
 #end
 
 

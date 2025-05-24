@@ -884,5 +884,17 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function storeOmemoSession(account:String, address:String, session:SignalSession):Void { }
+
+	@HaxeCBridge.noemit
+	public function removeOmemoSession(account:String, address:String):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoMetadata(account:String, address:String, metadata:OMEMOSessionMetadata):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoMetadata(account:String, address:String, callback:(OMEMOSessionMetadata)->Void):Void { }
+
+
+
 #end
 }
