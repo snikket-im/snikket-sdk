@@ -67,7 +67,7 @@ class EncryptionInfo {
                 ns??"unknown",
                 knownEncryptionSchemes.get(ns)??name??"Unknown encryption",
                 "unsupported-encryption",
-                "Unsupported encryption method"
+                "Unsupported encryption method: "+(name??ns)
             );
         }
         return null; // Probably not encrypted
