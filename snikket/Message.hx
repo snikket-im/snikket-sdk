@@ -91,7 +91,7 @@ class Message {
 			if (carbon == null) carbon = stanza.getChild("sent", "urn:xmpp:carbons:2");
 			if (carbon != null) {
 				var fwd = carbon.getChild("forwarded", "urn:xmpp:forward:0");
-				if(fwd != null) return fromStanza(fwd.getFirstChild(), localJid);
+				if(fwd != null) return fromStanza(fwd.getFirstChild(), localJid, null, encryptionInfo);
 			}
 		}
 
