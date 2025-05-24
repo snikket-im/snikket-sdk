@@ -108,7 +108,15 @@ class MessageSync {
 					return msg;
 				}, (err) -> {
 					trace("MAM: Decryption failed: "+err);
-					return null;
+					final msg = Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
+							builder.serverId = result.attr.get("id");
+							builder.serverIdBy = serviceJID;
+							if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
+							return contextHandler(builder, stanza);
+						},
+						new EncryptionInfo(DecryptionFailure, NS.OMEMO, "OMEMO", "internal-error", Std.string(err))
+					).parsed;
+					return msg;
 				}));
 #end
 				return EventHandled;
