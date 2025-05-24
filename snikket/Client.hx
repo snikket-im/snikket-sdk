@@ -648,6 +648,8 @@ class Client extends EventEmitter {
 					fetchMediaByHash([hash], [from]);
 				}
 				persistence.storeReaction(accountId(), update, (stored) -> if (stored != null) notifyMessageHandlers(stored, ReactionEvent));
+			case ModerateMessageStanza(action):
+				moderateMessage(action).then((stored) -> if (stored != null) notifyMessageHandlers(stored, CorrectionEvent));
 			default:
 				// ignore
 				trace("Ignoring non-chat message: " + stanza.toString());
