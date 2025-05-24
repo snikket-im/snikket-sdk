@@ -59,6 +59,9 @@ export default (dbname, media, tokenize, stemmer) => {
 			if (!db.objectStoreNames.contains("omemo_sessions")) {
 				upgradeDb.createObjectStore("omemo_sessions", { keyPath: ["account", "address"] });
 			}
+			if (!db.objectStoreNames.contains("omemo_sessions_meta")) {
+				upgradeDb.createObjectStore("omemo_sessions_meta", { keyPath: ["account", "address"] });
+			}
 		};
 		dbOpenReq.onsuccess = (event) => {
 			db = event.target.result;
@@ -71,6 +74,7 @@ export default (dbname, media, tokenize, stemmer) => {
 				"reactions",
 				"omemo_identities",
 				"omemo_sessions",
+				"omemo_sessions_meta"
 			];
 			for(let storeName of storeNames) {
 				if(!db.objectStoreNames.contains(storeName)) {
@@ -972,6 +976,40 @@ export default (dbname, media, tokenize, stemmer) => {
 			})).catch((e) => {
 				console.error("Failed to store OMEMO session: " + e);
 			});
+		},
+
+		storeOmemoMetadata: function (account, address, metadata) {
+			const tx = db.transaction(["omemo_sessions_meta"], "readwrite");
+			const store = tx.objectStore("omemo_sessions_meta");
+			promisifyRequest(store.put({
+				account: account,
+				address: address,
+				metadata: metadata,
+			})).catch((e) => {
+				console.error("Failed to store OMEMO session metadata: " + e);
+			});
+		},
+
+		getOmemoMetadata: function (account, address, callback) {
+			const tx = db.transaction(["omemo_sessions_meta"], "readonly");
+			const store = tx.objectStore("omemo_sessions_meta");
+			promisifyRequest(store.get([account, address])).then((result) => {
+				if(!result) {
+					callback(undefined);
+				} else {
+					callback(result.metadata);
+				}
+			}).catch((e) => {
+				console.error("Failed to load OMEMO session: " + e);
+			});
+		},
+
+		removeOmemoSession: function (account, address) {
+			// Remove session and any stored metadata
+			const tx = db.transaction(["omemo_sessions", "omemo_sessions_meta"], "readwrite");
+			const path = [account, address];
+			tx.objectStore("omemo_sessions").delete(path);
+			tx.objectStore("omemo_sessions_meta").delete(path);
 		},
 
 		get(k) {

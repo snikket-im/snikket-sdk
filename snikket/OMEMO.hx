@@ -318,6 +318,23 @@ class OMEMODecryptionResult {
 	}
 }
 
+class OMEMOSessionMetadata {
+	// True when we have successfully received and decrypted any
+	// non-prekey message from this session
+	public final receivedSessionMessageOk:Bool;
+	// True if the last message we received from this session
+	// was successfully decrypted
+	public final lastMessageDecryptedOk:Bool;
+	// True if we have sent a key exchange to repair this session
+	public final sentKeyExchange:Bool;
+
+	public function new(receivedSessionMessageOk:Bool, lastMessageDecryptedOk:Bool, sentKeyExchange:Bool) {
+		this.receivedSessionMessageOk = receivedSessionMessageOk;
+		this.lastMessageDecryptedOk = lastMessageDecryptedOk;
+		this.sentKeyExchange = sentKeyExchange;
+	}
+}
+
 //@:nullSafety(Strict)
 class OMEMO {
 	private final client: Client;
