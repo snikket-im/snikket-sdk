@@ -652,7 +652,7 @@ export default (dbname, media, tokenize, stemmer) => {
 		},
 
 		getOmemoDeviceList: function (chatId, callback) {
-			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
 			promisifyRequest(store.get("omemo:devices:"+chatId)).then((result) => {
 				if (result === undefined) {
@@ -684,7 +684,7 @@ export default (dbname, media, tokenize, stemmer) => {
 		},
 
 		getOmemoPreKey: function (account, keyId, callback) {
-			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
 			promisifyRequest(store.get("omemo:prekeys:"+account+":"+keyId.toString())).then((result) => {
 				if(result === undefined) {
@@ -702,7 +702,7 @@ export default (dbname, media, tokenize, stemmer) => {
 		},
 
 		getOmemoPreKeys: function (account, callback) {
-			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
 			const prefix = "omemo:prekeys:"+account+":";
 			const keyRange = IDBKeyRange.bound(prefix, prefix + '\uffff');
