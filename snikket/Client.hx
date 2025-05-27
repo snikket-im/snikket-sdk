@@ -551,7 +551,7 @@ class Client extends EventEmitter {
 				final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
 				chat.setAvatarSha1(avatarSha1);
 				persistence.storeChats(accountId(), [chat]);
-				persistence.hasMedia("sha-1", avatarSha1, (has) -> {
+				persistence.hasMedia("sha-1", avatarSha1).then((has) -> {
 					if (has) {
 						this.trigger("chats/update", [chat]);
 					} else {
@@ -561,7 +561,7 @@ class Client extends EventEmitter {
 							if (item == null) return;
 							final dataNode = item.getChild("data", "urn:xmpp:avatar:data");
 							if (dataNode == null) return;
-							persistence.storeMedia(mime, Base64.decode(StringTools.replace(dataNode.getText(), "\n", "")).getData(), () -> {
+							persistence.storeMedia(mime, Base64.decode(StringTools.replace(dataNode.getText(), "\n", "")).getData()).then(_ -> {
 								this.trigger("chats/update", [chat]);
 							});
 						});

@@ -95,7 +95,7 @@ abstract class Chat {
 	private var _encryptionMode: EncryptionMode = Unencrypted;
 
 	@:allow(snikket)
-	private var omemoContactDeviceIDs: Array<Int> = [];
+	private var omemoContactDeviceIDs: Null<Array<Int>> = null;
 
 	@:allow(snikket)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
@@ -109,7 +109,7 @@ abstract class Chat {
 		this.readUpToId = readUpToId;
 		this.readUpToBy = readUpToBy;
 		this.displayName = chatId;
-		this.omemoContactDeviceIDs = omemoContactDeviceIDs ?? [];
+		this.omemoContactDeviceIDs = omemoContactDeviceIDs;
 	}
 
 	@:allow(snikket)
