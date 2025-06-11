@@ -499,14 +499,22 @@ class MediaStreamTrack {
 			for (i in 0...msg.size()) {
 				s16[i] = ULAW_DECODE[cast msg.at(i)];
 			}
-			if (pcmCallback != null) pcmCallback(s16.toData(), rtp.clockRate, channels);
+			if (pcmCallback != null) {
+				cpp.vm.Gc.enterGCFreeZone();
+				pcmCallback(s16.toData(), rtp.clockRate, channels);
+				cpp.vm.Gc.exitGCFreeZone();
+			}
 		} else if (format == "opus") {
 			final s16 = new haxe.ds.Vector(5760).toData(); // 5760 is the max size needed for 48khz
 			if (untyped __cpp__("!opus")) opus = OpusDecoder.create(rtp.clockRate, channels, null); // assume only one opus clockRate+channels for this track
 			// TODO: Pass data of NULL to mean lost packet. In the case of PLC (data==NULL) or FEC (decode_fec=1), then frame_size needs to be exactly the duration of audio that is missing, otherwise the decoder will not be in the optimal state to decode the next incoming packet. For the PLC and FEC cases, frame_size must be a multiple of 2.5 ms.
 			final decoded = OpusDecoder.decode(opus, cast msg.data(), msg.size(), cpp.Pointer.ofArray(s16), Std.int(s16.length / channels), false);
 			s16.resize(decoded * channels);
-			if (pcmCallback != null) pcmCallback(s16, rtp.clockRate, channels);
+			if (pcmCallback != null) {
+				cpp.vm.Gc.enterGCFreeZone();
+				pcmCallback(s16, rtp.clockRate, channels);
+				cpp.vm.Gc.exitGCFreeZone();
+			}
 		} else {
 			trace("Ignoring audio frame with format", format);
 		}
@@ -534,7 +542,9 @@ class MediaStreamTrack {
 					waitForQ = true;
 					mutex.release();
 				} else {
+					cpp.vm.Gc.enterGCFreeZone();
 					readyForPCMCallback();
+					cpp.vm.Gc.exitGCFreeZone();
 				}
 			});
 		}
