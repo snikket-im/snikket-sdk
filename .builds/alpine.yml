@@ -1,48 +1,35 @@
 image: alpine/edge
 packages:
+- haxe
 - opus-dev
-#- libdatachannel-dev
+- libdatachannel-dev
 - libstrophe-dev
 - libc++-dev
 - musl-dev
-- alpine-sdk
 sources:
 - https://git.sr.ht/~singpolyma/snikket-sdk
-- https://gitlab.alpinelinux.org/anjandev/aports.git#haxe
 artifacts:
 - snikket-sdk/libsnikket.so
 tasks:
-- keygen: |
-    abuild-keygen -a -i -n
-- plog-dev: |
-    cd aports/community/plog
-    abuild -r
-- libdatachannel: |
-    cd aports/community/libdatachannel
-    abuild -r
-- neko: |
-    cd aports/testing/neko
-    abuild -r
-- haxe: |
-    cd aports/testing/haxe
-    abuild -r
-- xlocale: |
-    doas ln -s /usr/include/locale.h /usr/include/xlocale.h
 - haxelib: |
-    haxelib --quiet git jsImport https://github.com/back2dos/jsImport
-    haxelib --quiet install datetime
-    haxelib --quiet install haxe-strings
-    haxelib --quiet install hsluv
-    haxelib --quiet install tink_http
-    haxelib --quiet install sha
-    haxelib --quiet install thenshim
-    haxelib --quiet install HtmlParser
-    haxelib --quiet install hxnodejs
-    haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
-    haxelib --quiet install utest
-    haxelib --quiet git hxcpp https://github.com/HaxeFoundation/hxcpp
-    cd ~/haxe/hxcpp/git/tools/hxcpp
+    cd snikket-sdk
+    haxelib setup .
+    haxelib git jsImport https://github.com/back2dos/jsImport
+    haxelib install datetime
+    haxelib install haxe-strings
+    haxelib install hsluv
+    haxelib install tink_http
+    haxelib install sha
+    haxelib install thenshim
+    haxelib install HtmlParser
+    haxelib install hxnodejs
+    haxelib git hxtsdgen https://github.com/singpolyma/hxtsdgen
+    haxelib install utest
+    haxelib git hxcpp https://github.com/HaxeFoundation/hxcpp
+    cd hxcpp/git/tools/hxcpp
     haxe compile.hxml
+    cd -
+    patch -p1 -i xlocale.patch
 - make: |
     cd snikket-sdk
-    make
+    make libsnikket.so
