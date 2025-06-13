@@ -35,19 +35,8 @@ libsnikket.so and cpp/snikket.h, the latter has documentation comments
 <details>
 <summary><h2>Alpine Linux</h2></summary>
 
-Build haxelib and neko from this aports branch:
+See snikket-sdk build recipe: https://pkgs.alpinelinux.org/package/edge/testing/x86_64/snikket-sdk
 
-https://gitlab.alpinelinux.org/alpine/aports/-/merge_requests/69597
-
-Install the required make dependencies:
-
-    doas apk add opus-dev libdatachannel-dev libstrophe-dev libc++-dev musl-dev --virtual snikket-sdk-makedeps
-
-Building the sdk requires a `xlocale.h` file which is the same as the `locale.h` on your computer (provided by the `musl-dev` package).
-
-    doas ln -s /usr/include/locale.h /usr/include/xlocale.h
-
-Install the haxe dependencies and run make as above.
 </details>
 
 # Swift
