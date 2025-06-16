@@ -32,12 +32,9 @@ Also some typings are generated which include documenation comments.
 
 libsnikket.so and cpp/snikket.h, the latter has documentation comments
 
-<details>
-<summary><h2>Alpine Linux</h2></summary>
+## Alpine Linux
 
 See snikket-sdk build recipe: https://pkgs.alpinelinux.org/package/edge/testing/x86_64/snikket-sdk
-
-</details>
 
 # Swift
 
