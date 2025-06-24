@@ -91,28 +91,30 @@ class XEP0393 {
 		final spans = [];
 		var start = 0;
 		var nextLink = null;
-		while (start < styled.length) {
+		final styledLength = styled.length;
+		while (start < styledLength) {
+			final char = styled.charAt(start);
 			if (StringTools.isSpace(styled, start + 1)) {
 				// The opening styling directive MUST NOT be followed by a whitespace character
 				spans.push(CData(new TextNode(styled.substr(start, 2))));
 				start += 2;
 			} else if (start != 0 && !StringTools.isSpace(styled, start - 1)) {
 				// The opening styling directive MUST be located at the beginning of the parent block, after a whitespace character, or after a different opening styling directive.
-				spans.push(CData(new TextNode(styled.charAt(start))));
+				spans.push(CData(new TextNode(char)));
 				start++;
-			} else if (styled.charAt(start) == "*") {
+			} else if (char == "*") {
 				final parsed = parseSpan("strong", "*", styled, start);
 				spans.push(parsed.span);
 				start = parsed.end;
-			} else if (styled.charAt(start) == "_") {
+			} else if (char == "_") {
 				final parsed = parseSpan("em", "_", styled, start);
 				spans.push(parsed.span);
 				start = parsed.end;
-			} else if (styled.charAt(start) == "~") {
+			} else if (char == "~") {
 				final parsed = parseSpan("s", "~", styled, start);
 				spans.push(parsed.span);
 				start = parsed.end;
-			} else if (styled.charAt(start) == "`") {
+			} else if (char == "`") {
 				// parseSpan has a spcial case for us to not parse sub-spans
 				final parsed = parseSpan("tt", "`", styled, start);
 				spans.push(parsed.span);
@@ -125,7 +127,7 @@ class XEP0393 {
 					spans.push(nextLink.span);
 					start = nextLink.end;
 				} else {
-					spans.push(CData(new TextNode(styled.charAt(start))));
+					spans.push(CData(new TextNode(char)));
 					start++;
 				}
 			}
@@ -159,8 +161,9 @@ class XEP0393 {
 			return parsePreformatted(styled);
 		} else {
 			var end = 0;
-			while (end < styled.length && styled.charAt(end) != "\n") end++;
-			if (end < styled.length && styled.charAt(end) == "\n") end++;
+			final styledLength = styled.length;
+			while (end < styledLength && styled.charAt(end) != "\n") end++;
+			if (end < styledLength && styled.charAt(end) == "\n") end++;
 			return { block: new Stanza("div").addChildNodes(parseSpans(styled.substr(0, end))), rest: styled.substr(end) };
 		}
 	}
@@ -196,12 +199,13 @@ class XEP0393 {
 		final lines = [];
 		var line = null;
 		var end = 0;
-		while (end < styled.length) {
-			while (end < styled.length && styled.charAt(end) != "\n") {
+		final styledLength = styled.length;
+		while (end < styledLength) {
+			while (end < styledLength && styled.charAt(end) != "\n") {
 				if (line != null) line += styled.charAt(end);
 				end++;
 			}
-			if (end < styled.length && styled.charAt(end) == "\n") {
+			if (end < styledLength && styled.charAt(end) == "\n") {
 				end++;
 			}
 			if (line != null) lines.push(line+"\n");
