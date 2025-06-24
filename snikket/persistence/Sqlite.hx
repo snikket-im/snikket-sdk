@@ -271,8 +271,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 				}
 				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, row.capsObj, Reflect.field(row, "class")));
 			}
-			callback(chats);
-		});
+			return chats;
+		}).then(callback);
 	}
 
 	@HaxeCBridge.noemit
