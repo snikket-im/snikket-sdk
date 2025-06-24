@@ -18,6 +18,7 @@ class Notification {
 	public final body: String;
 	public final accountId: String;
 	public final chatId: String;
+	public final senderId: String;
 	public final messageId: String;
 	public final type: MessageType;
 	public final callStatus: Null<String>;
@@ -27,11 +28,12 @@ class Notification {
 	public final timestamp: Null<String>;
 
 	@:allow(snikket)
-	private function new(title: String, body: String, accountId: String, chatId: String, messageId: String, type: MessageType, callStatus: Null<String>, callSid: Null<String>, imageUri: Null<String>, lang: Null<String>, timestamp: Null<String>) {
+	private function new(title: String, body: String, accountId: String, chatId: String, senderId: String, messageId: String, type: MessageType, callStatus: Null<String>, callSid: Null<String>, imageUri: Null<String>, lang: Null<String>, timestamp: Null<String>) {
 		this.title = title;
 		this.body = body;
 		this.accountId = accountId;
 		this.chatId = chatId;
+		this.senderId = senderId;
 		this.messageId = messageId;
 		this.type = type;
 		this.callStatus = callStatus;
@@ -53,6 +55,7 @@ class Notification {
 			m.text,
 			m.account(),
 			m.chatId(),
+			m.senderId,
 			m.serverId,
 			m.type,
 			m.callStatus(),
@@ -72,6 +75,7 @@ class Notification {
 			"",
 			JID.parse(stanza.attr.get("to")).asBare().asString(),
 			JID.parse(stanza.attr.get("from")).asBare().asString(),
+			JID.parse(stanza.attr.get("from")).asString(),
 			stanza.getChildText("stanza-id", "urn:xmpp:sid:0"),
 			MessageChat,
 			null,
