@@ -444,44 +444,47 @@ class Sqlite implements Persistence implements KeyValueStore {
 			return;
 		}
 
-		final params: Array<Dynamic> = [accountId]; // subq is first in final q, so subq params first
+		Promise.resolve(null).then(_ -> {
+			final params: Array<Dynamic> = [accountId]; // subq is first in final q, so subq params first
 
-		final subq = new StringBuf();
-		subq.add("SELECT chat_id, ROWID as row, MAX(created_at) AS created_at FROM messages WHERE account_id=?");
-		subq.add(" AND chat_id IN (");
-		for (i => chat in chats) {
-			if (i != 0) subq.add(",");
-			subq.add("?");
-			params.push(chat.chatId);
-		}
-		subq.add(") AND (mam_id IN (");
-		var didOne = false;
-		for (chat in chats) {
-			if (chat.readUpTo() != null) {
-				if (didOne) subq.add(",");
+			final subq = new StringBuf();
+			subq.add("SELECT chat_id, ROWID as row, MAX(created_at) AS created_at FROM messages WHERE account_id=?");
+			subq.add(" AND chat_id IN (");
+			for (i => chat in chats) {
+				if (i != 0) subq.add(",");
 				subq.add("?");
-				params.push(chat.readUpTo());
-				didOne = true;
+				params.push(chat.chatId);
 			}
-		}
-		subq.add(") OR direction=?) GROUP BY chat_id");
-		params.push(MessageSent);
+			subq.add(") AND (mam_id IN (");
+			var didOne = false;
+			for (chat in chats) {
+				if (chat.readUpTo() != null) {
+					if (didOne) subq.add(",");
+					subq.add("?");
+					params.push(chat.readUpTo());
+					didOne = true;
+				}
+			}
+			subq.add(") OR direction=?) GROUP BY chat_id");
+			params.push(MessageSent);
 
-		final q = new StringBuf();
-		q.add("SELECT chat_id AS chatId, stanza, direction, type, status, sender_id, mam_id, mam_by, sync_point, CASE WHEN subq.created_at IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
-		q.add(subq.toString());
-		q.add(") subq USING (chat_id) WHERE account_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND chat_id IN (");
-		params.push(accountId);
-		for (i => chat in chats) {
-			if (i != 0) q.add(",");
-			q.add("?");
-			params.push(chat.chatId);
-		}
-		q.add(") AND (subq.created_at IS NULL OR messages.created_at > subq.created_at OR (messages.created_at=subq.created_at AND messages.ROWID >= subq.row)) GROUP BY chat_id;");
-		db.exec(q.toString(), params).then(result -> {
-			final details = [];
-			final rows: Array<Dynamic> = { iterator: () -> result }.array();
+			final q = new StringBuf();
+			q.add("SELECT chat_id AS chatId, stanza, direction, type, status, sender_id, mam_id, mam_by, sync_point, CASE WHEN subq.created_at IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
+			q.add(subq.toString());
+			q.add(") subq USING (chat_id) WHERE account_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND chat_id IN (");
+			params.push(accountId);
+			for (i => chat in chats) {
+				if (i != 0) q.add(",");
+				q.add("?");
+				params.push(chat.chatId);
+			}
+			q.add(") AND (subq.created_at IS NULL OR messages.created_at > subq.created_at OR (messages.created_at=subq.created_at AND messages.ROWID >= subq.row)) GROUP BY chat_id;");
+			return db.exec(q.toString(), params);
+		}).then(result ->
+			{ iterator: () -> result }.array()
+		).then((rows: Array<Dynamic>) -> {
 			Promise.resolve(hydrateMessages(accountId, rows.iterator())).then(messages -> {
+				final details = [];
 				for (i => m in messages) {
 					details.push({
 						unreadCount: rows[i].unreadCount,
