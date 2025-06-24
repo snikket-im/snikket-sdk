@@ -5,7 +5,15 @@ import haxe.crypto.Sha1;
 import haxe.io.Bytes;
 import haxe.io.BytesInput;
 
+#if cpp
+import HaxeCBridge;
+#end
+
 @:expose
+#if cpp
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
 class Identicon {
 	public static function svg(source: String) {
 		final sha = Sha1.make(Bytes.ofString(source));
