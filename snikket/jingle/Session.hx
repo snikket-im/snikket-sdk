@@ -561,6 +561,12 @@ class InitiatedSession implements Session {
 			});
 			pc.addEventListener("connectionstatechange", (event) -> {
 				if (pc != null && (pc.connectionState == "closed" || pc.connectionState == "failed")) {
+					client.sendStanza(
+						new Stanza("iq", { to: counterpart.asString(), type: "set", id: ID.medium() })
+							.tag("jingle", { xmlns: "urn:xmpp:jingle:1", action: "session-terminate", sid: sid })
+							.tag("reason").tag("connectivity-error")
+							.up().up().up()
+					);
 					terminate();
 				}
 			});
