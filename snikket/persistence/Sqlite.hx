@@ -384,7 +384,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			q += " AND messages.created_at " + op + "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)";
 			params.push(time);
 		}
-		q += " GROUP BY correction_id ORDER BY messages.created_at";
+		q += " GROUP BY correction_id, messages.sender_id ORDER BY messages.created_at";
 		if (op == "<" || op == "<=") q += " DESC";
 		q += ", messages.ROWID";
 		if (op == "<" || op == "<=") q += " DESC";
