@@ -590,7 +590,6 @@ class MediaStreamTrack {
 					trace("Opus encode failed", encoded);
 				} else {
 					rawOpus.resize(encoded);
-trace("opus write", encoded, rawOpus);
 					final packet = { channels: channels, payloadType: format.payloadType, clockRate: clockRate, payload: rawOpus, stamp: stamp, samples: samples };
 					mutex.acquire();
 					audioQ.unshift(packet);
