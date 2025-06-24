@@ -325,18 +325,18 @@ class Autolink {
 	 * @hide
 	 */
 	public static final AUTOLINK_WEB_URL =
-		"(" + WEB_URL_WITH_PROTOCOL + "|" + WEB_URL_WITHOUT_PROTOCOL + ")" + WORD_BOUNDARY;
+		new EReg("(" + WEB_URL_WITH_PROTOCOL + "|" + WEB_URL_WITHOUT_PROTOCOL + ")" + WORD_BOUNDARY, "u");
 
 	public static final TEL_URI =
-		"tel:(?:(?:\\+\\d+)|(?:\\d+;phone-context=" + PATH_CHAR + "+))";
+		new EReg("tel:(?:(?:\\+\\d+)|(?:\\d+;phone-context=" + PATH_CHAR + "+))", "u");
 
 	public static final SMS_URI =
-		"sms:(?:(?:\\+\\d+)|(?:\\d+;phone-context=" + PATH_CHAR + "+))";
+		new EReg("sms:(?:(?:\\+\\d+)|(?:\\d+;phone-context=" + PATH_CHAR + "+))", "u");
 
-	public static final XMPP_URI = "xmpp\\:(?:(?:["
+	public static final XMPP_URI = new EReg("xmpp\\:(?:(?:["
 					+ GOOD_IRI_CHAR
 					+ "\\;\\/\\?\\@\\&\\=\\#\\~\\-\\.\\+\\!\\*\\'\\(\\)\\,\\_])"
-		+ "|(?:\\%[a-fA-F0-9]{2}))+";
+		+ "|(?:\\%[a-fA-F0-9]{2}))+", "u");
 
 	public static function one(s:String, start:Int) {
 		final matches = [
@@ -349,9 +349,9 @@ class Autolink {
 		return matches.find((match) -> match.span != null) ?? matches[0];
 	}
 
-	private static function match(s:String, start:Int, pattern:String, addHttps:Bool) {
-		// Create a copy here for thread safety
-		final pattern = new EReg(pattern, "u");
+	private static function match(s:String, start:Int, pattern:EReg, addHttps:Bool) {
+		//// Create a copy here for thread safety -- but we only call from main thread?? and parsing the web url regex is super slow
+		//final pattern = new EReg(pattern, "u");
 		if (pattern.matchSub(s, start)) {
 			final pos = pattern.matchedPos();
 			final link = pattern.matched(0);
