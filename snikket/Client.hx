@@ -579,6 +579,10 @@ class Client extends EventEmitter {
 		Gets the client ready to use but does not connect to the server
 	**/
 	public function startOffline(ready: ()->Void) {
+		#if cpp
+		// Do a big GC before starting a new client
+		cpp.NativeGc.run(true);
+		#end
 		persistence.getLogin(accountId(), (clientId, loadedToken, loadedFastCount, displayName) -> {
 			token = loadedToken;
 			fastCount = loadedFastCount;
