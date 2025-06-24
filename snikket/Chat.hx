@@ -301,7 +301,7 @@ abstract class Chat {
 	/**
 		Block this chat so it will not re-open
 	**/
-	public function block(reportSpam: Null<ChatMessage>, onServer: Bool): Void {
+	public function block(reportSpam: Null<ChatMessage> = null, onServer: Bool = true): Void {
 		if (reportSpam != null && !onServer) throw "Can't report SPAM if not sending to server";
 		isBlocked = true;
 		if (uiState == Closed) {
