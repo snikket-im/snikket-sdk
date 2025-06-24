@@ -18,23 +18,52 @@ private interface NodeInterface {
 	public function traverse(f: (Stanza)->Bool):NodeInterface;
 }
 
-class TextNode implements NodeInterface {
-	public var content(default, null):String = "";
+class TextNodeClass implements NodeInterface {
+	public var content(get, never):String;
+	private final node: TextNode;
 
-	public function new (content:String) {
-		this.content = content;
+	public function new(node: TextNode) {
+		this.node = node;
+	}
+
+	private function get_content(): String {
+		return node.content;
 	}
 
 	public function serialize():String {
-		return Util.xmlEscape(content);
+		return node.serialize();
 	}
 
-	public function clone():TextNode {
-		return new TextNode(this.content);
+	public function clone():TextNodeClass {
+		return this;
 	}
 
 	public function traverse(f: (Stanza)->Bool) {
 		return this;
+	}
+}
+
+abstract TextNode(String) {
+	public var content(get, never):String;
+
+	inline public function new(content:String) {
+		this = content;
+	}
+
+	inline private function get_content(): String {
+		return this;
+	}
+
+	inline public function serialize():String {
+		return Util.xmlEscape(this);
+	}
+
+	inline public function clone():TextNode {
+		return new TextNode(this);
+	}
+
+	inline public function toClass() {
+		return new TextNodeClass(new TextNode(this));
 	}
 }
 
@@ -225,7 +254,7 @@ class Stanza implements NodeInterface {
 	public function getChildren():Array<NodeInterface> {
 		return children.map(child -> switch(child) {
 			case Element(el): el;
-			case CData(text): text;
+			case CData(text): text.toClass();
 		});
 	}
 
