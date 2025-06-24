@@ -125,7 +125,11 @@ class Stanza implements NodeInterface {
 	}
 
 	public static function parse(s:String):Stanza {
+		#if cpp
+		return snikket.streams.XmppStropheStream.parseStanza(s);
+		#else
 		return fromXml(Xml.parse(s));
+		#end
 	}
 
 	@:allow(snikket)

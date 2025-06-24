@@ -103,6 +103,9 @@ extern class StropheStanza {
 	@:native("xmpp_stanza_new")
 	static function create(ctx:StropheCtx):StropheStanza;
 
+	@:native("xmpp_stanza_new_from_string")
+	static function parse(ctx:StropheCtx, s:ConstPointer<Char>):StropheStanza;
+
 	@:native("xmpp_stanza_get_name")
 	static function get_name(stanza:StropheStanza):ConstPointer<Char>;
 
@@ -147,11 +150,15 @@ extern class StropheStanza {
 ")
 @:headerInclude("strophe.h")
 @:headerClassCode("
-	private: xmpp_ctx_t *ctx;
+	private: static xmpp_ctx_t *ctx;
 	private: xmpp_conn_t *conn;
 ")
+@:cppFileCode("
+xmpp_log_t *logger = getenv(\"SNIKKET_XMPP_DEBUG\") ? xmpp_get_default_logger(XMPP_LEVEL_DEBUG) : 0;
+xmpp_ctx_t* snikket::streams::XmppStropheStream_obj::ctx = xmpp_ctx_new(0,logger);
+")
 class XmppStropheStream extends GenericStream {
-	extern private var ctx:StropheCtx;
+	extern private static var ctx:StropheCtx;
 	extern private var conn:StropheConn;
 	private var iqHandlers: Map<IqRequestType, Map<String, Stanza->IqResult>> = [IqRequestType.Get => [], IqRequestType.Set => []];
 	private final pending: Array<Stanza> = [];
@@ -160,11 +167,6 @@ class XmppStropheStream extends GenericStream {
 	override public function new() {
 		super();
 		StropheCtx.initialize(); // TODO: shutdown?
-		untyped __cpp__("xmpp_log_t *logger = NULL;");
-		if (Sys.getEnv("SNIKKET_XMPP_DEBUG") != null) {
-			untyped __cpp__("logger = xmpp_get_default_logger(XMPP_LEVEL_DEBUG);");
-		}
-		ctx = StropheCtx.create(null, untyped __cpp__("logger"));
 		conn = StropheConn.create(ctx);
 		StropheConn.handler_add(
 			conn,
@@ -280,6 +282,13 @@ class XmppStropheStream extends GenericStream {
 			StropheCtx.run_once(ctx, 1);
 			poll();
 		});
+
+	public static function parseStanza(s:String):Stanza {
+		final sstanza = StropheStanza.parse(ctx, NativeString.c_str(s));
+		if (sstanza == null) throw "Failed to parse stanza: " + s;
+		final stanza = convertToStanza(sstanza, null);
+		StropheStanza.release(sstanza);
+		return stanza;
 	}
 
 	public static function convertToStanza(el:StropheStanza, dummy:RawPointer<Void>):Stanza {
@@ -346,8 +355,6 @@ class XmppStropheStream extends GenericStream {
 	}
 
 	public function finalize() {
-		StropheCtx.stop(ctx);
 		StropheConn.release(conn);
-		StropheCtx.free(ctx);
 	}
 }
