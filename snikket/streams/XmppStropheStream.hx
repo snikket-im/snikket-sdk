@@ -323,9 +323,7 @@ class XmppStropheStream extends GenericStream {
 		var child = StropheStanza.get_children(el);
 		while(child != null) {
 			if (StropheStanza.is_text(child)) {
-				var r = StropheStanza.get_text_ptr(child);
-				var x = NativeString.fromPointer(ConstPointer.fromRaw(StropheStanza.get_text_ptr(child)));
-				stanza.text(x);
+				stanza.text(NativeString.fromPointer(ConstPointer.fromRaw(StropheStanza.get_text_ptr(child))));
 			} else {
 				stanza.addChild(convertToStanza(child, null));
 			}
