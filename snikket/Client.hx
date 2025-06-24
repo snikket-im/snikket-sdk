@@ -1131,11 +1131,11 @@ class Client extends EventEmitter {
 	/**
 		Event fired when a new call comes in
 
-		@param handler takes two arguments, the call Session and the associated Chat ID
+		@param handler takes one argument, the call Session
 	**/
-	public function addCallRingListener(handler:(Session,String)->Void):Void {
+	public function addCallRingListener(handler:(Session)->Void):Void {
 		this.on("call/ring", (data) -> {
-			handler(data.session, data.chatId);
+			handler(data.session);
 			return EventHandled;
 		});
 	}
@@ -1145,9 +1145,9 @@ class Client extends EventEmitter {
 
 		@param handler takes one argument, the associated Chat ID
 	**/
-	public function addCallRetractListener(handler:(String)->Void):Void {
+	public function addCallRetractListener(handler:(String,String)->Void):Void {
 		this.on("call/retract", (data) -> {
-			handler(data.chatId);
+			handler(data.chatId, data.sid);
 			return EventHandled;
 		});
 	}
@@ -1157,9 +1157,9 @@ class Client extends EventEmitter {
 
 		@param handler takes one argument, the associated Chat ID
 	**/
-	public function addCallRingingListener(handler:(String)->Void):Void {
+	public function addCallRingingListener(handler:(String,String)->Void):Void {
 		this.on("call/ringing", (data) -> {
-			handler(data.chatId);
+			handler(data.chatId, data.sid);
 			return EventHandled;
 		});
 	}

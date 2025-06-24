@@ -17,6 +17,7 @@ import HaxeCBridge;
 #end
 interface Session {
 	public var sid (get, null): String;
+	public var chatId (get, null): String;
 	@:allow(snikket)
 	private function initiate(stanza: Stanza): InitiatedSession;
 	public function accept(): Void;
@@ -59,6 +60,7 @@ private function mkCallMessage(to: JID, from: JID, event: Stanza) {
 
 class IncomingProposedSession implements Session {
 	public var sid (get, null): String;
+	public var chatId (get, null): String;
 	private final client: Client;
 	private final from: JID;
 	private final _sid: String;
@@ -78,7 +80,7 @@ class IncomingProposedSession implements Session {
 		client.storeMessages([msg], (stored) -> {
 			client.notifyMessageHandlers(stored[0], CorrectionEvent);
 		});
-		client.trigger("call/ring", { chatId: from.asBare().asString(), session: this });
+		client.trigger("call/ring", { session: this });
 	}
 
 	public function hangup() {
@@ -95,7 +97,7 @@ class IncomingProposedSession implements Session {
 
 	public function retract() {
 		// Other side retracted, stop ringing
-		client.trigger("call/retract", { chatId: from.asBare().asString() });
+		client.trigger("call/retract", { chatId: chatId, sid: sid });
 	}
 
 	public function terminate() {
@@ -159,10 +161,15 @@ class IncomingProposedSession implements Session {
 	private function get_sid() {
 		return this._sid;
 	}
+
+	private function get_chatId() {
+		return from.asBare().asString();
+	}
 }
 
 class OutgoingProposedSession implements Session {
 	public var sid (get, null): String;
+	public var chatId (get, null): String;
 	private final client: Client;
 	private final to: JID;
 	private final _sid: String;
@@ -192,7 +199,7 @@ class OutgoingProposedSession implements Session {
 				.tag("store", { xmlns: "urn:xmpp:hints" });
 			client.sendStanza(stanza);
 			client.notifyMessageHandlers(stored[0], DeliveryEvent);
-			client.trigger("call/ringing", { chatId: to.asBare().asString() });
+			client.trigger("call/ringing", { chatId: chatId, sid: sid });
 		});
 	}
 
@@ -216,7 +223,7 @@ class OutgoingProposedSession implements Session {
 
 	public function retract() {
 		// Other side rejected the call
-		client.trigger("call/retract", { chatId: to.asBare().asString() });
+		client.trigger("call/retract", { chatId: chatId, sid: sid });
 	}
 
 	public function terminate() {
@@ -269,6 +276,10 @@ class OutgoingProposedSession implements Session {
 	private function get_sid() {
 		return this._sid;
 	}
+
+	private function get_chatId() {
+		return to.asBare().asString();
+	}
 }
 
 #if cpp
@@ -277,6 +288,7 @@ class OutgoingProposedSession implements Session {
 #end
 class InitiatedSession implements Session {
 	public var sid (get, null): String;
+	public var chatId (get, null): String;
 	private final client: Client;
 	private final counterpart: JID;
 	private final _sid: String;
@@ -317,9 +329,13 @@ class InitiatedSession implements Session {
 		return _sid;
 	}
 
+	private function get_chatId() {
+		return counterpart.asBare().asString();
+	}
+
 	@:allow(snikket)
 	private function ring() {
-		client.trigger("call/ring", { chatId: counterpart.asBare().asString(), session: this });
+		client.trigger("call/ring", { session: this });
 	}
 
 	@:allow(snikket)
@@ -361,7 +377,7 @@ class InitiatedSession implements Session {
 			}
 		}
 		pc = null;
-		client.trigger("call/retract", { chatId: counterpart.asBare().asString() });
+		client.trigger("call/retract", { chatId: chatId, sid: sid });
 
 		final event = new Stanza("finish", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
 		final msg = mkCallMessage(counterpart, client.jid, event);
@@ -537,7 +553,7 @@ class InitiatedSession implements Session {
 		client.getIceServers((servers) -> {
 			pc = new PeerConnection({ iceServers: cast servers }, null);
 			pc.addEventListener("track", (event) -> {
-				client.trigger("call/track", { chatId: counterpart.asBare().asString(), track: event.track, streams: event.streams });
+				client.trigger("call/track", { chatId: chatId, track: event.track, streams: event.streams });
 			});
 			pc.addEventListener("negotiationneeded", (event) -> trace("renegotiate", event));
 			pc.addEventListener("icecandidate", (event) -> {
