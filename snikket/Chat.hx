@@ -1595,7 +1595,7 @@ class SerializedChat {
 	}
 
 	public function toChat(client: Client, stream: GenericStream, persistence: Persistence) {
-		final extensionsStanza = Stanza.fromXml(Xml.parse(extensions));
+		final extensionsStanza = Stanza.parse(extensions);
 		var filterN = notificationsFiltered ?? false;
 		var mention = notifyMention;
 
