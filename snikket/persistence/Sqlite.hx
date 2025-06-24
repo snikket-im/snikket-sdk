@@ -247,11 +247,15 @@ class Sqlite implements Persistence implements KeyValueStore {
 				final json = Json.parse(row.caps);
 				capsMap[Base64.encode(Bytes.ofData(row.sha1))] = new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), json.features);
 			}
+			result.caps = null;
 			final chats = [];
-			for (row in result.chats) {
+			var row = null;
+			while ((row = result.chats.pop()) != null) {
 				final presenceMap: Map<String, Presence> = [];
 				final presenceJson: DynamicAccess<Dynamic> = row.presenceJson;
-				for (resource => presence in presenceJson) {
+				for (resource in presenceJson.keys()) {
+					final presence = presenceJson.get(resource);
+					presenceJson.remove(resource);
 					presenceMap[resource] = new Presence(
 						presence.caps == null ? null : capsMap[presence.caps],
 						presence.mucUser == null ? null : Stanza.parse(presence.mucUser)

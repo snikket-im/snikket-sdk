@@ -593,10 +593,10 @@ class Client extends EventEmitter {
 			}
 
 			persistence.getChats(accountId(), (protoChats) -> {
-				for (protoChat in protoChats) {
-					chats.push(protoChat.toChat(this, stream, persistence));
+				var oneProtoChat = null;
+				while ((oneProtoChat = protoChats.pop()) != null) {
+					chats.push(oneProtoChat.toChat(this, stream, persistence));
 				}
-
 				persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
 					for (detail in details) {
 						var chat = getChat(detail.chatId);
