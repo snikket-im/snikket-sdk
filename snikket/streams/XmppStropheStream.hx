@@ -162,7 +162,9 @@ class XmppStropheStream extends GenericStream {
 	extern private var conn:StropheConn;
 	private var iqHandlers: Map<IqRequestType, Map<String, Stanza->IqResult>> = [IqRequestType.Get => [], IqRequestType.Set => []];
 	private final pending: Array<Stanza> = [];
+	private var pollTimer: Null<haxe.Timer> = null;
 	private var ready = false;
+	private var stanzaThisPoll = false;
 
 	override public function new() {
 		super();
@@ -185,6 +187,7 @@ class XmppStropheStream extends GenericStream {
 
 	public static function strophe_stanza(conn:StropheConn, sstanza:StropheStanza, userdata:RawPointer<Void>):Int {
 		final stream: XmppStropheStream = untyped __cpp__("static_cast<hx::Object*>(userdata)");
+		stream.stanzaThisPoll = true;
 		final stanza = convertToStanza(sstanza, null);
 
 		final xmlns = stanza.attr.get("xmlns");
@@ -277,11 +280,14 @@ class XmppStropheStream extends GenericStream {
 		StropheConn.disconnect(conn);
 	}
 
-	private function poll() {
-		sys.thread.Thread.current().events.run(() -> {
-			StropheCtx.run_once(ctx, 1);
-			poll();
-		});
+	private function poll(?timeout = 100) {
+		if (pollTimer != null) pollTimer.stop();
+		pollTimer = haxe.Timer.delay(() -> {
+			stanzaThisPoll = false;
+			StropheCtx.run_once(ctx, 5);
+			poll(stanzaThisPoll ? 5 : 100);
+		}, timeout);
+	}
 
 	public static function parseStanza(s:String):Stanza {
 		final sstanza = StropheStanza.parse(ctx, NativeString.c_str(s));
