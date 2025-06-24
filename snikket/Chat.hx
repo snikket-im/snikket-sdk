@@ -340,16 +340,22 @@ abstract class Chat {
 		}
 	}
 
-	/**
-		Update notification preferences
-	**/
-	public function setNotifications(filtered: Bool, mention: Bool, reply: Bool) {
+	@:allow(snikket)
+	private function setNotificationsInternal(filtered: Bool, mention: Bool, reply: Bool) {
 		if (filtered) {
 			notificationSettings = { mention: mention, reply: reply };
 		} else {
 			notificationSettings = null;
 		}
+	}
+
+	/**
+		Update notification preferences
+	**/
+	public function setNotifications(filtered: Bool, mention: Bool, reply: Bool) {
+		setNotificationsInternal(filtered, mention, reply);
 		persistence.storeChats(client.accountId(), [this]);
+		client.trigger("chats/update", [this]);
 		client.updatePushIfEnabled();
 	}
 
@@ -1602,7 +1608,7 @@ class SerializedChat {
 		} else {
 			throw "Unknown class of " + chatId + ": " + klass;
 		}
-		chat.setNotifications(filterN, mention, notifyReply);
+		chat.setNotificationsInternal(filterN, mention, notifyReply);
 		if (displayName != null) chat.displayName = displayName;
 		if (avatarSha1 != null) chat.setAvatarSha1(avatarSha1);
 		chat.setTrusted(trusted);
