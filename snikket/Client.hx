@@ -921,7 +921,7 @@ class Client extends EventEmitter {
 		@returns the chat if known, or NULL
 	**/
 	public function getChat(chatId:String):Null<Chat> {
-		return chats.find((chat) -> chat.chatId == chatId);
+		return Util.findFast(chats, (chat) -> chat.chatId == chatId);
 	}
 
 	@:allow(snikket)

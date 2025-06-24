@@ -692,7 +692,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 	private function hydrateReactions(accountId: String, messages: Array<ChatMessage>) {
 		return fetchReactions(accountId, messages.map(m -> ({ chatId: m.chatId(), serverId: m.serverId, serverIdBy: m.serverIdBy, localId: m.localId }))).then(result -> {
 			for (id => reactions in result) {
-				final m = messages.find(m ->
+				final m = Util.findFast(messages, m ->
 					((m.serverId == null ? m.localId : m.serverId + "\n" + m.serverIdBy) + "\n" + m.chatId()) == id ||
 					((m.localId == null ? m.serverId + "\n" + m.serverIdBy : m.localId) + "\n" + m.chatId()) == id
 				);
@@ -780,7 +780,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				final parents = { iterator: () -> iter }.array();
 				for (message in messages) {
 					if (message.replyToMessage != null) {
-						final found: Dynamic = parents.find(p -> p.chat_id == message.chatId() && (message.replyToMessage.serverId == null || p.mam_id == message.replyToMessage.serverId) && (message.replyToMessage.localId == null || p.stanza_id == message.replyToMessage.localId));
+						final found: Dynamic = Util.findFast(parents, p -> p.chat_id == message.chatId() && (message.replyToMessage.serverId == null || p.mam_id == message.replyToMessage.serverId) && (message.replyToMessage.localId == null || p.stanza_id == message.replyToMessage.localId));
 						if (found != null) message.set_replyToMessage(hydrateMessages(accountId, [found].iterator())[0]);
 					}
 				}

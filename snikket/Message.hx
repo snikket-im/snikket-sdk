@@ -154,7 +154,8 @@ class Message {
 		msg.replyTo.sort((x, y) -> Reflect.compare(x.asString(), y.asString()));
 
 		final msgFrom = msg.from;
-		if (msg.direction == MessageReceived && msgFrom != null && msg.replyTo.find((r) -> r.asBare().equals(msgFrom.asBare())) == null) {
+		// Not sure why the compiler things we need to use Null<JID> with findFast
+		if (msg.direction == MessageReceived && msgFrom != null && Util.findFast(msg.replyTo, @:nullSafety(Off) (r: Null<JID>) -> r.asBare().equals(msgFrom.asBare())) == null) {
 			trace("Don't know what chat message without from in replyTo belongs in", stanza);
 			return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza));
 		}

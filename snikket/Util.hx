@@ -28,6 +28,18 @@ inline function existsFast<A>(it:Array<A>, f:(item:A) -> Bool) {
 	return result;
 }
 
+@:nullSafety(Strict)
+inline function findFast<T>(it:Array<T>, f:(item:T) -> Bool):Null<T> {
+	var result = null;
+	for (v in it) {
+		if (f(v)) {
+			result = v;
+			break;
+		}
+	}
+	return result;
+}
+
 // Std.downcast doesn't play well with null safety
 function downcast<T, S>(value: T, c: Class<S>): Null<S> {
 	return cast Std.downcast(cast value, cast c);
