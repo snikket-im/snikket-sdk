@@ -183,16 +183,18 @@ class Sqlite implements Persistence implements KeyValueStore {
 		storeChatTimer = haxe.Timer.delay(() -> {
 			final mapPresence = (chat: Chat) -> {
 				final storePresence: DynamicAccess<{ ?caps: String, ?mucUser: String }> = {};
+				final caps: Map<BytesData, Caps> = [];
 				for (resource => presence in chat.presence) {
 					storePresence[resource ?? ""] = {};
 					if (presence.caps != null) {
-						storeCaps(presence.caps);
+						caps[presence.caps.verRaw().hash] = presence.caps;
 						storePresence[resource ?? ""].caps = presence.caps.ver();
 					}
 					if (presence.mucUser != null) {
 						storePresence[resource ?? ""].mucUser = presence.mucUser.toString();
 					}
 				}
+				storeCapsSet(caps);
 				return storePresence;
 			};
 			final q = new StringBuf();
@@ -544,10 +546,23 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function storeCaps(caps:Caps) {
-		db.exec(
-			"INSERT OR IGNORE INTO caps VALUES (?,jsonb(?))",
-			[caps.verRaw().hash, Json.stringify({ node: caps.node, identities: caps.identities, features: caps.features })]
-		);
+		storeCapsSet([ caps.verRaw().hash => caps ]);
+	}
+
+	private function storeCapsSet(capsSet:Map<BytesData, Caps>) {
+		final params: Array<Dynamic> = [];
+		final q = new StringBuf();
+		q.add("INSERT OR IGNORE INTO caps VALUES ");
+		var first = true;
+		for (ver => caps in capsSet) {
+			if (!first) q.add(",");
+			q.add("(?,jsonb(?))");
+			params.push(ver);
+			params.push(Json.stringify({ node: caps.node, identities: caps.identities, features: caps.features }));
+			first = false;
+		}
+		if (params.length < 1) return;
+		db.exec(q.toString(), params);
 	}
 
 	@HaxeCBridge.noemit
