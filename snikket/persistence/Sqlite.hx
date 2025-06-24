@@ -35,90 +35,96 @@ class Sqlite implements Persistence implements KeyValueStore {
 	public function new(dbfile: String, media: MediaStore) {
 		this.media = media;
 		media.setKV(this);
-		db = new SqliteDriver(dbfile);
-		db.exec("PRAGMA user_version;").then(iter -> {
-			final version = Std.parseInt(iter.next()?.user_version) ?? 0;
-			if (version < 1) {
-				db.exec(["CREATE TABLE messages (
-					account_id TEXT NOT NULL,
-					mam_id TEXT NOT NULL,
-					mam_by TEXT NOT NULL,
-					stanza_id TEXT NOT NULL,
-					correction_id TEXT NOT NULL,
-					sync_point INTEGER NOT NULL,
-					chat_id TEXT NOT NULL,
-					sender_id TEXT NOT NULL,
-					created_at INTEGER NOT NULL,
-					status INTEGER NOT NULL,
-					direction INTEGER NOT NULL,
-					type INTEGER NOT NULL,
-					stanza TEXT NOT NULL,
-					PRIMARY KEY (account_id, mam_id, mam_by, stanza_id)
-				) STRICT;",
-				"CREATE INDEX messages_created_at ON messages (account_id, chat_id, created_at);",
-				"CREATE INDEX messages_correction_id ON messages (correction_id);",
-				"CREATE TABLE chats (
-					account_id TEXT NOT NULL,
-					chat_id TEXT NOT NULL,
-					trusted INTEGER NOT NULL,
-					avatar_sha1 BLOB,
-					fn TEXT,
-					ui_state INTEGER NOT NULL,
-					blocked INTEGER NOT NULL,
-					extensions TEXT,
-					read_up_to_id TEXT,
-					read_up_to_by TEXT,
-					caps_ver BLOB,
-					presence BLOB NOT NULL,
-					class TEXT NOT NULL,
-					PRIMARY KEY (account_id, chat_id)
-				) STRICT;",
-				"CREATE TABLE keyvaluepairs (
-					k TEXT NOT NULL PRIMARY KEY,
-					v TEXT NOT NULL
-				) STRICT;",
-				"CREATE TABLE caps (
-					sha1 BLOB NOT NULL PRIMARY KEY,
-					caps BLOB NOT NULL
-				) STRICT;",
-				"CREATE TABLE services (
-					account_id TEXT NOT NULL,
-					service_id TEXT NOT NULL,
-					name TEXT,
-					node TEXT,
-					caps BLOB NOT NULL,
-					PRIMARY KEY (account_id, service_id)
-				) STRICT;",
-				"CREATE TABLE accounts (
-					account_id TEXT NOT NULL,
-					client_id TEXT NOT NULL,
-					display_name TEXT,
-					token TEXT,
-					fast_count INTEGER NOT NULL DEFAULT 0,
-					sm_state BLOB,
-					PRIMARY KEY (account_id)
-				) STRICT;",
-				"CREATE TABLE reactions (
-					account_id TEXT NOT NULL,
-					update_id TEXT NOT NULL,
-					mam_id TEXT,
-					mam_by TEXT,
-					stanza_id TEXT,
-					chat_id TEXT NOT NULL,
-					sender_id TEXT NOT NULL,
-					created_at INTEGER NOT NULL,
-					reactions BLOB NOT NULL,
-					kind INTEGER NOT NULL,
-					PRIMARY KEY (account_id, chat_id, sender_id, update_id)
-				) STRICT;",
-				"PRAGMA user_version = 1;"]);
-			}
-			if (version < 2) {
-				db.exec(["ALTER TABLE chats ADD COLUMN notifications_filtered INTEGER;",
-				"ALTER TABLE chats ADD COLUMN notify_mention INTEGER NOT NULL DEFAULT 0;",
-				"ALTER TABLE chats ADD COLUMN notify_reply INTEGER NOT NULL DEFAULT 0;",
-				"PRAGMA user_version = 2;"]);
-			}
+		db = new SqliteDriver(dbfile, (exec) -> {
+			exec(["PRAGMA user_version;"]).then(iter -> {
+				final version = Std.parseInt(iter.next()?.user_version) ?? 0;
+				return Promise.resolve(null).then(_ -> {
+					if (version < 1) {
+						return exec(["CREATE TABLE messages (
+							account_id TEXT NOT NULL,
+							mam_id TEXT NOT NULL,
+							mam_by TEXT NOT NULL,
+							stanza_id TEXT NOT NULL,
+							correction_id TEXT NOT NULL,
+							sync_point INTEGER NOT NULL,
+							chat_id TEXT NOT NULL,
+							sender_id TEXT NOT NULL,
+							created_at INTEGER NOT NULL,
+							status INTEGER NOT NULL,
+							direction INTEGER NOT NULL,
+							type INTEGER NOT NULL,
+							stanza TEXT NOT NULL,
+							PRIMARY KEY (account_id, mam_id, mam_by, stanza_id)
+						) STRICT;",
+						"CREATE INDEX messages_created_at ON messages (account_id, chat_id, created_at);",
+						"CREATE INDEX messages_correction_id ON messages (correction_id);",
+						"CREATE TABLE chats (
+							account_id TEXT NOT NULL,
+							chat_id TEXT NOT NULL,
+							trusted INTEGER NOT NULL,
+							avatar_sha1 BLOB,
+							fn TEXT,
+							ui_state INTEGER NOT NULL,
+							blocked INTEGER NOT NULL,
+							extensions TEXT,
+							read_up_to_id TEXT,
+							read_up_to_by TEXT,
+							caps_ver BLOB,
+							presence BLOB NOT NULL,
+							class TEXT NOT NULL,
+							PRIMARY KEY (account_id, chat_id)
+						) STRICT;",
+						"CREATE TABLE keyvaluepairs (
+							k TEXT NOT NULL PRIMARY KEY,
+							v TEXT NOT NULL
+						) STRICT;",
+						"CREATE TABLE caps (
+							sha1 BLOB NOT NULL PRIMARY KEY,
+							caps BLOB NOT NULL
+						) STRICT;",
+						"CREATE TABLE services (
+							account_id TEXT NOT NULL,
+							service_id TEXT NOT NULL,
+							name TEXT,
+							node TEXT,
+							caps BLOB NOT NULL,
+							PRIMARY KEY (account_id, service_id)
+						) STRICT;",
+						"CREATE TABLE accounts (
+							account_id TEXT NOT NULL,
+							client_id TEXT NOT NULL,
+							display_name TEXT,
+							token TEXT,
+							fast_count INTEGER NOT NULL DEFAULT 0,
+							sm_state BLOB,
+							PRIMARY KEY (account_id)
+						) STRICT;",
+						"CREATE TABLE reactions (
+							account_id TEXT NOT NULL,
+							update_id TEXT NOT NULL,
+							mam_id TEXT,
+							mam_by TEXT,
+							stanza_id TEXT,
+							chat_id TEXT NOT NULL,
+							sender_id TEXT NOT NULL,
+							created_at INTEGER NOT NULL,
+							reactions BLOB NOT NULL,
+							kind INTEGER NOT NULL,
+							PRIMARY KEY (account_id, chat_id, sender_id, update_id)
+						) STRICT;",
+						"PRAGMA user_version = 1;"]);
+					}
+					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 2) {
+						return exec(["ALTER TABLE chats ADD COLUMN notifications_filtered INTEGER;",
+						"ALTER TABLE chats ADD COLUMN notify_mention INTEGER NOT NULL DEFAULT 0;",
+						"ALTER TABLE chats ADD COLUMN notify_reply INTEGER NOT NULL DEFAULT 0;",
+						"PRAGMA user_version = 2;"]);
+					}
+					return Promise.resolve(null);
+				});
+			});
 		});
 	}
 

@@ -14,7 +14,7 @@ class SqliteDriver {
 	private var sqlite: Promiser;
 	private var dbId: String;
 
-	public function new(dbfile: String) {
+	public function new(dbfile: String, migrate: (Array<String>->Promise<haxe.iterators.ArrayIterator<Dynamic>>)->Promise<Any>) {
 		Worker1.v2({
 			worker: () -> new js.html.Worker(
 				untyped new js.html.URL("sqlite-worker1.mjs", js.Syntax.code("import.meta.url")),
@@ -25,6 +25,7 @@ class SqliteDriver {
 			return sqlite("open", { filename: dbfile, vfs: "opfs-sahpool" });
 		}).then(openResult -> {
 			dbId = openResult.dbId;
+			return migrate((sql) -> this.exec(sql));
 		});
 	}
 
