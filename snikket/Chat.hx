@@ -1349,7 +1349,7 @@ class Channel extends Chat {
 		message.versions = [message.build()]; // This is a correction
 		message.localId = localId;
 		client.storeMessages([message.build()], (corrected) -> {
-			message.versions = corrected[0].localId == localId ? cast corrected[0].versions : [message.build()];
+			message.versions = corrected[0].versions[0]?.localId == localId ? cast corrected[0].versions : [message.build()];
 			message.localId = toSendId;
 			client.sendStanza(message.build().asStanza());
 			client.notifyMessageHandlers(corrected[0], CorrectionEvent);
