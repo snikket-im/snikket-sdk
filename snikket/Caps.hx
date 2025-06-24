@@ -2,6 +2,7 @@ package snikket;
 
 import haxe.crypto.Base64;
 import haxe.io.Bytes;
+import haxe.io.BytesData;
 using Lambda;
 
 import snikket.Hash;
@@ -44,10 +45,13 @@ class Caps {
 		return result;
 	}
 
-	public function new(node: String, identities: Array<Identity>, features: Array<String>) {
+	public function new(node: String, identities: Array<Identity>, features: Array<String>, ?ver: BytesData) {
 		this.node = node;
 		this.identities = identities;
 		this.features = features;
+		if (ver != null) {
+			_ver = new Hash("sha-1", ver);
+		}
 	}
 
 	public function isChannel(chatId: String) {
