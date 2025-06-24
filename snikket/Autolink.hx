@@ -199,7 +199,7 @@ class Autolink {
 	/**
 	 * Valid UCS characters defined in RFC 3987. Excludes space characters.
 	 */
-	#if cpp
+	#if (cpp || eval)
 	private static final UCS_CHAR =
 			"\\x{00A0}-\\x{D7FF}" +
 			"\\x{F900}-\\x{FDCF}" +
