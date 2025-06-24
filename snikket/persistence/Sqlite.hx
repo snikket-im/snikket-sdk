@@ -302,6 +302,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		}
 
 		(if (chatIds.length > 0 && localIds.length > 0) {
+			// Hmm, this loses the original timestamp though
 			final q = new StringBuf();
 			q.add("DELETE FROM messages WHERE account_id=? AND direction=? AND chat_id IN (");
 			q.add(chatIds.map(_ -> "?").join(","));
