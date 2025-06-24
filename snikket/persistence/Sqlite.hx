@@ -229,14 +229,14 @@ class Sqlite implements Persistence implements KeyValueStore {
 	@HaxeCBridge.noemit
 	public function getChats(accountId: String, callback: (Array<SerializedChat>)->Void) {
 		db.exec(
-			"SELECT chat_id, trusted, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, notifications_filtered, notify_mention, notify_reply, json(caps) AS caps, json(presence) AS presence, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
+			"SELECT chat_id, trusted, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, notifications_filtered, notify_mention, notify_reply, json(caps) AS caps, caps_ver, json(presence) AS presence, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
 			[accountId]
 		).then(result -> {
 			final fetchCaps: Map<BytesData, Bool> = [];
 			final chats: Array<Dynamic> = [];
 			for (row in result) {
 				final capsJson = row.caps == null ? null : Json.parse(row.caps);
-				row.capsObj = capsJson == null ? null : new Caps(capsJson.node, capsJson.identities.map(i -> new Identity(i.category, i.type, i.name)), capsJson.features);
+				row.capsObj = capsJson == null ? null : new Caps(capsJson.node, capsJson.identities.map(i -> new Identity(i.category, i.type, i.name), row.caps_ver), capsJson.features);
 				final presenceJson: DynamicAccess<Dynamic> = Json.parse(row.presence);
 				row.presenceJson = presenceJson;
 				for (resource => presence in presenceJson) {
@@ -253,7 +253,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			final capsMap: Map<String, Caps> = [];
 			for (row in result.caps) {
 				final json = Json.parse(row.caps);
-				capsMap[Base64.encode(Bytes.ofData(row.sha1))] = new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), json.features);
+				capsMap[Base64.encode(Bytes.ofData(row.sha1))] = new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name), row.sha1), json.features);
 			}
 			result.caps = null;
 			final chats = [];
@@ -579,7 +579,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		).then(result -> {
 			for (row in result) {
 				final json = Json.parse(row.caps);
-				callback(new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), json.features));
+				callback(new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), json.features, verData));
 				return;
 			}
 			callback(null);
