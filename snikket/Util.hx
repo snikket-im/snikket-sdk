@@ -46,7 +46,7 @@ function downcast<T, S>(value: T, c: Class<S>): Null<S> {
 }
 
 function xmlEscape(s: String) {
-	// NOTE: using STringTools.htmlEscape breaks things if this is one half of a surrogate pair in an adjacent cdata
+	// NOTE: using StringTools.htmlEscape breaks things if this is one half of a surrogate pair in an adjacent cdata
 	return StringTools.replace(StringTools.replace(StringTools.replace(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;");
 }
 
