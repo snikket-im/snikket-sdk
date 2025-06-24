@@ -857,8 +857,9 @@ class PeerConnection {
 	private function onStateChange(state: cpp.Struct<PCState>) {
 		untyped __cpp__("int base = 0; hx::SetTopOfStack(&base, true);"); // allow running haxe code on foreign thread
 		mainLoop.run(() -> {
+			final stateString = state.toString();
 			for (cb in stateChangeListeners) {
-				cb(null);
+				cb(stateString);
 			}
 		});
 		untyped __cpp__("hx::SetTopOfStack((int*)0, true);"); // unregister with GC
