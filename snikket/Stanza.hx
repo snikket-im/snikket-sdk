@@ -105,15 +105,19 @@ class Stanza implements NodeInterface {
 			return el.toString();
 		}
 		var serialized = el.toString();
-		var buffer = [serialized.substring(0, serialized.length-2)+">"];
+		var buffer = new StringBuf();
+		buffer.addSub(serialized, 0, serialized.length-2);
+		buffer.add(">");
 		for (child in children) {
-			buffer.push(switch (child) {
+			buffer.add(switch (child) {
 				case Element(c): c.serialize();
 				case CData(c): c.serialize();
 			});
 		}
-		buffer.push("</"+this.name+">");
-		return buffer.join("");
+		buffer.add("</");
+		buffer.add(name);
+		buffer.add(">");
+		return buffer.toString();
 	}
 
 	public function toString():String {
