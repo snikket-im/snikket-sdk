@@ -6,8 +6,8 @@ class JID {
 	public final domain : String;
 	public final resource : Null<String>;
 
-	public function new(?node:String, domain:String, ?resource:String) {
-		this.node = node == null ? null :
+	public function new(?node:String, domain:String, ?resource:String, ?raw = false) {
+		this.node = node == null || raw == true ? node :
 			StringTools.replace(StringTools.replace(StringTools.replace(
 			StringTools.replace(StringTools.replace(StringTools.replace(
 			StringTools.replace(StringTools.replace(StringTools.replace(
@@ -47,16 +47,17 @@ class JID {
 		return new JID(
 			(nodeDelimiter>0)?jid.substr(0, nodeDelimiter):null,
 			jid.substring((nodeDelimiter == -1)?0:nodeDelimiter+1, (resourceDelimiter == -1)?jid.length+1:resourceDelimiter),
-			(resourceDelimiter == -1)?null:jid.substring(resourceDelimiter+1)
+			(resourceDelimiter == -1)?null:jid.substring(resourceDelimiter+1),
+			true
 		);
 	}
 
 	public function asBare():JID {
-		return new JID(this.node, this.domain);
+		return new JID(this.node, this.domain, null, true);
 	}
 
 	public function withResource(resource: String): JID {
-		return new JID(this.node, this.domain, resource);
+		return new JID(this.node, this.domain, resource, true);
 	}
 
 	public function isValid():Bool {
