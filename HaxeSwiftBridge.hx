@@ -51,6 +51,7 @@ class HaxeSwiftBridge {
 	static final queuedClasses = new Array<{
 		cls: Ref<ClassType>,
 		namespace: String,
+		fields: Array<Field>
 	}>();
 
 	static final knownEnums: Map<String,String> = [];
@@ -71,7 +72,8 @@ class HaxeSwiftBridge {
 
 		queuedClasses.push({
 			cls: clsRef,
-			namespace: namespace
+			namespace: namespace,
+			fields: fields
 		});
 
 		// add @:keep
@@ -170,14 +172,31 @@ class HaxeSwiftBridge {
 		}
 	}
 
-	static function convertArgs(builder: hx.strings.StringBuilder, args: Array<{ name: String, opt: Bool, t: haxe.macro.Type }>) {
+	static function convertArgs(builder: hx.strings.StringBuilder, args: Array<{ name: String, opt: Bool, t: haxe.macro.Type }>, ?kind: FieldType) {
 		for (i => arg in args) {
 			if (i > 0) builder.add(", ");
 			builder.add(arg.name);
 			builder.add(": ");
 			builder.add(getSwiftType(arg.t, true));
 			if (arg.opt) {
-				builder.add(" = nil");
+				switch (kind) {
+				case FFun(func):
+					final expr = func.args.find(fa -> fa.name == arg.name)?.value?.expr;
+					switch (expr) {
+					case EConst(CIdent("null")):
+						builder.add(" = nil");
+					case EConst(CIdent("true")):
+						builder.add(" = true");
+					case EConst(CIdent("false")):
+						builder.add(" = false");
+					case null:
+						builder.add(" = nil");
+					default:
+						Context.fatalError("Unknown default value expression: " + expr, Context.currentPos());
+					}
+				default:
+					builder.add(" = nil");
+				}
 			}
 		}
 	}
@@ -266,7 +285,7 @@ class HaxeSwiftBridge {
 		}
 	}
 
-	static function convertQueuedClass(clsRef: Ref<ClassType>, namespace: String) {
+	static function convertQueuedClass(clsRef: Ref<ClassType>, namespace: String, fields: Array<Field>) {
 		var cls = clsRef.get();
 
 		// validate
@@ -315,7 +334,7 @@ class HaxeSwiftBridge {
 			builder.add("\tpublic let o: UnsafeMutableRawPointer\n\n\tinternal init(_ ptr: UnsafeMutableRawPointer) {\n\t\to = ptr\n\t}\n\n");
 		}
 
-		function convertVar(f: ClassField, read: VarAccess, write: VarAccess) {
+		function convertVar(f: ClassField, read: VarAccess, write: VarAccess, isStatic: Bool = false) {
 			final noemit = f.meta.extract("HaxeCBridge.noemit")[0];
 			var isConvertibleMethod = f.isPublic && !f.isExtern && (noemit == null || (noemit.params != null && noemit.params.length > 0));
 			if (!isConvertibleMethod) return;
@@ -337,7 +356,7 @@ class HaxeSwiftBridge {
 			builder.add(" {\n");
 			if (read == AccNormal || read == AccCall) {
 				builder.add("\t\tget {\n\t\t\t");
-				builder.add(castToSwift('c_${libName}.${cFuncNameGet}(o)', f.type, false, true));
+				builder.add(castToSwift('c_${libName}.${cFuncNameGet}(${isStatic ? '' : 'o'})', f.type, false, true));
 				builder.add("\n\t\t}\n");
 			}
 			if (write == AccNormal || write == AccCall) {
@@ -345,7 +364,7 @@ class HaxeSwiftBridge {
 				builder.add(libName);
 				builder.add(".");
 				builder.add(cFuncNameSet);
-				builder.add("(o, ");
+				builder.add("(" + (isStatic ? "" : "o, "));
 				builder.add(castToC("newValue", f.type));
 				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(f.type), Context.currentPos()), false) {
 				case TInst(_.get().name => "Array", [param]):
@@ -358,12 +377,11 @@ class HaxeSwiftBridge {
 			builder.add("\t}\n\n");
 		}
 
-		function convertFunction(f: ClassField, kind: SwiftFunctionInfoKind) {
+		function convertFunction(f: ClassField, kind: SwiftFunctionInfoKind, ?fld: Field) {
 			final noemit = f.meta.extract("HaxeCBridge.noemit")[0];
 			var isConvertibleMethod = f.isPublic && !f.isExtern && !f.meta.has("HaxeCBridge.wrapper") && (noemit == null || (noemit.params != null && noemit.params.length > 0));
 			if (!isConvertibleMethod) return;
 			if (cls.isInterface) return;
-
 			switch f.type {
 				case TFun(targs, tret):
 					final cNameMeta = getCNameMeta(f.meta);
@@ -405,7 +423,7 @@ class HaxeSwiftBridge {
 							builder.add("\tpublic func ");
 							builder.add(funcName);
 							builder.add("(");
-							convertArgs(builder, targs);
+							convertArgs(builder, targs, fld?.kind);
 							builder.add(") -> ");
 							builder.add(getSwiftType(tret));
 							builder.add(" {\n\t\t");
@@ -583,14 +601,14 @@ class HaxeSwiftBridge {
 			switch (f.kind) {
 			case FMethod(MethMacro):
 			case FMethod(_): convertFunction(f, Static);
-			case FVar(read, write): convertVar(f, read, write);
+			case FVar(read, write): convertVar(f, read, write, true);
 			}
 		}
 
 		for (f in cls.fields.get()) {
 			switch (f.kind) {
 			case FMethod(MethMacro):
-			case FMethod(_): convertFunction(f, Member);
+			case FMethod(_): convertFunction(f, Member, fields.find(fld -> f.name == fld.name));
 			case FVar(read, write): convertVar(f, read, write);
 			}
 		}
@@ -732,7 +750,7 @@ class HaxeSwiftBridge {
 			}
 
 		')
-		+ queuedClasses.map(c -> convertQueuedClass(c.cls, c.namespace)).join("\n") + "\n"
+		+ queuedClasses.map(c -> convertQueuedClass(c.cls, c.namespace, c.fields)).join("\n") + "\n"
 		+ { iterator: () -> knownEnums.keyValueIterator() }.map(e -> "public typealias " + e.key + " = " + e.value + "\n").join("\n")
 		;
 	}
