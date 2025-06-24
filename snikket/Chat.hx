@@ -469,16 +469,19 @@ abstract class Chat {
 		The display name of this Chat
 	**/
 	public function getDisplayName() {
-		final fn = this.displayName == chatId && chatId == client.accountId() ? client.displayName() : this.displayName;
-		final participants = getParticipants();
-		if (fn == chatId && participants.length > 2 && participants.length < 20) {
-			return participants.map(id -> {
-				final p = getParticipantDetails(id);
-				p.isSelf ? null : p.displayName;
-			}).filter(fn -> fn != null).join(", ");
-		} else {
-			return fn;
+		if (this.displayName == chatId) {
+			if (chatId == client.accountId()) return client.displayName();
+
+			final participants = getParticipants();
+			if (participants.length > 2 && participants.length < 20) {
+				return participants.map(id -> {
+					final p = getParticipantDetails(id);
+					p.isSelf ? null : p.displayName;
+				}).filter(fn -> fn != null).join(", ");
+			}
 		}
+
+		return this.displayName;
 	}
 
 	@:allow(snikket)
