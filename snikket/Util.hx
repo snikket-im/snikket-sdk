@@ -16,6 +16,18 @@ function setupTrace() {
 #end
 }
 
+// Faster just by specializing to array
+inline function existsFast<A>(it:Array<A>, f:(item:A) -> Bool) {
+	var result = false;
+	for (x in it) {
+		if (f(x)) {
+			result = true;
+			break;
+		}
+	}
+	return result;
+}
+
 // Std.downcast doesn't play well with null safety
 function downcast<T, S>(value: T, c: Class<S>): Null<S> {
 	return cast Std.downcast(cast value, cast c);

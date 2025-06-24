@@ -113,7 +113,7 @@ class Client extends EventEmitter {
 		});
 
 		stream.on("sm/update", (data) -> {
-			final anySyncHappening = chats.exists(chat -> chat.uiState != Closed && chat.syncing());
+			final anySyncHappening = Util.existsFast(chats, chat -> chat.uiState != Closed && chat.syncing());
 			persistence.storeStreamManagement(accountId(), anySyncHappening ? null : data.sm);
 			return EventHandled;
 		});
