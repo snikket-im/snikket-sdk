@@ -1068,6 +1068,16 @@ class Channel extends Chat {
 		persistence.lastId(client.accountId(), chatId, doSync);
 	}
 
+	@:allow(snikket)
+	override private function getCaps():KeyValueIterator<String, Caps> {
+		return {
+			hasNext: () -> false,
+			next: () -> {
+				return { key: "", value: null };
+			}
+		};
+	}
+
 	override public function setPresence(resource:String, presence:Presence) {
 		final oneTen = presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "110");
 		if (oneTen != null) {
