@@ -240,7 +240,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				final presenceJson: DynamicAccess<Dynamic> = Json.parse(row.presence);
 				row.presenceJson = presenceJson;
 				for (resource => presence in presenceJson) {
-					if (presence.caps) fetchCaps[Base64.decode(presence.caps).getData()] = true;
+					if (presence.caps != null) fetchCaps[Base64.decode(presence.caps).getData()] = true;
 				}
 				chats.push(row);
 			}
