@@ -474,7 +474,18 @@ class HaxeCBridge {
 							t: TInst(clsRef, []), // return a instance of this class
 						}
 						case Member:
-							var instanceTArg: TVar = {id: -1, name: hx.strings.Strings.toLowerUnderscore(classPrefix[classPrefix.length - 1]), t: TInst(clsRef, []), meta: null, capture: false, extra: null};
+							var instanceTArg: TVar = {
+								id: -1,
+								name: hx.strings.Strings.toLowerUnderscore(classPrefix[classPrefix.length - 1]),
+								t: TInst(clsRef, []),
+								meta: null,
+								capture: false,
+								extra: null,
+								// only in haxe 4.3
+								#if (haxe >= version("4.3.5"))
+									isStatic: false
+								#end
+							};
 							{
 								args: [{v: instanceTArg, value: null}].concat(tfunc.args),
 								expr: tfunc.expr,
@@ -767,6 +778,11 @@ class HaxeCBridge {
 						pair.first(pair.second);
 					}
 				}
+
+				bool hasPendingNativeCalls() {
+					AutoLock lock(queueMutex);
+					return !queue.empty();
+				}
 				
 				#if defined(HX_WINDOWS)
 				bool isHaxeMainThread() {
@@ -809,7 +825,7 @@ class HaxeCBridge {
 					// keeps alive until manual stop is called
 					HaxeCBridge::mainThreadInit(HaxeCBridgeInternal::isHaxeMainThread);
 					HaxeCBridgeInternal::threadInitSemaphore.Set();
-					HaxeCBridge::mainThreadRun(HaxeCBridgeInternal::processNativeCalls, haxeExceptionCallback);
+					HaxeCBridge::mainThreadRun(HaxeCBridgeInternal::processNativeCalls, HaxeCBridgeInternal::hasPendingNativeCalls, haxeExceptionCallback);
 				} else {
 					// failed to initialize statics; unlock init semaphore so _initializeHaxeThread can continue and report the exception 
 					HaxeCBridgeInternal::threadInitSemaphore.Set();
@@ -1967,24 +1983,32 @@ class HaxeCBridge {
 	}
 
 	@:noCompletion
-	static public function mainThreadRun(processNativeCalls: cpp.Callable<Void -> Void>, onUnhandledException: cpp.Callable<cpp.ConstCharStar -> Void>) @:privateAccess {
+	static public function mainThreadRun(processNativeCalls: cpp.Callable<Void -> Void>, hasPendingNativeCalls: cpp.Callable<Void -> Bool>, onUnhandledException: cpp.Callable<cpp.ConstCharStar -> Void>) @:privateAccess {
 		try {
 			runUserMain();
+		} catch (e: haxe.Exception) {
+trace(e, e.stack);
+			onUnhandledException(Std.string(e));
 		} catch (e: Any) {
+trace(e, haxe.CallStack.exceptionStack());
 			onUnhandledException(Std.string(e));
 		}
 
 		// run always-alive event loop
-		var eventLoop:CustomEventLoop = Thread.current().events;
+		var eventLoop = Thread.current().events;
 
-		var events = [];
+		var recycleRegular = [];
+		var recycleOneTimers = [];
 		while(Internal.mainThreadLoopActive) {
 			try {
 				// execute any queued native callbacks
 				processNativeCalls();
 
 				// adapted from EventLoop.loop()
-				var eventTickInfo = eventLoop.customProgress(Sys.time(), events);
+				var eventTickInfo = eventLoop.__progress(Sys.time(), recycleRegular, recycleOneTimers);
+				if (hasPendingNativeCalls()) {
+					continue;
+				}
 				switch (eventTickInfo.nextEventAt) {
 					case -2: // continue to next loop, assume events could have been scheduled
 					case -1:
@@ -2027,6 +2051,9 @@ class HaxeCBridge {
 
 				// adapted from EntryPoint.run()
 				var nextTick = EntryPoint.processEvents();
+				if (hasPendingNativeCalls()) {
+					continue;
+				}
 				if (nextTick < 0) {
 					if (Internal.mainThreadEndIfNoPending) {
 						// no events scheduled in the future and not waiting on any promises
@@ -2051,7 +2078,7 @@ class HaxeCBridge {
 		//var ptr = cpp.Pointer.ofArray(haxeArray).raw;
 		var ptr: cpp.RawPointer<cpp.RawPointer<cpp.Void>> = untyped __cpp__('(void**){0}->getBase()', haxeArray);
 		var ptrInt64: Int64 = untyped __cpp__('reinterpret_cast<int64_t>({0})', ptr);
-		Internal.gcRetainMap.set(ptrInt64, haxeArray);
+		inline retainPtr(ptrInt64, haxeArray);
 		return cast ptr;
 	}
 
@@ -2061,20 +2088,39 @@ class HaxeCBridge {
 		// we can convert the ptr to int64
 		// https://stackoverflow.com/a/21250110
 		var ptrInt64: Int64 = untyped __cpp__('reinterpret_cast<int64_t>({0})', ptr);
-		Internal.gcRetainMap.set(ptrInt64, haxeObject);
+		inline retainPtr(ptrInt64, haxeObject);
 		return ptr;
 	}
 
 	static public inline function retainHaxeString(haxeString: String): cpp.ConstCharStar {
 		var cStrPtr: cpp.ConstCharStar = cpp.ConstCharStar.fromString(haxeString);
 		var ptrInt64: Int64 = untyped __cpp__('reinterpret_cast<int64_t>({0})', cStrPtr);
-		Internal.gcRetainMap.set(ptrInt64, haxeString);
+		inline retainPtr(ptrInt64, haxeString);
 		return cStrPtr;
+	}
+
+	static private function retainPtr(ptrInt64: Int64, haxeObject: Dynamic) {
+		// check if we already have a reference to this object
+		var store = Internal.gcRetainMap.get(ptrInt64);
+		if (store == null) {
+			// if not, create a new entry
+			store = {refCount: 1, value: haxeObject};
+			Internal.gcRetainMap.set(ptrInt64, store);
+		} else {
+			// if so, increment the reference count
+			store.refCount++;
+		}
 	}
 
 	static public inline function releaseHaxePtr(haxePtr: Star<cpp.Void>) {
 		var ptrInt64: Int64 = untyped __cpp__('reinterpret_cast<int64_t>({0})', haxePtr);
-		Internal.gcRetainMap.remove(ptrInt64);
+		var store = Internal.gcRetainMap.get(ptrInt64);
+		if (store != null && store.refCount > 0) {
+			store.refCount--;
+			if (store.refCount <= 0) {
+				Internal.gcRetainMap.remove(ptrInt64);
+			}
+		}
 	}
 
 	@:noCompletion
@@ -2107,9 +2153,12 @@ private class Internal {
 	public static var mainThreadWaitLock: Lock;
 	public static var mainThreadLoopActive: Bool = true;
 	public static var mainThreadEndIfNoPending: Bool = false;
-	public static final gcRetainMap = new Int64Map<Dynamic>();
+	public static final gcRetainMap = new Int64Map<{ refCount: Int, value: Dynamic }>();
 }
 
+#if (haxe_ver >= 4.3)
+typedef Int64Map<T> = Map<Int64, T>;
+#else
 /**
 	Implements an Int64 map via two Int32 maps, using the low and high parts as keys
 	we need @Aidan63's PR to land before we can use Map<Int64, Dynamic>
@@ -2173,74 +2222,5 @@ abstract Int64Map<T>(Map<Int, Map<Int, T>>) {
 	}
 
 }
-
-#if (haxe_ver >= 4.2)
-@:forward
-@:access(sys.thread.EventLoop)
-abstract CustomEventLoop(sys.thread.EventLoop) from sys.thread.EventLoop {
-
-	// same as __progress but it doesn't reset the wait lock
-	// this is because resetting the wait lock here can mean wake-up lock releases are missed
-	// and we cannot resolve by only waking up with in the mutex because this interacts with the hxcpp GC (and we want to wake-up from a non-hxcpp-attached thread)
-	public inline function customProgress(now:Float, recycle:Array<()->Void>):{nextEventAt:Float, anyTime:Bool} {
-		var eventsToRun = recycle;
-		var eventsToRunIdx = 0;
-		// When the next event is expected to run
-		var nextEventAt:Float = -1;
-
-		this.mutex.acquire();
-		// @edit: don't reset the wait lock (see above)
-		// while(waitLock.wait(0.0)) {}
-		// Collect regular events to run
-		var current = this.regularEvents;
-		while(current != null) {
-			if(current.nextRunTime <= now) {
-				eventsToRun[eventsToRunIdx++] = current.run;
-				current.nextRunTime += current.interval;
-				nextEventAt = -2;
-			} else if(nextEventAt == -1 || current.nextRunTime < nextEventAt) {
-				nextEventAt = current.nextRunTime;
-			}
-			current = current.next;
-		}
-		this.mutex.release();
-
-		// Run regular events
-		for(i in 0...eventsToRunIdx) {
-			eventsToRun[i]();
-			eventsToRun[i] = null;
-		}
-		eventsToRunIdx = 0;
-
-		// Collect pending one-time events
-		this.mutex.acquire();
-		for(i => event in this.oneTimeEvents) {
-			switch event {
-				case null:
-					break;
-				case _:
-					eventsToRun[eventsToRunIdx++] = event;
-					this.oneTimeEvents[i] = null;
-			}
-		}
-		this.oneTimeEventsIdx = 0;
-		var hasPromisedEvents = this.promisedEventsCount > 0;
-		this.mutex.release();
-
-		//run events
-		for(i in 0...eventsToRunIdx) {
-			eventsToRun[i]();
-			eventsToRun[i] = null;
-		}
-
-		// Some events were executed. They could add new events to run.
-		if(eventsToRunIdx > 0) {
-			nextEventAt = -2;
-		}
-		return {nextEventAt:nextEventAt, anyTime:hasPromisedEvents}
-	}
-
-}
 #end
-
 #end
