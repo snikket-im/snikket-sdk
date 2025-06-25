@@ -847,15 +847,16 @@ class Client extends EventEmitter {
 				for (resource in Caps.withIdentity(chat.getCaps(), "gateway", null)) {
 					resources[resource] = true;
 				}
+				/* Gajim advertises this, so just go with identity instead
 				for (resource in Caps.withFeature(chat.getCaps(), "jabber:iq:gateway")) {
 					resources[resource] = true;
-				}
+				}*/
 				if (!sendAvailable && JID.parse(chat.chatId).isDomain()) {
 					resources[null] = true;
 				}
 				for (resource in resources.keys()) {
 					final bareJid = JID.parse(chat.chatId);
-					final fullJid = new JID(bareJid.node, bareJid.domain, resource);
+					final fullJid = new JID(bareJid.node, bareJid.domain, bareJid.isDomain() && resource == "" ? null : resource);
 					final jigGet = new JabberIqGatewayGet(fullJid.asString(), query);
 					jigGet.onFinished(() -> {
 						if (jigGet.getResult() == null) {
