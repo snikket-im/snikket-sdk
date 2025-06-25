@@ -185,7 +185,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				final storePresence: DynamicAccess<{ ?caps: String, ?mucUser: String }> = {};
 				final caps: Map<BytesData, Caps> = [];
 				for (resource => presence in chat.presence) {
-					storePresence[resource ?? ""] = {};
+					if (storePresence[resource ?? ""] == null) storePresence[resource ?? ""] = {};
 					if (presence.caps != null) {
 						caps[presence.caps.verRaw().hash] = presence.caps;
 						storePresence[resource ?? ""].caps = presence.caps.ver();
