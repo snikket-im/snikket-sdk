@@ -560,7 +560,10 @@ class MediaStreamTrack {
 	**/
 	public function writePCM(pcm: Array<cpp.Int16>, clockRate: Int, channels: Int) {
 		final format = Lambda.find(supportedAudioFormats, format -> format.clockRate == clockRate && format.channels == channels);
-		if (format == null) throw "Unsupported audo format: " + clockRate + "/" + channels;
+		if (format == null) {
+			trace("Unsupported audio format: " + clockRate + "/" + channels);
+			return;
+		}
 		eventLoop.run(() -> {
 			final samples = Std.int(pcm.length / channels);
 			mutex.acquire();
