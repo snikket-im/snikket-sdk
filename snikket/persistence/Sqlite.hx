@@ -266,7 +266,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					presenceJson.remove(resource);
 					presenceMap[resource] = new Presence(
 						presence.caps == null ? null : capsMap[presence.caps],
-						presence.mucUser == null ? null : Stanza.parse(presence.mucUser)
+						presence.mucUser == null || Config.constrainedMemoryMode ? null : Stanza.parse(presence.mucUser)
 					);
 				}
 				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, row.capsObj, Reflect.field(row, "class")));
