@@ -12,6 +12,15 @@ using thenshim.PromiseTools;
 import HaxeCBridge;
 #end
 
+enum abstract CallStatus(Int) {
+	var NoCall;
+	var Incoming;
+	var Outgoing;
+	var Connecting;
+	var Ongoing;
+	var Failed;
+}
+
 #if cpp
 @:build(HaxeSwiftBridge.expose())
 #end
@@ -33,7 +42,7 @@ interface Session {
 	@:allow(snikket)
 	private function transportInfo(stanza: Stanza): Promise<Any>;
 	public function addMedia(streams: Array<MediaStream>): Void;
-	public function callStatus():String;
+	public function callStatus():CallStatus;
 	public function videoTracks():Array<MediaStreamTrack>;
 	public function dtmf():Null<DTMFSender>;
 }
@@ -139,6 +148,7 @@ class IncomingProposedSession implements Session {
 		if (session.sid != sid) throw "id mismatch";
 		if (!accepted) throw "trying to initiate unaccepted session";
 		session.accept();
+		client.trigger("call/updateStatus", { session: session });
 		return session;
 	}
 
@@ -147,7 +157,7 @@ class IncomingProposedSession implements Session {
 	}
 
 	public function callStatus() {
-		return "incoming";
+		return Incoming;
 	}
 
 	public function videoTracks() {
@@ -254,6 +264,7 @@ class OutgoingProposedSession implements Session {
 		client.sendPresence(to.asString());
 		final session = new OutgoingSession(client, JID.parse(stanza.attr.get("from")), sid);
 		client.trigger("call/media", { session: session, audio: audio, video: video });
+		client.trigger("call/updateStatus", { session: session });
 		return session;
 	}
 
@@ -262,7 +273,7 @@ class OutgoingProposedSession implements Session {
 	}
 
 	public function callStatus() {
-		return "outgoing";
+		return Outgoing;
 	}
 
 	public function videoTracks() {
@@ -475,7 +486,13 @@ class InitiatedSession implements Session {
 	}
 
 	public function callStatus() {
-		return "ongoing";
+		return if (pc == null || pc.connectionState == "connecting") {
+			Connecting;
+		} else if (pc.connectionState == "failed" || pc.connectionState == "closed") {
+			Failed;
+		} else {
+			Ongoing;
+		}
 	}
 
 	public function videoTracks(): Array<MediaStreamTrack> {
@@ -560,6 +577,7 @@ class InitiatedSession implements Session {
 				sendIceCandidate(event.candidate);
 			});
 			pc.addEventListener("connectionstatechange", (event) -> {
+				if (pc != null) client.trigger("call/updateStatus", { session: this });
 				if (pc != null && (pc.connectionState == "closed" || pc.connectionState == "failed")) {
 					client.sendStanza(
 						new Stanza("iq", { to: counterpart.asString(), type: "set", id: ID.medium() })

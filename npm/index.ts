@@ -23,8 +23,12 @@ export import Participant = snikket.Participant;
 export import Push = snikket.Push;
 export import Reaction = snikket.Reaction;
 export import SerializedChat = snikket.SerializedChat;
-export import jingle = snikket.jingle;
 export const VERSION = snikket.Version.HUMAN;
+
+export import jingle = snikket.jingle;
+namespace jingle {
+	export import CallStatus = enums.jingle.CallStatus;
+}
 
 export import ChatMessageEvent = enums.ChatMessageEvent;
 export import MessageDirection = enums.MessageDirection;

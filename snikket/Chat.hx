@@ -583,7 +583,7 @@ abstract class Chat {
 
 	@HaxeCBridge.noemit
 	public function addMedia(streams: Array<MediaStream>) {
-		if (callStatus() != "ongoing") throw "cannot add media when no call ongoing";
+		if (callStatus() != Ongoing) throw "cannot add media when no call ongoing";
 		jingleSessions.iterator().next().addMedia(streams);
 	}
 
@@ -614,7 +614,7 @@ abstract class Chat {
 			return session.callStatus();
 		}
 
-		return "none";
+		return NoCall;
 	}
 
 	/**

@@ -1166,6 +1166,18 @@ class Client extends EventEmitter {
 	}
 
 	/**
+		Event fired when an existing call changes status (connecting, failed, etc)
+
+		@param handler takes one argument, the associated Session
+	**/
+	public function addCallUpdateStatusListener(handler:(InitiatedSession)->Void):Void {
+		this.on("call/updateStatus", (data) -> {
+			handler(data.session);
+			return EventHandled;
+		});
+	}
+
+	/**
 		Event fired when a call is asking for media to send
 
 		@param handler takes three arguments, the call Session,
