@@ -1155,7 +1155,7 @@ class Client extends EventEmitter {
 	/**
 		Event fired when a call is retracted or hung up
 
-		@param handler takes one argument, the associated Chat ID
+		@param handler takes two arguments, the associated Chat ID and Session ID
 	**/
 	public function addCallRetractListener(handler:(String,String)->Void):Void {
 		this.on("call/retract", (data) -> {
@@ -1167,7 +1167,7 @@ class Client extends EventEmitter {
 	/**
 		Event fired when an outgoing call starts ringing
 
-		@param handler takes one argument, the associated Chat ID
+		@param handler takes two arguments, the associated Chat ID and Session ID
 	**/
 	public function addCallRingingListener(handler:(String,String)->Void):Void {
 		this.on("call/ringing", (data) -> {
