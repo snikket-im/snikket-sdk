@@ -327,9 +327,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 					] : Array<Dynamic>);
 				})
 			)
-		).then(_ ->  {
-			hydrateReplyTo(accountId, messages, replyTos).then(ms -> hydrateReactions(accountId, ms)).then(callback);
-		});
+		).then(_ ->
+			hydrateReplyTo(accountId, messages, replyTos).then(ms -> hydrateReactions(accountId, ms)).then(callback)
+		);
 
 		// TODO: retract custom emoji?
 	}
@@ -521,7 +521,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 				"SELECT stanza, direction, type, status, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, correction_id AS stanza_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND stanza_id=? AND direction=?",
 				[accountId, localId, MessageSent]
 			)
-		).then(result -> hydrateMessages(accountId, result)).then(messages -> {
+		).then(result -> {
+			final messages = hydrateMessages(accountId, result);
 			for (message in messages) {
 				(if (message.replyToMessage != null) {
 					hydrateReplyTo(accountId, [message], [{ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
