@@ -480,7 +480,7 @@ class HaxeSwiftBridge {
 									ibuilder.add(" = Unmanaged<AnyObject>.fromOpaque(ctx!).takeUnretainedValue() as! ");
 									ibuilder.add(getSwiftType(arg.t));
 									ibuilder.add("\n\t\t\t\t");
-									final cbuilder = new hx.strings.StringBuilder(arg.name);
+									final cbuilder = new hx.strings.StringBuilder("return " + arg.name);
 									cbuilder.add("(");
 									for (i => farg in fargs) {
 										if (i > 0) cbuilder.add(", ");
