@@ -810,6 +810,10 @@ class HaxeCBridge {
 
 				bool firstRun = !HaxeCBridgeInternal::staticsInitialized;
 
+				#if defined(HX_MACOS) || defined(IPHONE) || defined(APPLETV)
+				pthread_setname_np("Borogove Main");
+				#endif
+
 				// See hx::Init in StdLibs.cpp for reference
 				if (!HaxeCBridgeInternal::staticsInitialized) try {
 					::hx::Boot();
