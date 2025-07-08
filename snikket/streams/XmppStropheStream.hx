@@ -55,8 +55,25 @@ extern class StropheCtx {
 	static function stop(ctx:StropheCtx):Void;
 }
 
+@:native("const xmpp_tlscert_t*")
+@:unreflective
+extern class StropheTlsCert {
+	@:native("xmpp_tlscert_get_conn")
+	static function get_conn(cert: StropheTlsCert):StropheConn;
+
+	@:native("xmpp_tlscert_get_pem")
+	static function get_pem(cert: StropheTlsCert):ConstPointer<Char>;
+
+	@:native("xmpp_tlscert_get_dnsname")
+	static function get_dnsname(cert: StropheTlsCert, n: cpp.SizeT):ConstPointer<Char>;
+
+	@:native("xmpp_tlscert_get_userdata")
+	static function get_userdata(cert: StropheTlsCert):RawPointer<Void>;
+}
+
 @:include("strophe.h")
 @:native("xmpp_conn_t*")
+@:unreflective
 extern class StropheConn {
 	@:native("xmpp_conn_new")
 	static function create(ctx:StropheCtx):StropheConn;
@@ -88,6 +105,13 @@ extern class StropheConn {
 		altdomain:ConstPointer<Char>,
 		userdata:RawPointer<Void>
 	):cpp.Int32;
+
+	@:native("xmpp_conn_set_certfail_handler")
+	static function set_certfail_handler(
+		conn:StropheConn,
+		handler:cpp.Callable<StropheTlsCert->RawConstPointer<Char>->Int>
+	):Void;
+
 
 	@:native("xmpp_send")
 	static function send(conn:StropheConn, stanza:StropheStanza):Void;
@@ -178,11 +202,30 @@ class XmppStropheStream extends GenericStream {
 			null,
 			untyped __cpp__("(void*)this")
 		);
+		StropheConn.set_certfail_handler(conn, cpp.Callable.fromStaticFunction(strophe_certfail_handler));
 		NativeGc.addFinalizable(this, false);
 	}
 
 	public function newId():String {
 		return ID.long();
+	}
+
+	public static function strophe_certfail_handler(cert:StropheTlsCert, err:RawConstPointer<Char>): Int {
+		final userdata = StropheTlsCert.get_userdata(cert);
+		final stream: XmppStropheStream = untyped __cpp__("static_cast<hx::Object*>(userdata)");
+		final dnsNames: Array<String> = [];
+		var dnsName = null;
+		var dnsNameN = 0;
+		while ((dnsName = StropheTlsCert.get_dnsname(cert, dnsNameN++)) != null) {
+			dnsNames.push(NativeString.fromPointer(dnsName));
+		}
+		final pem = NativeString.fromPointer(StropheTlsCert.get_pem(cert));
+		switch (stream.trigger("tls/check", { pem: pem, dnsNames: dnsNames })) {
+		case EventValue(result):
+			return result ? 1 : 0;
+		default:
+			return 0;
+		}
 	}
 
 	public static function strophe_stanza(conn:StropheConn, sstanza:StropheStanza, userdata:RawPointer<Void>):Int {

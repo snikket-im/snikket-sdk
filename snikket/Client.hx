@@ -1081,6 +1081,17 @@ class Client extends EventEmitter {
 		});
 	}
 
+	/**
+		Event fired when TLS checks fail, to give client the chance to override
+
+		@param handler takes two arguments, the PEM of the cert and an array of DNS names, and must return true to accept or false to reject
+	**/
+	public function addTlsCheckListener(handler:(String, Array<String>)->Bool): Void {
+		stream.on("tls/check", (data) -> {
+			return EventValue(handler(data.pem, data.dnsNames));
+		});
+	}
+
 	#if !cpp
 	// TODO: haxe cpp erases enum into int, so using it as a callback arg is hard
 	// could just use int in C bindings, or need to come up with a good strategy
