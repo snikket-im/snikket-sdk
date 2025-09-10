@@ -730,11 +730,19 @@ class DirectChat extends Chat {
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipants(): Array<String> {
 		final counters = counterparts();
+		final ids: Map<String, Bool> = [];
 		if (counters.length < 2 && (lastMessage?.recipients?.length ?? 0) > 1) {
-			return lastMessage.recipients.map(r -> r.asString()).concat([lastMessage.senderId]);
+			ids[lastMessage.senderId] = true;
+			for (id in lastMessage.recipients.map(r -> r.asString())) {
+				ids[id] = true;
+			}
 		} else {
-			return counterparts().concat([client.accountId()]);
+			ids[client.accountId()] = true;
+			for (id in counterparts()) {
+				ids[id] = true;
+			}
 		}
+		return { iterator: () -> ids.keys() }.array();
 	}
 
 	private function counterparts() {
