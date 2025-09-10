@@ -3,6 +3,7 @@ package snikket;
 import haxe.DynamicAccess;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
+import thenshim.Promise;
 import snikket.Chat;
 import snikket.ChatMessage;
 import snikket.Color;
@@ -100,9 +101,9 @@ abstract class Chat {
 		@param beforeId id of the message to look before
 		@param beforeTime timestamp of the message to look before,
 		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
-		@param handler takes one argument, an array of ChatMessage that are found
+		@returns Promise of an array of ChatMessage that are found
 	**/
-	abstract public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
+	abstract public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>):Promise<Array<ChatMessage>>;
 
 	/**
 		Fetch a page of messages after some point
@@ -110,9 +111,9 @@ abstract class Chat {
 		@param afterId id of the message to look after
 		@param afterTime timestamp of the message to look after,
 		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
-		@param handler takes one argument, an array of ChatMessage that are found
+		@returns Promise of an array of ChatMessage that are found
 	**/
-	abstract public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
+	abstract public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>):Promise<Array<ChatMessage>>;
 
 	/**
 		Fetch a page of messages around (before, including, and after) some point
@@ -120,9 +121,9 @@ abstract class Chat {
 		@param aroundId id of the message to look around
 		@param aroundTime timestamp of the message to look around,
 		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
-		@param handler takes one argument, an array of ChatMessage that are found
+		@returns Promise of an array of ChatMessage that are found
 	**/
-	abstract public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void;
+	abstract public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>):Promise<Array<ChatMessage>>;
 
 	private function fetchFromSync(sync: MessageSync, callback: (Array<ChatMessage>)->Void) {
 		sync.onMessages((messageList) -> {
@@ -756,46 +757,52 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
-		persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
-			if (messages.length > 0) {
-				handler(messages);
-			} else {
-				var filter:MAMQueryParams = { with: this.chatId };
-				if (beforeId != null) filter.page = { before: beforeId };
-				var sync  = new MessageSync(this.client, this.stream, filter);
-				fetchFromSync(sync, handler);
-			}
+	public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>):Promise<Array<ChatMessage>> {
+		return new thenshim.Promise((resolve, reject) -> {
+			persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
+				if (messages.length > 0) {
+					resolve(messages);
+				} else {
+					var filter:MAMQueryParams = { with: this.chatId };
+					if (beforeId != null) filter.page = { before: beforeId };
+					var sync  = new MessageSync(this.client, this.stream, filter);
+					fetchFromSync(sync, resolve);
+				}
+			});
 		});
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
-		if (afterId == lastMessageId() && !syncing()) {
-			handler([]);
-			return;
-		}
-		persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime, (messages) -> {
-			if (messages.length > 0) {
-				handler(messages);
-			} else {
-				var filter:MAMQueryParams = { with: this.chatId };
-				if (afterId != null) filter.page = { after: afterId };
-				var sync  = new MessageSync(this.client, this.stream, filter);
-				fetchFromSync(sync, handler);
+	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>):Promise<Array<ChatMessage>> {
+		return new thenshim.Promise((resolve, reject) -> {
+			if (afterId == lastMessageId() && !syncing()) {
+				resolve([]);
+				return;
 			}
+			persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime, (messages) -> {
+				if (messages.length > 0) {
+					resolve(messages);
+				} else {
+					var filter:MAMQueryParams = { with: this.chatId };
+					if (afterId != null) filter.page = { after: afterId };
+					var sync  = new MessageSync(this.client, this.stream, filter);
+					fetchFromSync(sync, resolve);
+				}
+			});
 		});
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
-		persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime, (messages) -> {
-			if (messages.length > 0) {
-				handler(messages);
-			} else {
-				// TODO
-				handler([]);
-			}
+	public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>):Promise<Array<ChatMessage>> {
+		return new thenshim.Promise((resolve, reject) -> {
+			persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime, (messages) -> {
+				if (messages.length > 0) {
+					resolve(messages);
+				} else {
+					// TODO
+					resolve([]);
+				}
+			});
 		});
 	}
 
@@ -1283,56 +1290,62 @@ class Channel extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
-		persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
-			if (messages.length > 0) {
-				handler(messages);
-			} else {
-				var filter:MAMQueryParams = {};
-				if (beforeId != null) filter.page = { before: beforeId };
-				var sync = new MessageSync(this.client, this.stream, filter, chatId);
-				sync.addContext((builder, stanza) -> {
-					builder = prepareIncomingMessage(builder, stanza);
-					builder.syncPoint = false;
-					return builder;
-				});
-				fetchFromSync(sync, handler);
-			}
+	public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>):Promise<Array<ChatMessage>> {
+		return new thenshim.Promise((resolve, reject) -> {
+			persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
+				if (messages.length > 0) {
+					resolve(messages);
+				} else {
+					var filter:MAMQueryParams = {};
+					if (beforeId != null) filter.page = { before: beforeId };
+					var sync = new MessageSync(this.client, this.stream, filter, chatId);
+					sync.addContext((builder, stanza) -> {
+						builder = prepareIncomingMessage(builder, stanza);
+						builder.syncPoint = false;
+						return builder;
+					});
+					fetchFromSync(sync, resolve);
+				}
+			});
 		});
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
-		if (afterId == lastMessageId() && !syncing()) {
-			handler([]);
-			return;
-		}
-		persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime, (messages) -> {
-			if (messages.length > 0) {
-				handler(messages);
-			} else {
-				var filter:MAMQueryParams = {};
-				if (afterId != null) filter.page = { after: afterId };
-				var sync = new MessageSync(this.client, this.stream, filter, chatId);
-				sync.addContext((builder, stanza) -> {
-					builder = prepareIncomingMessage(builder, stanza);
-					builder.syncPoint = false;
-					return builder;
-				});
-				fetchFromSync(sync, handler);
+	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>):Promise<Array<ChatMessage>> {
+		return new thenshim.Promise((resolve, reject) -> {
+			if (afterId == lastMessageId() && !syncing()) {
+				resolve([]);
+				return;
 			}
+			persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime, (messages) -> {
+				if (messages.length > 0) {
+					resolve(messages);
+				} else {
+					var filter:MAMQueryParams = {};
+					if (afterId != null) filter.page = { after: afterId };
+					var sync = new MessageSync(this.client, this.stream, filter, chatId);
+					sync.addContext((builder, stanza) -> {
+						builder = prepareIncomingMessage(builder, stanza);
+						builder.syncPoint = false;
+						return builder;
+					});
+					fetchFromSync(sync, resolve);
+				}
+			});
 		});
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>, handler:(Array<ChatMessage>)->Void):Void {
-		persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime, (messages) -> {
-			if (messages.length > 0) {
-				handler(messages);
-			} else {
-				// TODO
-				handler([]);
-			}
+	public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>):Promise<Array<ChatMessage>> {
+		return new thenshim.Promise((resolve, reject) -> {
+			persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime, (messages) -> {
+				if (messages.length > 0) {
+					resolve(messages);
+				} else {
+					// TODO
+					resolve([]);
+				}
+			});
 		});
 	}
 
