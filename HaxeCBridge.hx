@@ -198,6 +198,8 @@ class HaxeCBridge {
 					var args = [];
 					var passArgs = [];
 					var outPtr = false;
+					var promisify = [];
+					var promisifyE = [];
 					for (arg in fun.args) {
 						switch Context.toComplexType(TypeTools.followWithAbstracts(Context.resolveType(arg.type, Context.currentPos()), false)) {
 						case TFunction(taargs, aret):
@@ -243,11 +245,28 @@ class HaxeCBridge {
 						outPtr = true;
 						args.push({name: "outPtr", type: TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(convertSecondaryType(fun.ret).args[0])]})});
 						wrapper.ret = TPath({name: "SizeT", pack: ["cpp"]});
+					case TPath(path) if (path.name == "Promise"):
+						wrap = true;
+						final atype = convertSecondaryTPtoType(path.params[0]);
+						final aargs = atype.args;
+						args.push({name: "handler", type: TPath({name: "Callable", pack: ["cpp"], params: [TPType(TFunction(aargs.concat([TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]})]), TPath({name: "Void", pack: []})))]})});
+						promisify.push(macro v);
+						promisifyE.push(macro null);
+						if (atype.retainType == "Array") {
+							promisify.push(macro v.length);
+							promisifyE.push(macro 0);
+						}
+						args.push({name: "handler__context", type: TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]})});
+						promisify.push(macro handler__context);
+						promisifyE.push(macro handler__context);
+						wrapper.ret = TPath({name: "Void", pack: []});
 					default:
 					}
 					if (wrap) {
 						if (outPtr) {
 							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro { final out = $i{field.name}($a{passArgs}); if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(out); } return out.length; }, args: args});
+						} else if (promisify.length > 0) {
+							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro $i{field.name}($a{passArgs}).then(v->handler($a{promisify}), e->handler($a{promisifyE})), args: args});
 						} else {
 							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro return $i{field.name}($a{passArgs}), args: args});
 						}
@@ -377,11 +396,15 @@ class HaxeCBridge {
 	}
 
 	static function convertSecondaryTP(tp: TypeParam) {
+		return TPType(convertSecondaryTPtoType(tp).args[0]);
+	}
+
+	static function convertSecondaryTPtoType(tp: TypeParam) {
 		return switch tp {
 		case TPType(t):
-			TPType(convertSecondaryType(t).args[0]);
+			convertSecondaryType(t);
 		default:
-			throw "Cannot converty TypeParam: " + tp;
+			throw "Cannot convert TypeParam: " + tp;
 		}
 	}
 
