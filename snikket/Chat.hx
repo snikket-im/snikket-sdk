@@ -475,8 +475,8 @@ abstract class Chat {
 			final participants = getParticipants();
 			if (participants.length > 2 && participants.length < 20) {
 				return participants.map(id -> {
-					final p = getParticipantDetails(id);
-					p.isSelf ? null : p.displayName;
+					final p = id == chatId ? null : getParticipantDetails(id);
+					p == null || p.isSelf ? null : p.displayName;
 				}).filter(fn -> fn != null).join(", ");
 			}
 		}
