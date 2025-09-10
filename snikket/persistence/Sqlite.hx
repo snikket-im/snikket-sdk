@@ -378,7 +378,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			messages.mam_by,
 			messages.sync_point,
 			MAX(versions.created_at)
-			FROM messages INNER JOIN messages versions USING (correction_id) WHERE (messages.stanza_id IS NULL OR messages.stanza_id='' OR messages.stanza_id=correction_id) AND messages.account_id=? AND messages.chat_id=?";
+			FROM messages INNER JOIN messages versions USING (correction_id, sender_id) WHERE (messages.stanza_id IS NULL OR messages.stanza_id='' OR messages.stanza_id=correction_id) AND messages.account_id=? AND messages.chat_id=?";
 		final params = [accountId, chatId];
 		if (time != null) {
 			q += " AND messages.created_at " + op + "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)";
