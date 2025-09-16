@@ -28,6 +28,15 @@ class Reaction {
 		this.key = key ?? this.text;
 	}
 
+	/**
+		Create a new Unicode reaction to send
+
+		@param unicode emoji of the reaction
+	**/
+	public static function unicode(unicode: String) {
+		return new Reaction("", "", unicode);
+	}
+
 	@:allow(snikket)
 	private function render<T>(forText: (String) -> T, forImage: (String, String) -> T) {
 		return forText(text + "\u{fe0f}");
@@ -46,6 +55,16 @@ class CustomEmojiReaction extends Reaction {
 	private function new(senderId: String, timestamp: String, text: String, uri: String, envelopeId: Null<String> = null) {
 		super(senderId, timestamp, text, envelopeId, uri);
 		this.uri = uri;
+	}
+
+	/**
+		Create a new custom emoji reaction to send
+
+		@param text name of custom emoji
+		@param uri URI for media of custom emoji
+	**/
+	public static function custom(text: String, uri: String) {
+		return new CustomEmojiReaction("", "", text, uri);
 	}
 
 	@:allow(snikket)
