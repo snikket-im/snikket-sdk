@@ -26,66 +26,62 @@ class MediaStoreFS implements MediaStore {
 		this.kv = kv;
 	}
 
-	public function getMediaPath(uri: String, callback: (Null<String>)->Void) {
+	public function getMediaPath(uri: String): Promise<Null<String>> {
 		final hash = Hash.fromUri(uri);
 		if (hash.algorithm == "sha-256") {
 			final path = blobpath + "/f" + hash.toHex();
 			if (FileSystem.exists(path)) {
-				callback(FileSystem.absolutePath(path));
+				return Promise.resolve(FileSystem.absolutePath(path));
 			} else {
-				callback(null);
+				return Promise.resolve(null);
 			}
 		} else {
-			get(hash.serializeUri()).then(sha256uri -> {
+			return get(hash.serializeUri()).then(sha256uri -> {
 				final sha256 = sha256uri == null ? null : Hash.fromUri(sha256uri);
 				if (sha256 == null) {
-					callback(null);
+					return Promise.resolve(null);
 				} else {
-					getMediaPath(sha256.toUri(), callback);
+					return getMediaPath(sha256.toUri());
 				}
 			});
 		}
 	}
 
 	@HaxeCBridge.noemit
-	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (Bool)->Void) {
+	public function hasMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool> {
 		final hash = new Hash(hashAlgorithm, hash);
-		getMediaPath(hash.toUri(), path -> callback(path != null));
+		return getMediaPath(hash.toUri()).then(path -> path != null);
 	}
 
 	@HaxeCBridge.noemit
 	public function removeMedia(hashAlgorithm: String, hash: BytesData) {
 		final hash = new Hash(hashAlgorithm, hash);
-		getMediaPath(hash.toUri(), (path) -> {
+		getMediaPath(hash.toUri()).then((path) -> {
 			if (path != null) FileSystem.deleteFile(path);
 		});
 	}
 
 	@HaxeCBridge.noemit
-	public function storeMedia(mime: String, bd: BytesData, callback: ()->Void) {
+	public function storeMedia(mime: String, bd: BytesData): Promise<Bool> {
 		final bytes = Bytes.ofData(bd);
 		final sha1 = Hash.sha1(bytes);
 		final sha256 = Hash.sha256(bytes);
 		File.saveBytes(blobpath + "/f" + sha256.toHex(), bytes);
-		thenshim.PromiseTools.all([
+		return thenshim.PromiseTools.all([
 			set(sha1.serializeUri(), sha256.serializeUri()),
 			set(sha256.serializeUri() + "#contentType", mime)
-		]).then((_) -> callback());
+		]).then(_ -> true);
 	}
 
 	private function set(k: String, v: Null<String>) {
 		if (kv == null) return Promise.resolve(null);
 
-		return new Promise((resolve, reject) ->
-			kv.set(k, v, () -> resolve(null))
-		);
+		return kv.set(k, v);
 	}
 
 	private function get(k: String): Promise<Null<String>> {
 		if (kv == null) return Promise.resolve(null);
 
-		return new Promise((resolve, reject) ->
-			kv.get(k, resolve)
-		);
+		return kv.get(k);
 	}
 }

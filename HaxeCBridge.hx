@@ -251,7 +251,11 @@ class HaxeCBridge {
 						final aargs = atype.args;
 						args.push({name: "handler", type: TPath({name: "Callable", pack: ["cpp"], params: [TPType(TFunction(aargs.concat([TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]})]), TPath({name: "Void", pack: []})))]})});
 						promisify.push(macro v);
-						promisifyE.push(macro null);
+						if (atype.retainType == null) {
+							promisifyE.push(macro false);
+						} else {
+							promisifyE.push(macro null);
+						}
 						if (atype.retainType == "Array") {
 							promisify.push(macro v.length);
 							promisifyE.push(macro 0);

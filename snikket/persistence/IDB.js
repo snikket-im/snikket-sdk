@@ -195,7 +195,7 @@ export default (dbname, media, tokenize, stemmer) => {
 	}
 
 	const obj = {
-		lastId: function(account, jid, callback) {
+		lastId: async function(account, jid) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 			var cursor = null;
@@ -210,16 +210,13 @@ export default (dbname, media, tokenize, stemmer) => {
 					"prev"
 				);
 			}
-			cursor.onsuccess = (event) => {
-				if (!event.target.result || (event.target.result.value.syncPoint && event.target.result.value.serverId && (jid || event.target.result.value.serverIdBy === account))) {
-					callback(event.target.result ? event.target.result.value.serverId : null);
+			while (true) {
+				const result = await promisifyRequest(cursor);
+				if (!result || (result.value.syncPoint && result.value.serverId && (jid || result.value.serverIdBy === account))) {
+					return result ? result.value.serverId : null;
 				} else {
-					event.target.result.continue();
+					result.continue();
 				}
-			}
-			cursor.onerror = (event) => {
-				console.error(event);
-				callback(null);
 			}
 		},
 
@@ -247,35 +244,33 @@ export default (dbname, media, tokenize, stemmer) => {
 			}
 		},
 
-		getChats: function(account, callback) {
-			(async () => {
-				const tx = db.transaction(["chats"], "readonly");
-				const store = tx.objectStore("chats");
-				const range = IDBKeyRange.bound([account], [account, []]);
-				const result = await promisifyRequest(store.getAll(range));
-				return await Promise.all(result.map(async (r) => new snikket.SerializedChat(
-					r.chatId,
-					r.trusted,
-					r.avatarSha1,
-					new Map(await Promise.all((r.presence instanceof Map ? [...r.presence.entries()] : Object.entries(r.presence)).map(
-						async ([k, p]) => [k, new snikket.Presence(p.caps && await new Promise((resolve) => this.getCaps(p.caps, resolve)), p.mucUser && snikket.Stanza.parse(p.mucUser))]
-					))),
-					r.displayName,
-					r.uiState,
-					r.isBlocked,
-					r.extensions,
-					r.readUpToId,
-					r.readUpToBy,
-					r.notificationSettings === undefined ? null : r.notificationSettings != null,
-					r.notificationSettings?.mention,
-					r.notificationSettings?.reply,
-					r.disco ? new snikket.Caps(r.disco.node, r.disco.identities, r.disco.features) : null,
-					r.class
-				)));
-			})().then(callback);
+		getChats: async function(account) {
+			const tx = db.transaction(["chats"], "readonly");
+			const store = tx.objectStore("chats");
+			const range = IDBKeyRange.bound([account], [account, []]);
+			const result = await promisifyRequest(store.getAll(range));
+			return await Promise.all(result.map(async (r) => new snikket.SerializedChat(
+				r.chatId,
+				r.trusted,
+				r.avatarSha1,
+				new Map(await Promise.all((r.presence instanceof Map ? [...r.presence.entries()] : Object.entries(r.presence)).map(
+					async ([k, p]) => [k, new snikket.Presence(p.caps && await this.getCaps(p.caps), p.mucUser && snikket.Stanza.parse(p.mucUser))]
+				))),
+				r.displayName,
+				r.uiState,
+				r.isBlocked,
+				r.extensions,
+				r.readUpToId,
+				r.readUpToBy,
+				r.notificationSettings === undefined ? null : r.notificationSettings != null,
+				r.notificationSettings?.mention,
+				r.notificationSettings?.reply,
+				r.disco ? new snikket.Caps(r.disco.node, r.disco.identities, r.disco.features) : null,
+				r.class
+			)));
 		},
 
-		getChatsUnreadDetails: function(account, chatsArray, callback) {
+		getChatsUnreadDetails: async function(account, chatsArray) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 
@@ -287,10 +282,11 @@ export default (dbname, media, tokenize, stemmer) => {
 			chatsArray.forEach((chat) => chats[chat.chatId] = chat);
 			const result = {};
 			var rowCount = 0;
-			cursor.onsuccess = (event) => {
-				if (event.target.result && rowCount < 40000) {
+			while (true) {
+				const cresult = await promisifyRequest(cursor);
+				if (cresult && rowCount < 40000) {
 					rowCount++;
-					const value = event.target.result.value;
+					const value = cresult.value;
 					if (result[value.chatId]) {
 						result[value.chatId] = result[value.chatId].then((details) => {
 							if (!details.foundAll) {
@@ -308,63 +304,55 @@ export default (dbname, media, tokenize, stemmer) => {
 						const haveRead = readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.MessageDirection.MessageSent;
 						result[value.chatId] = hydrateMessage(value).then((m) => ({ chatId: value.chatId, message: m, unreadCount: haveRead ? 0 : 1, foundAll: haveRead }));
 					}
-					event.target.result.continue();
+					cresult.continue();
 				} else {
-					Promise.all(Object.values(result)).then(callback);
+					return await Promise.all(Object.values(result));
 				}
-			}
-			cursor.onerror = (event) => {
-				console.error(event);
-				callback([]);
 			}
 		},
 
-		getMessage: function(account, chatId, serverId, localId, callback) {
+		getMessage: async function(account, chatId, serverId, localId) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
-			(async function() {
-				let result;
-				if (serverId) {
-					result = await promisifyRequest(store.openCursor(IDBKeyRange.bound([account, serverId], [account, serverId, []])));
-				} else {
-					result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, localId, chatId])));
-				}
-				if (!result || !result.value) return null;
-				const message = result.value;
-				return await hydrateMessage(message);
-			})().then(callback);
+			let result;
+			if (serverId) {
+				result = await promisifyRequest(store.openCursor(IDBKeyRange.bound([account, serverId], [account, serverId, []])));
+			} else {
+				result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, localId, chatId])));
+			}
+			if (!result || !result.value) return null;
+			const message = result.value;
+			return await hydrateMessage(message);
 		},
 
-		storeReaction: function(account, update, callback) {
-			(async function() {
-				const tx = db.transaction(["messages", "reactions"], "readwrite");
-				const store = tx.objectStore("messages");
-				const reactionStore = tx.objectStore("reactions");
-				let result;
-				if (update.serverId) {
-					result = await promisifyRequest(store.openCursor(IDBKeyRange.bound([account, update.serverId, update.serverIdBy], [account, update.serverId, update.serverIdBy, []])));
-				} else {
-					result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, update.localId, update.chatId])));
-				}
-				const lastFromSender = await promisifyRequest(reactionStore.index("senders").openCursor(IDBKeyRange.bound(
-					[account, update.chatId, update.serverId || update.localId, update.senderId],
-					[account, update.chatId, update.serverId || update.localId, update.senderId, []]
-				), "prev"));
-				const reactions = update.getReactions(hydrateReactionsArray(lastFromSender?.value?.reactions));
-				await promisifyRequest(reactionStore.put({...update, reactions: reactions, append: (update.kind === enums.ReactionUpdateKind.AppendReactions ? update.reactions : null), messageId: update.serverId || update.localId, timestamp: new Date(update.timestamp), account: account}));
-				if (!result || !result.value) return null;
-				if (lastFromSender?.value && lastFromSender.value.timestamp > new Date(update.timestamp)) return;
-				const message = result.value;
-				setReactions(message.reactions, update.senderId, reactions);
-				store.put(message);
-				return await hydrateMessage(message);
-			})().then(callback);
+		storeReaction: async function(account, update) {
+			const tx = db.transaction(["messages", "reactions"], "readwrite");
+			const store = tx.objectStore("messages");
+			const reactionStore = tx.objectStore("reactions");
+			let result;
+			if (update.serverId) {
+				result = await promisifyRequest(store.openCursor(IDBKeyRange.bound([account, update.serverId, update.serverIdBy], [account, update.serverId, update.serverIdBy, []])));
+			} else {
+				result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, update.localId, update.chatId])));
+			}
+			const lastFromSender = await promisifyRequest(reactionStore.index("senders").openCursor(IDBKeyRange.bound(
+				[account, update.chatId, update.serverId || update.localId, update.senderId],
+				[account, update.chatId, update.serverId || update.localId, update.senderId, []]
+			), "prev"));
+			const reactions = update.getReactions(hydrateReactionsArray(lastFromSender?.value?.reactions));
+			await promisifyRequest(reactionStore.put({...update, reactions: reactions, append: (update.kind === enums.ReactionUpdateKind.AppendReactions ? update.reactions : null), messageId: update.serverId || update.localId, timestamp: new Date(update.timestamp), account: account}));
+			if (!result || !result.value) return null;
+			if (lastFromSender?.value && lastFromSender.value.timestamp > new Date(update.timestamp)) return;
+			const message = result.value;
+			setReactions(message.reactions, update.senderId, reactions);
+			store.put(message);
+			return await hydrateMessage(message);
 		},
 
 		storeMessages(account, messages, callback) {
-			Promise.all(messages.map(m =>
+			return Promise.all(messages.map(m =>
 				new Promise(resolve => this.storeMessage(account, m, resolve))
-			)).then(callback);
+			));
 		},
 
 		storeMessage: function(account, message, callback) {
@@ -373,9 +361,9 @@ export default (dbname, media, tokenize, stemmer) => {
 			if (!message.serverId && message.isIncoming()) throw "Cannot store an incoming message with no server id";
 			if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";
 
-			new Promise((resolve) =>
+			(
 				// Hydrate reply stubs
-				message.replyToMessage && !message.replyToMessage.serverIdBy ? this.getMessage(account, message.chatId(), message.replyToMessage.serverId, message.replyToMessage.localId, resolve) : resolve(message.replyToMessage)
+				message.replyToMessage && !message.replyToMessage.serverIdBy ? this.getMessage(account, message.chatId(), message.replyToMessage.serverId, message.replyToMessage.localId) : Promise.resolve(message.replyToMessage)
 			).then((replyToMessage) => {
 				message.replyToMessage = replyToMessage;
 				const tx = db.transaction(["messages", "reactions"], "readwrite");
@@ -385,7 +373,7 @@ export default (dbname, media, tokenize, stemmer) => {
 					promisifyRequest(tx.objectStore("reactions").openCursor(IDBKeyRange.only([account, message.chatId(), message.senderId, message.localId || ""])))
 				]).then(([result, reactionResult]) => {
 					if (reactionResult?.value?.append && message.html().trim() == "") {
-						this.getMessage(account, message.chatId(), reactionResult.value.serverId, reactionResult.value.localId, (reactToMessage) => {
+						this.getMessage(account, message.chatId(), reactionResult.value.serverId, reactionResult.value.localId).then((reactToMessage) => {
 							const previouslyAppended = hydrateReactionsArray(reactionResult.value.append, reactionResult.value.senderId, reactionResult.value.timestamp).map(r => r.key);
 							const reactions = [];
 							for (const [k, reacts] of reactToMessage?.reactions || []) {
@@ -441,19 +429,19 @@ export default (dbname, media, tokenize, stemmer) => {
 			store.put(serializeMessage(account, message));
 		},
 
-		updateMessageStatus: function(account, localId, status, callback) {
+		updateMessageStatus: async function(account, localId, status) {
 			const tx = db.transaction(["messages"], "readwrite");
 			const store = tx.objectStore("messages");
-			promisifyRequest(store.index("localId").openCursor(IDBKeyRange.bound([account, localId], [account, localId, []]))).then((result) => {
-				if (result?.value && result.value.direction === enums.MessageDirection.MessageSent && result.value.status !== enums.MessageStatus.MessageDeliveredToDevice) {
-					const newStatus = { ...result.value, status: status };
-					result.update(newStatus);
-					hydrateMessage(newStatus).then(callback);
-				}
-			});
+			const result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.bound([account, localId], [account, localId, []])));
+			if (result?.value && result.value.direction === enums.MessageDirection.MessageSent && result.value.status !== enums.MessageStatus.MessageDeliveredToDevice) {
+				const newStatus = { ...result.value, status: status };
+				result.update(newStatus);
+				return await hydrateMessage(newStatus);
+			}
+			throw "Message not found: " + localId;
 		},
 
-		getMessagesBefore: function(account, chatId, beforeId, beforeTime, callback) {
+		getMessagesBefore: async function(account, chatId, beforeId, beforeTime) {
 			// TODO: if beforeId is present but beforeTime is null, lookup time
 			const bound = beforeTime ? new Date(beforeTime) : [];
 			const tx = db.transaction(["messages"], "readonly");
@@ -462,10 +450,11 @@ export default (dbname, media, tokenize, stemmer) => {
 				IDBKeyRange.bound([account, chatId], [account, chatId, bound]),
 				"prev"
 			);
-			this.getMessagesFromCursor(cursor, beforeId, bound, (messages) => callback(messages.reverse()));
+			const messages = await this.getMessagesFromCursor(cursor, beforeId, bound);
+			return messages.reverse();
 		},
 
-		getMessagesAfter: function(account, chatId, afterId, afterTime, callback) {
+		getMessagesAfter: async function(account, chatId, afterId, afterTime) {
 			// TODO: if afterId is present but afterTime is null, lookup time
 			const bound = afterTime ? [new Date(afterTime)] : [];
 			const tx = db.transaction(["messages"], "readonly");
@@ -474,63 +463,48 @@ export default (dbname, media, tokenize, stemmer) => {
 				IDBKeyRange.bound([account, chatId].concat(bound), [account, chatId, []]),
 				"next"
 			);
-			this.getMessagesFromCursor(cursor, afterId, bound[0], callback);
+			return this.getMessagesFromCursor(cursor, afterId, bound[0]);
 		},
 
-		getMessagesAround: function(account, chatId, id, timeArg, callback) {
+		getMessagesAround: async function(account, chatId, id, timeArg) {
 			if (!id && !timeArg) throw "Around what?";
-			new Promise((resolve, reject) => {
-				if (timeArg)  {
-					resolve(timeArg);
-				} else {
-					this.getMessage(account, chatId, id, null, (m) => {
-						m ? resolve(m.timestamp) : this.getMessage(account, chatId, null, id, (m2) => resolve(m2?.timestamp));
-					});
-				}
-			}).then((time) => {
-				if (!time) {
-					callback([]);
-					return;
-				}
-				const before = new Promise((resolve, reject) =>
-					this.getMessagesBefore(account, chatId, id, time, resolve)
-				);
 
-				const tx = db.transaction(["messages"], "readonly");
-				const store = tx.objectStore("messages");
-				const cursor = store.index("chats").openCursor(
-					IDBKeyRange.bound([account, chatId, new Date(time)], [account, chatId, []]),
-					"next"
-				);
-				const aroundAndAfter = new Promise((resolve, reject) =>
-					this.getMessagesFromCursor(cursor, null, null, resolve)
-				);
+			const time = await (
+				timeArg ? Promise.resolve(timeArg) :
+					this.getMessage(account, chatId, id, null).then((m) =>
+						m ? m.timestamp : this.getMessage(account, chatId, null, id).then((m2) => m2?.timestamp)
+					)
+			);
+			if (!time) return [];
 
-				Promise.all([before, aroundAndAfter]).then((result) => {
-					callback(result.flat());
-				});
-			});
+			const before = this.getMessagesBefore(account, chatId, id, time);
+			const tx = db.transaction(["messages"], "readonly");
+			const store = tx.objectStore("messages");
+			const cursor = store.index("chats").openCursor(
+				IDBKeyRange.bound([account, chatId, new Date(time)], [account, chatId, []]),
+				"next"
+			);
+			const aroundAndAfter = this.getMessagesFromCursor(cursor, null, null);
+
+			return Promise.all([before, aroundAndAfter]).then(result => result.flat());
 		},
 
-		getMessagesFromCursor: function(cursor, id, bound, callback) {
+		getMessagesFromCursor: async function(cursor, id, bound) {
 			const result = [];
-			cursor.onsuccess = (event) => {
-				if (event.target.result && result.length < 50) {
-					const value = event.target.result.value;
+			while (true) {
+				const cresult = await promisifyRequest(cursor);
+				if (cresult && result.length < 50) {
+					const value = cresult.value;
 					if (value.serverId === id || value.localId === id || (value.timestamp && value.timestamp.getTime() === (bound instanceof Date && bound.getTime()))) {
-						event.target.result.continue();
-						return;
+						cresult.continue();
+						continue;
 					}
 
 					result.push(hydrateMessage(value));
-					event.target.result.continue();
+					cresult.continue();
 				} else {
-					Promise.all(result).then(callback);
+					return await Promise.all(result);
 				}
-			}
-			cursor.onerror = (event) => {
-				console.error(event);
-				callback([]);
 			}
 		},
 
@@ -569,16 +543,16 @@ export default (dbname, media, tokenize, stemmer) => {
 			}
 		},
 
-		hasMedia: function(hashAlgorithm, hash, callback) {
-			media.hasMedia(hashAlgorithm, hash, callback);
+		hasMedia: function(hashAlgorithm, hash) {
+			return media.hasMedia(hashAlgorithm, hash);
 		},
 
 		removeMedia: function(hashAlgorithm, hash) {
 			media.removeMedia(hashAlgorithm, hash);
 		},
 
-		storeMedia: function(mime, buffer, callback) {
-		  media.storeMedia(mime, buffer, callback);
+		storeMedia: function(mime, buffer) {
+			return media.storeMedia(mime, buffer);
 		},
 
 		storeCaps: function(caps) {
@@ -587,17 +561,15 @@ export default (dbname, media, tokenize, stemmer) => {
 			store.put(caps, "caps:" + caps.ver()).onerror = console.error;
 		},
 
-		getCaps: function(ver, callback) {
-			(async function() {
-				const tx = db.transaction(["keyvaluepairs"], "readonly");
-				const store = tx.objectStore("keyvaluepairs");
-				const raw = await promisifyRequest(store.get("caps:" + ver));
-				if (raw) {
-					return (new snikket.Caps(raw.node, raw.identities.map((identity) => new snikket.Identity(identity.category, identity.type, identity.name)), raw.features));
-				}
+		getCaps: async function(ver) {
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
+			const store = tx.objectStore("keyvaluepairs");
+			const raw = await promisifyRequest(store.get("caps:" + ver));
+			if (raw) {
+				return new snikket.Caps(raw.node, raw.identities.map((identity) => new snikket.Identity(identity.category, identity.type, identity.name)), raw.features);
+			}
 
-				return null;
-			})().then(callback);
+			return null;
 		},
 
 		storeLogin: function(login, clientId, displayName, token) {
@@ -622,30 +594,23 @@ export default (dbname, media, tokenize, stemmer) => {
 			req.onerror = () => { console.error("storeStreamManagement", req.error.name, req.error.message); }
 		},
 
-		getStreamManagement: function(account, callback) {
+		async getStreamManagement(account) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			promisifyRequest(store.get("sm:" + account)).then(
-				(v) => {
-					if (v instanceof ArrayBuffer) {
-						callback(v);
-					} else if(!v) {
-						callback(null);
-					} else {
-						new Blob([JSON.stringify(v)], {type: "text/plain; charset=utf-8"}).arrayBuffer().then(callback);
-					}
-				},
-				(e) => {
-					console.error(e);
-					callback(null);
-				}
-			);
+			const v = await promisifyRequest(store.get("sm:" + account));
+			if (v instanceof ArrayBuffer) {
+				return v;
+			} else if(!v) {
+				return null;
+			} else {
+				return new Blob([JSON.stringify(v)], {type: "text/plain; charset=utf-8"}).arrayBuffer();
+			}
 		},
 
 		getLogin: function(login, callback) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			Promise.all([
+			return Promise.all([
 				promisifyRequest(store.get("login:clientId:" + login)),
 				promisifyRequest(store.get("login:token:" + login)),
 				promisifyRequest(store.get("login:fastCount:" + login)),
@@ -654,10 +619,7 @@ export default (dbname, media, tokenize, stemmer) => {
 				if (result[1]) {
 					store.put((result[2] || 0) + 1, "login:fastCount:" + login).onerror = console.error;
 				}
-				callback(result[0], result[1], result[2] || 0, result[3]);
-			}).catch((e) => {
-				console.error(e);
-				callback(null, null, 0, null);
+				return { clientId: result[0], token: result[1], fastCount: result[2] || 0, displayName: result[3] };
 			});
 		},
 
@@ -709,6 +671,13 @@ export default (dbname, media, tokenize, stemmer) => {
 			};
 		},
 
+		async listAccounts() {
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
+			const store = tx.objectStore("keyvaluepairs");
+			const keys = await promisifyRequest(store.getAllKeys(IDBKeyRange.bound("login:clientId:", "login:clientId:\uffff")));
+			return keys.map(k => k.substring(15));
+		},
+
 		storeService(account, serviceId, name, node, caps) {
 			this.storeCaps(caps);
 
@@ -724,38 +693,35 @@ export default (dbname, media, tokenize, stemmer) => {
 			});
 		},
 
-		findServicesWithFeature(account, feature, callback) {
+		async findServicesWithFeature(account, feature) {
 			const tx = db.transaction(["services"], "readonly");
 			const store = tx.objectStore("services");
 
 			// Almost full scan shouldn't be too expensive, how many services are we aware of?
 			const cursor = store.openCursor(IDBKeyRange.bound([account], [account, []]));
 			const result = [];
-			cursor.onsuccess = (event) => {
-				if (event.target.result) {
-					const value = event.target.result.value;
-					result.push(new Promise((resolve) => this.getCaps(value.caps, (caps) => resolve({ ...value, caps: caps }))));
-					event.target.result.continue();
+			while (true) {
+				const cresult = await promisifyRequest(cursor);
+				if (cresult) {
+					const value = cresult.value;
+					result.push(this.getCaps(value.caps).then((caps) => ({ ...value, caps: caps })));
+					cresult.continue();
 				} else {
-					Promise.all(result).then((items) => items.filter((item) => item.caps && item.caps.features.includes(feature))).then(callback);
+					return await Promise.all(result).then((items) => items.filter((item) => item.caps && item.caps.features.includes(feature)));
 				}
 			}
-			cursor.onerror = (event) => {
-				console.error(event);
-				callback([]);
-			}
 		},
 
-		get(k, callback) {
+		get(k) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			promisifyRequest(store.get(k)).then(callback);
+			return promisifyRequest(store.get(k));
 		},
 
-		set(k, v, callback) {
+		set(k, v) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			promisifyRequest(store.put(v, k)).then(callback);
+			return promisifyRequest(store.put(v, k));
 		}
 	};
 

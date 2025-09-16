@@ -1,5 +1,6 @@
 package snikket.jingle;
 
+import thenshim.Promise;
 import snikket.ID;
 import HaxeCBridge;
 using Lambda;
@@ -972,5 +973,3 @@ class PeerConnection {
 		if (event == "connectionstatechange") stateChangeListeners.push(callback);
 	}
 }
-
-typedef Promise<T> = thenshim.Promise<T>;

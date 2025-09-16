@@ -15,14 +15,13 @@ export default (cacheName) => {
 			this.kv = kv;
 		},
 
-		storeMedia(mime, buffer, callback) {
-			(async () => {
-				const sha256 = await crypto.subtle.digest("SHA-256", buffer);
-				const sha1 = await crypto.subtle.digest("SHA-1", buffer);
-				const sha256NiUrl = mkNiUrl("sha-256", sha256);
-				await cache.put(sha256NiUrl, new Response(buffer, { headers: { "Content-Type": mime } }));
-				if (this.kv) await new Promise((resolve) => this.kv.set(mkNiUrl("sha-1", sha1), sha256NiUrl, resolve));
-			})().then(callback);
+		async storeMedia(mime, buffer) {
+			const sha256 = await crypto.subtle.digest("SHA-256", buffer);
+			const sha1 = await crypto.subtle.digest("SHA-1", buffer);
+			const sha256NiUrl = mkNiUrl("sha-256", sha256);
+			await cache.put(sha256NiUrl, new Response(buffer, { headers: { "Content-Type": mime } }));
+			if (this.kv) await this.kv.set(mkNiUrl("sha-1", sha1), sha256NiUrl);
+			return true;
 		},
 
 		removeMedia(hashAlgorithm, hash) {
@@ -31,7 +30,7 @@ export default (cacheName) => {
 				if (hashAlgorithm === "sha-256") {
 					niUrl = mkNiUrl(hashAlgorithm, hash);
 				} else {
-					niUrl = this.kv && await new Promise((resolve) => this.kv.get(mkNiUrl(hashAlgorithm, hash), resolve));
+					niUrl = this.kv && await this.kv.get(mkNiUrl(hashAlgorithm, hash));
 					if (!niUrl) return;
 				}
 
@@ -61,7 +60,7 @@ export default (cacheName) => {
 			if (uri.split("/")[3] === "sha-256") {
 				niUrl = uri;
 			} else {
-				niUrl = this.kv && await new Promise((resolve) => this.kv.get(uri, resolve));
+				niUrl = this.kv && await this.kv.get(uri);
 				if (!niUrl) {
 					return null;
 				}
@@ -70,11 +69,9 @@ export default (cacheName) => {
 			return await cache.match(niUrl);
 		},
 
-		hasMedia(hashAlgorithm, hash, callback) {
-			(async () => {
-				const response = await this.getMediaResponse(mkNiUrl(hashAlgorithm, hash));
-				return !!response;
-			})().then(callback);
+		async hasMedia(hashAlgorithm, hash, callback) {
+			const response = await this.getMediaResponse(mkNiUrl(hashAlgorithm, hash));
+			return !!response;
 		}
 	};
 };

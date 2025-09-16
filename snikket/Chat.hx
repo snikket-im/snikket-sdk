@@ -125,26 +125,28 @@ abstract class Chat {
 	**/
 	abstract public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>):Promise<Array<ChatMessage>>;
 
-	private function fetchFromSync(sync: MessageSync, callback: (Array<ChatMessage>)->Void) {
-		sync.onMessages((messageList) -> {
-			final chatMessages = [];
-			for (m in messageList.messages) {
-				switch (m) {
+	private function fetchFromSync(sync: MessageSync): Promise<Array<ChatMessage>> {
+		return new thenshim.Promise((resolve, reject) -> {
+			sync.onMessages((messageList) -> {
+				final chatMessages = [];
+				for (m in messageList.messages) {
+					switch (m) {
 					case ChatMessageStanza(message):
 						chatMessages.push(message);
 					case ReactionUpdateStanza(update):
-						persistence.storeReaction(client.accountId(), update, (m)->{});
+						persistence.storeReaction(client.accountId(), update);
 					case ModerateMessageStanza(action):
 						client.moderateMessage(action);
 					default:
 						// ignore
+					}
 				}
-			}
-			client.storeMessages(chatMessages, (chatMessages) -> {
-				callback(chatMessages.filter((m) -> m != null && m.chatId() == chatId));
+				client.storeMessages(chatMessages).then((chatMessages) -> {
+					resolve(chatMessages.filter((m) -> m != null && m.chatId() == chatId));
+				});
 			});
+			sync.fetchNext();
 		});
-		sync.fetchNext();
 	}
 
 	/**
@@ -645,7 +647,7 @@ abstract class Chat {
 		readUpToId = upTo;
 		readUpToBy = upToBy;
 		persistence.storeChats(client.accountId(), [this]);
-		persistence.getMessagesBefore(client.accountId(), chatId, null, null, (messages) -> {
+		persistence.getMessagesBefore(client.accountId(), chatId, null, null).then((messages) -> {
 			var i = messages.length;
 			while (--i >= 0) {
 				if (messages[i].serverId == readUpToId || !messages[i].isIncoming()) break;
@@ -664,7 +666,7 @@ abstract class Chat {
 			return;
 		}
 
-		persistence.getMessage(client.accountId(), chatId, readUpTo(), null, (readMessage) -> {
+		persistence.getMessage(client.accountId(), chatId, readUpTo(), null).then((readMessage) -> {
 			if (readMessage != null && Reflect.compare(message.timestamp, readMessage.timestamp) <= 0) return;
 
 			markReadUpToId(message.serverId, message.serverIdBy, callback);
@@ -758,52 +760,39 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>):Promise<Array<ChatMessage>> {
-		return new thenshim.Promise((resolve, reject) -> {
-			persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
-				if (messages.length > 0) {
-					resolve(messages);
-				} else {
-					var filter:MAMQueryParams = { with: this.chatId };
-					if (beforeId != null) filter.page = { before: beforeId };
-					var sync  = new MessageSync(this.client, this.stream, filter);
-					fetchFromSync(sync, resolve);
-				}
-			});
-		});
+		return persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime).then((messages) ->
+			if (messages.length > 0) {
+				Promise.resolve(messages);
+			} else {
+				var filter:MAMQueryParams = { with: this.chatId };
+				if (beforeId != null) filter.page = { before: beforeId };
+				var sync  = new MessageSync(this.client, this.stream, filter);
+				fetchFromSync(sync);
+			}
+		);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>):Promise<Array<ChatMessage>> {
-		return new thenshim.Promise((resolve, reject) -> {
-			if (afterId == lastMessageId() && !syncing()) {
-				resolve([]);
-				return;
+		if (afterId == lastMessageId() && !syncing()) {
+			return Promise.resolve([]);
+		}
+		return persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime).then((messages) ->
+			if (messages.length > 0) {
+				Promise.resolve(messages);
+			} else {
+				var filter:MAMQueryParams = { with: this.chatId };
+				if (afterId != null) filter.page = { after: afterId };
+				var sync  = new MessageSync(this.client, this.stream, filter);
+				fetchFromSync(sync);
 			}
-			persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime, (messages) -> {
-				if (messages.length > 0) {
-					resolve(messages);
-				} else {
-					var filter:MAMQueryParams = { with: this.chatId };
-					if (afterId != null) filter.page = { after: afterId };
-					var sync  = new MessageSync(this.client, this.stream, filter);
-					fetchFromSync(sync, resolve);
-				}
-			});
-		});
+		);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>):Promise<Array<ChatMessage>> {
-		return new thenshim.Promise((resolve, reject) -> {
-			persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime, (messages) -> {
-				if (messages.length > 0) {
-					resolve(messages);
-				} else {
-					// TODO
-					resolve([]);
-				}
-			});
-		});
+		// TODO: fetch more from MAM if nothing locally?
+		return persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime);
 	}
 
 	@:allow(snikket)
@@ -829,7 +818,7 @@ class DirectChat extends Chat {
 		message = prepareOutgoingMessage(message);
 		message.versions = [message.build()]; // This is a correction
 		message.localId = localId;
-		client.storeMessages([message.build()], (corrected) -> {
+		client.storeMessages([message.build()]).then((corrected) -> {
 			message.versions = corrected[0].versions[corrected[0].versions.length - 1]?.localId == localId ? cast corrected[0].versions : [message.build()];
 			message.localId = toSendId;
 			for (recipient in message.recipients) {
@@ -853,7 +842,7 @@ class DirectChat extends Chat {
 		final fromStanza = Message.fromStanza(message.build().asStanza(), client.jid).parsed;
 		switch (fromStanza) {
 			case ChatMessageStanza(_):
-				client.storeMessages([message.build()], (stored) -> {
+				client.storeMessages([message.build()]).then((stored) -> {
 					for (recipient in message.recipients) {
 						message.to = recipient;
 						final stanza = message.build().asStanza();
@@ -869,7 +858,7 @@ class DirectChat extends Chat {
 					client.notifyMessageHandlers(stored[0], stored[0].versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 				});
 			case ReactionUpdateStanza(update):
-				persistence.storeReaction(client.accountId(), update, (stored) -> {
+				persistence.storeReaction(client.accountId(), update).then((stored) -> {
 					for (recipient in message.recipients) {
 						message.to = recipient;
 						client.sendStanza(message.build().asStanza());
@@ -905,7 +894,7 @@ class DirectChat extends Chat {
 			}
 		}
 		final update = new ReactionUpdate(ID.long(), null, null, m.localId, m.chatId(), client.accountId(), Date.format(std.Date.now()), reactions, EmojiReactions);
-		persistence.storeReaction(client.accountId(), update, (stored) -> {
+		persistence.storeReaction(client.accountId(), update).then((stored) -> {
 			final stanza = update.asStanza();
 			for (recipient in counterparts()) {
 				stanza.attr.set("to", recipient);
@@ -1069,7 +1058,7 @@ class Channel extends Chat {
 				return stanza;
 			}
 		);
-		persistence.lastId(client.accountId(), chatId, doSync);
+		persistence.lastId(client.accountId(), chatId).then(doSync);
 	}
 
 	private function selfPingSuccess() {
@@ -1080,7 +1069,7 @@ class Channel extends Chat {
 		// We did a self ping to see if we were in the room and found we are
 		// But we may have missed messages if we were disconnected in the middle
 		inSync = false;
-		persistence.lastId(client.accountId(), chatId, doSync);
+		persistence.lastId(client.accountId(), chatId).then(doSync);
 	}
 
 	@:allow(snikket)
@@ -1149,9 +1138,9 @@ class Channel extends Chat {
 						}
 						pageChatMessages.push(message);
 					case ReactionUpdateStanza(update):
-						promises.push(new thenshim.Promise((resolve, reject) -> {
-							persistence.storeReaction(client.accountId(), update, (_) -> resolve(null));
-						}));
+						promises.push(
+							persistence.storeReaction(client.accountId(), update).then(_ -> null)
+						);
 					case ModerateMessageStanza(action):
 						promises.push(new thenshim.Promise((resolve, reject) -> {
 							client.moderateMessage(action).then((_) -> resolve(null));
@@ -1160,9 +1149,7 @@ class Channel extends Chat {
 						// ignore
 				}
 			}
-			promises.push(new thenshim.Promise((resolve, reject) -> {
-				client.storeMessages(pageChatMessages, resolve);
-			}));
+			promises.push(client.storeMessages(pageChatMessages));
 			thenshim.PromiseTools.all(promises).then((stored) -> {
 				for (messages in stored) {
 					if (messages != null) {
@@ -1291,62 +1278,49 @@ class Channel extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>):Promise<Array<ChatMessage>> {
-		return new thenshim.Promise((resolve, reject) -> {
-			persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime, (messages) -> {
-				if (messages.length > 0) {
-					resolve(messages);
-				} else {
-					var filter:MAMQueryParams = {};
-					if (beforeId != null) filter.page = { before: beforeId };
-					var sync = new MessageSync(this.client, this.stream, filter, chatId);
-					sync.addContext((builder, stanza) -> {
-						builder = prepareIncomingMessage(builder, stanza);
-						builder.syncPoint = false;
-						return builder;
-					});
-					fetchFromSync(sync, resolve);
-				}
-			});
-		});
+		return persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime).then((messages) ->
+			if (messages.length > 0) {
+				Promise.resolve(messages);
+			} else {
+				var filter:MAMQueryParams = {};
+				if (beforeId != null) filter.page = { before: beforeId };
+				var sync = new MessageSync(this.client, this.stream, filter, chatId);
+				sync.addContext((builder, stanza) -> {
+					builder = prepareIncomingMessage(builder, stanza);
+					builder.syncPoint = false;
+					return builder;
+				});
+				fetchFromSync(sync);
+			}
+		);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>):Promise<Array<ChatMessage>> {
-		return new thenshim.Promise((resolve, reject) -> {
-			if (afterId == lastMessageId() && !syncing()) {
-				resolve([]);
-				return;
+		if (afterId == lastMessageId() && !syncing()) {
+			return Promise.resolve([]);
+		}
+		return persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime).then((messages) ->
+			if (messages.length > 0) {
+				Promise.resolve(messages);
+			} else {
+				var filter:MAMQueryParams = {};
+				if (afterId != null) filter.page = { after: afterId };
+				var sync = new MessageSync(this.client, this.stream, filter, chatId);
+				sync.addContext((builder, stanza) -> {
+					builder = prepareIncomingMessage(builder, stanza);
+					builder.syncPoint = false;
+					return builder;
+				});
+				fetchFromSync(sync);
 			}
-			persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime, (messages) -> {
-				if (messages.length > 0) {
-					resolve(messages);
-				} else {
-					var filter:MAMQueryParams = {};
-					if (afterId != null) filter.page = { after: afterId };
-					var sync = new MessageSync(this.client, this.stream, filter, chatId);
-					sync.addContext((builder, stanza) -> {
-						builder = prepareIncomingMessage(builder, stanza);
-						builder.syncPoint = false;
-						return builder;
-					});
-					fetchFromSync(sync, resolve);
-				}
-			});
-		});
+		);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>):Promise<Array<ChatMessage>> {
-		return new thenshim.Promise((resolve, reject) -> {
-			persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime, (messages) -> {
-				if (messages.length > 0) {
-					resolve(messages);
-				} else {
-					// TODO
-					resolve([]);
-				}
-			});
-		});
+		// TODO: fetch more from MAM if nothing locally
+		return persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime);
 	}
 
 	@:allow(snikket)
@@ -1379,7 +1353,7 @@ class Channel extends Chat {
 		message = prepareOutgoingMessage(message);
 		message.versions = [message.build()]; // This is a correction
 		message.localId = localId;
-		client.storeMessages([message.build()], (corrected) -> {
+		client.storeMessages([message.build()]).then((corrected) -> {
 			message.versions = corrected[0].versions[0]?.localId == localId ? cast corrected[0].versions : [message.build()];
 			message.localId = toSendId;
 			client.sendStanza(message.build().asStanza());
@@ -1408,14 +1382,14 @@ class Channel extends Chat {
 					activeThread = message.threadId;
 					stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
 				}
-				client.storeMessages([message.build()], (stored) -> {
+				client.storeMessages([message.build()]).then((stored) -> {
 					client.sendStanza(stanza);
 					setLastMessage(stored[0]);
 					client.notifyMessageHandlers(stored[0], stored[0].versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 					client.trigger("chats/update", [this]);
 				});
 			case ReactionUpdateStanza(update):
-				persistence.storeReaction(client.accountId(), update, (stored) -> {
+				persistence.storeReaction(client.accountId(), update).then((stored) -> {
 					client.sendStanza(stanza);
 					if (stored != null) client.notifyMessageHandlers(stored, ReactionEvent);
 				});
@@ -1446,7 +1420,7 @@ class Channel extends Chat {
 			}
 		}
 		final update = new ReactionUpdate(ID.long(), m.serverId, m.chatId(), null, m.chatId(), getFullJid().asString(), Date.format(std.Date.now()), reactions, EmojiReactions);
-		persistence.storeReaction(client.accountId(), update, (stored) -> {
+		persistence.storeReaction(client.accountId(), update).then((stored) -> {
 			final stanza = update.asStanza();
 			stanza.attr.set("to", chatId);
 			client.sendStanza(stanza);

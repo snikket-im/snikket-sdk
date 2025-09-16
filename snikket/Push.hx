@@ -31,7 +31,7 @@ class Push {
 		// Assume incoming message
 		final message = ChatMessage.fromStanza(stanza, JID.parse(stanza.attr.get("to")).asBare());
 		if (message != null) {
-			persistence.storeMessages(message.account(), [message], (_)->{});
+			persistence.storeMessages(message.account(), [message]);
 			return Notification.fromChatMessage(message);
 		} else {
 			return Notification.fromThinStanza(stanza);

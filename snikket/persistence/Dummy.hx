@@ -7,6 +7,7 @@ import haxe.io.BytesData;
 import snikket.Caps;
 import snikket.Chat;
 import snikket.Message;
+import thenshim.Promise;
 
 // TODO: consider doing background threads for operations
 
@@ -24,21 +25,21 @@ class Dummy implements Persistence {
 	public function new() { }
 
 	@HaxeCBridge.noemit
-	public function lastId(accountId: String, chatId: Null<String>, callback:(Null<String>)->Void):Void {
-		callback(null);
+	public function lastId(accountId: String, chatId: Null<String>): Promise<Null<String>> {
+		return Promise.resolve(null);
 	}
 
 	@HaxeCBridge.noemit
 	public function storeChats(accountId: String, chat: Array<Chat>) { }
 
 	@HaxeCBridge.noemit
-	public function getChats(accountId: String, callback: (Array<SerializedChat>)->Void) {
-		callback([]);
+	public function getChats(accountId: String): Promise<Array<SerializedChat>> {
+		return Promise.resolve([]);
 	}
 
 	@HaxeCBridge.noemit
-	public function storeMessages(accountId: String, messages: Array<ChatMessage>, callback: (Array<ChatMessage>)->Void) {
-		callback(messages);
+	public function storeMessages(accountId: String, messages: Array<ChatMessage>): Promise<Array<ChatMessage>> {
+		return Promise.resolve(messages);
 	}
 
 	@HaxeCBridge.noemit
@@ -46,38 +47,38 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>, callback: (Null<ChatMessage>)->Void) {
-		callback(null);
+	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>): Promise<Null<ChatMessage>> {
+		return Promise.resolve(null);
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		callback([]);
+	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>): Promise<Array<ChatMessage>> {
+		return Promise.resolve([]);
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		callback([]);
+	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>): Promise<Array<ChatMessage>> {
+		return Promise.resolve([]);
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		callback([]);
+	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>): Promise<Array<ChatMessage>> {
+		return Promise.resolve([]);
 	}
 
 	@HaxeCBridge.noemit
-	public function getChatsUnreadDetails(accountId: String, chats: Array<Chat>, callback: (Array<{ chatId: String, message: ChatMessage, unreadCount: Int }>)->Void) {
-		callback([]);
+	public function getChatsUnreadDetails(accountId: String, chats: Array<Chat>): Promise<Array<{ chatId: String, message: ChatMessage, unreadCount: Int }>> {
+		return Promise.resolve([]);
 	}
 
 	@HaxeCBridge.noemit
-	public function storeReaction(accountId: String, update: ReactionUpdate, callback: (Null<ChatMessage>)->Void) {
-		callback(null);
+	public function storeReaction(accountId: String, update: ReactionUpdate): Promise<Null<ChatMessage>> {
+		return Promise.resolve(null);
 	}
 
 	@HaxeCBridge.noemit
-	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus, callback: (ChatMessage)->Void) {
-		callback(null);
+	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus): Promise<ChatMessage> {
+		return Promise.reject("Dummy cannot updateMessageStatus");
 	}
 
 	@HaxeCBridge.noemit
@@ -86,13 +87,13 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (Bool)->Void) {
-		callback(false);
+	public function hasMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool> {
+		return Promise.resolve(false);
 	}
 
 	@HaxeCBridge.noemit
-	public function storeMedia(mime:String, bd:BytesData, callback: ()->Void) {
-		callback();
+	public function storeMedia(mime:String, bd:BytesData): Promise<Bool> {
+		return Promise.resolve(false);
 	}
 
 	@HaxeCBridge.noemit
@@ -103,39 +104,39 @@ class Dummy implements Persistence {
 	public function storeCaps(caps:Caps) { }
 
 	@HaxeCBridge.noemit
-	public function getCaps(ver:String, callback: (Caps)->Void) {
-		callback(null);
+	public function getCaps(ver:String): Promise<Caps> {
+		return Promise.resolve(null);
 	}
 
 	@HaxeCBridge.noemit
 	public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>) { }
 
 	@HaxeCBridge.noemit
-	public function getLogin(login:String, callback:(Null<String>, Null<String>, Int, Null<String>)->Void) {
-		callback(null, null, 0, null);
+	public function getLogin(login:String): Promise<{ clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String> }> {
+		return Promise.resolve({ clientId: null, token: null, fastCount: 0, displayName: null });
 	}
 
 	@HaxeCBridge.noemit
 	public function removeAccount(accountId:String, completely:Bool) { }
 
 	@HaxeCBridge.noemit
-	public function listAccounts(callback:(Array<String>)->Void) {
-		callback([]);
+	public function listAccounts(): Promise<Array<String>> {
+		return Promise.resolve([]);
 	}
 
 	@HaxeCBridge.noemit
 	public function storeStreamManagement(accountId:String, sm:Null<BytesData>) { }
 
 	@HaxeCBridge.noemit
-	public function getStreamManagement(accountId:String, callback: (Null<BytesData>)->Void) {
-		callback(null);
+	public function getStreamManagement(accountId:String): Promise<Null<BytesData>> {
+		return Promise.resolve(null);
 	}
 
 	@HaxeCBridge.noemit
 	public function storeService(accountId:String, serviceId:String, name:Null<String>, node:Null<String>, caps:Caps) { }
 
 	@HaxeCBridge.noemit
-	public function findServicesWithFeature(accountId:String, feature:String, callback:(Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>)->Void) {
-		callback([]);
+	public function findServicesWithFeature(accountId:String, feature:String): Promise<Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>> {
+		return Promise.resolve([]);
 	}
 }

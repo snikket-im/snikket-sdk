@@ -5,6 +5,7 @@ import sha.SHA256;
 import haxe.crypto.Base64;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
+import thenshim.Promise;
 import snikket.jingle.IceServer;
 import snikket.jingle.PeerConnection;
 import snikket.Caps;
@@ -122,9 +123,8 @@ class Client extends EventEmitter {
 			persistence.updateMessageStatus(
 				accountId(),
 				data.id,
-				MessageDeliveredToServer,
-				(m) -> notifyMessageHandlers(m, StatusEvent)
-			);
+				MessageDeliveredToServer
+			).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
 			return EventHandled;
 		});
 
@@ -132,9 +132,8 @@ class Client extends EventEmitter {
 			persistence.updateMessageStatus(
 				accountId(),
 				data.id,
-				MessageFailedToSend,
-				(m) -> notifyMessageHandlers(m, StatusEvent)
-			);
+				MessageFailedToSend
+			).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
 			return EventHandled;
 		});
 
@@ -187,14 +186,14 @@ class Client extends EventEmitter {
 						if (chatMessage.serverId == null) {
 							updateChat(chatMessage);
 						} else {
-							storeMessages([chatMessage], (stored) -> updateChat(stored[0]));
+							storeMessages([chatMessage]).then((stored) -> updateChat(stored[0]));
 						}
 					}
 				case ReactionUpdateStanza(update):
 					for (hash in update.inlineHashReferences()) {
 						fetchMediaByHash([hash], [from]);
 					}
-					persistence.storeReaction(accountId(), update, (stored) -> if (stored != null) notifyMessageHandlers(stored, ReactionEvent));
+					persistence.storeReaction(accountId(), update).then((stored) -> if (stored != null) notifyMessageHandlers(stored, ReactionEvent));
 				case ModerateMessageStanza(action):
 					moderateMessage(action).then((stored) -> if (stored != null) notifyMessageHandlers(stored, CorrectionEvent));
 				default:
@@ -293,7 +292,7 @@ class Client extends EventEmitter {
 					final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
 					chat.setAvatarSha1(avatarSha1);
 					persistence.storeChats(accountId(), [chat]);
-					persistence.hasMedia("sha-1", avatarSha1, (has) -> {
+					persistence.hasMedia("sha-1", avatarSha1).then((has) -> {
 						if (has) {
 							this.trigger("chats/update", [chat]);
 						} else {
@@ -303,7 +302,7 @@ class Client extends EventEmitter {
 								if (item == null) return;
 								final dataNode = item.getChild("data", "urn:xmpp:avatar:data");
 								if (dataNode == null) return;
-								persistence.storeMedia(mime, Base64.decode(StringTools.replace(dataNode.getText(), "\n", "")).getData(), () -> {
+								persistence.storeMedia(mime, Base64.decode(StringTools.replace(dataNode.getText(), "\n", "")).getData()).then(_ -> {
 									this.trigger("chats/update", [chat]);
 								});
 							});
@@ -479,7 +478,7 @@ class Client extends EventEmitter {
 						return chat;
 					};
 
-					persistence.getCaps(c.attr.get("ver"), (caps) -> {
+					persistence.getCaps(c.attr.get("ver")).then((caps) -> {
 						if (caps == null) {
 							final pending = pendingCaps.get(c.attr.get("ver"));
 							if (pending == null) {
@@ -511,7 +510,7 @@ class Client extends EventEmitter {
 						final avatarSha1 = Hash.fromHex("sha-1", avatarSha1Hex)?.hash;
 						chat.setAvatarSha1(avatarSha1);
 						persistence.storeChats(accountId(), [chat]);
-						persistence.hasMedia("sha-1", avatarSha1, (has) -> {
+						persistence.hasMedia("sha-1", avatarSha1).then((has) -> {
 							if (has) {
 								if (chat.livePresence()) this.trigger("chats/update", [chat]);
 							} else {
@@ -519,7 +518,7 @@ class Client extends EventEmitter {
 								vcardGet.onFinished(() -> {
 									final vcard = vcardGet.getResult();
 									if (vcard.photo == null) return;
-									persistence.storeMedia(vcard.photo.mime, vcard.photo.data.getData(), () -> {
+									persistence.storeMedia(vcard.photo.mime, vcard.photo.data.getData()).then(_ -> {
 										this.trigger("chats/update", [chat]);
 									});
 								});
@@ -551,65 +550,65 @@ class Client extends EventEmitter {
 		Start this client running and trying to connect to the server
 	**/
 	public function start() {
-		startOffline(() -> {
-			persistence.getStreamManagement(accountId(), (sm) -> {
-				stream.on("auth/password-needed", (data) -> {
-					fastMechanism = data.mechanisms?.find((mech) -> mech.canFast)?.name;
-					if (token == null || (fastMechanism == null && data.mechanimsms != null)) {
-						this.trigger("auth/password-needed", { accountId: accountId() });
-					} else {
-						this.stream.trigger("auth/password", { password: token, mechanism: fastMechanism, fastCount: fastCount });
-					}
-				});
-				stream.on("auth/fail", (data) -> {
-					if (token != null) {
-						token = null;
-						stream.connect(jid.asString(), sm);
-					} else {
-						stream.connect(jid.asString(), sm);
-					}
-					return EventHandled;
-				});
-				stream.connect(jid.asString(), sm);
+		startOffline().then(_ ->
+			persistence.getStreamManagement(accountId())
+		).then((sm) -> {
+			stream.on("auth/password-needed", (data) -> {
+				fastMechanism = data.mechanisms?.find((mech) -> mech.canFast)?.name;
+				if (token == null || (fastMechanism == null && data.mechanimsms != null)) {
+					this.trigger("auth/password-needed", { accountId: accountId() });
+				} else {
+					this.stream.trigger("auth/password", { password: token, mechanism: fastMechanism, fastCount: fastCount });
+				}
 			});
+			stream.on("auth/fail", (data) -> {
+				if (token != null) {
+					token = null;
+					stream.connect(jid.asString(), sm);
+				} else {
+					stream.connect(jid.asString(), sm);
+				}
+				return EventHandled;
+			});
+			stream.connect(jid.asString(), sm);
 		});
 	}
 
 	/**
 		Gets the client ready to use but does not connect to the server
 	**/
-	public function startOffline(ready: ()->Void) {
+	public function startOffline(): Promise<Bool> {
 		#if cpp
 		// Do a big GC before starting a new client
 		cpp.NativeGc.run(true);
 		#end
-		persistence.getLogin(accountId(), (clientId, loadedToken, loadedFastCount, displayName) -> {
-			token = loadedToken;
-			fastCount = loadedFastCount;
-			stream.clientId = clientId ?? ID.long();
+		return persistence.getLogin(accountId()).then(login -> {
+			token = login.token;
+			fastCount = login.fastCount;
+			stream.clientId = login.clientId ?? ID.long();
 			jid = jid.withResource(stream.clientId);
-			if (!updateDisplayName(displayName) && clientId == null) {
+			if (!updateDisplayName(login.displayName) && login.clientId == null) {
 				persistence.storeLogin(jid.asBare().asString(), stream.clientId, this.displayName(), null);
 			}
 
-			persistence.getChats(accountId(), (protoChats) -> {
-				var oneProtoChat = null;
-				while ((oneProtoChat = protoChats.pop()) != null) {
-					chats.push(oneProtoChat.toChat(this, stream, persistence));
+			return persistence.getChats(accountId());
+		}).then((protoChats) -> {
+			var oneProtoChat = null;
+			while ((oneProtoChat = protoChats.pop()) != null) {
+				chats.push(oneProtoChat.toChat(this, stream, persistence));
+			}
+			return persistence.getChatsUnreadDetails(accountId(), chats);
+		}).then((details) -> {
+			for (detail in details) {
+				var chat = getChat(detail.chatId);
+				if (chat != null) {
+					chat.setLastMessage(detail.message);
+					chat.setUnreadCount(detail.unreadCount);
 				}
-				persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
-					for (detail in details) {
-						var chat = getChat(detail.chatId);
-						if (chat != null) {
-							chat.setLastMessage(detail.message);
-							chat.setUnreadCount(detail.unreadCount);
-						}
-					}
-					sortChats();
-					this.trigger("chats/update", chats);
-					ready();
-				});
-			});
+			}
+			sortChats();
+			this.trigger("chats/update", chats);
+			true;
 		});
 	}
 
@@ -713,7 +712,7 @@ class Client extends EventEmitter {
 
 				trace("SYNC: details");
 				inSync = true;
-				persistence.getChatsUnreadDetails(accountId(), chats, (details) -> {
+				persistence.getChatsUnreadDetails(accountId(), chats).then((details) -> {
 					for (detail in details) {
 						var chat = getChat(detail.chatId) ?? getDirectChat(detail.chatId, false);
 						final initialLastId = chat.lastMessageId();
@@ -751,7 +750,7 @@ class Client extends EventEmitter {
 		Turn a file into a ChatAttachment for attaching to a ChatMessage
 	**/
 	public function prepareAttachment(source: AttachmentSource, callback: (Null<ChatAttachment>)->Void) {
-		persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0", (services) -> {
+		persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0").then((services) -> {
 			final sha256 = new sha.SHA256();
 			source.tinkSource().chunked().forEach((chunk) -> {
 				sha256.update(chunk);
@@ -928,7 +927,7 @@ class Client extends EventEmitter {
 	@:allow(snikket)
 	private function moderateMessage(action: ModerationAction): Promise<Null<ChatMessage>> {
 		return new thenshim.Promise((resolve, reject) ->
-			persistence.getMessage(accountId(), action.chatId, action.moderateServerId, null, (moderateMessage) -> {
+			persistence.getMessage(accountId(), action.chatId, action.moderateServerId, null).then((moderateMessage) -> {
 				if (moderateMessage == null) return resolve(null);
 				for(attachment in moderateMessage.attachments) {
 					for(hash in attachment.hashes) {
@@ -1242,19 +1241,17 @@ class Client extends EventEmitter {
 	private function fetchMediaByHashOneCounterpart(hashes: Array<Hash>, counterpart: JID) {
 		if (hashes.length < 1) return thenshim.Promise.reject("no hashes left");
 
-		return new thenshim.Promise((resolve, reject) ->
-			persistence.hasMedia(hashes[0].algorithm, hashes[0].hash, resolve)
-		).then (has -> {
-			if (has) return thenshim.Promise.resolve(null);
+		return persistence.hasMedia(hashes[0].algorithm, hashes[0].hash).then (has -> {
+			if (has) return Promise.resolve(null);
 
-			return new thenshim.Promise((resolve, reject) -> {
+			return new Promise((resolve, reject) -> {
 				final q = BoB.forHash(counterpart.asString(), hashes[0]);
 				q.onFinished(() -> {
 					final r = q.getResult();
 					if (r == null) {
 						reject("bad or no result from BoB query");
 					} else {
-						persistence.storeMedia(r.type, r.bytes.getData(), () -> resolve(null));
+						persistence.storeMedia(r.type, r.bytes.getData()).then(_ -> resolve(null));
 					}
 				});
 				sendQuery(q);
@@ -1288,8 +1285,8 @@ class Client extends EventEmitter {
 	}
 
 	@:allow(snikket)
-	private function storeMessages(messages: Array<ChatMessage>, ?callback: Null<(Array<ChatMessage>)->Void>) {
-		persistence.storeMessages(accountId(), messages, callback ?? (_)->{});
+	private function storeMessages(messages: Array<ChatMessage>): Promise<Null<Array<ChatMessage>>> {
+		return persistence.storeMessages(accountId(), messages);
 	}
 
 	@:allow(snikket)
@@ -1490,7 +1487,7 @@ class Client extends EventEmitter {
 		if (Std.isOfType(persistence, snikket.persistence.Dummy)) {
 			callback(true); // No reason to sync if we're not storing anyway
 		} else {
-			persistence.lastId(accountId(), null, (lastId) -> doSync(callback, lastId));
+			persistence.lastId(accountId(), null).then((lastId) -> doSync(callback, lastId));
 		}
 	}
 
@@ -1531,9 +1528,9 @@ class Client extends EventEmitter {
 						chatMessages.push(message);
 						if (message.type == MessageChat) chatIds[message.chatId()] = true;
 					case ReactionUpdateStanza(update):
-						promises.push(new thenshim.Promise((resolve, reject) -> {
-							persistence.storeReaction(accountId(), update, (_) -> resolve(null));
-						}));
+						promises.push(
+							persistence.storeReaction(accountId(), update).then(_ -> null)
+						);
 					case ModerateMessageStanza(action):
 						promises.push(new thenshim.Promise((resolve, reject) -> {
 							moderateMessage(action).then((_) -> resolve(null));
@@ -1542,9 +1539,7 @@ class Client extends EventEmitter {
 						// ignore
 				}
 			}
-			promises.push(new thenshim.Promise((resolve, reject) -> {
-				persistence.storeMessages(accountId(), chatMessages, resolve);
-			}));
+			promises.push(persistence.storeMessages(accountId(), chatMessages));
 			trace("SYNC: MAM page wait for writes");
 			thenshim.PromiseTools.all(promises).then((results) -> {
 				if (syncMessageHandlers.length > 0) {

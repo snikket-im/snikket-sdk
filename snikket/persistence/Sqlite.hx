@@ -129,31 +129,26 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function get(k: String, callback: (Null<String>)->Void) {
-		db.exec("SELECT v FROM keyvaluepairs WHERE k=? LIMIT 1", [k]).then(iter -> {
+	public function get(k: String): Promise<Null<String>> {
+		return db.exec("SELECT v FROM keyvaluepairs WHERE k=? LIMIT 1", [k]).then(iter -> {
 			for (row in iter) {
-				callback(row.v);
-				return;
+				return row.v;
 			}
-			callback(null);
+			return null;
 		});
 	}
 
 	@HaxeCBridge.noemit
-	public function set(k: String, v: Null<String>, callback: ()->Void) {
-		if (v == null) {
-			db.exec("DELETE FROM keyvaluepairs WHERE k=?", [k]).then(_ -> {
-				callback();
-			});
+	public function set(k: String, v: Null<String>): Promise<Bool> {
+		return if (v == null) {
+			db.exec("DELETE FROM keyvaluepairs WHERE k=?", [k]).then(_ -> true);
 		} else {
-			db.exec("INSERT OR REPLACE INTO keyvaluepairs VALUES (?,?)", [k, v]).then(_ -> {
-				callback();
-			});
+			db.exec("INSERT OR REPLACE INTO keyvaluepairs VALUES (?,?)", [k, v]).then(_ -> true);
 		}
 	}
 
 	@HaxeCBridge.noemit
-	public function lastId(accountId: String, chatId: Null<String>, callback:(Null<String>)->Void):Void {
+	public function lastId(accountId: String, chatId: Null<String>): Promise<Null<String>> {
 		final params = [accountId];
 		var q = "SELECT mam_id FROM messages WHERE mam_id IS NOT NULL AND sync_point AND account_id=?";
 		if (chatId == null) {
@@ -164,7 +159,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			params.push(chatId);
 		}
 		q += " ORDER BY ROWID DESC LIMIT 1";
-		db.exec(q, params).then(iter -> callback(iter.next()?.mam_id), (_) -> callback(null));
+		return db.exec(q, params).then(iter -> cast (iter.next()?.mam_id, Null<String>));
 	}
 
 	private final storeChatBuffer: Map<String, Chat> = [];
@@ -227,8 +222,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function getChats(accountId: String, callback: (Array<SerializedChat>)->Void) {
-		db.exec(
+	public function getChats(accountId: String): Promise<Array<SerializedChat>> {
+		return db.exec(
 			"SELECT chat_id, trusted, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, notifications_filtered, notify_mention, notify_reply, json(caps) AS caps, caps_ver, json(presence) AS presence, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
 			[accountId]
 		).then(result -> {
@@ -272,14 +267,13 @@ class Sqlite implements Persistence implements KeyValueStore {
 				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, row.capsObj, Reflect.field(row, "class")));
 			}
 			return chats;
-		}).then(callback);
+		});
 	}
 
 	@HaxeCBridge.noemit
-	public function storeMessages(accountId: String, messages: Array<ChatMessage>, callback: (Array<ChatMessage>)->Void) {
+	public function storeMessages(accountId: String, messages: Array<ChatMessage>): Promise<Array<ChatMessage>> {
 		if (messages.length < 1) {
-			callback(messages);
-			return;
+			return Promise.resolve(messages);
 		}
 
 		final chatIds = [];
@@ -301,7 +295,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			}
 		}
 
-		(if (chatIds.length > 0 && localIds.length > 0) {
+		return (if (chatIds.length > 0 && localIds.length > 0) {
 			// Hmm, this loses the original timestamp though
 			final q = new StringBuf();
 			q.add("DELETE FROM messages WHERE account_id=? AND direction=? AND chat_id IN (");
@@ -328,7 +322,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				})
 			)
 		).then(_ ->
-			hydrateReplyTo(accountId, messages, replyTos).then(ms -> hydrateReactions(accountId, ms)).then(callback)
+			hydrateReplyTo(accountId, messages, replyTos).then(ms -> hydrateReactions(accountId, ms))
 		);
 
 		// TODO: retract custom emoji?
@@ -336,10 +330,10 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function updateMessage(accountId: String, message: ChatMessage) {
-		storeMessages(accountId, [message], (_)->{});
+		storeMessages(accountId, [message]);
 	}
 
-	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>, callback: (Null<ChatMessage>)->Void) {
+	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>): Promise<Null<ChatMessage>> {
 		var q = "SELECT stanza, direction, type, status, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND chat_id=?";
 		final params = [accountId, chatId];
 		if (serverId != null) {
@@ -350,17 +344,15 @@ class Sqlite implements Persistence implements KeyValueStore {
 			params.push(localId);
 		}
 		q += "LIMIT 1";
-		db.exec(q, params).then(result -> hydrateMessages(accountId, result)).then(messages -> {
-			for (message in messages) {
+		return db.exec(q, params).then(result -> hydrateMessages(accountId, result)).then(messages ->
+			thenshim.PromiseTools.all(messages.map(message ->
 				(if (message.replyToMessage != null) {
 					hydrateReplyTo(accountId, [message], [{ chatId: chatId, serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
 				} else {
 					Promise.resolve([message]);
-				}).then(messages -> hydrateReactions(accountId, messages)).then(hydrated -> callback(hydrated[0]));
-				return;
-			}
-			callback(null);
-		});
+				}).then(messages -> hydrateReactions(accountId, messages))
+			)).then(items -> items.flatten()).then(items -> items.length > 0 ? items[0] : null)
+		);
 	}
 
 	private function getMessages(accountId: String, chatId: String, time: Null<String>, op: String): Promise<Array<ChatMessage>> {
@@ -406,23 +398,23 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		getMessages(accountId, chatId, beforeTime, "<").then(callback);
+	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>): Promise<Array<ChatMessage>> {
+		return getMessages(accountId, chatId, beforeTime, "<");
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		getMessages(accountId, chatId, afterTime, ">").then(callback);
+	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>): Promise<Array<ChatMessage>> {
+		return getMessages(accountId, chatId, afterTime, ">");
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>, callback: (Array<ChatMessage>)->Void) {
-		(if (aroundTime == null) {
-			new Promise((resolve, reject) -> getMessage(accountId, chatId, aroundId, null, resolve)).then(m ->
+	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>): Promise<Array<ChatMessage>> {
+		return (if (aroundTime == null) {
+			getMessage(accountId, chatId, aroundId, null).then(m ->
 				if (m != null) {
 					Promise.resolve(m.timestamp);
 				} else {
-					new Promise((resolve, reject) -> getMessage(accountId, chatId, null, aroundId, resolve)).then(m -> m?.timestamp);
+					getMessage(accountId, chatId, null, aroundId).then(m -> m?.timestamp);
 				}
 			);
 		} else {
@@ -432,19 +424,16 @@ class Sqlite implements Persistence implements KeyValueStore {
 				getMessages(accountId, chatId, aroundTime, "<"),
 				getMessages(accountId, chatId, aroundTime, ">=")
 			])
-		).then(results ->
-			callback(results.flatMap(arr -> arr))
-		);
+		).then(results -> results.flatten());
 	}
 
 	@HaxeCBridge.noemit
-	public function getChatsUnreadDetails(accountId: String, chats: Array<Chat>, callback: (Array<{ chatId: String, message: ChatMessage, unreadCount: Int }>)->Void) {
+	public function getChatsUnreadDetails(accountId: String, chats: Array<Chat>): Promise<Array<{ chatId: String, message: ChatMessage, unreadCount: Int }>> {
 		if (chats == null || chats.length < 1) {
-			callback([]);
-			return;
+			return Promise.resolve([]);
 		}
 
-		Promise.resolve(null).then(_ -> {
+		return Promise.resolve(null).then(_ -> {
 			final params: Array<Dynamic> = [accountId]; // subq is first in final q, so subq params first
 
 			final subq = new StringBuf();
@@ -482,7 +471,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			return db.exec(q.toString(), params);
 		}).then(result ->
 			{ iterator: () -> result }.array()
-		).then((rows: Array<Dynamic>) -> {
+		).then((rows: Array<Dynamic>) ->
 			Promise.resolve(hydrateMessages(accountId, rows.iterator())).then(messages -> {
 				final details = [];
 				for (i => m in messages) {
@@ -492,14 +481,14 @@ class Sqlite implements Persistence implements KeyValueStore {
 						message: m
 					});
 				}
-				callback(details);
-			});
-		});
+				return details;
+			})
+		);
 	}
 
 	@HaxeCBridge.noemit
-	public function storeReaction(accountId: String, update: ReactionUpdate, callback: (Null<ChatMessage>)->Void) {
-		db.exec(
+	public function storeReaction(accountId: String, update: ReactionUpdate): Promise<Null<ChatMessage>> {
+		return db.exec(
 			"INSERT OR REPLACE INTO reactions VALUES (?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),jsonb(?),?)",
 			[
 				accountId, update.updateId, update.serverId, update.serverIdBy,
@@ -507,36 +496,34 @@ class Sqlite implements Persistence implements KeyValueStore {
 				JsonPrinter.print(update.reactions), update.kind
 			]
 		).then(_ ->
-			this.getMessage(accountId, update.chatId, update.serverId, update.localId, callback)
+			this.getMessage(accountId, update.chatId, update.serverId, update.localId)
 		);
 	}
 
 	@HaxeCBridge.noemit
-	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus, callback: (ChatMessage)->Void) {
-		db.exec(
+	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus): Promise<ChatMessage> {
+		return db.exec(
 			"UPDATE messages SET status=? WHERE account_id=? AND stanza_id=? AND direction=? AND status <> ?",
 			[status, accountId, localId, MessageSent, MessageDeliveredToDevice]
 		).then(_ ->
 			db.exec(
-				"SELECT stanza, direction, type, status, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, correction_id AS stanza_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND stanza_id=? AND direction=?",
+				"SELECT stanza, direction, type, status, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, correction_id AS stanza_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND stanza_id=? AND direction=? LIMIT 1",
 				[accountId, localId, MessageSent]
 			)
-		).then(result -> {
-			final messages = hydrateMessages(accountId, result);
-			for (message in messages) {
+		).then(result ->
+			thenshim.PromiseTools.all(hydrateMessages(accountId, result).map(message ->
 				(if (message.replyToMessage != null) {
 					hydrateReplyTo(accountId, [message], [{ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
 				} else {
 					Promise.resolve([message]);
-				}).then(messages -> hydrateReactions(accountId, messages)).then(hydrated -> callback(hydrated[0]));
-				return;
-			}
-		});
+				}).then(messages -> hydrateReactions(accountId, messages))
+			))
+		).then(hydrated -> hydrated.flatten()).then(hydrated -> hydrated.length > 0 ? Promise.resolve(hydrated[0]) : Promise.reject("Message not found: " + localId));
 	}
 
 	@HaxeCBridge.noemit
-	public function hasMedia(hashAlgorithm:String, hash:BytesData, callback: (Bool)->Void) {
-		media.hasMedia(hashAlgorithm, hash, callback);
+	public function hasMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool> {
+		return media.hasMedia(hashAlgorithm, hash);
 	}
 
 	@HaxeCBridge.noemit
@@ -545,8 +532,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeMedia(mime: String, bd: BytesData, callback: ()->Void) {
-		media.storeMedia(mime, bd, callback);
+	public function storeMedia(mime: String, bd: BytesData): Promise<Bool> {
+		return media.storeMedia(mime, bd);
 	}
 
 	@HaxeCBridge.noemit
@@ -571,23 +558,21 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function getCaps(ver:String, callback: (Caps)->Void) {
+	public function getCaps(ver:String): Promise<Caps> {
 		final verData = try {
 			Base64.decode(ver).getData();
 		} catch (e) {
-			callback(null);
-			return;
+			return Promise.resolve(null);
 		}
-		db.exec(
+		return db.exec(
 			"SELECT json(caps) AS caps FROM caps WHERE sha1=? LIMIT 1",
 			[verData]
 		).then(result -> {
 			for (row in result) {
 				final json = Json.parse(row.caps);
-				callback(new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), json.features, verData));
-				return;
+				return new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), json.features, verData);
 			}
-			callback(null);
+			return null;
 		});
 	}
 
@@ -618,20 +603,20 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function getLogin(accountId:String, callback:(Null<String>, Null<String>, Int, Null<String>)->Void) {
-		db.exec(
-			"SELECT client_id, display_name, token, fast_count FROM accounts WHERE account_id=? LIMIT 1",
+	public function getLogin(accountId: String): Promise<{ clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String> }> {
+		return db.exec(
+			"SELECT client_id AS clientId, display_name AS displayName, token, COALESCE(fast_count, 0) AS fastCount FROM accounts WHERE account_id=? LIMIT 1",
 			[accountId]
 		).then(result -> {
 			for (row in result) {
-				if (row.token != null) {
+				final r: Dynamic = row;
+				if (r.token != null) {
 					db.exec("UPDATE accounts SET fast_count=fast_count+1 WHERE account_id=?", [accountId]);
 				}
-				callback(row.client_id, row.token, row.fast_count ?? 0, row.display_name);
-				return;
+				return r;
 			}
 
-			callback(null, null, 0, null);
+			return { clientId: null, token: null, fastCount: 0, displayName: null };
 		});
 	}
 
@@ -646,9 +631,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 
-	public function listAccounts(callback:(Array<String>)->Void) {
-		db.exec("SELECT account_id FROM accounts").then(result ->
-			callback(result == null ? [] :  { iterator: () -> result }.map(row -> row.account_id))
+	public function listAccounts(): Promise<Array<String>> {
+		return db.exec("SELECT account_id FROM accounts").then(result ->
+			result == null ? [] : { iterator: () -> result }.map(row -> row.account_id)
 		);
 	}
 
@@ -670,14 +655,13 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function getStreamManagement(accountId:String, callback: (Null<BytesData>)->Void) {
-		db.exec("SELECT sm_state FROM accounts  WHERE account_id=?", [accountId]).then(result -> {
+	public function getStreamManagement(accountId:String): Promise<Null<BytesData>> {
+		return db.exec("SELECT sm_state FROM accounts  WHERE account_id=?", [accountId]).then(result -> {
 			for (row in result) {
-				callback(row.sm_state);
-				return;
+				return row.sm_state;
 			}
 
-			callback(null);
+			return null;
 		});
 	}
 
@@ -692,9 +676,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function findServicesWithFeature(accountId:String, feature:String, callback:(Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>)->Void) {
+	public function findServicesWithFeature(accountId:String, feature:String): Promise<Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>> {
 		// Almost full scan shouldn't be too expensive, how many services are we aware of?
-		db.exec(
+		return db.exec(
 			"SELECT service_id, name, node, json(caps.caps) AS caps FROM services INNER JOIN caps ON services.caps=caps.sha1 WHERE account_id=?",
 			[accountId]
 		).then(result -> {
@@ -711,7 +695,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					});
 				}
 			}
-			callback(services);
+			return services;
 		});
 	}
 
