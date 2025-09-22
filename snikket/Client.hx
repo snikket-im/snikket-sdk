@@ -749,18 +749,20 @@ class Client extends EventEmitter {
 	/**
 		Turn a file into a ChatAttachment for attaching to a ChatMessage
 	**/
-	public function prepareAttachment(source: AttachmentSource, callback: (Null<ChatAttachment>)->Void) {
-		persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0").then((services) -> {
+	public function prepareAttachment(source: AttachmentSource): Promise<Null<ChatAttachment>> {
+		return persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0").then((services) -> {
 			final sha256 = new sha.SHA256();
-			source.tinkSource().chunked().forEach((chunk) -> {
-				sha256.update(chunk);
-				return tink.streams.Stream.Handled.Resume;
-			}).handle((o) -> switch o {
-				case Depleted:
-					prepareAttachmentFor(source, services, [new Hash("sha-256", sha256.digest().getData())], callback);
-				default:
-					trace("Error computing attachment hash", o);
-					callback(null);
+			return new Promise((resolve, reject) -> {
+				source.tinkSource().chunked().forEach((chunk) -> {
+					sha256.update(chunk);
+					return tink.streams.Stream.Handled.Resume;
+				}).handle((o) -> switch o {
+					case Depleted:
+						prepareAttachmentFor(source, services, [new Hash("sha-256", sha256.digest().getData())], resolve);
+					default:
+						trace("Error computing attachment hash", o);
+						reject(o);
+				});
 			});
 		});
 	}
