@@ -1408,10 +1408,13 @@ class Client extends EventEmitter {
 					handleChat(chat);
 					chats.unshift(chat);
 					persistence.storeChats(accountId(), [chat]);
+					this.trigger("chats/update", [chat]);
+					if (inSync && sendAvailable) chat.selfPing(false);
 				} else {
 					final chat = getDirectChat(jid, false);
 					handleChat(chat);
 					persistence.storeChats(accountId(), [chat]);
+					this.trigger("chats/update", [chat]);
 				}
 			}
 		});
