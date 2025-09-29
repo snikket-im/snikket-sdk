@@ -1,6 +1,6 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 
-.PHONY: all test hx-build-dep cpp/output.dso npm/borogove-browser.js npm/borogove.js
+.PHONY: all test doc hx-build-dep cpp/output.dso npm/borogove-browser.js npm/borogove.js site/haxe/index.html
 
 all: npm libborogove.so
 
@@ -68,6 +68,12 @@ cpp/output.dso:
 
 libborogove.so: cpp/output.dso
 	cp cpp/output.dso libborogove.so
+
+site/haxe/index.html:
+	haxe haxedoc.hxml
+	haxelib run dox --toplevel-package borogove -i haxedoc.xml -o site/haxe/
+
+doc: site/haxe/index.html
 
 clean:
 	rm -f npm/browser.js npm/index.js npm/borogove.js npm/borogove-enums.js

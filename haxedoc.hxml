@@ -1,0 +1,13 @@
+--library datetime
+--library haxe-strings
+--library hsluv
+--library tink_http
+--library sha
+--library thenshim
+--library HtmlParser
+
+--js js
+--no-output
+-xml haxedoc.xml
+borogove.Client
+-D doc_gen
