@@ -341,6 +341,15 @@ class Sqlite implements Persistence implements KeyValueStore {
 		storeMessages(accountId, [message]);
 	}
 
+	/**
+		Get a single message
+
+		@param accountId the account the message was sent or received on
+		@param chatId the chat the message was sent or received on
+		@param serverId the serverId of the message (optional if localId is specified)
+		@param localId the localId of the message (optional if serverId is specified)
+		@returns Promise resolving to the message or null
+	**/
 	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>): Promise<Null<ChatMessage>> {
 		var q = "SELECT stanza, direction, type, status, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND chat_id=?";
 		final params = [accountId, chatId];
@@ -628,6 +637,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 		});
 	}
 
+	/**
+		Remove an account from storage
+
+		@param accountId the account to remove
+		@param completely if message history, etc should be removed also
+	**/
 	public function removeAccount(accountId:String, completely:Bool) {
 		db.exec("DELETE FROM accounts WHERE account_id=?", [accountId]);
 
@@ -639,6 +654,11 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 
+	/**
+		List all known accounts
+
+		@returns Promise resolving to array of account IDs
+	**/
 	public function listAccounts(): Promise<Array<String>> {
 		return db.exec("SELECT account_id FROM accounts").then(result ->
 			result == null ? [] : { iterator: () -> result }.map(row -> row.account_id)

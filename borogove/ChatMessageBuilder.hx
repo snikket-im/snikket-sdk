@@ -72,6 +72,9 @@ class ChatMessageBuilder {
 	@:allow(borogove)
 	private var replyTo: Array<JID> = [];
 
+	/**
+		The ID of the message sender
+	**/
 	public var senderId (get, default): Null<String> = null;
 
 	/**
@@ -234,6 +237,11 @@ class ChatMessageBuilder {
 		if (uris.length > 0) attachments.push(new ChatAttachment(name, mime, size == null ? null : Std.parseInt(size), uris, hashes));
 	}
 
+	/**
+		Add an attachment to this message
+
+		@param attachment The ChatAttachment to add
+	**/
 	public function addAttachment(attachment: ChatAttachment) {
 		attachments.push(attachment);
 	}
@@ -282,7 +290,7 @@ class ChatMessageBuilder {
 		throw "node was neither text nor element?";
 	}
 
-  	/**
+	/**
 		The ID of the Chat this message is associated with
 	**/
 	public function chatId():String {
@@ -300,10 +308,16 @@ class ChatMessageBuilder {
 		return senderId ?? sender?.asString() ?? throw "sender is null";
 	}
 
-	public function isIncoming():Bool {
+	@:allow(borogove)
+	private function isIncoming():Bool {
 		return direction == MessageReceived;
 	}
 
+	/**
+		Build this builder into an immutable ChatMessage
+
+		@returns the ChatMessage
+	**/
 	public function build() {
 		if (serverId == null && localId == null) throw "Cannot build a ChatMessage with no id";
 		final to = this.to;

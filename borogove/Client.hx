@@ -641,6 +641,8 @@ class Client extends EventEmitter {
 
 	/**
 		Gets the client ready to use but does not connect to the server
+
+		@returns Promise resolving to true once the Client is ready
 	**/
 	public function startOffline(): Promise<Bool> {
 		#if cpp
@@ -813,6 +815,9 @@ class Client extends EventEmitter {
 
 	/**
 		Turn a file into a ChatAttachment for attaching to a ChatMessage
+
+		@param source The AttachmentSource to use
+		@returns Promise resolving to a ChatAttachment or null
 	**/
 	public function prepareAttachment(source: AttachmentSource): Promise<Null<ChatAttachment>> {
 		return persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0").then((services) -> {

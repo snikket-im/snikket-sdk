@@ -12,11 +12,17 @@ import thenshim.Promise;
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
+@HaxeCBridge.name("borogove_persistence_media_store_fs")
 #end
 class MediaStoreFS implements MediaStore {
 	private final blobpath: String;
 	private var kv: Null<KeyValueStore> = null;
 
+	/**
+		Store media on the filesystem
+
+		@param path where on filesystem to store media
+	**/
 	public function new(path: String) {
 		blobpath = path;
 	}
@@ -26,6 +32,12 @@ class MediaStoreFS implements MediaStore {
 		this.kv = kv;
 	}
 
+	/**
+		Get absolute path on filesystem to a particular piece of media
+
+		@param uri The URI to the media (ni:// or similar)
+		@returns Promise resolving to the path or null
+	**/
 	public function getMediaPath(uri: String): Promise<Null<String>> {
 		final hash = Hash.fromUri(uri);
 		if (hash.algorithm == "sha-256") {

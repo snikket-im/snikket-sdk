@@ -14,17 +14,53 @@ import HaxeCBridge;
 @:build(HaxeSwiftBridge.expose())
 #end
 class Notification {
+	/**
+		The title
+	**/
 	public final title: String;
+	/**
+		The body text
+	**/
 	public final body: String;
+	/**
+		The ID of the associated account
+	**/
 	public final accountId: String;
+	/**
+		The ID of the associated chat
+	**/
 	public final chatId: String;
+	/**
+		The ID of the message sender
+	**/
 	public final senderId: String;
+	/**
+		The serverId of the message
+	**/
 	public final messageId: String;
+	/**
+		The type of the message
+	**/
 	public final type: MessageType;
+	/**
+		If this is a call notification, the call status
+	**/
 	public final callStatus: Null<String>;
+	/**
+		If this is a call notification, the call session ID
+	**/
 	public final callSid: Null<String>;
+	/**
+		Optional image URI
+	**/
 	public final imageUri: Null<String>;
+	/**
+		Optional language code
+	**/
 	public final lang: Null<String>;
+	/**
+		Optional date and time of the event
+	**/
 	public final timestamp: Null<String>;
 
 	@:allow(borogove)

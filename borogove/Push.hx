@@ -18,6 +18,13 @@ import HaxeCBridge;
 @:build(HaxeSwiftBridge.expose())
 #end
 class Push {
+	/**
+		Receive a new push notification from some external system
+
+		@param data the raw data from the push
+		@param persistence the persistence layer to write into
+		@returns a Notification representing the push data
+	**/
 	public static function receive(data: String, persistence: Persistence) {
 		var stanza = Stanza.parse(data);
 		if (stanza == null) return null;

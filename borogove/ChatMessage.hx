@@ -30,10 +30,25 @@ import borogove.Util;
 @:build(HaxeSwiftBridge.expose())
 #end
 class ChatAttachment {
+	/**
+		Filename
+	**/
 	public final name: Null<String>;
+	/**
+		MIME Type
+	**/
 	public final mime: String;
+	/**
+		Size in bytes
+	**/
 	public final size: Null<Int>;
+	/**
+		URIs to data
+	**/
 	public final uris: ReadOnlyArray<String>;
+	/**
+		Hashes of data
+	**/
 	public final hashes: ReadOnlyArray<Hash>;
 
 	#if cpp
@@ -51,6 +66,14 @@ class ChatAttachment {
 	}
 
 	#if cpp
+	/**
+		Create a new attachment for adding to a ChatMessage
+
+		@param name Optional filename
+		@param mime MIME type
+		@param size Size in bytes
+		@param uri URI to attachment
+	**/
 	public static function create(name: Null<String>, mime: String, size: Int, uri: String) {
 		return new ChatAttachment(name, mime, size > 0 ? size : null, [uri], []);
 	}
@@ -261,7 +284,8 @@ class ChatMessage {
 		return m;
 	}
 
-	public function getReplyId() {
+	@:allow(borogove)
+	private function getReplyId() {
 		if (replyId != null) return replyId;
 		return type == MessageChannel || type == MessageChannelPrivate ? serverId : localId;
 	}

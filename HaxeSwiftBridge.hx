@@ -424,7 +424,14 @@ class HaxeSwiftBridge {
 
 					cFuncName = hx.strings.Strings.toLowerUnderscore(cFuncName);
 
-					final cleanDoc = f.doc != null ? StringTools.trim(removeIndentation(f.doc)) : null;
+					var cleanDoc = f.doc != null ? StringTools.trim(removeIndentation(f.doc)) : null;
+					if (cleanDoc != null) {
+							switch tret {
+							case TType(_.get().name => "Promise", params):
+								cleanDoc = ~/@returns Promise resolving to/.replace(cleanDoc, "@returns");
+							default:
+						}
+					}
 
 					if (cleanDoc != null) builder.add('\t/**\n${cleanDoc.split('\n').map(l -> '\t ' + l).join('\n')}\n\t */\n');
 					switch kind {

@@ -249,7 +249,7 @@ class HaxeCBridge {
 						wrap = true;
 						final atype = convertSecondaryTPtoType(path.params[0]);
 						final aargs = atype.args;
-						args.push({name: "handler", type: TPath({name: "Callable", pack: ["cpp"], params: [TPType(TFunction(aargs.concat([TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]})]), TPath({name: "Void", pack: []})))]})});
+						args.push({name: "handler", type: TPath({name: "Callable", pack: ["cpp"], params: [TPType(TFunction(aargs.concat([TNamed("handler__context", TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]}))]), TPath({name: "Void", pack: []})))]})});
 						promisify.push(macro v);
 						if (atype.retainType == null) {
 							promisifyE.push(macro false);
@@ -264,13 +264,14 @@ class HaxeCBridge {
 						promisify.push(macro handler__context);
 						promisifyE.push(macro handler__context);
 						wrapper.ret = TPath({name: "Void", pack: []});
+						if (wrapper.doc != null) wrapper.doc = ~/@returns Promise resolving to/.replace(wrapper.doc, "@param handler which receives");
 					default:
 					}
 					if (wrap) {
 						if (outPtr) {
 							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro { final out = $i{field.name}($a{passArgs}); if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(out); } return out.length; }, args: args});
 						} else if (promisify.length > 0) {
-							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro $i{field.name}($a{passArgs}).then(v->handler($a{promisify}), e->handler($a{promisifyE})), args: args});
+							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro if (handler == null) $i{field.name}($a{passArgs}); else $i{field.name}($a{passArgs}).then(v->handler($a{promisify}), e->handler($a{promisifyE})), args: args});
 						} else {
 							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro return $i{field.name}($a{passArgs}), args: args});
 						}
@@ -487,6 +488,7 @@ class HaxeCBridge {
 				case FVar(_), FMethod(MethMacro): false; // skip macro methods
 				case FMethod(_): true;
 			}
+
 			if (!isConvertibleMethod) return;
 
 			// f is public static function
@@ -535,7 +537,7 @@ class HaxeCBridge {
 					cFuncName = hx.strings.Strings.toLowerUnderscore(cFuncName);
 
 					var cleanDoc = f.doc != null ? StringTools.trim(removeIndentation(f.doc)) : null;
-					
+
 					cConversionContext.addTypedFunctionDeclaration(cFuncName, functionDescriptor, cleanDoc, f.pos);
 
 					inline function getRootCType(t: Type) {
@@ -627,6 +629,9 @@ class HaxeCBridge {
 			 * Everything returned from an SDK procedure or passed to a function
 			 * pointer, both strings and opaque types, must be passed to
 			 * borogove_release when you are done with it.
+			 *
+			 * Thread-safety: All calls can be made from any thread.
+			 *                Callbacks may run on any thread.
 			 */
 
 			#ifndef __${hx.strings.Strings.toUpperUnderscore(namespace)}_H
@@ -676,8 +681,6 @@ class HaxeCBridge {
 			 * It can be safely called any number of times – if the SDK is not running this function will just return.
 			 *
 			 * After executing no more calls to SDK functions can be made (as these will hang waiting for a response).
-			 *
-			 * Thread-safety: Can be called safely called on any thread.
 			 *
 			 * @param wait If `true`, this function will wait for all events scheduled to execute in the future on the SDK thread to complete. If `false`, immediate pending events will be finished and the SDK stopped without executing events scheduled in the future
 			 */
@@ -1140,7 +1143,7 @@ enum CModifier {
 enum CType {
 	Ident(name: String, ?modifiers: Array<CModifier>);
 	Pointer(t: CType, ?modifiers: Array<CModifier>);
-	FunctionPointer(name: String, argTypes: Array<CType>, ret: CType, ?modifiers: Array<CModifier>);
+	FunctionPointer(name: String, argNames: Array<String>, argTypes: Array<CType>, ret: CType, ?modifiers: Array<CModifier>);
 	InlineStruct(struct: CStruct);
 	Enum(name: String);
 }
@@ -1205,13 +1208,18 @@ class CPrinter {
 				(hasModifiers(modifiers) ? (printModifiers(modifiers) + ' ') : '') + name + (argName == null ? '' : ' $argName');
 			case Pointer(t, modifiers):
 				printType(t) + '*' + (hasModifiers(modifiers) ? (' ' + printModifiers(modifiers)) : '') + (argName == null ? '' : ' $argName');
-			case FunctionPointer(name, argTypes, ret):
+			case FunctionPointer(name, argNames, argTypes, ret):
+				final args = [];
+				for (i in 0...argTypes.length) {
+					final atype = printType(argTypes[i]);
+					args.push(argNames[i] == "" ? atype : ~/\*$/.replace(atype, " *") + " " + argNames[i]);
+				}
 				if (argName == "") {
-					'${printType(ret)}(${argTypes.length > 0 ? argTypes.map((t) -> printType(t)).join(', ') : 'void'})';
+					'${printType(ret)}(${argTypes.length > 0 ? args.join(', ') : 'void'})';
 				} else if (argName == null) {
-					'${printType(ret)} (* $name) (${argTypes.length > 0 ? argTypes.map((t) -> printType(t)).join(', ') : 'void'})';
+					'${printType(ret)} (* $name) (${argTypes.length > 0 ? args.join(', ') : 'void'})';
 				} else {
-					'${printType(ret)} (* $argName) (${argTypes.length > 0 ? argTypes.map((t) -> printType(t)).join(', ') : 'void'})';
+					'${printType(ret)} (* $argName) (${argTypes.length > 0 ? args.join(', ') : 'void'})';
 				}
 			case InlineStruct(struct):
 				'struct {${printFields(struct.fields, false)}}' + (argName == null ? '' : ' $argName');
@@ -1653,7 +1661,7 @@ class CConverterContext {
 		return switch cType {
 			case Ident(name, modifiers): Ident(name, _setModifier(modifiers));
 			case Pointer(type, modifiers): Pointer(type, _setModifier(modifiers));
-			case FunctionPointer(name, argTypes, ret, modifiers): FunctionPointer(name, argTypes, ret, _setModifier(modifiers));
+			case FunctionPointer(name, argNames, argTypes, ret, modifiers): FunctionPointer(name, argNames, argTypes, ret, _setModifier(modifiers));
 			case InlineStruct(struct): cType;
 			case Enum(name): cType; 
 		}
@@ -1731,6 +1739,7 @@ class CConverterContext {
 		var ident = safeIdent('function_' + args.map(arg -> typeDeclarationIdent(arg.t, false)).concat([typeDeclarationIdent(ret, false)]).join('_'));
 		var funcPointer: CType = FunctionPointer(
 			ident,
+			args.map(arg -> arg.name),
 			args.map(arg -> convertType(arg.t, false, false, pos)),
 			convertType(ret, false, false, pos)
 		);

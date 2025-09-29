@@ -77,6 +77,9 @@ abstract class Chat {
 	**/
 	@:allow(borogove)
 	public var uiState(default, null): UiState = Open;
+	/**
+		Is this chat blocked?
+	**/
 	public var isBlocked(default, null): Bool = false;
 	@:allow(borogove)
 	private var extensions: Stanza;
@@ -121,7 +124,7 @@ abstract class Chat {
 		@param beforeId id of the message to look before
 		@param beforeTime timestamp of the message to look before,
 		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
-		@returns Promise of an array of ChatMessage that are found
+		@returns Promise resolving to an array of ChatMessage that are found
 	**/
 	abstract public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>):Promise<Array<ChatMessage>>;
 
@@ -131,7 +134,7 @@ abstract class Chat {
 		@param afterId id of the message to look after
 		@param afterTime timestamp of the message to look after,
 		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
-		@returns Promise of an array of ChatMessage that are found
+		@returns Promise resolving to an array of ChatMessage that are found
 	**/
 	abstract public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>):Promise<Array<ChatMessage>>;
 
@@ -141,7 +144,7 @@ abstract class Chat {
 		@param aroundId id of the message to look around
 		@param aroundTime timestamp of the message to look around,
 		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
-		@returns Promise of an array of ChatMessage that are found
+		@returns Promise resolving to an array of ChatMessage that are found
 	**/
 	abstract public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>):Promise<Array<ChatMessage>>;
 
@@ -224,11 +227,12 @@ abstract class Chat {
 		reaction.render(
 			(text) -> {
 				toSend.text = text.replace("\u{fe0f}", "");
-				return;
+				return "";
 			},
 			(text, uri) -> {
 				final hash = Hash.fromUri(uri);
 				toSend.setHtml('<img alt="' + Util.xmlEscape(text) + '" src="' + Util.xmlEscape(hash == null ? uri : hash.bobUri()) + '" />');
+				return "";
 			}
 		);
 		sendMessage(toSend);
@@ -483,8 +487,13 @@ abstract class Chat {
 		lastMessage = message;
 	}
 
-	public function setDisplayName(fn:String) {
-		this.displayName = fn;
+	/**
+		Set the display name to use for this chat
+
+		@param displayName String to use as display name
+	**/
+	public function setDisplayName(displayName: String) {
+		this.displayName = displayName;
 		bookmark();
 	}
 
@@ -550,6 +559,11 @@ abstract class Chat {
 		this.avatarSha1 = sha1;
 	}
 
+	/**
+		Set if this chat is to be trusted with our presence, etc
+
+		@param trusted Bool if trusted or not
+	**/
 	public function setTrusted(trusted:Bool) {
 		this.trusted = trusted;
 	}
@@ -566,6 +580,9 @@ abstract class Chat {
 		return true;
 	}
 
+	/**
+		@returns if this chat is currently syncing with the server
+	**/
 	public function syncing() {
 		return !client.inSync;
 	}
