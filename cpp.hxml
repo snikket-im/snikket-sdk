@@ -16,6 +16,7 @@ snikket.persistence.Sqlite
 snikket.persistence.MediaStoreFS
 
 --cpp cpp
+-D NO_OMEMO
 -D HXCPP_ALIGN_ALLOC
 -D HXCPP_CPP17
 -D HaxeCBridge.name=snikket

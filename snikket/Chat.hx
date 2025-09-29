@@ -887,9 +887,13 @@ class DirectChat extends Chat {
 							stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
 						}
 						// FIXME: Preserve ordering with a per-chat outbox of pending messages
+						#if NO_OMEMO
+						client.sendStanza(stanza);
+						#else
 						client.omemo.encryptMessage(recipient, stanza).then((encryptedStanza) -> {
 							client.sendStanza(encryptedStanza);
 						});
+						#end
 					}
 					setLastMessage(message.build());
 					client.trigger("chats/update", [this]);
