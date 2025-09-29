@@ -74,6 +74,7 @@ site/haxe/index.html:
 	haxelib run dox --toplevel-package borogove -i haxedoc.xml -o site/haxe/
 
 doc: site/haxe/index.html
+	mkdocs build
 
 clean:
 	rm -f npm/browser.js npm/index.js npm/borogove.js npm/borogove-enums.js

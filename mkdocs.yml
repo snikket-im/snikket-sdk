@@ -1,0 +1,28 @@
+site_name: "Borogove SDK"
+
+theme:
+  name: readthedocs
+
+plugins:
+  - search
+  - mkdoxy:
+      projects:
+        c:
+          src-dirs: ./cpp/
+          full-doc: true
+          doxy-cfg:
+            PREDEFINED: API_PREFIX MKDOCS
+            OPTIMIZE_FOR_C: true
+            JAVADOC_BANNER: true
+            JAVADOC_AUTOBRIEF: true
+            FILE_PATTERNS: "borogove.h"
+            RECURSIVE: false
+
+markdown_extensions:
+  - markdown.extensions.md_in_html
+
+nav:
+  - Home: index.md
+  - API:
+    - C: c/borogove_8h.md
+    - JavaScript: js/borogove-sdk.md
