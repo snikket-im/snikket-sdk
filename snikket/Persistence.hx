@@ -40,29 +40,27 @@ interface Persistence {
 	public function storeStreamManagement(accountId:String, data:Null<BytesData>):Void;
 	public function getStreamManagement(accountId:String): Promise<Null<BytesData>>;
 	public function storeService(accountId:String, serviceId:String, name:Null<String>, node:Null<String>, caps:Caps):Void;
+	@HaxeCBridge.noemit
+	public function findServicesWithFeature(accountId:String, feature:String): Promise<Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>>;
 #if !NO_OMEMO
-	public function getOmemoId(login:String, callback:(omemoId:Null<Int>)->Void):Void;
+	public function getOmemoId(login:String): Promise<Null<Int>>;
 	public function storeOmemoId(login:String, omemoId:Int):Void;
 	public function storeOmemoIdentityKey(login:String, keypair:IdentityKeyPair):Void;
-	public function getOmemoIdentityKey(login:String, callback: (IdentityKeyPair)->Void):Void;
-	public function getOmemoDeviceList(identifier:String, callback: (Array<Int>)->Void):Void;
+	public function getOmemoIdentityKey(login:String): Promise<IdentityKeyPair>;
+	public function getOmemoDeviceList(identifier:String): Promise<Array<Int>>;
 	public function storeOmemoDeviceList(identifier:String, deviceIds:Array<Int>):Void;
 	public function storeOmemoPreKey(identifier:String, keyId:Int, keyPair:PreKeyPair):Void;
-	public function getOmemoPreKey(identifier:String, keyId:Int, callback: (PreKeyPair)->Void):Void;
+	public function getOmemoPreKey(identifier:String, keyId:Int): Promise<PreKeyPair>;
 	public function removeOmemoPreKey(identifier:String, keyId:Int):Void;
 	public function storeOmemoSignedPreKey(login:String, signedPreKey:SignedPreKey):Void;
-	public function getOmemoSignedPreKey(login:String, keyId:Int, callback: (SignedPreKey)->Void):Void;
-	public function getOmemoPreKeys(login:String, callback: (Array<PreKey>)->Void):Void;
+	public function getOmemoSignedPreKey(login:String, keyId:Int): Promise<SignedPreKey>;
+	public function getOmemoPreKeys(login:String): Promise<Array<PreKey>>;
 	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Void;
-	public function getOmemoContactIdentityKey(account:String, address:String, callback:(IdentityPublicKey)->Void):Void;
-	public function getOmemoSession(account:String, address:String, callback:(SignalSession)->Void):Void;
+	public function getOmemoContactIdentityKey(account:String, address:String): Promise<IdentityPublicKey>;
+	public function getOmemoSession(account:String, address:String): Promise<SignalSession>;
 	public function storeOmemoSession(account:String, address:String, session:SignalSession):Void;
 	public function removeOmemoSession(account:String, address:String):Void;
 	public function storeOmemoMetadata(account:String, address:String, metadata:OMEMOSessionMetadata):Void;
-	public function getOmemoMetadata(account:String, address:String, callback:(OMEMOSessionMetadata)->Void):Void;
+	public function getOmemoMetadata(account:String, address:String): Promise<OMEMOSessionMetadata>;
 #end
-
-
-	@HaxeCBridge.noemit
-	public function findServicesWithFeature(accountId:String, feature:String): Promise<Array<{serviceId:String, name:Null<String>, node:Null<String>, caps: Caps}>>;
 }

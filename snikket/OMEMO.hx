@@ -105,11 +105,11 @@ class OMEMOStore extends SignalProtocolStore {
 
 	// Load the identity keypair for our account
 	public function getIdentityKeyPair():Promise<IdentityKeyPair> {
-		return new Promise((resolve, reject)->persistence.getOmemoIdentityKey(accountId, resolve));
+		return persistence.getOmemoIdentityKey(accountId);
 	}
 
 	public function getLocalRegistrationId():Promise<Int> {
-		return new Promise((resolve, reject)->persistence.getOmemoId(accountId, resolve));
+		return persistence.getOmemoId(accountId);
 	}
 
 	public function isTrustedIdentity(identifier:String, identityKey:IdentityPublicKey, _direction:Int):Promise<Bool> {
@@ -118,32 +118,26 @@ class OMEMOStore extends SignalProtocolStore {
 
 	// Load the identity key of a contact (partners with saveIdentity())
 	public function loadIdentityKey(identifier:SignalProtocolAddress):Promise<IdentityPublicKey> {
-		return new Promise((resolve, reject)->persistence.getOmemoContactIdentityKey(accountId, identifier.toString(), resolve));
+		return persistence.getOmemoContactIdentityKey(accountId, identifier.toString());
 	}
 
 	public function saveIdentity(identifier:SignalProtocolAddress, identityKey:IdentityPublicKey):Promise<Bool> {
-		return new Promise((resolve, reject)-> {
-			persistence.getOmemoContactIdentityKey(accountId, identifier.toString(), (prevKey)->{
-				persistence.storeOmemoContactIdentityKey(accountId, identifier.toString(), identityKey);
-				// Return true if the key was updated, false if it matches what we already had stored
-				resolve(prevKey != identityKey);
-			});
+		return persistence.getOmemoContactIdentityKey(accountId, identifier.toString()).then((prevKey) -> {
+			persistence.storeOmemoContactIdentityKey(accountId, identifier.toString(), identityKey);
+			// Return true if the key was updated, false if it matches what we already had stored
+			return prevKey != identityKey;
 		});
 	}
 
 	public function loadPreKey(keyId:Int):Promise<PreKeyPair> {
-		return new Promise((resolve, reject) -> {
-			persistence.getOmemoPreKey(accountId, keyId, resolve);
-		});
+		return persistence.getOmemoPreKey(accountId, keyId);
 	}
 
 	
 
 	public function storePreKey(keyId:Int, keyPair:PreKeyPair):Promise<Bool> {
-		return new Promise((resolve, reject) -> {
-			persistence.storeOmemoPreKey(accountId, keyId, keyPair);
-			resolve(true);
-		});
+		persistence.storeOmemoPreKey(accountId, keyId, keyPair);
+		return Promise.resolve(true);
 	}
 
 	public function removePreKey(keyId:Int):Promise<Bool> {
@@ -156,19 +150,15 @@ class OMEMOStore extends SignalProtocolStore {
 
 	public function loadSignedPreKey(keyId:Int):Promise<PreKeyPair> {
 		trace("OMEMO: Loading signed prekey "+keyId);
-		return new Promise((resolve, reject) -> {
-			persistence.getOmemoSignedPreKey(accountId, keyId, (signedPreKey) -> {
-				resolve(signedPreKey.keyPair);
-			});
-		});
+		return persistence.getOmemoSignedPreKey(accountId, keyId).then((signedPreKey) ->
+			signedPreKey.keyPair
+		);
 	}
 
 	public function storeSignedPreKey(keyId:Int, keyPair:SignedPreKey):Promise<Bool> {
 		trace("OMEMO: Storing signed prekey "+keyId);
-		return new Promise((resolve, reject) -> {
-			persistence.storeOmemoSignedPreKey(accountId, keyPair);
-			resolve(true);
-		});
+		persistence.storeOmemoSignedPreKey(accountId, keyPair);
+		return Promise.resolve(true);
 	}
 
 	public function removeSignedPreKey(keyId:Int):Promise<Bool> {
@@ -176,9 +166,7 @@ class OMEMOStore extends SignalProtocolStore {
 	}
 
 	public function loadSession(identifier:SignalProtocolAddress):Promise<SignalSession> {
-		return new Promise<SignalSession>((resolve, reject) -> {
-			persistence.getOmemoSession(accountId, identifier.toString(), resolve);
-		});
+		return persistence.getOmemoSession(accountId, identifier.toString());
 	}
 
 	public function storeSession(identifier:SignalProtocolAddress, session:SignalSession):Promise<Bool> {
@@ -436,9 +424,7 @@ class OMEMO {
 			signed_prekey: null,
 		};
 
-		final pDeviceId = new Promise(function (resolve, reject) {
-			persistence.getOmemoId(client.accountId(), resolve);
-		}).then(function (storedDeviceId) {
+		final pDeviceId = persistence.getOmemoId(client.accountId()).then(function (storedDeviceId) {
 			if(storedDeviceId == null) {
 				// We don't have an OMEMO identity, so we need
 				// to create all our state and publish it
@@ -449,9 +435,7 @@ class OMEMO {
 			return true;
 		});
 
-		final pIdentityKey = new Promise(function (resolve, reject) {
-			persistence.getOmemoIdentityKey(client.accountId(), resolve);
-		}).then(function (storedIdentityKey) {
+		final pIdentityKey = persistence.getOmemoIdentityKey(client.accountId()).then(function (storedIdentityKey) {
 			if(storedIdentityKey == null) {
 				trace("No identity key stored");
 				this.bundleLocalState.event("missing");
@@ -462,9 +446,7 @@ class OMEMO {
 			return true;
 		});
 
-		final pSignedPreKey = new Promise(function (resolve, reject) {
-			persistence.getOmemoSignedPreKey(client.accountId(), 0, resolve);
-		}).then(function (signedPreKey) {
+		final pSignedPreKey = persistence.getOmemoSignedPreKey(client.accountId(), 0).then(function (signedPreKey) {
 			if(signedPreKey == null) {
 				trace("No signed prekey stored");
 				return false;
@@ -474,9 +456,7 @@ class OMEMO {
 			return true;
 		});
 
-		final pPreKeys = new Promise(function (resolve, reject) {
-			persistence.getOmemoPreKeys(client.accountId(), resolve);
-		}).then(function (prekeys) {
+		final pPreKeys = persistence.getOmemoPreKeys(client.accountId()).then(function (prekeys) {
 			// Always an array (just empty if no keys)
 			newBundle.prekeys = [
 				for(i in 0...prekeys.length) {
@@ -741,36 +721,34 @@ class OMEMO {
 	// Returns an array of all prekeys, which can be used to update the
 	// published bundle.
 	private function generateMissingPreKeys():Promise<Array<PublicPreKey>> {
-		return new Promise((resolve, reject) -> {
-			persistence.getOmemoPreKeys(client.accountId(), function (prekeys:Array<PreKey>) {
-				// Generate an array of all keyIds we currently have in storage
-				final currentKeyIds:Array<Int> = prekeys.map(function (prekey) {
-					return prekey.keyId;
-				});
-
-				currentKeyIds.sort(function (a:Int, b:Int):Int {
-					if(a == b) {
-						return 0;
-					}
-					return a < b ? -1 : 1;
-				});
-
-				final generatedKeys:Array<Promise<PreKey>> = [];
-				var idx = 0;
-				for(keyId in 1...(NUM_PREKEYS+1)) {
-					if(currentKeyIds[idx] == keyId) {
-						// Key already present
-						idx++;
-					} else {
-						trace("Generating replacement prekey "+Std.string(keyId));
-						generatedKeys.push(KeyHelper.generatePreKey(keyId));
-					}
-				}
-
-				PromiseTools.all(generatedKeys).then(storePreKeys).then((storedPreKeys) -> {
-					resolve(prekeys.map(preKeyToPublicPreKey).concat(storedPreKeys));
-				});
+		return persistence.getOmemoPreKeys(client.accountId()).then((prekeys:Array<PreKey>) -> {
+			// Generate an array of all keyIds we currently have in storage
+			final currentKeyIds:Array<Int> = prekeys.map(function (prekey) {
+				return prekey.keyId;
 			});
+
+			currentKeyIds.sort(function (a:Int, b:Int):Int {
+				if(a == b) {
+					return 0;
+				}
+				return a < b ? -1 : 1;
+			});
+
+			final generatedKeys:Array<Promise<PreKey>> = [];
+			var idx = 0;
+			for(keyId in 1...(NUM_PREKEYS+1)) {
+				if(currentKeyIds[idx] == keyId) {
+					// Key already present
+					idx++;
+				} else {
+					trace("Generating replacement prekey "+Std.string(keyId));
+					generatedKeys.push(KeyHelper.generatePreKey(keyId));
+				}
+			}
+
+			return PromiseTools.all(generatedKeys).then(storePreKeys).then((storedPreKeys) ->
+				prekeys.map(preKeyToPublicPreKey).concat(storedPreKeys)
+			);
 		});
 	}
 
@@ -785,20 +763,20 @@ class OMEMO {
 			return Promise.resolve(this.bundle.device_id);
 		}
 
-		return new Promise((resolve, reject)->{
-			persistence.getOmemoId(client.accountId(), (deviceId) -> {
-				if(deviceId == null) {
-					// No device ID in storage yet. We need to trigger the
-					// bundle generation
+		return persistence.getOmemoId(client.accountId()).then((deviceId) -> {
+			if(deviceId == null) {
+				// No device ID in storage yet. We need to trigger the
+				// bundle generation
+				return new Promise((resolve, reject) -> {
 					bundleLocalState.once("enter/ok", (event) -> {
 						resolve(bundle.device_id);
 						return EventHandled;
 					});
 					bundleLocalState.event("missing");
-				} else {
-					resolve(deviceId);
-				}
-			});
+				});
+			} else {
+				return Promise.resolve(deviceId);
+			}
 		});
 	}
 
@@ -884,9 +862,7 @@ class OMEMO {
 		final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from")).asBare();
 		final header = OMEMOPayload.fromMessageStanza(fwd??stanza);
 		final senderAddress = new SignalProtocolAddress(from.asString(), header.sid);
-		final sessionMeta = new Promise<OMEMOSessionMetadata>((resolve, reject) -> {
-			persistence.getOmemoMetadata(client.accountId(), senderAddress.toString(), resolve);
-		});
+		final sessionMeta = persistence.getOmemoMetadata(client.accountId(), senderAddress.toString());
 		final promDeviceId = client.omemo.getDeviceId();
 		var deviceKey:Null<OMEMOPayloadKey>;
 		final promResult = promDeviceId.then((deviceId:Int) -> {
