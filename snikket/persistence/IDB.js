@@ -287,22 +287,24 @@ export default (dbname, media, tokenize, stemmer) => {
 				if (cresult && rowCount < 40000) {
 					rowCount++;
 					const value = cresult.value;
-					if (result[value.chatId]) {
-						result[value.chatId] = result[value.chatId].then((details) => {
-							if (!details.foundAll) {
-								const readUpTo = chats[value.chatId]?.readUpTo();
-								if (readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.MessageDirection.MessageSent) {
-									details.foundAll = true;
-								} else {
-									details.unreadCount++;
+					if (chats[value.chatId]) {
+						if (result[value.chatId]) {
+							result[value.chatId] = result[value.chatId].then((details) => {
+								if (!details.foundAll) {
+									const readUpTo = chats[value.chatId]?.readUpTo();
+									if (readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.MessageDirection.MessageSent) {
+										details.foundAll = true;
+									} else {
+										details.unreadCount++;
+									}
 								}
-							}
-							return details;
-						});
-					} else {
-						const readUpTo = chats[value.chatId]?.readUpTo();
-						const haveRead = readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.MessageDirection.MessageSent;
-						result[value.chatId] = hydrateMessage(value).then((m) => ({ chatId: value.chatId, message: m, unreadCount: haveRead ? 0 : 1, foundAll: haveRead }));
+								return details;
+							});
+						} else {
+							const readUpTo = chats[value.chatId]?.readUpTo();
+							const haveRead = readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.MessageDirection.MessageSent;
+							result[value.chatId] = hydrateMessage(value).then((m) => ({ chatId: value.chatId, message: m, unreadCount: haveRead ? 0 : 1, foundAll: haveRead }));
+						}
 					}
 					cresult.continue();
 				} else {
