@@ -12,8 +12,10 @@ import snikket.ID;
 import snikket.Message;
 import snikket.MessageSync;
 import snikket.Reaction;
+#if !NO_JINGLE
 import snikket.jingle.PeerConnection;
 import snikket.jingle.Session;
+#end
 import snikket.queries.DiscoInfoGet;
 import snikket.queries.MAMQuery;
 using Lambda;
@@ -37,6 +39,16 @@ enum abstract UserState(Int) {
 	var Paused;
 }
 
+// Describes the current encryption mode of the conversation
+// This mode is a high-level representation of the user/app *intent*
+// for the current conversation - e.g. not a guarantee that incoming
+// messages will always match this expectation. It is used to determine
+// the logic for outgoing messages, though.
+enum abstract EncryptionMode(Int) {
+	var Unencrypted; // No end-to-end encryption
+	var EncryptedOMEMO; // Use OMEMO
+}
+
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
@@ -54,8 +66,10 @@ abstract class Chat {
 		ID of this Chat
 	**/
 	public var chatId(default, null):String;
+#if !NO_JINGLE
 	@:allow(snikket)
 	private var jingleSessions: Map<String, snikket.jingle.Session> = [];
+#end
 	@:allow(snikket)
 	private var displayName:String;
 	/**
@@ -78,8 +92,13 @@ abstract class Chat {
 	private var activeThread: Null<String> = null;
 	private var notificationSettings: Null<{reply: Bool, mention: Bool}> = null;
 
+	private var _encryptionMode: EncryptionMode = Unencrypted;
+
 	@:allow(snikket)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
+	private var omemoContactDeviceIDs: Null<Array<Int>> = null;
+
+	@:allow(snikket)
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
@@ -90,6 +109,7 @@ abstract class Chat {
 		this.readUpToId = readUpToId;
 		this.readUpToBy = readUpToBy;
 		this.displayName = chatId;
+		this.omemoContactDeviceIDs = omemoContactDeviceIDs;
 	}
 
 	@:allow(snikket)
@@ -554,10 +574,11 @@ abstract class Chat {
 		Can audio calls be started in this Chat?
 	**/
 	public function canAudioCall():Bool {
+#if !NO_JINGLE
 		for (resource => p in presence) {
 			if (p.caps?.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false) return true;
 		}
-
+#end
 		return false;
 	}
 
@@ -565,13 +586,15 @@ abstract class Chat {
 		Can video calls be started in this Chat?
 	**/
 	public function canVideoCall():Bool {
+#if !NO_JINGLE
 		for (resource => p in presence) {
 			if (p.caps?.features?.contains("urn:xmpp:jingle:apps:rtp:video") ?? false) return true;
 		}
-
+#end
 		return false;
 	}
 
+#if !NO_JINGLE
 	/**
 		Start a new call in this Chat
 
@@ -637,6 +660,18 @@ abstract class Chat {
 	**/
 	public function videoTracks(): Array<MediaStreamTrack> {
 		return jingleSessions.flatMap((session) -> session.videoTracks());
+	}
+#end
+	/**
+		Get encryption mode for this chat
+	**/
+	public function encryptionMode(): String {
+		switch(_encryptionMode) {
+			case Unencrypted:
+				return "unencrypted";
+			case EncryptedOMEMO:
+				return "omemo";
+		}
 	}
 
 	@:allow(snikket)
@@ -726,8 +761,8 @@ abstract class Chat {
 #end
 class DirectChat extends Chat {
 	@:allow(snikket)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null) {
-		super(client, stream, persistence, chatId, uiState, isBlocked, extensions, readUpToId, readUpToBy);
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
+		super(client, stream, persistence, chatId, uiState, isBlocked, extensions, readUpToId, readUpToBy, omemoContactDeviceIDs);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -851,7 +886,14 @@ class DirectChat extends Chat {
 							activeThread = message.threadId;
 							stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
 						}
+						// FIXME: Preserve ordering with a per-chat outbox of pending messages
+						#if NO_OMEMO
 						client.sendStanza(stanza);
+						#else
+						client.omemo.encryptMessage(recipient, stanza).then((encryptedStanza) -> {
+							client.sendStanza(encryptedStanza);
+						});
+						#end
 					}
 					setLastMessage(message.build());
 					client.trigger("chats/update", [this]);
@@ -1576,12 +1618,13 @@ class SerializedChat {
 	public final readUpToId:Null<String>;
 	public final readUpToBy:Null<String>;
 	public final disco:Null<Caps>;
+	public final omemoContactDeviceIDs: Array<Int>;
 	public final klass:String;
 	public final notificationsFiltered: Null<Bool>;
 	public final notifyMention: Bool;
 	public final notifyReply: Bool;
 
-	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, disco: Null<Caps>, klass: String) {
+	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, disco: Null<Caps>, omemoContactDeviceIDs: Array<Int>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.avatarSha1 = avatarSha1;
@@ -1596,6 +1639,7 @@ class SerializedChat {
 		this.notifyMention = notifyMention;
 		this.notifyReply = notifyReply;
 		this.disco = disco;
+		this.omemoContactDeviceIDs = omemoContactDeviceIDs;
 		this.klass = klass;
 	}
 
@@ -1605,7 +1649,7 @@ class SerializedChat {
 		var mention = notifyMention;
 
 		final chat = if (klass == "DirectChat") {
-			new DirectChat(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy);
+			new DirectChat(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy, omemoContactDeviceIDs);
 		} else if (klass == "Channel") {
 			final channel = new Channel(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy);
 			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"]);

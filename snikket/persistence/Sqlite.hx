@@ -14,7 +14,14 @@ import snikket.Chat;
 import snikket.Message;
 import snikket.Reaction;
 import snikket.ReactionUpdate;
+#if !NO_OMEMO
+import snikket.OMEMO;
+using snikket.SignalProtocol;
+#end
+
 using Lambda;
+
+// TODO: consider doing background threads for operations
 
 @:expose
 #if cpp
@@ -264,7 +271,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 						presence.mucUser == null || Config.constrainedMemoryMode ? null : Stanza.parse(presence.mucUser)
 					);
 				}
-				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, row.capsObj, Reflect.field(row, "class")));
+				// FIXME: Empty OMEMO contact device ids hardcoded in next line
+				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, row.capsObj, [], Reflect.field(row, "class")));
 			}
 			return chats;
 		});
@@ -838,4 +846,68 @@ class Sqlite implements Persistence implements KeyValueStore {
 			return builder;
 		}));
 	}
+
+#if !NO_OMEMO
+	// OMEMO
+	// TODO
+	@HaxeCBridge.noemit
+	public function getOmemoId(login:String, callback:(omemoId:Null<Int>)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoId(login:String, omemoId:Int):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoIdentityKey(login:String, keypair:IdentityKeyPair):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoIdentityKey(login:String, callback: (IdentityKeyPair)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoDeviceList(identifier:String, callback: (Array<Int>)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoDeviceList(identifier:String, deviceIds:Array<Int>):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoPreKey(identifier:String, keyId:Int, keyPair:PreKeyPair):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoPreKey(identifier:String, keyId:Int, callback: (PreKeyPair)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function removeOmemoPreKey(identifier:String, keyId:Int):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoSignedPreKey(login:String, signedPreKey:SignedPreKey):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoSignedPreKey(login:String, keyId:Int, callback: (SignedPreKey)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoPreKeys(login:String, callback: (Array<PreKey>)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoContactIdentityKey(account:String, address:String, callback:(IdentityPublicKey)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoSession(account:String, address:String, callback:(SignalSession)->Void):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoSession(account:String, address:String, session:SignalSession):Void { }
+
+	@HaxeCBridge.noemit
+	public function removeOmemoSession(account:String, address:String):Void { }
+
+	@HaxeCBridge.noemit
+	public function storeOmemoMetadata(account:String, address:String, metadata:OMEMOSessionMetadata):Void { }
+
+	@HaxeCBridge.noemit
+	public function getOmemoMetadata(account:String, address:String, callback:(OMEMOSessionMetadata)->Void):Void { }
+
+
+
+#end
 }

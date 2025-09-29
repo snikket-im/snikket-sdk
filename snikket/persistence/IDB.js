@@ -8,6 +8,23 @@ export default (dbname, media, tokenize, stemmer) => {
 	if (!tokenize) tokenize = function(s) { return s.split(" "); }
 	if (!stemmer) stemmer = function(s) { return s; }
 
+	// Helper functions to convert binary data to storage-safe strings
+	// Uint8Array.to/fromBase64() is not yet widely available
+	function arrayBufferToBase64 (ab) {
+		return btoa((new Uint8Array(ab)).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+	}
+
+	function base64ToArrayBuffer (b64) {
+		const binary_string = atob(b64);
+		const len = binary_string.length;
+		const bytes = new Uint8Array(len);
+
+		for (let i = 0; i < len; i++) {
+			bytes[i] = binary_string.charCodeAt(i);
+		}
+		return bytes.buffer;
+	}
+
 	var db = null;
 	function openDb(version) {
 		var dbOpenReq = indexedDB.open(dbname, version);
@@ -33,14 +50,38 @@ export default (dbname, media, tokenize, stemmer) => {
 				const reactions = upgradeDb.createObjectStore("reactions", { keyPath: ["account", "chatId", "senderId", "updateId"] });
 				reactions.createIndex("senders", ["account", "chatId", "messageId", "senderId", "timestamp"]);
 			}
+			if (!db.objectStoreNames.contains("omemo_identities")) {
+				upgradeDb.createObjectStore("omemo_identities", { keyPath: ["account", "address"] });
+			}
+			if (!db.objectStoreNames.contains("omemo_prekeys")) {
+				upgradeDb.createObjectStore("omemo_prekeys", { keyPath: ["account", "keyId"] });
+			}
+			if (!db.objectStoreNames.contains("omemo_sessions")) {
+				upgradeDb.createObjectStore("omemo_sessions", { keyPath: ["account", "address"] });
+			}
+			if (!db.objectStoreNames.contains("omemo_sessions_meta")) {
+				upgradeDb.createObjectStore("omemo_sessions_meta", { keyPath: ["account", "address"] });
+			}
 		};
 		dbOpenReq.onsuccess = (event) => {
 			db = event.target.result;
-			window.db = db;
-			if (!db.objectStoreNames.contains("messages") || !db.objectStoreNames.contains("keyvaluepairs") || !db.objectStoreNames.contains("chats") || !db.objectStoreNames.contains("services") || !db.objectStoreNames.contains("reactions")) {
-				db.close();
-				openDb(db.version + 1);
-				return;
+			//window.db = db;
+			const storeNames = [
+				"messages",
+				"keyvaluepairs",
+				"chats",
+				"services",
+				"reactions",
+				"omemo_identities",
+				"omemo_sessions",
+				"omemo_sessions_meta"
+			];
+			for(let storeName of storeNames) {
+				if(!db.objectStoreNames.contains(storeName)) {
+					db.close();
+					openDb(db.version + 1);
+					return;
+				}
 			}
 		};
 	}
@@ -239,7 +280,8 @@ export default (dbname, media, tokenize, stemmer) => {
 					readUpToBy: chat.readUpToBy,
 					notificationSettings: chat.notificationsFiltered() ? { mention: chat.notifyMention(), reply: chat.notifyReply() } : null,
 					disco: chat.disco,
-					class: chat instanceof snikket.DirectChat ? "DirectChat" : (chat instanceof snikket.Channel ? "Channel" : "Chat")
+					omemoDevices: chat.omemoContactDeviceIDs,
+				class: chat instanceof snikket.DirectChat ? "DirectChat" : (chat instanceof snikket.Channel ? "Channel" : "Chat")
 				});
 			}
 		},
@@ -266,6 +308,7 @@ export default (dbname, media, tokenize, stemmer) => {
 				r.notificationSettings?.mention,
 				r.notificationSettings?.reply,
 				r.disco ? new snikket.Caps(r.disco.node, r.disco.identities, r.disco.features) : null,
+            r.omemoDevices || [],
 				r.class
 			)));
 		},
@@ -585,6 +628,112 @@ export default (dbname, media, tokenize, stemmer) => {
 			}
 		},
 
+		storeOmemoId: function(account, omemoId) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			store.put(omemoId, "omemo:id:" + account).onerror = console.error;
+		},
+
+		storeOmemoIdentityKey: function (account, keypair) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			store.put(keypair, "omemo:key:" + account).onerror = console.error;
+		},
+
+		storeOmemoDeviceList: function (chatId, deviceIds) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			const key = "omemo:devices:"+chatId;
+			if(deviceIds.length>0) {
+				store.put(deviceIds, key);
+			} else {
+				store.delete(key);
+			}
+		},
+
+		getOmemoDeviceList: function (chatId, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
+			const store = tx.objectStore("keyvaluepairs");
+			promisifyRequest(store.get("omemo:devices:"+chatId)).then((result) => {
+				if (result === undefined) {
+					callback([]);
+				} else {
+					callback(result);
+				}
+			}).catch((e) => {
+				console.error(e);
+				callback([]);
+			});
+		},
+
+		storeOmemoPreKey: function (account, keyId, keyPair) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			const storedKeyPair = {
+				"privKey": arrayBufferToBase64(keyPair.privKey),
+				"pubKey": arrayBufferToBase64(keyPair.pubKey),
+			};
+			store.put(storedKeyPair, "omemo:prekeys:"+account+":"+keyId.toString());
+		},
+
+		removeOmemoPreKey: function (account, keyId) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			const keyName = "omemo:prekeys:"+account+":"+keyId.toString();
+			store.delete(keyName);
+		},
+
+		getOmemoPreKey: function (account, keyId, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
+			const store = tx.objectStore("keyvaluepairs");
+			promisifyRequest(store.get("omemo:prekeys:"+account+":"+keyId.toString())).then((result) => {
+				if(result === undefined) {
+					callback(null);
+				} else {
+					callback({
+						"privKey": base64ToArrayBuffer(result.privKey),
+						"pubKey": base64ToArrayBuffer(result.pubKey),
+					});
+				}
+			}).catch((e) => {
+				console.error(e);
+				callback(null);
+			});
+		},
+
+		getOmemoPreKeys: function (account, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
+			const store = tx.objectStore("keyvaluepairs");
+			const prefix = "omemo:prekeys:"+account+":";
+			const keyRange = IDBKeyRange.bound(prefix, prefix + '\uffff');
+
+			const prekeys = [];
+			const req = store.openCursor(keyRange);
+
+			req.onsuccess = (event) => {
+				const cursor = event.target.result;
+				if(cursor) {
+					const splitDbKey = cursor.key.split(":");
+					const keyId = parseInt(splitDbKey[splitDbKey.length - 1], 10);
+					prekeys.push({
+						keyId: keyId,
+						keyPair: {
+							"privKey": base64ToArrayBuffer(cursor.value.privKey),
+							"pubKey": base64ToArrayBuffer(cursor.value.pubKey),
+						},
+					});
+					cursor.continue();
+				} else {
+					callback(prekeys);
+				}
+			}
+
+			req.onerror = (e) => {
+				console.error(e);
+				callback(null);
+			};
+		},
+
 		storeStreamManagement: function(account, sm) {
 			// Don't bother on ios, the indexeddb is too broken
 			// https://bugs.webkit.org/show_bug.cgi?id=287876
@@ -623,6 +772,66 @@ export default (dbname, media, tokenize, stemmer) => {
 				}
 				return { clientId: result[0], token: result[1], fastCount: result[2] || 0, displayName: result[3] };
 			});
+		},
+
+		getOmemoId: function(account, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
+			const store = tx.objectStore("keyvaluepairs");
+			promisifyRequest(store.get("omemo:id:"+account)).then((result) => {
+				callback(result);
+			}).catch((e) => {
+				console.error(e);
+				callback(null);
+			});
+		},
+
+		getOmemoIdentityKey: function(account, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
+			const store = tx.objectStore("keyvaluepairs");
+			promisifyRequest(store.get("omemo:key:"+account)).then((result) => {
+				callback(result);
+			}).catch((e) => {
+				console.error(e);
+				callback(null);
+			});
+		},
+
+		getOmemoSignedPreKey: function(account, keyId, callback) {
+			const tx = db.transaction(["keyvaluepairs"], "readonly");
+			const store = tx.objectStore("keyvaluepairs");
+			const dbKey = "omemo:signed-prekey:"+account+":"+keyId.toString();
+			console.log("OMEMO: Fetching signed prekey " + dbKey);
+			promisifyRequest(store.get(dbKey)).then((result) => {
+				if(!result) {
+					callback(null);
+				} else {
+					console.log("OMEMO: Loaded signed prekey " + dbKey);
+					callback({
+						keyId: keyId,
+						keyPair: {
+							privKey: base64ToArrayBuffer(result.privKey),
+							pubKey: base64ToArrayBuffer(result.pubKey),
+						},
+						signature: base64ToArrayBuffer(result.signature),
+					});
+				}
+			}).catch((e) => {
+				console.error("OMEMO: Error loading signed prekey " + dbKey, e);
+				callback(null);
+			});
+		},
+
+		storeOmemoSignedPreKey: function (account, signedKey) {
+			const tx = db.transaction(["keyvaluepairs"], "readwrite");
+			const store = tx.objectStore("keyvaluepairs");
+			const dbKey = "omemo:signed-prekey:"+account+":"+signedKey.keyId.toString();
+			console.log("OMEMO: Storing signed prekey", dbKey);
+			const storedKey = {
+				privKey: arrayBufferToBase64(signedKey.keyPair.privKey),
+				pubKey: arrayBufferToBase64(signedKey.keyPair.pubKey),
+				signature: arrayBufferToBase64(signedKey.signature),
+			};
+			store.put(storedKey, dbKey);
 		},
 
 		removeAccount(account, completely) {
@@ -712,6 +921,95 @@ export default (dbname, media, tokenize, stemmer) => {
 					return await Promise.all(result).then((items) => items.filter((item) => item.caps && item.caps.features.includes(feature)));
 				}
 			}
+		},
+
+		// Return the IdentityKey stored for the given address
+		// Opposite of storeOmemoContactIdentityKey()
+		getOmemoContactIdentityKey: function (account, address, callback) {
+			const tx = db.transaction(["omemo_identities"], "readonly");
+			const store = tx.objectStore("omemo_identities");
+			promisifyRequest(store.get([account, address])).then((result) => {
+				if(!result) {
+					callback(undefined);
+				} else {
+					callback(base64ToArrayBuffer(result.pubKey));
+				}
+			}).catch((e) => {
+				console.error(e);
+				callback(undefined);
+			});
+		},
+
+		storeOmemoContactIdentityKey: function (account, address, identityKey) {
+			const tx = db.transaction(["omemo_identities"], "readwrite");
+			const store = tx.objectStore("omemo_identities");
+			promisifyRequest(store.put({
+				account: account,
+				address: address,
+				pubKey: arrayBufferToBase64(identityKey),
+			})).catch((e) => {
+				console.error("Failed to store contact identity key: " + e);
+			});
+		},
+
+		getOmemoSession: function (account, address, callback) {
+			const tx = db.transaction(["omemo_sessions"], "readonly");
+			const store = tx.objectStore("omemo_sessions");
+			promisifyRequest(store.get([account, address])).then((result) => {
+				if(!result) {
+					callback(undefined);
+				} else {
+					callback(result.session);
+				}
+			}).catch((e) => {
+				console.error("Failed to load OMEMO session: " + e);
+			});
+		},
+
+		storeOmemoSession: function (account, address, session) {
+			const tx = db.transaction(["omemo_sessions"], "readwrite");
+			const store = tx.objectStore("omemo_sessions");
+			promisifyRequest(store.put({
+				account: account,
+				address: address,
+				session: session,
+			})).catch((e) => {
+				console.error("Failed to store OMEMO session: " + e);
+			});
+		},
+
+		storeOmemoMetadata: function (account, address, metadata) {
+			const tx = db.transaction(["omemo_sessions_meta"], "readwrite");
+			const store = tx.objectStore("omemo_sessions_meta");
+			promisifyRequest(store.put({
+				account: account,
+				address: address,
+				metadata: metadata,
+			})).catch((e) => {
+				console.error("Failed to store OMEMO session metadata: " + e);
+			});
+		},
+
+		getOmemoMetadata: function (account, address, callback) {
+			const tx = db.transaction(["omemo_sessions_meta"], "readonly");
+			const store = tx.objectStore("omemo_sessions_meta");
+			promisifyRequest(store.get([account, address])).then((result) => {
+				if(!result) {
+					callback(undefined);
+				} else {
+					callback(result.metadata);
+				}
+			}).catch((e) => {
+				console.error("Failed to load OMEMO session: " + e);
+			});
+		},
+
+		removeOmemoSession: function (account, address) {
+			// Remove session and any stored metadata
+			const tx = db.transaction(["omemo_sessions", "omemo_sessions_meta"], "readwrite");
+			const path = [account, address];
+			tx.objectStore("omemo_sessions").delete(path);
+			tx.objectStore("omemo_sessions_meta").delete(path);
 		},
 
 		get(k) {

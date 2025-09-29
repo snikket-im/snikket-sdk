@@ -1,20 +1,25 @@
 package snikket;
 
 import haxe.Exception;
-
 import snikket.Client;
 import snikket.Message;
 import snikket.GenericStream;
 import snikket.ResultSet;
 import snikket.queries.MAMQuery;
 
+import thenshim.Promise;
+import thenshim.PromiseTools;
+
+#if !NO_OMEMO
+import snikket.OMEMO;
+#end
+
 typedef MessageList = {
-	var sync : MessageSync;
-	var messages : Array<MessageStanza>;
+	var sync:MessageSync;
+	var messages:Array<MessageStanza>;
 }
 
-typedef MessageListHandler = (MessageList)->Void;
-
+typedef MessageListHandler = (MessageList) -> Void;
 typedef MessageFilter = MAMQueryParams;
 
 class MessageSync {
@@ -46,14 +51,16 @@ class MessageSync {
 		if (complete) {
 			throw new Exception("Attempt to fetch messages, but already complete");
 		}
-		final messages:Array<MessageStanza> = [];
+		final promisedMessages:Array<Promise<MessageStanza>> = [];
 		if (lastPage == null) {
 			if (newestPageFirst == true && (filter.page == null || (filter.page.before == null && filter.page.after == null))) {
-				if (filter.page == null) filter.page = {};
+				if (filter.page == null)
+					filter.page = {};
 				filter.page.before = ""; // Request last page of results
 			}
 		} else {
-			if (filter.page == null) filter.page = {};
+			if (filter.page == null)
+				filter.page = {};
 			if (newestPageFirst == true) {
 				filter.page.before = lastPage.first;
 			} else {
@@ -83,32 +90,70 @@ class MessageSync {
 				jmi.set(jmiChildren[0].attr.get("id"), originalMessage);
 			}
 
-			final msg = Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
-				builder.serverId = result.attr.get("id");
-				builder.serverIdBy = serviceJID;
-				if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
-				return contextHandler(builder, stanza);
-			}).parsed;
+			if (originalMessage.hasChild("encrypted", NS.OMEMO)) {
+#if !NO_OMEMO
+				trace("MAM: Processing OMEMO message from " + originalMessage.attr.get("from"));
+				promisedMessages.push(client.omemo.decryptMessage(originalMessage, null).then((decryptionResult) -> {
+					final decryptedStanza = decryptionResult.stanza;
+					trace("MAM: Decrypted stanza: "+decryptedStanza);
 
-			messages.push(msg);
+					final msg = Message.fromStanza(decryptedStanza, client.jid, (builder, stanza) -> {
+						builder.serverId = result.attr.get("id");
+						builder.serverIdBy = serviceJID;
+						builder.encryption = decryptionResult.encryptionInfo;
+						if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
+						return contextHandler(builder, stanza);
+					}).parsed;
+
+					return msg;
+				}, (err) -> {
+					trace("MAM: Decryption failed: "+err);
+					final msg = Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
+							builder.serverId = result.attr.get("id");
+							builder.serverIdBy = serviceJID;
+							if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
+							return contextHandler(builder, stanza);
+						},
+						new EncryptionInfo(DecryptionFailure, NS.OMEMO, "OMEMO", "internal-error", Std.string(err))
+					).parsed;
+					return msg;
+				}));
+#end
+				return EventHandled;
+			} else {
+				trace("MAM: Processing non-OMEMO message from " + originalMessage.attr.get("from"));
+
+				final msg = Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
+					builder.serverId = result.attr.get("id");
+					builder.serverIdBy = serviceJID;
+					if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
+					return contextHandler(builder, stanza);
+				}).parsed;
+
+				promisedMessages.push(Promise.resolve(msg));
+				//messages.push(msg);
+			}
 
 			return EventHandled;
 		});
-		query.onFinished(function () {
+		query.onFinished(function() {
 			resultHandler.unsubscribe();
 			var result = query.getResult();
 			if (result == null) {
 				trace("Error from MAM, stopping sync");
 				complete = true;
-				if (errorHandler != null) errorHandler(query.responseStanza);
+				if (errorHandler != null)
+					errorHandler(query.responseStanza);
 			} else {
 				complete = result.complete;
 				lastPage = result.page;
 			}
 			if (result != null || errorHandler == null) {
-				handler({
-					sync: this,
-					messages: messages,
+				PromiseTools.all(promisedMessages).then((messages) -> {
+					handler({
+						sync: this,
+						messages: messages,
+					});
 				});
 			}
 		});

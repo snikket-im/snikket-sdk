@@ -20,7 +20,7 @@ class Reaction {
 	public final envelopeId: Null<String>;
 
 	@:allow(snikket)
-	private function new(senderId: String, timestamp: String, text: String, envelopeId: Null<String> = null, key: Null<String> = null) {
+	public function new(senderId: String, timestamp: String, text: String, envelopeId: Null<String> = null, key: Null<String> = null) {
 		this.senderId = senderId;
 		this.timestamp = timestamp;
 		this.text = text.replace("\u{fe0f}", "");

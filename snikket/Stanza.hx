@@ -283,12 +283,16 @@ class Stanza implements NodeInterface {
 		return tags[0];
 	}
 
-	public function getChildText(?name:Null<String>, ?xmlns:Null<String>):String {
+	public function getChildText(?name:Null<String>, ?xmlns:Null<String>):Null<String> {
 		var child = getChild(name, xmlns);
 		if(child == null) {
 			return null;
 		}
 		return child.getText();
+	}
+
+	public function hasChild(?name:Null<String>, ?xmlns:Null<String>):Bool {
+		return getChild(name, xmlns) != null;
 	}
 
 	public function getText():String {
