@@ -21,14 +21,28 @@ COPY build-misc/dmo.sources /etc/apt/sources.list.d/dmo.sources
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential \
+		  autoconf \
+		  automake \
+		  libtool \
+		  pkg-config \
         git \
         npm \
         libdatachannel-dev \
         libopus-dev \
-        libstrophe-dev \
+        libc-ares-dev \
+		  libexpat1-dev \
+		  libssl-dev \
+		  zlib1g-dev \
         neko \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/*
+
+RUN git clone https://github.com/strophe/libstrophe \
+    && cd libstrophe \
+	 && ./bootstrap.sh \
+	 && ./configure --enable-cares --prefix=/usr \
+	 && make \
+	 && make install
 
 ADD https://github.com/HaxeFoundation/haxe/releases/download/${HAXE_VERSION}/haxe-${HAXE_VERSION}-linux64.tar.gz /tmp/haxe.tar.gz
 
