@@ -2,7 +2,7 @@ package test;
 
 import utest.Assert;
 import utest.Async;
-import snikket.ChatMessageBuilder;
+import borogove.ChatMessageBuilder;
 
 class TestChatMessageBuilder extends utest.Test {
 	public function testConvertHtmlToXHTML() {

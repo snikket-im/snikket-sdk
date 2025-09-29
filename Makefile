@@ -1,8 +1,8 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 
-.PHONY: all test hx-build-dep cpp/output.dso npm/snikket-browser.js npm/snikket.js
+.PHONY: all test hx-build-dep cpp/output.dso npm/borogove-browser.js npm/borogove.js
 
-all: npm libsnikket.so
+all: npm libborogove.so
 
 test:
 	haxe test.hxml
@@ -22,53 +22,53 @@ hx-build-dep:
 	haxelib --quiet git hxcpp https://github.com/HaxeFoundation/hxcpp
 
 
-npm/snikket-browser.js:
+npm/borogove-browser.js:
 	haxe browserjs.hxml
-	sed -i 's/import { snikket }/import { snikket as enums }/' npm/snikket-browser.d.ts
-	sed -i 's/snikket\.UiState/enums.UiState/g' npm/snikket-browser.d.ts
-	sed -i 's/snikket\.MessageStatus/enums.MessageStatus/g' npm/snikket-browser.d.ts
-	sed -i 's/snikket\.MessageDirection/enums.MessageDirection/g' npm/snikket-browser.d.ts
-	sed -i 's/snikket\.MessageType/enums.MessageType/g' npm/snikket-browser.d.ts
-	sed -i 's/snikket\.UserState/enums.UserState/g' npm/snikket-browser.d.ts
-	sed -i 's/snikket\.ChatMessageEvent/enums.ChatMessageEvent/g' npm/snikket-browser.d.ts
-	sed -i 's/snikket\.ReactionUpdateKind/enums.ReactionUpdateKind/g' npm/snikket-browser.d.ts
-	sed -i 's/snikket\.jingle\.CallStatus/enums.jingle.CallStatus/g' npm/snikket-browser.d.ts
-	sed -i 's/snikket\.EncryptionMode/enums.EncryptionMode/g' npm/snikket-browser.d.ts
-	sed -i 's/snikket\.EncryptionStatus/enums.EncryptionStatus/g' npm/snikket-browser.d.ts
-	sed -i '1ivar exports = {};' npm/snikket-browser.js
-	echo "export const snikket = exports.snikket;" >> npm/snikket-browser.js
+	sed -i 's/import { borogove }/import { borogove as enums }/' npm/borogove-browser.d.ts
+	sed -i 's/borogove\.UiState/enums.UiState/g' npm/borogove-browser.d.ts
+	sed -i 's/borogove\.MessageStatus/enums.MessageStatus/g' npm/borogove-browser.d.ts
+	sed -i 's/borogove\.MessageDirection/enums.MessageDirection/g' npm/borogove-browser.d.ts
+	sed -i 's/borogove\.MessageType/enums.MessageType/g' npm/borogove-browser.d.ts
+	sed -i 's/borogove\.UserState/enums.UserState/g' npm/borogove-browser.d.ts
+	sed -i 's/borogove\.ChatMessageEvent/enums.ChatMessageEvent/g' npm/borogove-browser.d.ts
+	sed -i 's/borogove\.ReactionUpdateKind/enums.ReactionUpdateKind/g' npm/borogove-browser.d.ts
+	sed -i 's/borogove\.calls\.CallStatus/enums.calls.CallStatus/g' npm/borogove-browser.d.ts
+	sed -i 's/borogove\.EncryptionMode/enums.EncryptionMode/g' npm/borogove-browser.d.ts
+	sed -i 's/borogove\.EncryptionStatus/enums.EncryptionStatus/g' npm/borogove-browser.d.ts
+	sed -i '1ivar exports = {};' npm/borogove-browser.js
+	echo "export const borogove = exports.borogove;" >> npm/borogove-browser.js
 
-npm/snikket.js:
+npm/borogove.js:
 	haxe nodejs.hxml
-	sed -i 's/import { snikket }/import { snikket as enums }/' npm/snikket.d.ts
-	sed -i 's/snikket\.UiState/enums.UiState/g' npm/snikket.d.ts
-	sed -i 's/snikket\.MessageStatus/enums.MessageStatus/g' npm/snikket.d.ts
-	sed -i 's/snikket\.MessageDirection/enums.MessageDirection/g' npm/snikket.d.ts
-	sed -i 's/snikket\.MessageType/enums.MessageType/g' npm/snikket.d.ts
-	sed -i 's/snikket\.UserState/enums.UserState/g' npm/snikket.d.ts
-	sed -i 's/snikket\.ChatMessageEvent/enums.ChatMessageEvent/g' npm/snikket.d.ts
-	sed -i 's/snikket\.ReactionUpdateKind/enums.ReactionUpdateKind/g' npm/snikket.d.ts
-	sed -i 's/snikket\.jingle\.CallStatus/enums.jingle.CallStatus/g' npm/snikket.d.ts
-	sed -i 's/snikket\.EncryptionMode/enums.EncryptionMode/g' npm/snikket.d.ts
-	sed -i 's/snikket\.EncryptionStatus/enums.EncryptionStatus/g' npm/snikket.d.ts
-	sed -i '1iimport { createRequire } from "module";' npm/snikket.js
-	sed -i '1iglobal.require = createRequire(import.meta.url);' npm/snikket.js
-	sed -i '1ivar exports = {};' npm/snikket.js
-	echo "export const snikket = exports.snikket;" >> npm/snikket.js
+	sed -i 's/import { borogove }/import { borogove as enums }/' npm/borogove.d.ts
+	sed -i 's/borogove\.UiState/enums.UiState/g' npm/borogove.d.ts
+	sed -i 's/borogove\.MessageStatus/enums.MessageStatus/g' npm/borogove.d.ts
+	sed -i 's/borogove\.MessageDirection/enums.MessageDirection/g' npm/borogove.d.ts
+	sed -i 's/borogove\.MessageType/enums.MessageType/g' npm/borogove.d.ts
+	sed -i 's/borogove\.UserState/enums.UserState/g' npm/borogove.d.ts
+	sed -i 's/borogove\.ChatMessageEvent/enums.ChatMessageEvent/g' npm/borogove.d.ts
+	sed -i 's/borogove\.ReactionUpdateKind/enums.ReactionUpdateKind/g' npm/borogove.d.ts
+	sed -i 's/borogove\.calls\.CallStatus/enums.calls.CallStatus/g' npm/borogove.d.ts
+	sed -i 's/borogove\.EncryptionMode/enums.EncryptionMode/g' npm/borogove.d.ts
+	sed -i 's/borogove\.EncryptionStatus/enums.EncryptionStatus/g' npm/borogove.d.ts
+	sed -i '1iimport { createRequire } from "module";' npm/borogove.js
+	sed -i '1iglobal.require = createRequire(import.meta.url);' npm/borogove.js
+	sed -i '1ivar exports = {};' npm/borogove.js
+	echo "export const borogove = exports.borogove;" >> npm/borogove.js
 
-npm: npm/snikket-browser.js npm/snikket.js snikket/persistence/IDB.js snikket/persistence/MediaStoreCache.js snikket/persistence/sqlite-worker1.mjs
-	cp snikket/persistence/IDB.js npm
-	cp snikket/persistence/MediaStoreCache.js npm
-	cp snikket/persistence/sqlite-worker1.mjs npm
+npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogove/persistence/MediaStoreCache.js borogove/persistence/sqlite-worker1.mjs
+	cp borogove/persistence/IDB.js npm
+	cp borogove/persistence/MediaStoreCache.js npm
+	cp borogove/persistence/sqlite-worker1.mjs npm
 	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums -d index.ts
-	sed -i '1iimport { snikket as enums } from "./snikket-enums.js";' npm/index.js
+	sed -i '1iimport { borogove as enums } from "./borogove-enums.js";' npm/index.js
 
 cpp/output.dso:
 	haxe cpp.hxml
 
-libsnikket.so: cpp/output.dso
-	cp cpp/output.dso libsnikket.so
+libborogove.so: cpp/output.dso
+	cp cpp/output.dso libborogove.so
 
 clean:
-	rm -f npm/browser.js npm/index.js npm/snikket.js npm/snikket-enums.js
-	rm -f npm/index.d.ts npm/snikket.d.ts npm/snikket-enums.d.ts npm/snikket-enums.ts
+	rm -f npm/browser.js npm/index.js npm/borogove.js npm/borogove-enums.js
+	rm -f npm/index.d.ts npm/borogove.d.ts npm/borogove-enums.d.ts npm/borogove-enums.ts

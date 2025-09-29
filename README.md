@@ -1,6 +1,6 @@
-# Snikket SDK
+# Borogove
 
-https://github.com/snikket-im/snikket-sdk
+https://borogove.dev
 
 Working towards simplicity in developing Snikket-compatible apps.
 
@@ -30,7 +30,7 @@ Also some typings are generated which include documenation comments.
 
 # C
 
-libsnikket.so and cpp/snikket.h, the latter has documentation comments
+libborogove.so and cpp/borogove.h, the latter has documentation comments
 
 ## Alpine Linux
 
@@ -38,4 +38,4 @@ See snikket-sdk build recipe: https://pkgs.alpinelinux.org/package/edge/testing/
 
 # Swift
 
-libsnikket.so and cpp/snikket.h are wrapped by cpp/Snikket.swift
+libborogove.so and cpp/borogove.h are wrapped by cpp/Borogove.swift

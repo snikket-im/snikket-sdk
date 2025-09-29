@@ -7,12 +7,12 @@ packages:
 - libc++-dev
 - musl-dev
 sources:
-- https://git.sr.ht/~singpolyma/snikket-sdk
+- https://borogove.dev/src/r/sdk
 artifacts:
-- snikket-sdk/libsnikket.so
+- sdk/libborogove.so
 tasks:
 - haxelib: |
-    cd snikket-sdk
+    cd sdk
     haxelib setup .
     haxelib git jsImport https://github.com/back2dos/jsImport
     haxelib install datetime
@@ -31,5 +31,5 @@ tasks:
     cd -
     patch -p1 -i xlocale.patch
 - make: |
-    cd snikket-sdk
-    make libsnikket.so
+    cd sdk
+    make libborogove.so

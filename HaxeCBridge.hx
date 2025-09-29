@@ -622,11 +622,11 @@ class HaxeCBridge {
 
 		return code('
 			/**
-			 * \\file snikket.h the Snikket SDK for C
+			 * \\file borogove.h the Borogove SDK for C
 			 *
 			 * Everything returned from an SDK procedure or passed to a function
 			 * pointer, both strings and opaque types, must be passed to
-			 * snikket_release when you are done with it.
+			 * borogove_release when you are done with it.
 			 */
 
 			#ifndef __${hx.strings.Strings.toUpperUnderscore(namespace)}_H
@@ -650,7 +650,7 @@ class HaxeCBridge {
 				');
 			} else '')
 
-			+ '#endif\n\ntypedef void (*snikket_panic_callback) (const char *info);\n\n'
+			+ '#endif\n\ntypedef void (*borogove_panic_callback) (const char *info);\n\n'
 			+ (if (ctx.supportTypeDeclarations.length > 0) ctx.supportTypeDeclarations.map(d -> CPrinter.printDeclaration(d, true)).join(';\n\n') + ';\n\n'; else '')
 			+ (if (ctx.typeDeclarations.length > 0) ctx.typeDeclarations.map(d -> CPrinter.printDeclaration(d, true)).join(';\n\n') + ';\n'; else '')
 
@@ -668,7 +668,7 @@ class HaxeCBridge {
 			 * @param panicCallback a callback to execute if the SDK panics. The SDK will continue processing events after a panic and you may want to stop it after receiving this callback. Use `NULL` for no callback
 			 * @returns `NULL` if the thread initializes successfully or a null-terminated C string if an error occurs during initialization
 			 */
-			$prefix const char *${namespace}_setup(snikket_panic_callback panic_callback);
+			$prefix const char *${namespace}_setup(borogove_panic_callback panic_callback);
 
 			/**
 			 * Stops the SDK, blocking until the main thread has completed. Once ended, it cannot be restarted (this is because static variable state will be retained from the last run).
@@ -774,7 +774,7 @@ class HaxeCBridge {
 				std::atomic<bool> staticsInitialized = { false };
 
 				struct HaxeThreadData {
-					snikket_panic_callback haxeExceptionCallback;
+					borogove_panic_callback haxeExceptionCallback;
 					const char* initExceptionInfo;
 				};
 
@@ -833,7 +833,7 @@ class HaxeCBridge {
 				threadData->initExceptionInfo = nullptr;
 
 				// copy out callback
-				snikket_panic_callback haxeExceptionCallback = threadData->haxeExceptionCallback;
+				borogove_panic_callback haxeExceptionCallback = threadData->haxeExceptionCallback;
 
 				bool firstRun = !HaxeCBridgeInternal::staticsInitialized;
 
@@ -868,7 +868,7 @@ class HaxeCBridge {
 			}
 			
 			HAXE_C_BRIDGE_LINKAGE
-			const char* ${namespace}_setup(snikket_panic_callback unhandledExceptionCallback) {
+			const char* ${namespace}_setup(borogove_panic_callback unhandledExceptionCallback) {
 				HaxeCBridgeInternal::HaxeThreadData threadData;
 				threadData.haxeExceptionCallback = unhandledExceptionCallback == nullptr ? HaxeCBridgeInternal::defaultExceptionHandler : unhandledExceptionCallback;
 				threadData.initExceptionInfo = nullptr;
@@ -1865,7 +1865,7 @@ class CConverterContext {
 		"auto", "double", "int", "struct", "break", "else", "long", "switch", "case", "enum", "register", "typedef", "char", "extern", "return", "union", "const", "float", "short", "unsigned", "continue", "for", "signed", "void", "default", "goto", "sizeof", "volatile", "do", "if", "static", "while",
 		"size_t", "int64_t", "uint64_t",
 		// HaxeCBridge types
-		"HaxeObject", "snikket_panic_callback",
+		"HaxeObject", "borogove_panic_callback",
 		// hxcpp
 		"Int", "String", "Float", "Dynamic", "Bool",
 	];

@@ -8,13 +8,13 @@
 --library thenshim
 --library tink_http
 
-snikket.Client
-snikket.Push
-snikket.Version
-snikket.persistence.Sqlite
+borogove.Client
+borogove.Push
+borogove.Version
+borogove.persistence.Sqlite
 
 -D js-es=6
 -D hxtsdgen_enums_ts
 -D hxtsdgen_namespaced
 -D NO_OMEMO
---js npm/snikket-browser.js
+--js npm/borogove-browser.js

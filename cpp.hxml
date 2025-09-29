@@ -9,15 +9,15 @@
 --library HtmlParser
 
 HaxeCBridge
-snikket.Client
-snikket.Push
-snikket.persistence.Dummy
-snikket.persistence.Sqlite
-snikket.persistence.MediaStoreFS
+borogove.Client
+borogove.Push
+borogove.persistence.Dummy
+borogove.persistence.Sqlite
+borogove.persistence.MediaStoreFS
 
 --cpp cpp
 -D NO_OMEMO
 -D HXCPP_ALIGN_ALLOC
 -D HXCPP_CPP17
--D HaxeCBridge.name=snikket
+-D HaxeCBridge.name=borogove
 -D dll_link

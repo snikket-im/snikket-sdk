@@ -1,6 +1,6 @@
 FROM docker.io/debian:testing-slim AS build
 
-WORKDIR /usr/src/snikket-sdk
+WORKDIR /usr/src/sdk
 
 ARG HAXE_VERSION=4.3.4
 
@@ -62,9 +62,9 @@ RUN haxelib setup /opt/haxe
 
 ENV HAXE_STD_PATH=/opt/haxe/std
 
-COPY Makefile *.hxml /usr/src/snikket-sdk/
+COPY Makefile *.hxml /usr/src/sdk/
 
-COPY . /usr/src/snikket-sdk/
+COPY . /usr/src/sdk/
 
 RUN make hx-build-dep
 
@@ -76,9 +76,9 @@ RUN haxe test.hxml
 
 FROM docker.io/debian:bookworm-slim
 
-WORKDIR /opt/snikket-sdk
+WORKDIR /opt/sdk
 
-COPY --from=build /usr/src/snikket-sdk/cpp ./cpp
-COPY --from=build /usr/src/snikket-sdk/npm ./npm
+COPY --from=build /usr/src/sdk/cpp ./cpp
+COPY --from=build /usr/src/sdk/npm ./npm
 
-CMD ["cp", "-R", "/opt/snikket-sdk", "/output"]
+CMD ["cp", "-R", "/opt/sdk", "/output"]

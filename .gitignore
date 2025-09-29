@@ -3,11 +3,11 @@ npm/*.d.ts
 npm/MediaStoreCache.js
 npm/sqlite-worker1.mjs
 npm/IDB.js
-npm/snikket.js
-npm/snikket-enums.ts
-npm/snikket-enums.js
-npm/snikket-browser.js
-npm/snikket-browser-enums.ts
-npm/snikket-browser-enums.js
+npm/borogove.js
+npm/borogove-enums.ts
+npm/borogove-enums.js
+npm/borogove-browser.js
+npm/borogove-browser-enums.ts
+npm/borogove-browser-enums.js
 npm/index.js
 node_modules

@@ -3,7 +3,7 @@ package test;
 
 import utest.Assert;
 import utest.Async;
-import snikket.Stanza;
+import borogove.Stanza;
 
 class TestStanza extends utest.Test {
 	public function testRemoveChildren() {

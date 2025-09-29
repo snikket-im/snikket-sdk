@@ -65,13 +65,13 @@ jobs:
     - name: Build
       run: make
 
-    - name: libsnikket Artifact
+    - name: libborogove Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: libsnikket
+        name: libborogove
         path: |
-          libsnikket.so
-          cpp/snikket.h
+          libborogove.so
+          cpp/borogove.h
 
     - name: NPM Tarball
       run: tar -cjf npm.tar.gz npm/

@@ -1,5 +1,5 @@
 {
-  "name": "snikket-sdk",
+  "name": "borogove",
   "version": "0.0.0",
   "description": "Chat SDK",
   "main": "index.js",
@@ -10,7 +10,7 @@
     "*.ts"
   ],
   "browser": {
-    "./snikket.js": "./snikket-browser.js"
+    "./borogove.js": "./borogove-browser.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
