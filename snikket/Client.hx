@@ -807,7 +807,7 @@ class Client extends EventEmitter {
 	public function findAvailableChats(q:String, callback:(String, Array<AvailableChat>) -> Void) {
 		var results = [];
 		final query = StringTools.trim(q);
-		final checkAndAdd = (jid, prepend = false) -> {
+		final checkAndAdd = (jid: JID, prepend = false) -> {
 			final add = (item) -> prepend ? results.unshift(item) : results.push(item);
 			final discoGet = new DiscoInfoGet(jid.asString());
 			discoGet.onFinished(() -> {
@@ -815,7 +815,7 @@ class Client extends EventEmitter {
 				if (resultCaps == null) {
 					final err = discoGet.responseStanza?.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
 					if (err == null || err?.name == "service-unavailable" || err?.name == "feature-not-implemented") {
-						add(new AvailableChat(jid.asString(), query, jid.asString(), new Caps("", [], [])));
+						add(new AvailableChat(jid.asString(), jid.node == null ? query : jid.node, jid.asString(), new Caps("", [], [])));
 					}
 				} else {
 					persistence.storeCaps(resultCaps);
@@ -829,7 +829,8 @@ class Client extends EventEmitter {
 			sendQuery(discoGet);
 		};
 		final jid = if (StringTools.startsWith(query, "xmpp:")) {
-			JID.parse(query.substr(5));
+			final parts = query.substr(5).split("?");
+			JID.parse(StringTools.urlDecode(parts[0]));
 		} else {
 			JID.parse(query);
 		}
