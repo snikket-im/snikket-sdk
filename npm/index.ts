@@ -20,6 +20,7 @@ export import Identicon = borogove.Identicon;
 export import Identity = borogove.Identity;
 export import Notification = borogove.Notification;
 export import Participant = borogove.Participant;
+export import Persistence = borogove.Persistence;
 export import Push = borogove.Push;
 export import Reaction = borogove.Reaction;
 export import SerializedChat = borogove.SerializedChat;
@@ -37,6 +38,8 @@ export import UserState = enums.UserState;
 
 export namespace persistence {
 	export import IDB = IDBjs;
+	export import KeyValueStore = borogove.persistence.KeyValueStore;
+	export import MediaStore = borogove.persistence.MediaStore;
 	export import MediaStoreCache = MediaStoreCachejs;
 	export import Dummy = borogove.persistence.Dummy;
 	export import Sqlite = borogove.persistence.Sqlite;
