@@ -67,7 +67,7 @@ cpp/output.dso:
 	haxe cpp.hxml
 
 libborogove.so: cpp/output.dso
-	cp cpp/output.dso libborogove.so
+	mv cpp/output.dso libborogove.so
 
 doc:
 	npx @microsoft/api-extractor run -c npm/api-extractor.json || true

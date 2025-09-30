@@ -1,4 +1,4 @@
-FROM docker.io/debian:testing-slim AS build
+FROM docker.io/debian:stable-slim AS build
 
 WORKDIR /usr/src/sdk
 
@@ -74,11 +74,12 @@ RUN make
 
 RUN haxe test.hxml
 
-FROM docker.io/debian:bookworm-slim
+FROM docker.io/debian:stable-slim
 
 WORKDIR /opt/sdk
 
 COPY --from=build /usr/src/sdk/cpp ./cpp
+COPY --from=build /usr/src/sdk/libborogove.so ./libborogove.so
 COPY --from=build /usr/src/sdk/npm ./npm
 
 CMD ["cp", "-R", "/opt/sdk", "/output"]
