@@ -24,8 +24,10 @@ class Reaction {
 	public final timestamp: String;
 	@:allow(borogove)
 	private final text: String;
-	@:allow(borogove)
-	private final key: String;
+	/**
+		Key for grouping reactions
+	**/
+	public final key: String;
 	@:allow(borogove)
 	private final envelopeId: Null<String>;
 
