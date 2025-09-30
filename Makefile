@@ -74,6 +74,10 @@ site/haxe/index.html:
 	haxelib run dox --toplevel-package borogove -i haxedoc.xml -o site/haxe/
 
 doc: site/haxe/index.html
+	npx @microsoft/api-extractor run -c npm/api-extractor.json || true
+	npx @microsoft/api-documenter markdown -i tmp -o docs/js/
+	rm -r tmp
+	find docs/js/ -name '*.md' -exec sed -i 's/<\([[:alpha:]][[:alpha:]]*\)/<\1 markdown="1"/g' \{\} \;
 	mkdocs build
 
 clean:

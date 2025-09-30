@@ -25,4 +25,4 @@ nav:
   - Home: index.md
   - API:
     - C: c/borogove_8h.md
-    - JavaScript: js/borogove-sdk.md
+    - JavaScript: js/borogove.md
