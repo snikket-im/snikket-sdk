@@ -211,6 +211,7 @@ class XmppStropheStream extends GenericStream {
 	}
 
 	public static function strophe_certfail_handler(cert:StropheTlsCert, err:RawConstPointer<Char>): Int {
+#if STROPHE_HAVE_TLS_CERT_USERDATA
 		final userdata = StropheTlsCert.get_userdata(cert);
 		final stream: XmppStropheStream = untyped __cpp__("static_cast<hx::Object*>(userdata)");
 		final dnsNames: Array<String> = [];
@@ -226,6 +227,9 @@ class XmppStropheStream extends GenericStream {
 		default:
 			return 0;
 		}
+#else
+		return 0;
+#end
 	}
 
 	public static function strophe_stanza(conn:StropheConn, sstanza:StropheStanza, userdata:RawPointer<Void>):Int {
