@@ -1,6 +1,4 @@
-# Borogove
-
-https://borogove.dev
+# [Borogove](https://borogove.dev)
 
 Working towards simplicity in developing Snikket-compatible apps.
 
@@ -21,21 +19,31 @@ Working towards simplicity in developing Snikket-compatible apps.
     cd -
     make
 
-# JavaScript
+# JavaScript / TypeScript
 
-npm subdirectory will contain installable package for browser or nodejs after build.
-Also some typings are generated which include documenation comments.
+`npm` subdirectory will contain installable package for browser or nodejs after build.
+
+Also Typescript typings are generated which include documenation comments.
 
     npm install https://gitpkg-singpolyma.vercel.app/snikket-im/snikket-sdk/npm?compiled
 
 # C
 
-libborogove.so and cpp/borogove.h, the latter has documentation comments
+`libborogove.so` and `cpp/borogove.h`, the latter has documentation comments
 
 ## Alpine Linux
 
-See snikket-sdk build recipe: https://pkgs.alpinelinux.org/package/edge/testing/x86_64/snikket-sdk
+See [snikket-sdk build recipe](https://pkgs.alpinelinux.org/package/edge/testing/x86_64/snikket-sdk)
 
 # Swift
 
-libborogove.so and cpp/borogove.h are wrapped by cpp/Borogove.swift
+`libborogove.so` and `cpp/borogove.h` are wrapped by `cpp/Borogove.swift`
+
+See also the [SwiftPM Package](https://borogove.dev/src/r/swiftpm/).
+
+# Used By Apps Such As
+
+* [Snikket/Cheogram Web](https://git.singpolyma.net/snikket-react)
+* [Cheogram CLI Dialler](https://git.singpolyma.net/ccd)
+* [Cheogram iOS](https://git.singpolyma.net/cheogram-aapl)
+* [Honeybee](https://sr.ht/~anjan/honeybee/)
