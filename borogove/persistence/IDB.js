@@ -4,7 +4,7 @@
 import { borogove as enums } from "./borogove-enums.js";
 import { borogove } from "./borogove.js";
 
-export default (dbname, media, tokenize, stemmer) => {
+export default async (dbname, media, tokenize, stemmer) => {
 	if (!tokenize) tokenize = function(s) { return s.split(" "); }
 	if (!stemmer) stemmer = function(s) { return s; }
 
@@ -25,67 +25,68 @@ export default (dbname, media, tokenize, stemmer) => {
 		return bytes.buffer;
 	}
 
-	var db = null;
 	function openDb(version) {
-		var dbOpenReq = indexedDB.open(dbname, version);
-		dbOpenReq.onerror = console.error;
-		dbOpenReq.onupgradeneeded = (event) => {
-			const upgradeDb = event.target.result;
-			if (!db.objectStoreNames.contains("messages")) {
-				const messages = upgradeDb.createObjectStore("messages", { keyPath: ["account", "serverId", "serverIdBy", "localId"] });
-				messages.createIndex("chats", ["account", "chatId", "timestamp"]);
-				messages.createIndex("localId", ["account", "localId", "chatId"]);
-				messages.createIndex("accounts", ["account", "timestamp"]);
-			}
-			if (!db.objectStoreNames.contains("keyvaluepairs")) {
-				upgradeDb.createObjectStore("keyvaluepairs");
-			}
-			if (!db.objectStoreNames.contains("chats")) {
-				upgradeDb.createObjectStore("chats", { keyPath: ["account", "chatId"] });
-			}
-			if (!db.objectStoreNames.contains("services")) {
-				upgradeDb.createObjectStore("services", { keyPath: ["account", "serviceId"] });
-			}
-			if (!db.objectStoreNames.contains("reactions")) {
-				const reactions = upgradeDb.createObjectStore("reactions", { keyPath: ["account", "chatId", "senderId", "updateId"] });
-				reactions.createIndex("senders", ["account", "chatId", "messageId", "senderId", "timestamp"]);
-			}
-			if (!db.objectStoreNames.contains("omemo_identities")) {
-				upgradeDb.createObjectStore("omemo_identities", { keyPath: ["account", "address"] });
-			}
-			if (!db.objectStoreNames.contains("omemo_prekeys")) {
-				upgradeDb.createObjectStore("omemo_prekeys", { keyPath: ["account", "keyId"] });
-			}
-			if (!db.objectStoreNames.contains("omemo_sessions")) {
-				upgradeDb.createObjectStore("omemo_sessions", { keyPath: ["account", "address"] });
-			}
-			if (!db.objectStoreNames.contains("omemo_sessions_meta")) {
-				upgradeDb.createObjectStore("omemo_sessions_meta", { keyPath: ["account", "address"] });
-			}
-		};
-		dbOpenReq.onsuccess = (event) => {
-			db = event.target.result;
-			//window.db = db;
-			const storeNames = [
-				"messages",
-				"keyvaluepairs",
-				"chats",
-				"services",
-				"reactions",
-				"omemo_identities",
-				"omemo_sessions",
-				"omemo_sessions_meta"
-			];
-			for(let storeName of storeNames) {
-				if(!db.objectStoreNames.contains(storeName)) {
-					db.close();
-					openDb(db.version + 1);
-					return;
+		return new Promise((resolve, reject) => {
+			var dbOpenReq = indexedDB.open(dbname, version);
+			dbOpenReq.onerror = console.error;
+			dbOpenReq.onupgradeneeded = (event) => {
+				const db = event.target.result;
+				if (!db.objectStoreNames.contains("messages")) {
+					const messages = db.createObjectStore("messages", { keyPath: ["account", "serverId", "serverIdBy", "localId"] });
+					messages.createIndex("chats", ["account", "chatId", "timestamp"]);
+					messages.createIndex("localId", ["account", "localId", "chatId"]);
+					messages.createIndex("accounts", ["account", "timestamp"]);
 				}
-			}
-		};
+				if (!db.objectStoreNames.contains("keyvaluepairs")) {
+					db.createObjectStore("keyvaluepairs");
+				}
+				if (!db.objectStoreNames.contains("chats")) {
+					db.createObjectStore("chats", { keyPath: ["account", "chatId"] });
+				}
+				if (!db.objectStoreNames.contains("services")) {
+					db.createObjectStore("services", { keyPath: ["account", "serviceId"] });
+				}
+				if (!db.objectStoreNames.contains("reactions")) {
+					const reactions = db.createObjectStore("reactions", { keyPath: ["account", "chatId", "senderId", "updateId"] });
+					reactions.createIndex("senders", ["account", "chatId", "messageId", "senderId", "timestamp"]);
+				}
+				if (!db.objectStoreNames.contains("omemo_identities")) {
+					db.createObjectStore("omemo_identities", { keyPath: ["account", "address"] });
+				}
+				if (!db.objectStoreNames.contains("omemo_prekeys")) {
+					db.createObjectStore("omemo_prekeys", { keyPath: ["account", "keyId"] });
+				}
+				if (!db.objectStoreNames.contains("omemo_sessions")) {
+					db.createObjectStore("omemo_sessions", { keyPath: ["account", "address"] });
+				}
+				if (!db.objectStoreNames.contains("omemo_sessions_meta")) {
+					db.createObjectStore("omemo_sessions_meta", { keyPath: ["account", "address"] });
+				}
+			};
+			dbOpenReq.onsuccess = (event) => {
+				const db = event.target.result;
+				const storeNames = [
+					"messages",
+					"keyvaluepairs",
+					"chats",
+					"services",
+					"reactions",
+					"omemo_identities",
+					"omemo_sessions",
+					"omemo_sessions_meta"
+				];
+				for(let storeName of storeNames) {
+					if(!db.objectStoreNames.contains(storeName)) {
+						db.close();
+						openDb(db.version + 1).then(resolve, reject);
+						return;
+					}
+				}
+				resolve(db);
+			};
+		});
 	}
-	openDb();
+	const db = await openDb();
 
 	function promisifyRequest(request) {
 		return new Promise((resolve, reject) => {
