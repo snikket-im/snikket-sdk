@@ -1,6 +1,6 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 
-.PHONY: all test doc hx-build-dep cpp/output.dso npm/borogove-browser.js npm/borogove.js site/haxe/index.html
+.PHONY: all test doc hx-build-dep cpp/output.dso npm/borogove-browser.js npm/borogove.js
 
 all: npm libborogove.so
 
@@ -69,16 +69,14 @@ cpp/output.dso:
 libborogove.so: cpp/output.dso
 	cp cpp/output.dso libborogove.so
 
-site/haxe/index.html:
-	haxe haxedoc.hxml
-	haxelib run dox --toplevel-package borogove -i haxedoc.xml -o site/haxe/
-
-doc: site/haxe/index.html
+doc:
 	npx @microsoft/api-extractor run -c npm/api-extractor.json || true
 	npx @microsoft/api-documenter markdown -i tmp -o docs/js/
 	rm -r tmp
 	find docs/js/ -name '*.md' -exec sed -i 's/<\([[:alpha:]][[:alpha:]]*\)/<\1 markdown="1"/g' \{\} \;
 	mkdocs build
+	haxe haxedoc.hxml
+	haxelib run dox --toplevel-package borogove -i haxedoc.xml -o site/haxe/
 
 clean:
 	rm -f npm/browser.js npm/index.js npm/borogove.js npm/borogove-enums.js
