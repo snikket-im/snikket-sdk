@@ -9,7 +9,6 @@
 
 --library utest
 
--D NO_JINGLE
 -D NO_OMEMO
 --run
 test.TestAll
