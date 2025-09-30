@@ -13,3 +13,5 @@ npm/index.js
 node_modules
 site
 haxedoc.xml
+cpp
+venv
