@@ -1269,13 +1269,17 @@ class Channel extends Chat {
 	}
 
 	@:allow(borogove)
+	private function setupNotifications() {
+		if (disco == null) return;
+		if (!isPrivate()) notificationSettings = { mention: true, reply: false };
+	}
+
+	@:allow(borogove)
 	private function refreshDisco(?callback: ()->Void) {
 		final discoGet = new DiscoInfoGet(chatId);
 		discoGet.onFinished(() -> {
 			if (discoGet.getResult() != null) {
-				final setupNotifications = disco == null && notificationSettings == null;
 				disco = discoGet.getResult();
-				if (setupNotifications && !isPrivate()) notificationSettings = { mention: true, reply: false };
 				persistence.storeCaps(discoGet.getResult());
 				persistence.storeChats(client.accountId(), [this]);
 			}

@@ -977,6 +977,7 @@ class Client extends EventEmitter {
 
 		final chat = if (availableChat.isChannel()) {
 			final channel = new Channel(this, this.stream, this.persistence, availableChat.chatId, Open, false, null, availableChat.caps);
+			channel.setupNotifications();
 			chats.unshift(channel);
 			channel.selfPing(false);
 			channel;
@@ -1480,6 +1481,7 @@ class Client extends EventEmitter {
 				final uiState = handleCaps(resultCaps);
 				if (resultCaps.isChannel(jid)) {
 					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, false, null, resultCaps);
+					chat.setupNotifications();
 					handleChat(chat);
 					chats.unshift(chat);
 					persistence.storeChats(accountId(), [chat]);
