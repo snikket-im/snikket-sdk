@@ -573,7 +573,7 @@ class InitiatedSession implements Session {
 			pc.addEventListener("track", (event) -> {
 				client.trigger("call/track", { chatId: chatId, track: event.track, streams: event.streams });
 			});
-			pc.addEventListener("negotiationneeded", (event) -> trace("renegotiate", event));
+			pc.addEventListener("negotiationneeded", (event) -> { trace("renegotiate", event); return; });
 			pc.addEventListener("icecandidate", (event) -> {
 				sendIceCandidate(event.candidate);
 			});
