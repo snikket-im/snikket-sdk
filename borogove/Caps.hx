@@ -6,6 +6,7 @@ import haxe.io.BytesData;
 using Lambda;
 
 import borogove.Hash;
+import borogove.Util;
 
 @:expose
 class Caps {
@@ -90,7 +91,7 @@ class Caps {
 		for (feature in features) {
 			s += feature + "<";
 		}
-		return Hash.sha1(Bytes.ofString(s));
+		return Hash.sha1(bytesOfString(s));
 	}
 
 	public function verRaw(): Hash {

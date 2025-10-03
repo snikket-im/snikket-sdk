@@ -1,6 +1,7 @@
 package borogove;
 
 import borogove.Color;
+import borogove.Util;
 import haxe.crypto.Sha1;
 import haxe.io.Bytes;
 import haxe.io.BytesInput;
@@ -16,7 +17,7 @@ import HaxeCBridge;
 #end
 class Identicon {
 	public static function svg(source: String) {
-		final sha = Sha1.make(Bytes.ofString(source));
+		final sha = Sha1.make(bytesOfString(source));
 		final input = new BytesInput(sha);
 		input.bigEndian = true;
 		final hash = input.readInt32();

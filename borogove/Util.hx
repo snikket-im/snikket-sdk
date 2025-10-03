@@ -1,5 +1,11 @@
 package borogove;
 
+import haxe.io.Bytes;
+#if js
+import js.html.TextEncoder;
+final textEncoder = new TextEncoder();
+#end
+
 function setupTrace() {
 #if js
 	haxe.Log.trace = (v, ?infos) -> {
@@ -13,6 +19,14 @@ function setupTrace() {
 			(untyped console).log(str);
 		}
 	}
+#end
+}
+
+inline function bytesOfString(s: String) {
+#if js
+	return Bytes.ofData(textEncoder.encode(s).buffer);
+#else
+	return Bytes.ofString(s);
 #end
 }
 

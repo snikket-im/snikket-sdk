@@ -3,6 +3,7 @@ package borogove;
 import haxe.io.BytesBuffer;
 import borogove.EncryptedMessage;
 import borogove.Message;
+import borogove.Util;
 
 import borogove.queries.PubsubGet;
 import borogove.queries.PubsubPublish;
@@ -1011,7 +1012,7 @@ class OMEMO {
 				subtle.encrypt({
 					name: "AES-GCM",
 					iv: encryptedPayload.iv,
-				}, generatedKey, Bytes.ofString(plaintext).getData()).then((encryptionResult:BytesData) -> {
+				}, generatedKey, bytesOfString(plaintext).getData()).then((encryptionResult:BytesData) -> {
 					// Process result of encryption
 					final encryptedBytes = Bytes.ofData(encryptionResult);
 					final ciphertextLength = encryptionResult.byteLength - 16; // Exclude GCM tag
@@ -1025,7 +1026,7 @@ class OMEMO {
 						resolve(encryptedPayload);
 					});
 				});
-			});	
+			});
 		});
 		#else
 		throw new haxe.exceptions.NotImplementedException();
@@ -1217,7 +1218,7 @@ class OMEMO {
 			// to a pair of bytes (since JS uses UTF-16).
 			return Browser.window.btoa(keyStr);
 		#else
-			return Base64.encode(Bytes.ofString(keyStr, RawNative));
+			return Base64.encode(bytesOfString(keyStr, RawNative));
 		#end
 	}
 

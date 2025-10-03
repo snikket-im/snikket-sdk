@@ -10,6 +10,7 @@ using Lambda;
 import borogove.FSM;
 import borogove.GenericStream;
 import borogove.Stanza;
+import borogove.Util;
 
 @:js.import(@default "@xmpp/sasl-scram-sha-1")
 extern class XmppJsScramSha1 {
@@ -360,7 +361,7 @@ class XmppJsStream extends GenericStream {
 		this.trigger(
 			"sm/update",
 			{
-				sm: Bytes.ofString(haxe.Json.stringify({
+				sm: bytesOfString(haxe.Json.stringify({
 					id: client.streamManagement.id,
 					outbound: client.streamManagement.outbound,
 					inbound: client.streamManagement.inbound,

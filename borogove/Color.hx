@@ -3,10 +3,11 @@ package borogove;
 import hsluv.Hsluv;
 import haxe.io.Bytes;
 import haxe.crypto.Sha1;
+import borogove.Util;
 
 class Color {
 	public static function forString(s:String) {
-		var hash = Sha1.make(Bytes.ofString(s));
+		var hash = Sha1.make(bytesOfString(s));
 		var hue = (hash.getUInt16(0) / 65536.0) * 360;
 		var color = new Hsluv();
 		color.hsluv_h = hue;
