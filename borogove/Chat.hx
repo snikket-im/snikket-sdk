@@ -691,37 +691,41 @@ abstract class Chat {
 		}
 	}
 
-	@:allow(borogove)
-	private function markReadUpToId(upTo: String, upToBy: String, ?callback: ()->Void) {
-		if (upTo == null) return;
-		if (readUpTo() == upTo) return;
-
-		readUpToId = upTo;
-		readUpToBy = upToBy;
-		persistence.storeChats(client.accountId(), [this]);
-		persistence.getMessagesBefore(client.accountId(), chatId, null, null).then((messages) -> {
+	private function recomputeUnread(): Promise<Any> {
+		return persistence.getMessagesBefore(client.accountId(), chatId, null, null).then((messages) -> {
 			var i = messages.length;
 			while (--i >= 0) {
 				if (messages[i].serverId == readUpToId || !messages[i].isIncoming()) break;
 			}
 			setUnreadCount(messages.length - (i + 1));
-			if (callback != null) callback();
 		});
 	}
 
-	private function markReadUpToMessage(message: ChatMessage, ?callback: ()->Void) {
-		if (message.serverId == null || message.chatId() != chatId) return;
-		if (readUpTo() == message.serverId) return;
+	@:allow(borogove)
+	private function markReadUpToId(upTo: String, upToBy: String): Promise<Any> {
+		if (upTo == null) return Promise.reject(null);
+		if (readUpTo() == upTo) return Promise.reject(null);
+
+		readUpToId = upTo;
+		readUpToBy = upToBy;
+		persistence.storeChats(client.accountId(), [this]);
+		return recomputeUnread();
+	}
+
+	private function markReadUpToMessage(message: ChatMessage): Promise<Any> {
+		if (message.serverId == null || message.chatId() != chatId) return Promise.reject(null);
+		if (readUpTo() == message.serverId) return Promise.reject(null);
 
 		if (readUpTo() == null) {
-			markReadUpToId(message.serverId, message.serverIdBy, callback);
-			return;
+			return markReadUpToId(message.serverId, message.serverIdBy);
 		}
 
-		persistence.getMessage(client.accountId(), chatId, readUpTo(), null).then((readMessage) -> {
-			if (readMessage != null && Reflect.compare(message.timestamp, readMessage.timestamp) <= 0) return;
+		return persistence.getMessage(client.accountId(), chatId, readUpTo(), null).then((readMessage) -> {
+			if (readMessage != null && Reflect.compare(message.timestamp, readMessage.timestamp) <= 0) {
+				return Promise.reject(null);
+			}
 
-			markReadUpToId(message.serverId, message.serverIdBy, callback);
+			return markReadUpToId(message.serverId, message.serverIdBy);
 		});
 	}
 
@@ -970,7 +974,7 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function markReadUpTo(message: ChatMessage) {
-		markReadUpToMessage(message, () -> {
+		markReadUpToMessage(message).then(_ -> {
 			// Only send markers for others messages,
 			// it's obvious we've read our own
 			if (message.isIncoming() && message.localId != null) {
@@ -987,7 +991,8 @@ class DirectChat extends Chat {
 
 			publishMds();
 			client.trigger("chats/update", [this]);
-		});
+			return;
+		}, e -> e != null ? Promise.reject(e) : null);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -1498,7 +1503,7 @@ class Channel extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function markReadUpTo(message: ChatMessage) {
-		markReadUpToMessage(message, () -> {
+		markReadUpToMessage(message).then(_ -> {
 			final stanza = new Stanza("message", { to: chatId, id: ID.long(), type: "groupchat" })
 				.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: message.serverId }).up();
 			if (message.threadId != null) {
@@ -1508,7 +1513,8 @@ class Channel extends Chat {
 
 			publishMds();
 			client.trigger("chats/update", [this]);
-		});
+			return;
+		}, e -> e != null ? Promise.reject(e) : null);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract

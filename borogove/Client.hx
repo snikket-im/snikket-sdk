@@ -589,10 +589,11 @@ class Client extends EventEmitter {
 						if (chat == null) {
 							startChatWith(item.attr.get("id"), (caps) -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
 						} else {
-							chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by"), () -> {
+							chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")).then(_ -> {
 								persistence.storeChats(accountId(), [chat]);
 								this.trigger("chats/update", [chat]);
-							});
+								return;
+							}, e -> e != null ? Promise.reject(e) : null);
 						}
 					}
 				}
