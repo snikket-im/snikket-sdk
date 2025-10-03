@@ -1213,9 +1213,21 @@ class Client extends EventEmitter {
 
 		@param handler takes one argument, an array of Chats that were updated
 	**/
+	private final updateChatBuffer: Map<String, Chat> = [];
+	private var updateChatTimer = null;
 	public function addChatsUpdatedListener(handler:Array<Chat>->Void):Void {
-		this.on("chats/update", (data) -> {
-			handler(data);
+		this.on("chats/update", (data: Array<Chat>) -> {
+			if (updateChatTimer != null) {
+				updateChatTimer.stop();
+			}
+			for (chat in data) {
+				updateChatBuffer[chat.chatId] = chat;
+			}
+			updateChatTimer = haxe.Timer.delay(() -> {
+				handler({ iterator: updateChatBuffer.iterator }.array());
+				updateChatTimer = null;
+				updateChatBuffer.clear();
+			}, 500);
 			return EventHandled;
 		});
 	}
