@@ -139,9 +139,13 @@ class Client extends EventEmitter {
 			return EventHandled;
 		});
 
+		this.on("chats/update", (data: Array<Chat>) -> {
+			stream.emitSMupdates = !Util.existsFast(chats, chat -> chat.uiState != Closed && chat.syncing());
+			return EventHandled;
+		});
+
 		stream.on("sm/update", (data) -> {
-			final anySyncHappening = Util.existsFast(chats, chat -> chat.uiState != Closed && chat.syncing());
-			persistence.storeStreamManagement(accountId(), anySyncHappening ? null : data.sm);
+			persistence.storeStreamManagement(accountId(), stream.emitSMupdates ? data.sm : null);
 			return EventHandled;
 		});
 
@@ -616,6 +620,7 @@ class Client extends EventEmitter {
 		Start this client running and trying to connect to the server
 	**/
 	public function start() {
+		stream.emitSMupdates = false; // We don't care until after sync
 		startOffline().then(_ ->
 			persistence.getStreamManagement(accountId())
 		).then((sm) -> {
@@ -757,6 +762,7 @@ class Client extends EventEmitter {
 
 		if (data.resumed) {
 			inSync = true;
+			stream.emitSMupdates = true;
 			this.trigger("status/online", {});
 			return EventHandled;
 		}

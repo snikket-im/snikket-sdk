@@ -261,8 +261,8 @@ class XmppJsStream extends GenericStream {
 		});
 
 		xmpp.on("stanza", function (stanza) {
-			this.onStanza(convertToStanza(stanza));
 			triggerSMupdate();
+			this.onStanza(convertToStanza(stanza));
 		});
 
 		xmpp.streamManagement.on("ack", (stanza) -> {
@@ -357,7 +357,7 @@ class XmppJsStream extends GenericStream {
 	}
 
 	private function triggerSMupdate() {
-		if (client == null || !client.streamManagement.enabled) return;
+		if (client == null || !client.streamManagement.enabled || !emitSMupdates) return;
 		this.trigger(
 			"sm/update",
 			{

@@ -13,6 +13,7 @@ enum IqResult {
 abstract class GenericStream extends EventEmitter {
 	public var clientId: Null<String> = null;
 	public var csi(default, null) = false;
+	public var emitSMupdates = true;
 
 	public function new() {
 		super();
