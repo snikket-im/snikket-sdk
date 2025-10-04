@@ -43,7 +43,7 @@ class SqliteDriver {
 		return sqlite('exec', {
 			dbId: dbId,
 			sql: qs,
-			bind: params.map(formatParam),
+			bind: (params ?? []).map(formatParam),
 			rowMode: "object",
 			callback: (r) -> {
 				if (r.rowNumber == null) {
