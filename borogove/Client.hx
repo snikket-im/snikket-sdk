@@ -1542,7 +1542,7 @@ class Client extends EventEmitter {
 					if (chat == null) {
 						startChatWith(item.attr.get("id"), (caps) -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
 					} else {
-						chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by"));
+						chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")).then(_ -> null, e -> e != null ? Promise.reject(e) : null);
 						chatsToUpdate.push(chat);
 					}
 				}
