@@ -43,7 +43,7 @@ See also the [SwiftPM Package](https://borogove.dev/src/r/swiftpm/).
 
 # Used By Apps Such As
 
-* [Snikket/Cheogram Web](https://git.singpolyma.net/snikket-react)
+* [Cheogram WWW](https://git.singpolyma.net/cheogram-www)
 * [Cheogram CLI Dialler](https://git.singpolyma.net/ccd)
 * [Cheogram iOS](https://git.singpolyma.net/cheogram-aapl)
 * [Honeybee](https://sr.ht/~anjan/honeybee/)
