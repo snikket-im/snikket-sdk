@@ -3,7 +3,9 @@ package borogove;
 import haxe.DynamicAccess;
 import haxe.Exception;
 import haxe.ds.StringMap;
+#if (!cpp && !js)
 import Xml;
+#end
 
 enum Node {
 	Element(stanza:Stanza);
@@ -81,11 +83,12 @@ class StanzaError {
 
 @:expose
 class Stanza implements NodeInterface {
-	public var name(default, null):String = null;
-	public var attr(default, null):DynamicAccess<String> = {};
+	public final name:String = null;
+	public final attr:DynamicAccess<String> = {};
 	public var children(default, null):Array<Node> = [];
 	private var last_added(null, null):Stanza;
 	private var last_added_stack(null, null):Array<Stanza> = [];
+	private var serialized: Null<String> = null;
 
 	public function new(name:String, ?attr:DynamicAccess<String>) {
 		this.name = name;
@@ -96,17 +99,23 @@ class Stanza implements NodeInterface {
 	};
 
 	public function serialize():String {
-		var el = Xml.createElement(name);
+		#if cpp
+		return (serialized = borogove.streams.XmppStropheStream.serializeStanza(this));
+		#elseif js
+		final el = borogove.streams.XmppJsStream.convertFromStanza(this);
+		return (serialized = el.toString());
+		#else
+		final el = Xml.createElement(name);
 		for (attr_k in this.attr.keys()) {
 			el.set(attr_k, this.attr.get(attr_k));
 		}
 
 		if (this.children.length == 0) {
-			return el.toString();
+			return (serialized = el.toString());
 		}
-		var serialized = el.toString();
-		var buffer = new StringBuf();
-		buffer.addSub(serialized, 0, serialized.length-2);
+		final start = el.toString();
+		final buffer = new StringBuf();
+		buffer.addSub(start, 0, start.length-2);
 		buffer.add(">");
 		for (child in children) {
 			buffer.add(switch (child) {
@@ -117,7 +126,8 @@ class Stanza implements NodeInterface {
 		buffer.add("</");
 		buffer.add(name);
 		buffer.add(">");
-		return buffer.toString();
+		return (serialized = buffer.toString());
+		#end
 	}
 
 	public function toString():String {
@@ -126,12 +136,17 @@ class Stanza implements NodeInterface {
 
 	public static function parse(s:String):Stanza {
 		#if cpp
-		return borogove.streams.XmppStropheStream.parseStanza(s);
+		final stanza = borogove.streams.XmppStropheStream.parseStanza(s);
+		#elseif js
+		final stanza = borogove.streams.XmppJsStream.parseStanza(s);
 		#else
-		return fromXml(Xml.parse(s));
+		final stanza = fromXml(Xml.parse(s));
 		#end
+		stanza.serialized = s;
+		return stanza;
 	}
 
+	#if (!cpp && !js)
 	@:allow(borogove)
 	@:allow(test)
 	private static function fromXml(el:Xml):Stanza {
@@ -155,8 +170,10 @@ class Stanza implements NodeInterface {
 		}
 		return stanza;
 	}
+	#end
 
 	public function tag(name:String, ?attr:DynamicAccess<String>) {
+		serialized = null;
 		var child = new Stanza(name, attr);
 		this.last_added.addDirectChild(Element(child));
 		this.last_added_stack.push(this.last_added);
@@ -165,11 +182,13 @@ class Stanza implements NodeInterface {
 	}
 
 	public function text(content:String) {
+		serialized = null;
 		this.last_added.addDirectChild(CData(new TextNode(content)));
 		return this;
 	}
 
 	public function textTag(tagName:String, textContent:String, ?attr:DynamicAccess<String>) {
+		serialized = null;
 		this.last_added.addDirectChild(Element(new Stanza(tagName, attr ?? {}).text(textContent)));
 		return this;
 	}
@@ -188,6 +207,7 @@ class Stanza implements NodeInterface {
 
 	@:allow(borogove)
 	private function addChildren(children:Iterable<Stanza>) {
+		serialized = null;
 		for (child in children) {
 			addChild(child);
 		}
@@ -196,6 +216,7 @@ class Stanza implements NodeInterface {
 
 	@:allow(borogove)
 	private function addChildNodes(children:Iterable<Node>) {
+		serialized = null;
 		for (child in children) {
 			addDirectChild(child);
 		}
@@ -203,11 +224,13 @@ class Stanza implements NodeInterface {
 	}
 
 	public function addChild(stanza:Stanza) {
+		serialized = null;
 		this.last_added.children.push(Element(stanza));
 		return this;
 	}
 
 	public function addDirectChild(child:Node) {
+		serialized = null;
 		this.children.push(child);
 		return this;
 	}
@@ -220,6 +243,7 @@ class Stanza implements NodeInterface {
 				case CData(c): CData(c.clone());
 			});
 		}
+		clone.serialized = serialized;
 		return clone;
 	}
 
@@ -381,6 +405,7 @@ class Stanza implements NodeInterface {
 	}
 
 	public function removeChildren(?name: String, ?xmlns_:String):Void {
+		serialized = null;
 		final xmlns = xmlns_??attr.get("xmlns");
 		children = children.filter((child:Node) -> {
 			switch(child) {

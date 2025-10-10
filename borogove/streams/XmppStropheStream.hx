@@ -10,6 +10,7 @@ import cpp.Function;
 import cpp.NativeArray;
 import cpp.NativeGc;
 import cpp.NativeString;
+import cpp.Pointer;
 import cpp.RawConstPointer;
 import cpp.RawPointer;
 
@@ -41,6 +42,9 @@ extern class StropheCtx {
 
 	@:native("xmpp_ctx_free")
 	static function free(ctx:StropheCtx):Void;
+
+	@:native("xmpp_free")
+	static function release(ctx:StropheCtx, p:RawPointer<Void>):Void;
 
 	@:native("xmpp_initialize")
 	static function initialize():Void;
@@ -162,6 +166,9 @@ extern class StropheStanza {
 
 	@:native("xmpp_stanza_set_text")
 	static function set_text(stanza:StropheStanza, text:ConstPointer<Char>):Void;
+
+	@:native("xmpp_stanza_to_text")
+	static function to_text(stanza:StropheStanza, buf:Pointer<RawPointer<Char>>, buflen: Pointer<cpp.SizeT>):Int;
 
 	@:native("xmpp_stanza_release")
 	static function release(stanza:StropheStanza):Void;
@@ -352,7 +359,20 @@ class XmppStropheStream extends GenericStream {
 		return stanza;
 	}
 
-	public static function convertToStanza(el:StropheStanza, dummy:RawPointer<Void>):Stanza {
+	public static function serializeStanza(stanza:Stanza):String {
+		final sstanza = convertFromStanza(stanza);
+		var buf: RawPointer<Char> = null;
+		var bufsize: cpp.SizeT = -1;
+		final err = StropheStanza.to_text(sstanza, Pointer.addressOf(buf), Pointer.addressOf(bufsize));
+		StropheStanza.release(sstanza);
+		if (err != 0) return null;
+		final bufPtr = ConstPointer.fromRaw(buf);
+		final s =  NativeString.fromPointer(bufPtr);
+		StropheCtx.release(ctx, bufPtr.rawCast());
+		return s;
+	}
+
+	private static function convertToStanza(el:StropheStanza, dummy:RawPointer<Void>):Stanza {
 		var name = StropheStanza.get_name(el);
 		var attrlen = StropheStanza.get_attribute_count(el);
 		var attrsraw: RawPointer<cpp.Void> = NativeGc.allocGcBytesRaw(attrlen * 2 * untyped __cpp__("sizeof(char*)"), false);
@@ -380,7 +400,7 @@ class XmppStropheStream extends GenericStream {
 		return stanza;
 	}
 
-	private function convertFromStanza(el:Stanza):StropheStanza {
+	private static function convertFromStanza(el:Stanza):StropheStanza {
 		var xml = StropheStanza.create(ctx);
 		StropheStanza.set_name(xml, NativeString.c_str(el.name));
 		for (attr in el.attr.keyValueIterator()) {

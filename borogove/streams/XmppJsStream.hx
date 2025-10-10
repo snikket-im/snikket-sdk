@@ -314,7 +314,7 @@ class XmppJsStream extends GenericStream {
 		client.stop();
 	}
 
-	private function convertFromStanza(el:Stanza):XmppJsXml {
+	public static function convertFromStanza(el:Stanza):XmppJsXml {
 		var xml = new XmppJsXml(el.name, el.attr);
 		if(el.children.length > 0) {
 			for(child in el.children) {
@@ -339,7 +339,7 @@ class XmppJsStream extends GenericStream {
 		return stanza;
 	}
 
-	public static function parse(input:String):Stanza {
+	public static function parseStanza(input:String):Stanza {
 		return convertToStanza(XmppJsLtx.parse(input));
 	}
 
