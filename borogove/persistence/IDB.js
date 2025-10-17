@@ -195,7 +195,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 	function correctMessage(account, message, result) {
 		// Newest (by timestamp) version wins for head
-		const newVersions = message.versions.length < 2 ? [message] : message.versions;
+		const newVersions = message.versions.length < 1 ? [message] : message.versions;
 		const storedVersions = result.value.versions || [];
 		// TODO: dedupe? There shouldn't be dupes...
 		const versions = (storedVersions.length < 1 ? [result.value] : storedVersions).concat(newVersions.filter(nv => !storedVersions.find(sv => nv.serverId === sv.serverId)).map((nv) => serializeMessage(account, nv))).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
