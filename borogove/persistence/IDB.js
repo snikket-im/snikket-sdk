@@ -309,7 +309,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				r.notificationSettings?.mention,
 				r.notificationSettings?.reply,
 				r.disco ? new borogove.Caps(r.disco.node, r.disco.identities, r.disco.features) : null,
-            r.omemoDevices || [],
+				r.omemoDevices || [],
 				r.class
 			)));
 		},
