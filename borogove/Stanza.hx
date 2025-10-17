@@ -99,6 +99,8 @@ class Stanza implements NodeInterface {
 	};
 
 	public function serialize():String {
+		if (serialized != null) return serialized;
+
 		#if cpp
 		return (serialized = borogove.streams.XmppStropheStream.serializeStanza(this));
 		#elseif js
