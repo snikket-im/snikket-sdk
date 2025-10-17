@@ -491,19 +491,17 @@ export default async (dbname, media, tokenize, stemmer) => {
 				"prev"
 			);
 			let count = 0;
-			while (true) {
+			for (let count = 0; count < 1000; count++) {
 				const cresult = await promisifyRequest(cursor);
-				if (cresult && count < 1000) {
-					const value = cresult.value;
-					if (value?.versions?.[0]?.localId === localId && value?.direction === enums.MessageDirection.MessageSent && value?.status !== enums.MessageStatus.MessageDeliveredToDevice) {
-						const newStatus = { ...value, versions: [{ ...value.versions[0], status: status }, ...value.versions.slice(1)], status: status };
-						cresult.update(newStatus);
-						return await hydrateMessage(newStatus);
-					}
-					cresult.continue();
-				} else {
-					break;
+				if (!cresult) break;
+
+				const value = cresult.value;
+				if (value?.versions?.[0]?.localId === localId && value?.direction === enums.MessageDirection.MessageSent && value?.status !== enums.MessageStatus.MessageDeliveredToDevice) {
+					const newStatus = { ...value, versions: [{ ...value.versions[0], status: status }, ...value.versions.slice(1)], status: status };
+					cresult.update(newStatus);
+					return await hydrateMessage(newStatus);
 				}
+				cresult.continue();
 			}
 
 			throw "Message not found: " + localId;
