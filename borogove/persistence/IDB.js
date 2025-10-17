@@ -484,6 +484,28 @@ export default async (dbname, media, tokenize, stemmer) => {
 				result.update(newStatus);
 				return await hydrateMessage(newStatus);
 			}
+
+			// Maybe a correction? Check recent messages
+			const cursor = store.index("accounts").openCursor(
+				IDBKeyRange.bound([account], [account, []]),
+				"prev"
+			);
+			let count = 0;
+			while (true) {
+				const cresult = await promisifyRequest(cursor);
+				if (cresult && count < 1000) {
+					const value = cresult.value;
+					if (value?.versions?.[0]?.localId === localId && value?.direction === enums.MessageDirection.MessageSent && value?.status !== enums.MessageStatus.MessageDeliveredToDevice) {
+						const newStatus = { ...value, versions: [{ ...value.versions[0], status: status }, ...value.versions.slice(1)], status: status };
+						cresult.update(newStatus);
+						return await hydrateMessage(newStatus);
+					}
+					cresult.continue();
+				} else {
+					break;
+				}
+			}
+
 			throw "Message not found: " + localId;
 		},
 
