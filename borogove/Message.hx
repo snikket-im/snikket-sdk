@@ -29,7 +29,6 @@ enum MessageStanza {
 	ModerateMessageStanza(action: ModerationAction);
 	ReactionUpdateStanza(update: ReactionUpdate);
 	UnknownMessageStanza(stanza: Stanza);
-	UndecryptableMessageStanza(decryptionFailure: EncryptionInfo);
 }
 
 @:nullSafety(Strict)
@@ -57,11 +56,6 @@ class Message {
 
 		if (stanza.attr.get("type") == "error") {
 			return new Message(from, from, null, ErrorMessageStanza(stanza), encryptionInfo);
-		}
-
-		if(encryptionInfo != null && encryptionInfo.status == DecryptionFailure) {
-			trace("Message decryption failure: " + encryptionInfo.reasonText);
-			return new Message(from, from, stanza.getChildText("thread"), UndecryptableMessageStanza(encryptionInfo), encryptionInfo);
 		}
 
 		var msg = new ChatMessageBuilder();
