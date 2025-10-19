@@ -11,7 +11,6 @@ import borogove.Chat;
 import borogove.ChatMessage;
 import borogove.Message;
 import borogove.EventEmitter;
-import borogove.EventHandler;
 import borogove.EncryptionPolicy;
 #if !NO_OMEMO
 import borogove.OMEMO;
@@ -61,9 +60,6 @@ class Client extends EventEmitter {
 	**/
 	public var sendAvailable(null, default): Bool = true;
 	private var stream:GenericStream;
-	private var chatMessageHandlers: Array<(ChatMessage, ChatMessageEvent)->Void> = [];
-	private var syncMessageHandlers: Array<(ChatMessage)->Void> = [];
-	private var chatStateHandlers: Array<(String,String,Null<String>,UserState)->Void> = [];
 	@:allow(borogove)
 	private var jid(default,null):JID;
 	private var chats: Array<Chat> = [];
@@ -531,9 +527,7 @@ class Client extends EventEmitter {
 			if (userState != null) {
 				final chat = getChat(from.asBare().asString());
 				if (chat == null || !chat.getParticipantDetails(message.senderId).isSelf) {
-					for (handler in chatStateHandlers) {
-						handler(message.senderId, message.chatId, message.threadId, userState);
-					}
+					this.trigger("chat-state/update", { message: message, userState: userState });
 				}
 			}
 		}
@@ -1117,9 +1111,10 @@ class Client extends EventEmitter {
 		Event fired when client needs a password for authentication
 
 		@param handler takes one argument, the Client that needs a password
+		@returns token for use with removeEventListener
 	**/
 	public function addPasswordNeededListener(handler:Client->Void) {
-		this.on("auth/password-needed", (data) -> {
+		return this.on("auth/password-needed", (data) -> {
 			handler(this);
 			return EventHandled;
 		});
@@ -1129,9 +1124,10 @@ class Client extends EventEmitter {
 		Event fired when client is connected and fully synchronized
 
 		@param handler takes no arguments
+		@returns token for use with removeEventListener
 	**/
-	public function addStatusOnlineListener(handler:()->Void):Void {
-		this.on("status/online", (data) -> {
+	public function addStatusOnlineListener(handler:()->Void) {
+		return this.on("status/online", (data) -> {
 			handler();
 			return EventHandled;
 		});
@@ -1141,9 +1137,10 @@ class Client extends EventEmitter {
 		Event fired when client is disconnected
 
 		@param handler takes no arguments
+		@returns token for use with removeEventListener
 	**/
-	public function addStatusOfflineListener(handler:()->Void):Void {
-		this.on("status/offline", (data) -> {
+	public function addStatusOfflineListener(handler:()->Void) {
+		return this.on("status/offline", (data) -> {
 			handler();
 			return EventHandled;
 		});
@@ -1153,9 +1150,10 @@ class Client extends EventEmitter {
 		Event fired when connection fails with a fatal error and will not be retried
 
 		@param handler takes no arguments
+		@returns token for use with removeEventListener
 	**/
-	public function addConnectionFailedListener(handler:()->Void):Void {
-		stream.on("status/error", (data) -> {
+	public function addConnectionFailedListener(handler:()->Void) {
+		return stream.on("status/error", (data) -> {
 			handler();
 			return EventHandled;
 		});
@@ -1165,9 +1163,10 @@ class Client extends EventEmitter {
 		Event fired when TLS checks fail, to give client the chance to override
 
 		@param handler takes two arguments, the PEM of the cert and an array of DNS names, and must return true to accept or false to reject
+		@returns token for use with removeEventListener
 	**/
-	public function addTlsCheckListener(handler:(String, Array<String>)->Bool): Void {
-		stream.on("tls/check", (data) -> {
+	public function addTlsCheckListener(handler:(String, Array<String>)->Bool) {
+		return stream.on("tls/check", (data) -> {
 			return EventValue(handler(data.pem, data.dnsNames));
 		});
 	}
@@ -1176,8 +1175,11 @@ class Client extends EventEmitter {
 	// TODO: haxe cpp erases enum into int, so using it as a callback arg is hard
 	// could just use int in C bindings, or need to come up with a good strategy
 	// for the wrapper
-	public function addUserStateListener(handler: (String,String,Null<String>,UserState)->Void):Void {
-		chatStateHandlers.push(handler);
+	public function addUserStateListener(handler: (String,String,Null<String>,UserState)->Void):EventHandlerToken {
+		return this.on("chat-state/update", (data) -> {
+			handler(data.message.senderId, data.message.chatId, data.message.threadId, data.userState);
+			return EventHandled;
+		});
 	}
 	#end
 
@@ -1187,15 +1189,18 @@ class Client extends EventEmitter {
 		when a ChatMessage is edited, or when a reaction is added
 
 		@param handler takes two arguments, the ChatMessage and ChatMessageEvent enum describing what happened
+		@returns token for use with removeEventListener
 	**/
 	#if cpp
 		// HaxeCBridge doesn't support "secondary" enums yet
-		public function addChatMessageListener(handler:(ChatMessage, Int)->Void):Void {
-			chatMessageHandlers.push((m, e) -> handler(m, cast e));
+		public function addChatMessageListener(handler:(ChatMessage, Int)->Void) {
 	#else
-		public function addChatMessageListener(handler:(ChatMessage, ChatMessageEvent)->Void):Void {
-			chatMessageHandlers.push(handler);
+		public function addChatMessageListener(handler:(ChatMessage, ChatMessageEvent)->Void):EventHandlerToken {
 	#end
+		return this.on("chat-state/update", (data) -> {
+			handler(data.message, data.event);
+			return EventHandled;
+		});
 	}
 
 	/**
@@ -1203,20 +1208,25 @@ class Client extends EventEmitter {
 		Normally you don't want this, but it may be useful if you want to notify on app start.
 
 		@param handler takes one argument, the ChatMessage
+		@returns token for use with removeEventListener
 	**/
-	public function addSyncMessageListener(handler:(ChatMessage)->Void):Void {
-		syncMessageHandlers.push(handler);
+	public function addSyncMessageListener(handler:(ChatMessage)->Void):EventHandlerToken {
+		return this.on("message/sync", (data) -> {
+			handler(data);
+			return EventHandled;
+		});
 	}
 
 	/**
 		Event fired when a Chat's metadata is updated, or when a new Chat is added
 
 		@param handler takes one argument, an array of Chats that were updated
+		@returns token for use with removeEventListener
 	**/
 	private final updateChatBuffer: Map<String, Chat> = [];
 	private var updateChatTimer = null;
-	public function addChatsUpdatedListener(handler:Array<Chat>->Void):Void {
-		this.on("chats/update", (data: Array<Chat>) -> {
+	public function addChatsUpdatedListener(handler:Array<Chat>->Void) {
+		return this.on("chats/update", (data: Array<Chat>) -> {
 			if (updateChatTimer != null) {
 				updateChatTimer.stop();
 			}
@@ -1237,9 +1247,10 @@ class Client extends EventEmitter {
 		Event fired when a new call comes in
 
 		@param handler takes one argument, the call Session
+		@returns token for use with removeEventListener
 	**/
-	public function addCallRingListener(handler:(Session)->Void):Void {
-		this.on("call/ring", (data) -> {
+	public function addCallRingListener(handler:(Session)->Void) {
+		return this.on("call/ring", (data) -> {
 			handler(data.session);
 			return EventHandled;
 		});
@@ -1249,9 +1260,10 @@ class Client extends EventEmitter {
 		Event fired when a call is retracted or hung up
 
 		@param handler takes two arguments, the associated Chat ID and Session ID
+		@returns token for use with removeEventListener
 	**/
-	public function addCallRetractListener(handler:(String,String)->Void):Void {
-		this.on("call/retract", (data) -> {
+	public function addCallRetractListener(handler:(String,String)->Void) {
+		return this.on("call/retract", (data) -> {
 			handler(data.chatId, data.sid);
 			return EventHandled;
 		});
@@ -1261,9 +1273,10 @@ class Client extends EventEmitter {
 		Event fired when an outgoing call starts ringing
 
 		@param handler takes two arguments, the associated Chat ID and Session ID
+		@returns token for use with removeEventListener
 	**/
-	public function addCallRingingListener(handler:(String,String)->Void):Void {
-		this.on("call/ringing", (data) -> {
+	public function addCallRingingListener(handler:(String,String)->Void) {
+		return this.on("call/ringing", (data) -> {
 			handler(data.chatId, data.sid);
 			return EventHandled;
 		});
@@ -1273,9 +1286,10 @@ class Client extends EventEmitter {
 		Event fired when an existing call changes status (connecting, failed, etc)
 
 		@param handler takes one argument, the associated Session
+		@returns token for use with removeEventListener
 	**/
-	public function addCallUpdateStatusListener(handler:(InitiatedSession)->Void):Void {
-		this.on("call/updateStatus", (data) -> {
+	public function addCallUpdateStatusListener(handler:(InitiatedSession)->Void) {
+		return this.on("call/updateStatus", (data) -> {
 			handler(data.session);
 			return EventHandled;
 		});
@@ -1287,9 +1301,10 @@ class Client extends EventEmitter {
 		@param handler takes three arguments, the call Session,
 		       a boolean indicating if audio is desired,
 		       and a boolean indicating if video is desired
+		@returns token for use with removeEventListener
 	**/
-	public function addCallMediaListener(handler:(InitiatedSession,Bool,Bool)->Void):Void {
-		this.on("call/media", (data) -> {
+	public function addCallMediaListener(handler:(InitiatedSession,Bool,Bool)->Void) {
+		return this.on("call/media", (data) -> {
 			handler(data.session, data.audio, data.video);
 			return EventHandled;
 		});
@@ -1300,9 +1315,10 @@ class Client extends EventEmitter {
 
 		@param handler takes three arguments, the associated Chat ID,
 		       the new MediaStreamTrack, and an array of any associated MediaStreams
+		@returns token for use with removeEventListener
 	**/
-	public function addCallTrackListener(handler:(String,MediaStreamTrack,Array<MediaStream>)->Void):Void {
-		this.on("call/track", (data) -> {
+	public function addCallTrackListener(handler:(String,MediaStreamTrack,Array<MediaStream>)->Void) {
+		return this.on("call/track", (data) -> {
 			handler(data.chatId, data.track, data.streams);
 			return EventHandled;
 		});
@@ -1454,9 +1470,7 @@ class Client extends EventEmitter {
 	private function notifyMessageHandlers(message: ChatMessage, event: ChatMessageEvent) {
 		final chat = getChat(message.chatId());
 		if (chat != null && chat.isBlocked) return; // Don't notify blocked chats
-		for (handler in chatMessageHandlers) {
-			handler(message, event);
-		}
+		this.trigger("message/new", { message: message, event: event });
 	}
 
 	@:allow(borogove)
@@ -1464,9 +1478,7 @@ class Client extends EventEmitter {
 		if (message == null || message.versions.length > 1) return;
 		final chat = getChat(message.chatId());
 		if (chat != null && chat.isBlocked) return; // Don't notify blocked chats
-		for (handler in syncMessageHandlers) {
-			handler(message);
-		}
+		this.trigger("message/sync", message);
 	}
 
 	private function rosterGet() {
@@ -1645,12 +1657,10 @@ class Client extends EventEmitter {
 			promises.push(persistence.storeMessages(accountId(), chatMessages));
 			trace("SYNC: MAM page wait for writes");
 			thenshim.PromiseTools.all(promises).then((results) -> {
-				if (syncMessageHandlers.length > 0) {
-					for (messages in results) {
-						if (messages != null) {
-							for (message in messages) {
-								notifySyncMessageHandlers(message);
-							}
+				for (messages in results) {
+					if (messages != null) {
+						for (message in messages) {
+							this.trigger("message/sync", message);
 						}
 					}
 				}

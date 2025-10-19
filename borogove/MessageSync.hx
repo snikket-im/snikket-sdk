@@ -68,7 +68,7 @@ class MessageSync {
 			}
 		}
 		var query = new MAMQuery(filter, serviceJID);
-		var resultHandler = stream.on("message", function (event) {
+		final eventToken = stream.on("message", function (event) {
 			progress++;
 			var message:Stanza = event.stanza;
 			var from = message.attr.exists("from") ? message.attr.get("from") : client.accountId();
@@ -137,7 +137,7 @@ class MessageSync {
 			return EventHandled;
 		});
 		query.onFinished(function() {
-			resultHandler.unsubscribe();
+			stream.removeEventListener(eventToken);
 			var result = query.getResult();
 			if (result == null) {
 				trace("Error from MAM, stopping sync");

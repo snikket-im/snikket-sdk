@@ -1716,7 +1716,8 @@ class CConverterContext {
 	}
 
 	function getTypeAliasCType(type: Type, allowNonTrivial: Bool, allowBareFnTypes: Bool, pos: Position): CType {
-		var ident = safeIdent(declarationPrefix + '_' + typeDeclarationIdent(type, false));
+		//var ident = safeIdent(declarationPrefix + '_' + typeDeclarationIdent(type, false));
+		final ident = hx.strings.Strings.toLowerUnderscore(safeIdent(typeDeclarationIdent(type, false)));
 
 		// order of typedef typeDeclarations should be dependency correct because required typedefs are added before this typedef is added
 		// we call this outside the exists() branch below to make sure `allowNonTrivial` and `allowBareFnTypes` errors will be caught
