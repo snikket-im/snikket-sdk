@@ -15,6 +15,7 @@ export import Client = borogove.Client;
 export import Config = borogove.Config;
 export import CustomEmojiReaction = borogove.CustomEmojiReaction;
 export import DirectChat = borogove.DirectChat;
+export import EventEmitter = borogove.EventEmitter;
 export import Hash = borogove.Hash;
 export import Identicon = borogove.Identicon;
 export import Identity = borogove.Identity;

@@ -15,6 +15,7 @@ typedef EventCallback = (Dynamic)->EventResult;
 
 typedef EventHandlerToken = Int;
 
+@:expose
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
