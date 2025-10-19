@@ -969,7 +969,7 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function lastMessageId() {
-		return lastMessage?.localId ?? lastMessage?.serverId;
+		return lastMessage?.serverId ?? lastMessage?.localId;
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
