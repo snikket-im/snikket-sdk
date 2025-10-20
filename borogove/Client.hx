@@ -1223,9 +1223,9 @@ class Client extends EventEmitter {
 		@param handler takes one argument, an array of Chats that were updated
 		@returns token for use with removeEventListener
 	**/
-	private final updateChatBuffer: Map<String, Chat> = [];
-	private var updateChatTimer = null;
 	public function addChatsUpdatedListener(handler:Array<Chat>->Void) {
+		final updateChatBuffer: Map<String, Chat> = [];
+		var updateChatTimer = null;
 		return this.on("chats/update", (data: Array<Chat>) -> {
 			if (updateChatTimer != null) {
 				updateChatTimer.stop();
