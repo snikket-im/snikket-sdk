@@ -1197,7 +1197,7 @@ class Client extends EventEmitter {
 	#else
 		public function addChatMessageListener(handler:(ChatMessage, ChatMessageEvent)->Void):EventHandlerToken {
 	#end
-		return this.on("chat-state/update", (data) -> {
+		return this.on("message/new", (data) -> {
 			handler(data.message, data.event);
 			return EventHandled;
 		});
