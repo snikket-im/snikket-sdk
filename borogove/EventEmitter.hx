@@ -50,7 +50,9 @@ class EventEmitter {
 
 	@:allow(borogove)
 	private function trigger(eventName:String, eventData:Dynamic):EventResult {
-		var handlers = eventHandlers.get(eventName);
+		final handlers = eventHandlers.get(eventName);
+		if (handlers == null) return EventUnhandled;
+
 		trace("firing event: "+eventName);
 		var handled = false;
 		for (handler in handlers) {
