@@ -913,8 +913,8 @@ class DirectChat extends Chat {
 						#end
 					}
 					setLastMessage(message.build());
-					client.trigger("chats/update", [this]);
 					client.notifyMessageHandlers(stored[0], stored[0].versions.length > 1 ? CorrectionEvent : DeliveryEvent);
+					client.trigger("chats/update", [this]);
 				});
 			case ReactionUpdateStanza(update):
 				persistence.storeReaction(client.accountId(), update).then((stored) -> {
