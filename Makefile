@@ -74,6 +74,7 @@ doc:
 	npx @microsoft/api-documenter markdown -i tmp -o docs/js/
 	rm -r tmp
 	find docs/js/ -name '*.md' -exec sed -i 's/<\([[:alpha:]][[:alpha:]]*\)/<\1 markdown="1"/g' \{\} \;
+	git checkout docs/js/index.md
 	mkdocs build
 	haxe haxedoc.hxml
 	haxelib run dox --toplevel-package borogove -i haxedoc.xml -o site/haxe/

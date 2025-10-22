@@ -1,4 +1,4 @@
-site_name: "Borogove SDK"
+site_name: Borogove
 
 theme:
   name: readthedocs
@@ -29,3 +29,7 @@ nav:
   - JavaScript:
     - js/index.md
     - API Reference: js/borogove.md
+  - Swift:
+    - SwiftPM: ../src/r/swiftpm/
+  - Haxe:
+    - API Reference: haxe/
