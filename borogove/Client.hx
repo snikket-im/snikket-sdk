@@ -664,6 +664,7 @@ class Client extends EventEmitter {
 			while ((oneProtoChat = protoChats.pop()) != null) {
 				chats.push(oneProtoChat.toChat(this, stream, persistence));
 			}
+			getDirectChat(accountId()); // Ensure self chat exists
 			return persistence.getChatsUnreadDetails(accountId(), chats);
 		}).then((details) -> {
 			for (detail in details) {
