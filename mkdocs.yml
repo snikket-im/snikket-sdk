@@ -2,6 +2,7 @@ site_name: "Borogove SDK"
 
 theme:
   name: readthedocs
+  prev_next_buttons_location: false
 
 plugins:
   - search
@@ -22,7 +23,9 @@ markdown_extensions:
   - markdown.extensions.md_in_html
 
 nav:
-  - Home: index.md
-  - API:
-    - C: c/borogove_8h.md
-    - JavaScript: js/borogove.md
+  - README: index.md
+  - C:
+    - API Reference: c/borogove_8h.md
+  - JavaScript:
+    - js/index.md
+    - API Reference: js/borogove.md
