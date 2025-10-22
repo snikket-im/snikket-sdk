@@ -22,7 +22,7 @@
     "@xmpp/debug": "^0.13.0",
     "@xmpp/sasl-scram-sha-1": "^0.13.1",
     "buffer": "^6.0.3",
-    "cipher-base": "github:steveluscher/cipher-base#2fdfc60f198aa797b873d21345a17cbd47846fdf"
+    "cipher-base": "^1.0.7"
   },
   "devDependencies": {
     "typescript": "^5.4.5"
