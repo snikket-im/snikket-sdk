@@ -1500,12 +1500,16 @@ class Channel extends Chat {
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function markReadUpTo(message: ChatMessage) {
 		markReadUpToMessage(message).then(_ -> {
-			final stanza = new Stanza("message", { to: chatId, id: ID.long(), type: "groupchat" })
-				.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: message.serverId }).up();
-			if (message.threadId != null) {
-				stanza.textTag("thread", message.threadId);
+			// Only send markers for others messages,
+			// it's obvious we've read our own
+			if (message.isIncoming() && message.serverId != null) {
+				final stanza = new Stanza("message", { to: chatId, id: ID.long(), type: "groupchat" })
+					.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: message.serverId }).up();
+				if (message.threadId != null) {
+					stanza.textTag("thread", message.threadId);
+				}
+				client.sendStanza(stanza);
 			}
-			client.sendStanza(stanza);
 
 			publishMds();
 			client.trigger("chats/update", [this]);
