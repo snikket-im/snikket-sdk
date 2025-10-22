@@ -876,7 +876,7 @@ class Client extends EventEmitter {
 		@param q the search query to use
 		@param callback takes two arguments, the query that was used and the array of results
 	**/
-	public function findAvailableChats(q:String, callback:(String, Array<AvailableChat>) -> Void) {
+	public function findAvailableChats(q:String, callback:(String, Array<AvailableChat>) -> Bool) {
 		var results = [];
 		final query = StringTools.trim(q);
 		final checkAndAdd = (jid: JID, prepend = false) -> {
@@ -896,7 +896,7 @@ class Client extends EventEmitter {
 					final note = jid.asString() + (identity == null ? "" : " (" + identity.type + ")");
 					add(new AvailableChat(jid.asString(), displayName, note, resultCaps));
 				}
-				callback(q, results);
+				if (callback != null && callback(q, results)) callback = null;
 			});
 			sendQuery(discoGet);
 		};
@@ -953,7 +953,7 @@ class Client extends EventEmitter {
 			}
 		}
 		if (!jid.isValid() && results.length > 0) {
-			callback(q, results);
+			if (callback != null && callback(q, results)) callback = null;
 		}
 	}
 
