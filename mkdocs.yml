@@ -3,6 +3,7 @@ site_name: Borogove
 theme:
   name: readthedocs
   prev_next_buttons_location: false
+  include_homepage_in_sidebar: false
 
 plugins:
   - search
