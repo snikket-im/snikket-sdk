@@ -81,10 +81,13 @@ abstract class Chat {
 		Is this chat blocked?
 	**/
 	public var isBlocked(default, null): Bool = false;
+	/**
+		The most recent message in this chat
+	**/
+	public var lastMessage(default, null): Null<ChatMessage>;
 	@:allow(borogove)
 	private var extensions: Stanza;
 	private var _unreadCount = 0;
-	private var lastMessage: Null<ChatMessage>;
 	private var readUpToId: Null<String>;
 	@:allow(borogove)
 	private var readUpToBy: Null<String>;
@@ -411,13 +414,6 @@ abstract class Chat {
 		An ID of the most recent message in this chat
 	**/
 	abstract public function lastMessageId():Null<String>;
-
-	/**
-		The timestamp of the most recent message in this chat
-	**/
-	public function lastMessageTimestamp():Null<String> {
-		return lastMessage?.timestamp;
-	}
 
 	@:allow(borogove)
 	private function updateFromBookmark(item: Stanza) {
@@ -1230,7 +1226,7 @@ class Channel extends Chat {
 					inSync = true;
 					sync = null;
 					final lastFromSync = chatMessages[chatMessages.length - 1];
-					if (lastFromSync != null && (lastMessageTimestamp() == null || Reflect.compare(lastFromSync.timestamp, lastMessageTimestamp()) > 0)) {
+					if (lastFromSync != null && (lastMessage?.timestamp == null || Reflect.compare(lastFromSync.timestamp, lastMessage?.timestamp) > 0)) {
 						setLastMessage(lastFromSync);
 						client.sortChats();
 					}

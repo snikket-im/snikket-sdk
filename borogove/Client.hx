@@ -1391,7 +1391,7 @@ class Client extends EventEmitter {
 		chats.sort((a, b) -> {
 			if (a.uiState == Pinned && b.uiState != Pinned) return -1;
 			if (b.uiState == Pinned && a.uiState != Pinned) return 1;
-			return -Reflect.compare(a.lastMessageTimestamp() ?? "0", b.lastMessageTimestamp() ?? "0");
+			return -Reflect.compare(a.lastMessage?.timestamp ?? "0", b.lastMessage?.timestamp ?? "0");
 		});
 	}
 
