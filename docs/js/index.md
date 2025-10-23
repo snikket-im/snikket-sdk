@@ -39,7 +39,7 @@ In real life you probably want to prompt the user when receiving the event. You 
 
 ## Chats
 
-Let’s continue by starting your fist chat. A chat contains messages, a list of people that are participating, and optionally a list of members. The example below shows how to start a chat with a new contact:
+Let’s continue by starting your first chat. A chat contains messages, a list of people that are participating, and optionally a list of members. The example below shows how to start a chat with a new contact:
 
 ```typescript
 const chat = await new Promise(resolve => {
