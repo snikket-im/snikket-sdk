@@ -464,6 +464,7 @@ class MediaStreamTrack {
 
 		@param callback takes three arguments, the Signed 16-bit PCM data, the clock rate, and the number of channels
 	**/
+	@HaxeCBridge.gcFree(callback)
 	public function addPCMListener(callback: (Array<cpp.Int16>,Int,Int)->Void) {
 		pcmCallback = callback;
 	}
@@ -501,9 +502,7 @@ class MediaStreamTrack {
 				s16[i] = ULAW_DECODE[cast msg.at(i)];
 			}
 			if (pcmCallback != null) {
-				cpp.vm.Gc.enterGCFreeZone();
 				pcmCallback(s16.toData(), rtp.clockRate, channels);
-				cpp.vm.Gc.exitGCFreeZone();
 			}
 		} else if (format == "opus") {
 			final s16 = new haxe.ds.Vector(5760).toData(); // 5760 is the max size needed for 48khz
@@ -512,9 +511,7 @@ class MediaStreamTrack {
 			final decoded = OpusDecoder.decode(opus, cast msg.data(), msg.size(), cpp.Pointer.ofArray(s16), Std.int(s16.length / channels), false);
 			s16.resize(decoded * channels);
 			if (pcmCallback != null) {
-				cpp.vm.Gc.enterGCFreeZone();
 				pcmCallback(s16, rtp.clockRate, channels);
-				cpp.vm.Gc.exitGCFreeZone();
 			}
 		} else {
 			trace("Ignoring audio frame with format", format);
@@ -527,6 +524,7 @@ class MediaStreamTrack {
 
 		@param callback
 	**/
+	@HaxeCBridge.gcFree(callback)
 	public function addReadyForPCMListener(callback: ()->Void) {
 		readyForPCMCallback = callback;
 		if (untyped __cpp__("track") && track.ref.isOpen()) {
@@ -543,9 +541,7 @@ class MediaStreamTrack {
 					waitForQ = true;
 					mutex.release();
 				} else {
-					cpp.vm.Gc.enterGCFreeZone();
 					readyForPCMCallback();
-					cpp.vm.Gc.exitGCFreeZone();
 				}
 			});
 		}

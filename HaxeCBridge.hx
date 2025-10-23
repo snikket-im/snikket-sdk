@@ -182,6 +182,13 @@ class HaxeCBridge {
 			if (field.access.contains(AOverride)) {
 				field.meta.push({name: "HaxeCBridge.noemit", pos: field.pos});
 			}
+			final gcFree = field.meta.filter(m -> m.name == "HaxeCBridge.gcFree").map(m ->
+				switch (m.params[0].expr) {
+					case EConst(CIdent(id)): id;
+					default: null;
+				}
+			);
+			field.meta = field.meta.filter(m -> m.name != "HaxeCBridge.gcFree");
 			if (field.access.contains(APublic) && !field.access.contains(AOverride) && !field.meta.exists((m) -> m.name == "HaxeCBridge.noemit")) {
 				switch field.kind {
 				case FFun(fun):
@@ -208,19 +215,44 @@ class HaxeCBridge {
 							aret = convertSecondaryType(aret).args[0];
 							args.push({name: arg.name, type: TPath({name: "Callable", pack: ["cpp"], params: [TPType(TFunction(Lambda.flatten(aargs.map(aarg -> aarg.args)).concat([TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]})]), aret))]})});
 							args.push({name: arg.name + "__context", type: TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]})});
-							final lambdaargs = Lambda.flatten(aargs.mapi((i, a) ->
+							final lambdaargs = [];
+							final lambdabody = Lambda.flatten(aargs.mapi((i, a) ->
 								if (a.retainType == "Array") {
-									[macro $i{"a" + i}, macro $i{"a" + i}.length];
+									final t = a.args[0];
+									lambdaargs.push(macro $i{"x" + i});
+									lambdaargs.push(macro $i{"xl" + i});
+									final x = "x" + i;
+									final xl = "xl" + i;
+									[macro final $x : $t = $i{"a" + i}].concat([macro final $xl = $i{"a" + i}.length]);
 								} else if (a.retainType == "String") {
-									[macro HaxeCBridge.retainHaxeString($i{"a" + i})];
+									lambdaargs.push(macro $i{"x" + i});
+									final name = "x" + i;
+									[macro final $name = HaxeCBridge.retainHaxeString($i{"a" + i})];
 								} else if (a.retainType == "Object") {
-									[macro HaxeCBridge.retainHaxeObject($i{"a" + i})];
+									lambdaargs.push(macro $i{"x" + i});
+									final name = "x" + i;
+									[macro final $name = HaxeCBridge.retainHaxeObject($i{"a" + i})];
 								} else {
-									[macro $i{"a" + i}];
+									lambdaargs.push(macro $i{"a" + i});
+									[];
 								}
-							)).concat([macro $i{arg.name + "__context"}]);
+							));
+							lambdaargs.push(macro $i{arg.name + "__context"});
+							if (gcFree.contains(arg.name)) lambdabody.push(macro cpp.NativeGc.enterGCFreeZone());
+							switch (aret) {
+								case TPath(_.sub => "Void"):
+									lambdabody.push(macro $i{arg.name}($a{lambdaargs}));
+								default:
+									lambdabody.push(macro final ret = $i{arg.name}($a{lambdaargs}));
+							}
+							if (gcFree.contains(arg.name)) lambdabody.push(macro cpp.NativeGc.exitGCFreeZone());
+							switch (aret) {
+								case TPath(_.sub => "Void"):
+								default:
+								lambdabody.push(macro return ret);
+							}
 							final lambdafargs = aargs.mapi((i, a) ->  {name: "a" + i, meta: null, opt: false, type: null, value: null});
-							passArgs.push({expr: EFunction(null, { args: lambdafargs, expr: macro return $i{arg.name}($a{lambdaargs}) }), pos: field.pos});
+							passArgs.push({expr: EFunction(null, { args: lambdafargs, expr: macro $b{lambdabody} }), pos: field.pos});
 						case TPath(path) if (path.name == "Array"):
 							wrap = true;
 							final isString = switch path.params[0] {
