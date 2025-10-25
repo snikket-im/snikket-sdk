@@ -38,10 +38,10 @@ export import UiState = enums.UiState;
 export import UserState = enums.UserState;
 
 export namespace persistence {
-	export import IDB = IDBjs;
+	export const IDB = IDBjs as any;
 	export import KeyValueStore = borogove.persistence.KeyValueStore;
 	export import MediaStore = borogove.persistence.MediaStore;
-	export import MediaStoreCache = MediaStoreCachejs;
+	export const MediaStoreCache = MediaStoreCachejs as any;
 	export import Dummy = borogove.persistence.Dummy;
 	export import Sqlite = borogove.persistence.Sqlite;
 }
