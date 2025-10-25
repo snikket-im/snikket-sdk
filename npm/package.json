@@ -1,7 +1,8 @@
 {
   "name": "borogove",
   "version": "0.0.0",
-  "description": "Chat SDK",
+  "homepage": "https://borogove.dev",
+  "description": "An SDK that makes it easy to build your own custom chat experience",
   "main": "index.js",
   "type": "module",
   "files": [
