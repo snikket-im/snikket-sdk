@@ -20,9 +20,7 @@
   "dependencies": {
     "@xmpp/client": "https://gitpkg-singpolyma.vercel.app/singpolyma/xmpp.js/packages/client?main",
     "@xmpp/debug": "^0.13.0",
-    "@xmpp/sasl-scram-sha-1": "^0.13.1",
-    "buffer": "^6.0.3",
-    "cipher-base": "^1.0.7"
+    "@xmpp/sasl-scram-sha-1": "^0.13.1"
   },
   "devDependencies": {
     "typescript": "^5.4.5"
