@@ -1673,12 +1673,12 @@ class Client extends EventEmitter {
 					for (sid => stanza in sync.jmi) {
 						onMAMJMI(sid, stanza);
 					}
+#end
 					for (chatId => _ in chatIds) {
 						// If this is a message from a prevoiusly unknown direct chat, record the chat
 						final chat = getChat(chatId);
 						if (chat == null) getDirectChat(chatId);
 					}
-#end
 					if (callback != null) callback(true);
 				}
 			},
