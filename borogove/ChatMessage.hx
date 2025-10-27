@@ -333,11 +333,15 @@ class ChatMessage {
 		Get HTML version of the message body
 
 		WARNING: this is possibly untrusted HTML. You must parse or sanitize appropriately!
+
+		@param sender optionally specify the full details of the sender
 	**/
-	public function html():String {
+	public function html(sender: Null<Participant> = null):String {
 		final htmlBody = payloads.find((p) -> p.attr.get("xmlns") == "http://jabber.org/protocol/xhtml-im" && p.name == "html")?.getChild("body", "http://www.w3.org/1999/xhtml");
+		var htmlSource = "";
+		var isAction = false;
 		if (htmlBody != null) {
-			return htmlBody.getChildren().map(el -> el.traverse(child -> {
+			htmlSource = htmlBody.getChildren().map(el -> el.traverse(child -> {
 				if (child.name == "img") {
 					final src = child.attr.get("src");
 					if (src != null) {
@@ -348,24 +352,39 @@ class ChatMessage {
 					}
 					return true;
 				}
+				final senderP = sender;
+				if (senderP != null && child.getFirstChild() == null) {
+					final txt = child.getText();
+					if (txt.startsWith("/me")) {
+						isAction = true;
+						child.removeChildren();
+						child.text(senderP.displayName + txt.substr(3));
+					}
+				}
 				return false;
 			}).serialize()).join("");
+		} else {
+			var bodyText = text ?? "";
+			if (sender != null && bodyText.startsWith("/me")) {
+				isAction = true;
+				bodyText = sender.displayName + bodyText.substr(3);
+			}
+			final codepoints = StringUtil.codepointArray(bodyText);
+			// TODO: not every app will implement every feature. How should the app tell us what fallbacks to handle?
+			final fallbacks: Array<{start: Int, end: Int}> = cast payloads.filter(
+				(p) -> p.attr.get("xmlns") == "urn:xmpp:fallback:0" &&
+					(((p.attr.get("for") == "jabber:x:oob" || p.attr.get("for") == "urn:xmpp:sims:1") && attachments.length > 0) ||
+					 (replyToMessage != null && p.attr.get("for") == "urn:xmpp:reply:0") ||
+					 p.attr.get("for") == "http://jabber.org/protocol/address")
+			).map((p) -> p.getChild("body")).map((b) -> b == null ? null : { start: Std.parseInt(b.attr.get("start") ?? "0") ?? 0, end: Std.parseInt(b.attr.get("end") ?? Std.string(codepoints.length)) ?? codepoints.length }).filter((b) -> b != null);
+			fallbacks.sort((x, y) -> y.start - x.start);
+			for (fallback in fallbacks) {
+				codepoints.splice(fallback.start, (fallback.end - fallback.start));
+			}
+			final body = codepoints.join("");
+			htmlSource = payloads.find((p) -> p.attr.get("xmlns") == "urn:xmpp:styling:0" && p.name == "unstyled") == null ? XEP0393.parse(body).map((s) -> s.toString()).join("") : StringTools.htmlEscape(body);
 		}
-
-		final codepoints = StringUtil.codepointArray(text ?? "");
-		// TODO: not every app will implement every feature. How should the app tell us what fallbacks to handle?
-		final fallbacks: Array<{start: Int, end: Int}> = cast payloads.filter(
-			(p) -> p.attr.get("xmlns") == "urn:xmpp:fallback:0" &&
-				(((p.attr.get("for") == "jabber:x:oob" || p.attr.get("for") == "urn:xmpp:sims:1") && attachments.length > 0) ||
-				 (replyToMessage != null && p.attr.get("for") == "urn:xmpp:reply:0") ||
-				 p.attr.get("for") == "http://jabber.org/protocol/address")
-		).map((p) -> p.getChild("body")).map((b) -> b == null ? null : { start: Std.parseInt(b.attr.get("start") ?? "0") ?? 0, end: Std.parseInt(b.attr.get("end") ?? Std.string(codepoints.length)) ?? codepoints.length }).filter((b) -> b != null);
-		fallbacks.sort((x, y) -> y.start - x.start);
-		for (fallback in fallbacks) {
-			codepoints.splice(fallback.start, (fallback.end - fallback.start));
-		}
-		final body = codepoints.join("");
-		return payloads.find((p) -> p.attr.get("xmlns") == "urn:xmpp:styling:0" && p.name == "unstyled") == null ? XEP0393.parse(body).map((s) -> s.toString()).join("") : StringTools.htmlEscape(body);
+		return isAction ? '<div class="action">${htmlSource}</div>' : htmlSource;
 	}
 
 	/**

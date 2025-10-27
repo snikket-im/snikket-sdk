@@ -408,6 +408,12 @@ class Stanza implements NodeInterface {
 
 	public function removeChildren(?name: String, ?xmlns_:String):Void {
 		serialized = null;
+
+		if (name == null && xmlns_ == null) {
+			children = [];
+			return;
+		}
+
 		final xmlns = xmlns_??attr.get("xmlns");
 		children = children.filter((child:Node) -> {
 			switch(child) {
