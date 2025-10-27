@@ -24,6 +24,7 @@ package borogove;
 
 import borogove.Stanza;
 using Lambda;
+using StringTools;
 
 class Autolink {
 
@@ -356,8 +357,11 @@ class Autolink {
 			final pos = pattern.matchedPos();
 			final link = pattern.matched(0);
 			final uri = !addHttps || StringTools.contains(link, "://") ? link : "https://" + link;
+			var text = link.startsWith("xmpp:") ? ~/omemo-sid[^;]+;?/.replace(link, "") : link;
+			text = link.startsWith("xmpp:") && text.endsWith(";") ? text.substr(0, text.length - 1) : text;
+			text = text.endsWith("?") ? text.substr(0, text.length - 1) : text;
 
-			return { span: Element(new Stanza("a", { href: uri }).text(link)), start: pos.pos, end: pos.pos + pos.len };
+			return { span: Element(new Stanza("a", { href: uri }).text(text)), start: pos.pos, end: pos.pos + pos.len };
 		} else {
 			return { span: null, start: s.length, end: s.length };
 		}
