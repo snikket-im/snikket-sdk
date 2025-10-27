@@ -184,7 +184,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 		storeChatTimer = haxe.Timer.delay(() -> {
 			final mapPresence = (chat: Chat) -> {
-				final storePresence: DynamicAccess<{ ?caps: String, ?mucUser: String }> = {};
+				final storePresence: DynamicAccess<{ ?caps: String, ?mucUser: String, ?avatarHash: String }> = {};
 				final caps: Map<BytesData, Caps> = [];
 				for (resource => presence in chat.presence) {
 					if (storePresence[resource ?? ""] == null) storePresence[resource ?? ""] = {};
@@ -194,6 +194,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 					}
 					if (presence.mucUser != null) {
 						storePresence[resource ?? ""].mucUser = presence.mucUser.toString();
+					}
+					if (presence.avatarHash != null) {
+						storePresence[resource ?? ""].avatarHash = presence.avatarHash.serializeUri();
 					}
 				}
 				storeCapsSet(caps);
@@ -268,7 +271,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 					presenceJson.remove(resource);
 					presenceMap[resource] = new Presence(
 						presence.caps == null ? null : capsMap[presence.caps],
-						presence.mucUser == null || Config.constrainedMemoryMode ? null : Stanza.parse(presence.mucUser)
+						presence.mucUser == null || Config.constrainedMemoryMode ? null : Stanza.parse(presence.mucUser),
+						presence.avatarHash == null ? null : Hash.fromUri(presence.avatarHash)
 					);
 				}
 				// FIXME: Empty OMEMO contact device ids hardcoded in next line

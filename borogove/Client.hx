@@ -320,7 +320,6 @@ class Client extends EventEmitter {
 		stream.on("presence", function(event) {
 			final stanza:Stanza = event.stanza;
 			final c = stanza.getChild("c", "http://jabber.org/protocol/caps");
-			final mucUser = stanza.getChild("x", "http://jabber.org/protocol/muc#user");
 			if (stanza.attr.get("from") != null && stanza.attr.get("type") == null) {
 				final from = JID.parse(stanza.attr.get("from"));
 				final chat = getChat(from.asBare().asString());
@@ -328,13 +327,18 @@ class Client extends EventEmitter {
 					trace("Presence for unknown JID: " + stanza.attr.get("from"));
 					return EventUnhandled;
 				}
+
+				final mucUser = stanza.getChild("x", "http://jabber.org/protocol/muc#user");
+				final avatarSha1Hex = stanza.findText("{vcard-temp:x:update}x/photo#");
+				final avatarSha1 = avatarSha1Hex == null ? null : Hash.fromHex("sha-1", avatarSha1Hex);
+
 				if (c == null) {
-					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(null, mucUser));
+					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(null, mucUser, avatarSha1));
 					persistence.storeChats(accountId(), [chat]);
 					if (chat.livePresence()) this.trigger("chats/update", [chat]);
 				} else {
 					final handleCaps = (caps) -> {
-						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(caps, mucUser));
+						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(caps, mucUser, avatarSha1));
 						if (mucUser == null || chat.livePresence()) persistence.storeChats(accountId(), [chat]);
 						return chat;
 					};
@@ -365,28 +369,26 @@ class Client extends EventEmitter {
 						}
 					});
 				}
-				if (from.isBare()) {
-					final avatarSha1Hex = stanza.findText("{vcard-temp:x:update}x/photo#");
-					if (avatarSha1Hex != null) {
-						final avatarSha1 = Hash.fromHex("sha-1", avatarSha1Hex)?.hash;
-						chat.setAvatarSha1(avatarSha1);
+				if (avatarSha1 != null) {
+					if (from.isBare()) {
+						chat.setAvatarSha1(avatarSha1.hash);
 						persistence.storeChats(accountId(), [chat]);
-						persistence.hasMedia("sha-1", avatarSha1).then((has) -> {
-							if (has) {
-								if (chat.livePresence()) this.trigger("chats/update", [chat]);
-							} else {
-								final vcardGet = new VcardTempGet(from);
-								vcardGet.onFinished(() -> {
-									final vcard = vcardGet.getResult();
-									if (vcard.photo == null) return;
-									persistence.storeMedia(vcard.photo.mime, vcard.photo.data.getData()).then(_ -> {
-										this.trigger("chats/update", [chat]);
-									});
-								});
-								sendQuery(vcardGet);
-							}
-						});
 					}
+					persistence.hasMedia("sha-1", avatarSha1.hash).then((has) -> {
+						if (has) {
+							if (chat.livePresence()) this.trigger("chats/update", [chat]);
+						} else {
+							final vcardGet = new VcardTempGet(from);
+							vcardGet.onFinished(() -> {
+								final vcard = vcardGet.getResult();
+								if (vcard.photo == null) return;
+								persistence.storeMedia(vcard.photo.mime, vcard.photo.data.getData()).then(_ -> {
+									this.trigger("chats/update", [chat]);
+								});
+							});
+							sendQuery(vcardGet);
+						}
+					});
 				}
 				return EventHandled;
 			}

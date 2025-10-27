@@ -272,7 +272,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					chatId: chat.chatId,
 					trusted: chat.trusted,
 					avatarSha1: chat.avatarSha1,
-					presence: new Map([...chat.presence.entries()].map(([k, p]) => [k, { caps: p.caps?.ver(), mucUser: p.mucUser?.toString() }])),
+					presence: new Map([...chat.presence.entries()].map(([k, p]) => [k, { caps: p.caps?.ver(), mucUser: p.mucUser?.toString(), avatarHash: p.avatarHash?.serializeUri() }])),
 					displayName: chat.displayName,
 					uiState: chat.uiState,
 					isBlocked: chat.isBlocked,
@@ -297,7 +297,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				r.trusted,
 				r.avatarSha1,
 				new Map(await Promise.all((r.presence instanceof Map ? [...r.presence.entries()] : Object.entries(r.presence)).map(
-					async ([k, p]) => [k, new borogove.Presence(p.caps && await this.getCaps(p.caps), p.mucUser && borogove.Stanza.parse(p.mucUser))]
+					async ([k, p]) => [k, new borogove.Presence(p.caps && await this.getCaps(p.caps), p.mucUser && borogove.Stanza.parse(p.mucUser), p.avatarHash && borogove.Hash.fromUri(p.avatarHash))]
 				))),
 				r.displayName,
 				r.uiState,

@@ -524,7 +524,7 @@ abstract class Chat {
 			presence.caps = caps;
 			setPresence(resource, presence);
 		} else {
-			setPresence(resource, new Presence(caps, null));
+			setPresence(resource, new Presence(caps, null, null));
 		}
 	}
 
@@ -1336,7 +1336,7 @@ class Channel extends Chat {
 		} else {
 			final nick = JID.parse(participantId).resource;
 			final placeholderUri = Color.defaultPhoto(participantId, nick == null ? " " : nick.charAt(0));
-			return new Participant(nick ?? "", null, placeholderUri, false);
+			return new Participant(nick ?? "", presence[nick]?.avatarHash?.toUri(), placeholderUri, false);
 		}
 	}
 
