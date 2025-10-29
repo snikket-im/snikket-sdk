@@ -359,6 +359,7 @@ class XmppStropheStream extends GenericStream {
 		return stanza;
 	}
 
+	@:analyzer(no_fusion)
 	public static function serializeStanza(stanza:Stanza):String {
 		final sstanza = convertFromStanza(stanza);
 		var buf: RawPointer<Char> = null;
