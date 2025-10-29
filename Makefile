@@ -36,7 +36,7 @@ npm/borogove-browser.js:
 	sed -i 's/borogove\.EncryptionMode/enums.EncryptionMode/g' npm/borogove-browser.d.ts
 	sed -i 's/borogove\.EncryptionStatus/enums.EncryptionStatus/g' npm/borogove-browser.d.ts
 	sed -i '1ivar exports = {};' npm/borogove-browser.js
-	echo "export const borogove = exports.borogove;" >> npm/borogove-browser.js
+	sed -i '$$i export const borogove = exports.borogove;' npm/borogove-browser.js
 
 npm/borogove.js:
 	haxe nodejs.hxml
@@ -54,7 +54,7 @@ npm/borogove.js:
 	sed -i '1iimport { createRequire } from "module";' npm/borogove.js
 	sed -i '1iglobal.require = createRequire(import.meta.url);' npm/borogove.js
 	sed -i '1ivar exports = {};' npm/borogove.js
-	echo "export const borogove = exports.borogove;" >> npm/borogove.js
+	sed -i '$$i export const borogove = exports.borogove;' npm/borogove.js
 
 npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogove/persistence/MediaStoreCache.js borogove/persistence/sqlite-worker1.mjs
 	cp borogove/persistence/IDB.js npm

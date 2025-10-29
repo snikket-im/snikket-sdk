@@ -14,7 +14,10 @@ borogove.Push
 borogove.Version
 borogove.persistence.Sqlite
 
+-D analyzer-optimize
 -D js-es=6
+-D source-map
+-D source-map-content
 -D hxtsdgen_enums_ts
 -D hxtsdgen_namespaced
 -D NO_OMEMO
