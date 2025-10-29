@@ -205,7 +205,7 @@ class Message {
 		}
 
 		final jmi = stanza.getChild(null, "urn:xmpp:jingle-message:0");
-		if (jmi != null) {
+		if (jmi != null && jmi.name != "accept") {
 			msg.type = MessageCall;
 			msg.payloads.push(jmi);
 			if (msg.text == null) msg.text = "call " + jmi.name;
