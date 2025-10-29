@@ -44,6 +44,7 @@ interface Session {
 	private function transportInfo(stanza: Stanza): Promise<Any>;
 	public function addMedia(streams: Array<MediaStream>): Void;
 	public function callStatus():CallStatus;
+	public function audioTracks():Array<MediaStreamTrack>;
 	public function videoTracks():Array<MediaStreamTrack>;
 	public function dtmf():Null<DTMFSender>;
 }
@@ -103,6 +104,7 @@ class IncomingProposedSession implements Session {
 			client.notifyMessageHandlers(stored[0], CorrectionEvent);
 		});
 		client.getDirectChat(from.asBare().asString(), false).jingleSessions.remove(sid);
+		client.trigger("call/retract", { chatId: chatId, sid: sid });
 	}
 
 	public function retract() {
@@ -143,7 +145,8 @@ class IncomingProposedSession implements Session {
 		});
 	}
 
-	public function initiate(stanza: Stanza) {
+	@:allow(borogove)
+	private function initiate(stanza: Stanza) {
 		// TODO: check if new session has corrent media
 		final session = InitiatedSession.fromSessionInitiate(client, stanza);
 		if (session.sid != sid) throw "id mismatch";
@@ -153,18 +156,27 @@ class IncomingProposedSession implements Session {
 		return session;
 	}
 
+	@HaxeCBridge.noemit
 	public function addMedia(_) {
 		throw "Cannot add media before call starts";
 	}
 
+	@HaxeCBridge.noemit
 	public function callStatus() {
 		return Incoming;
 	}
 
+	@HaxeCBridge.noemit
+	public function audioTracks() {
+		return [];
+	}
+
+	@HaxeCBridge.noemit
 	public function videoTracks() {
 		return [];
 	}
 
+	@HaxeCBridge.noemit
 	public function dtmf() {
 		return null;
 	}
@@ -187,13 +199,15 @@ class OutgoingProposedSession implements Session {
 	private var audio = false;
 	private var video = false;
 
-	public function new(client: Client, to: JID) {
+	@:allow(borogove)
+	private function new(client: Client, to: JID) {
 		this.client = client;
 		this.to = to;
 		this._sid = ID.long();
 	}
 
-	public function propose(audio: Bool, video: Bool) {
+	@:allow(borogove)
+	private function propose(audio: Bool, video: Bool) {
 		this.audio = audio;
 		this.video = video;
 		final event = new Stanza("propose", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
@@ -210,12 +224,8 @@ class OutgoingProposedSession implements Session {
 				.tag("store", { xmlns: "urn:xmpp:hints" });
 			client.sendStanza(stanza);
 			client.notifyMessageHandlers(stored[0], DeliveryEvent);
-			client.trigger("call/ringing", { chatId: chatId, sid: sid });
+			client.trigger("call/ringing", this);
 		});
-	}
-
-	public function ring() {
-		trace("Tried to accept before initiate: " + sid, this);
 	}
 
 	public function hangup() {
@@ -230,35 +240,43 @@ class OutgoingProposedSession implements Session {
 			client.notifyMessageHandlers(stored[0], CorrectionEvent);
 		});
 		client.getDirectChat(to.asBare().asString(), false).jingleSessions.remove(sid);
+		client.trigger("call/retract", { chatId: chatId, sid: sid });
 	}
 
-	public function retract() {
+	@:allow(borogove)
+	private function retract() {
 		// Other side rejected the call
 		client.trigger("call/retract", { chatId: chatId, sid: sid });
 	}
 
-	public function terminate() {
+	@:allow(borogove)
+	private function terminate() {
 		trace("Tried to terminate before session-initiate: " + sid, this);
 	}
 
-	public function contentAdd(_) {
+	@:allow(borogove)
+	private function contentAdd(_) {
 		trace("Got content-add before session-initiate: " + sid, this);
 	}
 
-	public function contentAccept(_) {
+	@:allow(borogove)
+	private function contentAccept(_) {
 		trace("Got content-accept before session-initiate: " + sid, this);
 	}
 
-	public function transportInfo(_) {
+	@:allow(borogove)
+	private function transportInfo(_) {
 		trace("Got transport-info before session-initiate: " + sid, this);
 		return Promise.resolve(null);
 	}
 
+	@HaxeCBridge.noemit
 	public function accept() {
 		trace("Tried to accept before initiate: " + sid, this);
 	}
 
-	public function initiate(stanza: Stanza) {
+	@:allow(borogove)
+	private function initiate(stanza: Stanza) {
 		final jmi = stanza.getChild("proceed", "urn:xmpp:jingle-message:0");
 		if (jmi == null) throw "no jmi: " + stanza;
 		if (jmi.attr.get("id") != sid) throw "sid doesn't match: " + jmi.attr.get("id") + " vs " + sid;
@@ -269,6 +287,7 @@ class OutgoingProposedSession implements Session {
 		return session;
 	}
 
+	@HaxeCBridge.noemit
 	public function addMedia(_) {
 		throw "Cannot add media before call starts";
 	}
@@ -277,10 +296,17 @@ class OutgoingProposedSession implements Session {
 		return Outgoing;
 	}
 
+	@HaxeCBridge.noemit
+	public function audioTracks() {
+		return [];
+	}
+
+	@HaxeCBridge.noemit
 	public function videoTracks() {
 		return [];
 	}
 
+	@HaxeCBridge.noemit
 	public function dtmf() {
 		return null;
 	}
@@ -381,15 +407,17 @@ class InitiatedSession implements Session {
 
 	@:allow(borogove)
 	private function terminate() {
+		client.trigger("call/retract", { chatId: chatId, sid: sid });
+
 		if (pc == null) return;
-		pc.close();
-		for (tranceiver in pc.getTransceivers()) {
+		final oldPc = pc;
+		pc = null;
+		oldPc.close();
+		for (tranceiver in oldPc.getTransceivers()) {
 			if (tranceiver.sender != null && tranceiver.sender.track != null) {
 				tranceiver.sender.track.stop();
 			}
 		}
-		pc = null;
-		client.trigger("call/retract", { chatId: chatId, sid: sid });
 
 		final event = new Stanza("finish", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
 		final msg = mkCallMessage(counterpart, client.jid, event);
@@ -487,13 +515,20 @@ class InitiatedSession implements Session {
 	}
 
 	public function callStatus() {
-		return if (pc == null || pc.connectionState == "connecting") {
+		return if (pc == null || pc.connectionState == "connecting" || pc.connectionState == "new") {
 			Connecting;
 		} else if (pc.connectionState == "failed" || pc.connectionState == "closed") {
 			Failed;
 		} else {
 			Ongoing;
 		}
+	}
+
+	public function audioTracks(): Array<MediaStreamTrack> {
+		if (pc == null) return [];
+		return pc.getTransceivers()
+			.filter((t) -> t.receiver != null && t.receiver.track != null && t.receiver.track.kind == "audio" && !t.receiver.track.muted)
+			.map((t) -> t.receiver.track);
 	}
 
 	public function videoTracks(): Array<MediaStreamTrack> {
@@ -571,7 +606,7 @@ class InitiatedSession implements Session {
 		client.getIceServers((servers) -> {
 			pc = new PeerConnection({ iceServers: cast servers }, null);
 			pc.addEventListener("track", (event) -> {
-				client.trigger("call/track", { chatId: chatId, track: event.track, streams: event.streams });
+				client.trigger("call/track", { session: this, track: event.track, streams: event.streams });
 			});
 			pc.addEventListener("negotiationneeded", (event) -> { trace("renegotiate", event); return; });
 			pc.addEventListener("icecandidate", (event) -> {

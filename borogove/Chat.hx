@@ -618,6 +618,7 @@ abstract class Chat {
 		final session = new OutgoingProposedSession(client, JID.parse(chatId));
 		jingleSessions.set(session.sid, session);
 		session.propose(audio, video);
+		return session;
 	}
 
 	@HaxeCBridge.noemit

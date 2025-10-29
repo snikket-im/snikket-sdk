@@ -1278,9 +1278,9 @@ class Client extends EventEmitter {
 		@param handler takes two arguments, the associated Chat ID and Session ID
 		@returns token for use with removeEventListener
 	**/
-	public function addCallRingingListener(handler:(String,String)->Void) {
+	public function addCallRingingListener(handler:(Session)->Void) {
 		return this.on("call/ringing", (data) -> {
-			handler(data.chatId, data.sid);
+			handler(data);
 			return EventHandled;
 		});
 	}
@@ -1320,9 +1320,9 @@ class Client extends EventEmitter {
 		       the new MediaStreamTrack, and an array of any associated MediaStreams
 		@returns token for use with removeEventListener
 	**/
-	public function addCallTrackListener(handler:(String,MediaStreamTrack,Array<MediaStream>)->Void) {
+	public function addCallTrackListener(handler:(InitiatedSession,MediaStreamTrack,Array<MediaStream>)->Void) {
 		return this.on("call/track", (data) -> {
-			handler(data.chatId, data.track, data.streams);
+			handler(data.session, data.track, data.streams);
 			return EventHandled;
 		});
 	}
