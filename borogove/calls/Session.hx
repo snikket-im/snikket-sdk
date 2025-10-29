@@ -103,7 +103,7 @@ class IncomingProposedSession implements Session {
 		client.storeMessages([msg]).then((stored) -> {
 			client.notifyMessageHandlers(stored[0], CorrectionEvent);
 		});
-		client.getDirectChat(from.asBare().asString(), false).jingleSessions.remove(sid);
+		client.getChat(chatId)?.jingleSessions.remove(sid);
 		client.trigger("call/retract", { chatId: chatId, sid: sid });
 	}
 
@@ -239,7 +239,7 @@ class OutgoingProposedSession implements Session {
 			);
 			client.notifyMessageHandlers(stored[0], CorrectionEvent);
 		});
-		client.getDirectChat(to.asBare().asString(), false).jingleSessions.remove(sid);
+		client.getChat(chatId)?.jingleSessions.remove(sid);
 		client.trigger("call/retract", { chatId: chatId, sid: sid });
 	}
 
@@ -429,6 +429,7 @@ class InitiatedSession implements Session {
 					.tag("store", { xmlns: "urn:xmpp:hints" })
 			);
 		});
+		client.getChat(chatId)?.jingleSessions.remove(sid);
 	}
 
 	@:allow(borogove)
