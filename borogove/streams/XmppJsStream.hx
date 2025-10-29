@@ -1,6 +1,5 @@
 package borogove.streams;
 
-import haxe.Http;
 import haxe.Json;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
@@ -101,18 +100,9 @@ extern class XmppJsError {
 	public final application: String;
 }
 
-typedef HostMetaRecord = {
-	rel : String,
-	href : String,
-};
-typedef HostMetaJson = {
-	links : Array<HostMetaRecord>,
-};
-
 class XmppJsStream extends GenericStream {
 	private var client:XmppJsClient;
 	private var jid:XmppJsJID;
-	private var connectionURI: Null<String>;
 	private var debug = true;
 	private var state:FSM;
 	private var pending:Array<XmppJsXml> = [];
@@ -140,35 +130,10 @@ class XmppJsStream extends GenericStream {
 		}, "offline");
 	}
 
-	static private function resolveConnectionURI(domain:String, callback:(String)->Void):Void {
-		#if nodejs
-		callback("xmpp://" + domain);
-		return;
-		#else
-		var request = new Http('https://$domain/.well-known/host-meta.json');
-		request.onData = function (data:String) {
-			final parsed:HostMetaJson = Json.parse(data);
-			final links = parsed.links.filter((entry) -> entry.href.substr(0, 6) == "wss://");
-			if (links.length > 0) {
-				callback(links[0].href);
-				return;
-			}
-			callback(null);
-		};
-		request.onError = function (msg:String) {
-			callback(null);
-		}
-		request.request(false);
-		#end
-	}
-
-	private function connectWithURI(uri:String) {
-		trace("Got connection URI: "+uri);
-		if(uri == null) {
-			this.state.event("connection-error");
-			return;
-		}
-		connectionURI = uri;
+	public function connect(jidS:String, sm:Null<BytesData>) {
+		this.state.event("connect-requested");
+		this.jid = new XmppJsJID(jidS);
+		this.initialSM = sm;
 
 		final waitForCreds = new js.lib.Promise((resolve, reject) -> {
 			this.on("auth/password", (event: Dynamic) -> {
@@ -180,8 +145,7 @@ class XmppJsStream extends GenericStream {
 
 		final clientId = jid.resource;
 		final xmpp = new XmppJsClient({
-			service: connectionURI,
-			domain: jid.domain,
+			service: jid.domain,
 			resource: jid.resource,
 			credentials: (callback, mechanisms: Dynamic, fast: Null<{mechanism: String}>) -> {
 				everConnected = true;
@@ -221,7 +185,7 @@ class XmppJsStream extends GenericStream {
 		}
 
 		if (initialSM != null) {
-			final parsedSM = haxe.Json.parse(Bytes.ofData(initialSM).toString());
+			final parsedSM = Json.parse(Bytes.ofData(initialSM).toString());
 			final parsedPending: Null<Array<String>> = parsedSM.pending;
 			if (parsedPending != null) {
 				for (item in parsedPending) {
@@ -301,14 +265,6 @@ class XmppJsStream extends GenericStream {
 		});
 	}
 
-	public function connect(jid:String, sm:Null<BytesData>) {
-		this.state.event("connect-requested");
-		this.jid = new XmppJsJID(jid);
-		this.initialSM = sm;
-
-		resolveConnectionURI(this.jid.domain, this.connectWithURI);
-	}
-
 	public function disconnect() {
 		if (client == null) return;
 		client.stop();
@@ -361,7 +317,7 @@ class XmppJsStream extends GenericStream {
 		this.trigger(
 			"sm/update",
 			{
-				sm: bytesOfString(haxe.Json.stringify({
+				sm: bytesOfString(Json.stringify({
 					id: client.streamManagement.id,
 					outbound: client.streamManagement.outbound,
 					inbound: client.streamManagement.inbound,
