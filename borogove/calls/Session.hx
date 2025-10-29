@@ -703,4 +703,12 @@ class OutgoingSession extends InitiatedSession {
 		  .then((_) -> transportInfo(stanza));
 		return this;
 	}
+
+	override public function callStatus() {
+		return if (pc == null || remoteDescription == null) {
+			return Outgoing;
+		} else {
+			return super.callStatus();
+		}
+	}
 }
