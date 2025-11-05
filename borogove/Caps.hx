@@ -1,20 +1,22 @@
 package borogove;
 
 import haxe.crypto.Base64;
+import haxe.ds.ReadOnlyArray;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
 using Lambda;
+using borogove.Util;
 
+import borogove.DataForm;
 import borogove.Hash;
 import borogove.Util;
 
-@:expose
 class Caps {
 	public final node: String;
-	public final identities: Array<Identity>;
-	public final features : Array<String>;
+	public final identities: ReadOnlyArray<Identity>;
+	public final features : ReadOnlyArray<String>;
+	public final data: ReadOnlyArray<DataForm>;
 	private var _ver : Null<Hash> = null;
-	// TODO: data forms
 
 	@:allow(borogove)
 	private static function withIdentity(caps:KeyValueIterator<String, Null<Caps>>, category:Null<String>, type:Null<String>):Array<String> {
@@ -46,10 +48,18 @@ class Caps {
 		return result;
 	}
 
-	public function new(node: String, identities: Array<Identity>, features: Array<String>, ?ver: BytesData) {
+	public function new(node: String, identities: Array<Identity>, features: Array<String>, data: Array<DataForm>, ?ver: BytesData) {
+		if (ver == null) {
+			// If we won't need to generate ver we don't actually need to sort
+			features.sort((x, y) -> x == y ? 0 : (x < y ? -1 : 1));
+			identities.sort((x, y) -> x.ver() == y.ver() ? 0 : (x.ver() < y.ver() ? -1 : 1));
+			data.sort((x, y) -> Reflect.compare(x.field("FORM_TYPE")?.value, y.field("FORM_TYPE")?.value));
+		}
+
 		this.node = node;
 		this.identities = identities;
 		this.features = features;
+		this.data = data;
 		if (ver != null) {
 			_ver = new Hash("sha-1", ver);
 		}
@@ -68,6 +78,7 @@ class Caps {
 		for (feature in features) {
 			query.tag("feature", { "var": feature }).up();
 		}
+		query.addChildren(data);
 		return query;
 	}
 
@@ -78,18 +89,69 @@ class Caps {
 			node: node,
 			ver: ver()
 		}).up();
+		stanza.tag("c", {
+			xmlns: "urn:xmpp:caps",
+		}).textTag(
+			"hash",
+			Hash.sha256(hashInput()).toBase64(),
+			{ xmlns: "urn:xmpp:hashes:2", algo: "sha-256" }
+		).up();
 		return stanza;
 	}
 
+	private function hashInput(): Bytes {
+		var s = new haxe.io.BytesOutput();
+		for (feature in features) {
+			s.writeS(feature);
+			s.writeByte(0x1f);
+		}
+		s.writeByte(0x1c);
+		for (identity in identities) {
+			identity.writeTo(s);
+		}
+		s.writeByte(0x1c);
+		for (form in data) {
+			final fields = form.fields();
+			fields.sort((x, y) -> Reflect.compare([x.name].concat(x.value).join("\x1f"), [y.name].concat(y.value).join("\x1f")));
+			for (field in fields) {
+				final values = field.value;
+				values.sort(Reflect.compare);
+				s.writeS(field.name);
+				s.writeByte(0x1f);
+				for (value in values) {
+					s.writeS(value);
+					s.writeByte(0x1f);
+				}
+				s.writeByte(0x1e);
+			}
+			s.writeByte(0x1d);
+		}
+		s.writeByte(0x1c);
+		return s.getBytes();
+	}
+
 	private function computeVer(): Hash {
-		features.sort((x, y) -> x == y ? 0 : (x < y ? -1 : 1));
-		identities.sort((x, y) -> x.ver() == y.ver() ? 0 : (x.ver() < y.ver() ? -1 : 1));
 		var s = "";
 		for (identity in identities) {
 			s += identity.ver() + "<";
 		}
 		for (feature in features) {
 			s += feature + "<";
+		}
+		for (form in data) {
+			s += form.field("FORM_TYPE").value[0] + "<";
+			final fields = form.fields();
+			fields.sort((x, y) -> Reflect.compare(x.name, y.name));
+			for (field in fields) {
+				if (field.name != "FORM_TYPE") {
+					s += field.name + "<";
+					final values = field.value;
+					values.sort(Reflect.compare);
+					for (value in values) {
+						s += value + "<";
+					}
+				}
+			}
 		}
 		return Hash.sha1(bytesOfString(s));
 	}
@@ -104,23 +166,38 @@ class Caps {
 	}
 }
 
-@:expose
 class Identity {
 	public final category:String;
 	public final type:String;
 	public final name:String;
+	public final lang:String;
 
-	public function new(category:String, type: String, name: String) {
+	public function new(category:String, type: String, name: String, lang: Null<String> = null) {
 		this.category = category;
 		this.type = type;
 		this.name = name;
+		this.lang = lang ?? "";
 	}
 
 	public function addToDisco(stanza: Stanza) {
-		stanza.tag("identity", { category: category, type: type, name: name }).up();
+		var attrs: haxe.DynamicAccess<String> = { category: category, type: type, name: name };
+		if (lang != null && lang != "") attrs.set("xml:lang", lang);
+		stanza.tag("identity", attrs).up();
 	}
 
 	public function ver(): String {
-		return category + "/" + type + "//" + name;
+		return category + "/" + type + "/" + (lang ?? "") + "/" + name;
+	}
+
+	public function writeTo(out: haxe.io.Output) {
+		out.writeS(category);
+		out.writeByte(0x1f);
+		out.writeS(type);
+		out.writeByte(0x1f);
+		out.writeS(lang ?? "");
+		out.writeByte(0x1f);
+		out.writeS(name);
+		out.writeByte(0x1f);
+		out.writeByte(0x1e);
 	}
 }

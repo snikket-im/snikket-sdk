@@ -70,6 +70,7 @@ class Client extends EventEmitter {
 		[
 			"http://jabber.org/protocol/disco#info",
 			"http://jabber.org/protocol/caps",
+			"urn:xmpp:caps",
 			"urn:xmpp:avatar:metadata+notify",
 			"http://jabber.org/protocol/nick+notify",
 			"urn:xmpp:bookmarks:1+notify",
@@ -86,7 +87,8 @@ class Client extends EventEmitter {
 #if !NO_OMEMO
 			"eu.siacs.conversations.axolotl.devicelist+notify"
 #end
-		]
+		],
+		[]
 	);
 	private var _displayName: String;
 	private var fastMechanism: Null<String> = null;
@@ -889,7 +891,7 @@ class Client extends EventEmitter {
 				if (resultCaps == null) {
 					final err = discoGet.responseStanza?.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
 					if (err == null || err?.name == "service-unavailable" || err?.name == "feature-not-implemented") {
-						add(new AvailableChat(jid.asString(), jid.node == null ? query : jid.node, jid.asString(), new Caps("", [], [])));
+						add(new AvailableChat(jid.asString(), jid.node == null ? query : jid.node, jid.asString(), new Caps("", [], [], [])));
 					}
 				} else {
 					persistence.storeCaps(resultCaps);
@@ -915,7 +917,7 @@ class Client extends EventEmitter {
 			if (chat.chatId != jid.asBare().asString()) {
 				if (chat.chatId.contains(query.toLowerCase()) || chat.getDisplayName().toLowerCase().contains(query.toLowerCase())) {
 					final channel = Util.downcast(chat, Channel);
-					results.push(new AvailableChat(chat.chatId, chat.getDisplayName(), chat.chatId, channel == null || channel.disco == null ? new Caps("", [], []) : channel.disco));
+					results.push(new AvailableChat(chat.chatId, chat.getDisplayName(), chat.chatId, channel == null || channel.disco == null ? new Caps("", [], [], []) : channel.disco));
 				}
 			}
 			if (chat.isTrusted()) {

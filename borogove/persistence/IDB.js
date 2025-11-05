@@ -280,9 +280,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 					readUpToId: chat.readUpToId,
 					readUpToBy: chat.readUpToBy,
 					notificationSettings: chat.notificationsFiltered() ? { mention: chat.notifyMention(), reply: chat.notifyReply() } : null,
-					disco: chat.disco,
+					disco: { ...chat.disco, data: chat.disco?.data?.map(d => d.toString()) },
 					omemoDevices: chat.omemoContactDeviceIDs,
-				class: chat instanceof borogove.DirectChat ? "DirectChat" : (chat instanceof borogove.Channel ? "Channel" : "Chat")
+					class: chat instanceof borogove.DirectChat ? "DirectChat" : (chat instanceof borogove.Channel ? "Channel" : "Chat")
 				});
 			}
 		},
@@ -308,7 +308,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				r.notificationSettings === undefined ? null : r.notificationSettings != null,
 				r.notificationSettings?.mention,
 				r.notificationSettings?.reply,
-				r.disco ? new borogove.Caps(r.disco.node, r.disco.identities, r.disco.features) : null,
+				r.disco ? new borogove.Caps(r.disco.node, r.disco.identities, r.disco.features, (r.disco.data || []).map(s => borogove.Stanza.parse(s))) : null,
 				r.omemoDevices || [],
 				r.class
 			)));
@@ -624,7 +624,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 		storeCaps: function(caps) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			store.put(caps, "caps:" + caps.ver()).onerror = console.error;
+			store.put({ ...caps, data: caps.data.map(d => d.toString()) }, "caps:" + caps.ver()).onerror = console.error;
 		},
 
 		getCaps: async function(ver) {
@@ -632,7 +632,12 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const store = tx.objectStore("keyvaluepairs");
 			const raw = await promisifyRequest(store.get("caps:" + ver));
 			if (raw) {
-				return new borogove.Caps(raw.node, raw.identities.map((identity) => new borogove.Identity(identity.category, identity.type, identity.name)), raw.features);
+				return new borogove.Caps(
+					raw.node,
+					raw.identities.map((identity) => new borogove.Identity(identity.category, identity.type, identity.name)),
+					raw.features,
+					(raw.data || []).map(s => borogove.Stanza.parse(s))
+				);
 			}
 
 			return null;

@@ -5,7 +5,6 @@ import { borogove } from "./borogove.js";
 
 // TODO: should we autogenerate this?
 export import AvailableChat = borogove.AvailableChat;
-export import Caps = borogove.Caps;
 export import Channel = borogove.Channel;
 export import Chat = borogove.Chat;
 export import ChatAttachment = borogove.ChatAttachment;
@@ -18,7 +17,6 @@ export import DirectChat = borogove.DirectChat;
 export import EventEmitter = borogove.EventEmitter;
 export import Hash = borogove.Hash;
 export import Identicon = borogove.Identicon;
-export import Identity = borogove.Identity;
 export import Notification = borogove.Notification;
 export import Participant = borogove.Participant;
 export import Persistence = borogove.Persistence;

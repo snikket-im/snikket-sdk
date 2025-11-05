@@ -6,7 +6,6 @@ import haxe.Exception;
 import borogove.ID;
 import borogove.ResultSet;
 import borogove.Stanza;
-import borogove.Stream;
 import borogove.queries.GenericQuery;
 import borogove.Caps;
 
@@ -46,8 +45,16 @@ class DiscoInfoGet extends GenericQuery {
 			final features = q.allTags("feature");
 			result = new Caps(
 				q.attr.get("node"),
-				identities.map((identity) -> new Identity(identity.attr.get("category"), identity.attr.get("type"), identity.attr.get("name"))),
-				features.map((feature) -> feature.attr.get("var"))
+				identities.map((identity) ->
+					new Identity(
+						identity.attr.get("category"),
+						identity.attr.get("type"),
+						identity.attr.get("name"),
+						identity.attr.get("xml:lang")
+					)
+				),
+				features.map((feature) -> feature.attr.get("var")),
+				q.allTags("x", "jabber:x:data")
 			);
 		}
 		return result;

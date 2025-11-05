@@ -9,6 +9,7 @@ class TestAll {
 			new TestSessionDescription(),
 			new TestChatMessageBuilder(),
 			new TestStanza(),
+			new TestCaps(),
 		]);
 	}
 }

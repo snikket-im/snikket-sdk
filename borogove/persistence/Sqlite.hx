@@ -241,7 +241,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			final chats: Array<Dynamic> = [];
 			for (row in result) {
 				final capsJson = row.caps == null ? null : Json.parse(row.caps);
-				row.capsObj = capsJson == null ? null : new Caps(capsJson.node, capsJson.identities.map(i -> new Identity(i.category, i.type, i.name), row.caps_ver), capsJson.features);
+				row.capsObj = capsJson == null ? null : hydrateCaps(capsJson, row.caps_ver);
 				final presenceJson: DynamicAccess<Dynamic> = Json.parse(row.presence);
 				row.presenceJson = presenceJson;
 				for (resource => presence in presenceJson) {
@@ -258,7 +258,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			final capsMap: Map<String, Caps> = [];
 			for (row in result.caps) {
 				final json = Json.parse(row.caps);
-				capsMap[Base64.encode(Bytes.ofData(row.sha1))] = new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name), row.sha1), json.features);
+				capsMap[Base64.encode(Bytes.ofData(row.sha1))] = hydrateCaps(json, row.sha1);
 			}
 			result.caps = null;
 			final chats = [];
@@ -571,7 +571,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			if (!first) q.add(",");
 			q.add("(?,jsonb(?))");
 			params.push(ver);
-			params.push(Json.stringify({ node: caps.node, identities: caps.identities, features: caps.features }));
+			params.push(Json.stringify({ node: caps.node, identities: caps.identities, features: caps.features, data: caps.data.map(d -> d.toString()) }));
 			first = false;
 		}
 		if (params.length < 1) return;
@@ -591,7 +591,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		).then(result -> {
 			for (row in result) {
 				final json = Json.parse(row.caps);
-				return new Caps(json.node, json.identities.map(i -> new Identity(i.category, i.type, i.name)), json.features, verData);
+				return hydrateCaps(json, verData);
 			}
 			return null;
 		});
@@ -723,7 +723,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 						serviceId: row.service_id,
 						name: row.name,
 						node: row.node,
-						caps: new Caps(json.node, (json.identities ?? []).map(i -> new Identity(i.category, i.type, i.name)), features)
+						caps: hydrateCaps(json)
 					});
 				}
 			}
@@ -869,6 +869,16 @@ class Sqlite implements Persistence implements KeyValueStore {
 			}
 			return builder;
 		}));
+	}
+
+	private function hydrateCaps(o: { node: Null<String>, identities: Array<{category: String, type: String, name: String}>, features: Array<String>, ?data: Array<String> }, ver: Null<BytesData> = null) {
+		return new Caps(
+			o.node,
+			(o.identities ?? []).map(i -> new Identity(i.category, i.type, i.name)),
+			o.features ?? [],
+			(o.data ?? []).map(d -> Stanza.parse(d)),
+			ver
+		);
 	}
 
 #if !NO_OMEMO

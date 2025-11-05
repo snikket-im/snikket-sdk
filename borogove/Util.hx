@@ -85,3 +85,14 @@ macro function getGitVersion():haxe.macro.Expr.ExprOf<String> {
 	return macro $v{commitHash};
 	#end
 }
+
+class Util {
+	inline static public function at<T>(arr: Array<T>, i: Int): T {
+		return arr[i];
+	}
+
+	inline static public function writeS(o: haxe.io.Output, s: String) {
+		final b = bytesOfString(s);
+		o.writeBytes(b, 0, b.length);
+	}
+}

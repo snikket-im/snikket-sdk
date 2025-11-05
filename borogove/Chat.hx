@@ -547,7 +547,7 @@ abstract class Chat {
 
 	@:allow(borogove)
 	private function getResourceCaps(resource:String):Caps {
-		return presence[resource]?.caps ?? new Caps("", [], []);
+		return presence[resource]?.caps ?? new Caps("", [], [], []);
 	}
 
 	@:allow(borogove)
@@ -1046,7 +1046,7 @@ class DirectChat extends Chat {
 #end
 class Channel extends Chat {
 	@:allow(borogove)
-	private var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"]);
+	private var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"], []);
 	private var inSync = true;
 	private var sync = null;
 	private var forceLive = false;
@@ -1680,7 +1680,7 @@ class SerializedChat {
 			new DirectChat(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy, omemoContactDeviceIDs);
 		} else if (klass == "Channel") {
 			final channel = new Channel(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy);
-			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"]);
+			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"], []);
 			if (notificationsFiltered == null && !channel.isPrivate()) {
 				mention = filterN = true;
 			}
