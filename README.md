@@ -33,7 +33,7 @@ Also Typescript typings are generated which include documenation comments.
 
 ## Alpine Linux
 
-See [snikket-sdk build recipe](https://pkgs.alpinelinux.org/package/edge/testing/x86_64/snikket-sdk)
+See [borogove-sdk build recipe](https://pkgs.alpinelinux.org/package/edge/testing/x86_64/borogove-sdk)
 
 # Swift
 
