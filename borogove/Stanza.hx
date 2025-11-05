@@ -14,34 +14,20 @@ enum Node {
 
 typedef NodeList = Array<Node>;
 
-private interface NodeInterface {
-	public function serialize():String;
-	public function clone():NodeInterface;
-	public function traverse(f: (Stanza)->Bool):NodeInterface;
-}
-
-class TextNodeClass implements NodeInterface {
-	public var content(get, never):String;
-	private final node: TextNode;
-
-	public function new(node: TextNode) {
-		this.node = node;
-	}
-
-	private function get_content(): String {
-		return node.content;
-	}
-
-	public function serialize():String {
-		return node.serialize();
-	}
-
-	public function clone():TextNodeClass {
+abstract NodeInterface(Node) from Node to Node {
+	inline public function traverse(f: (Stanza)->Bool): NodeInterface {
+		switch(this) {
+			case Element(el): el.traverse(f);
+			default:
+		}
 		return this;
 	}
 
-	public function traverse(f: (Stanza)->Bool) {
-		return this;
+	inline public function serialize() {
+		switch(this) {
+			case Element(el): return el.serialize();
+			case CData(text): return text.serialize();
+		}
 	}
 }
 
@@ -63,10 +49,6 @@ abstract TextNode(String) {
 	inline public function clone():TextNode {
 		return new TextNode(this);
 	}
-
-	inline public function toClass() {
-		return new TextNodeClass(new TextNode(this));
-	}
 }
 
 class StanzaError {
@@ -82,7 +64,7 @@ class StanzaError {
 }
 
 @:expose
-class Stanza implements NodeInterface {
+class Stanza {
 	public final name:String = null;
 	public final attr:DynamicAccess<String> = {};
 	public var children(default, null):Array<Node> = [];
@@ -283,13 +265,6 @@ class Stanza implements NodeInterface {
 
 	public function getFirstChild():Stanza {
 		return allTags()[0];
-	}
-
-	public function getChildren():Array<NodeInterface> {
-		return children.map(child -> switch(child) {
-			case Element(el): el;
-			case CData(text): text.toClass();
-		});
 	}
 
 	public function getChild(?name:Null<String>, ?xmlns:Null<String>):Null<Stanza> {

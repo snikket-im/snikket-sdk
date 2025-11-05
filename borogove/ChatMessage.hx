@@ -341,7 +341,7 @@ class ChatMessage {
 		var htmlSource = "";
 		var isAction = false;
 		if (htmlBody != null) {
-			htmlSource = htmlBody.getChildren().map(el -> el.traverse(child -> {
+			htmlSource = htmlBody.children.map((el: NodeInterface) -> el.traverse(child -> {
 				if (child.name == "img") {
 					final src = child.attr.get("src");
 					if (src != null) {
