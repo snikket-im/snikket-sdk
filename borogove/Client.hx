@@ -929,6 +929,26 @@ class Client extends EventEmitter {
 		if (jid.isValid()) {
 			checkAndAdd(jid, true);
 		}
+
+		if (StringTools.startsWith(query, "https://")) {
+			tink.http.Client.fetch(query, {
+				method: HEAD
+			}).all()
+				.handle(function(o) switch o {
+					case Success(res):
+						final regex = ~/<xmpp:([^>]+)>/;
+						for (link in res.header.get("link")) {
+							if (regex.match(link)) {
+								final parts = regex.matched(1).split("?");
+								final jid = JID.parse(StringTools.urlDecode(parts[0]));
+								if (jid.isValid()) checkAndAdd(jid, true);
+							}
+						}
+					case Failure(e):
+						trace("findAvailable request failed", e);
+				});
+		}
+
 		for (chat in chats) {
 			if (chat.chatId != jid.asBare().asString()) {
 				if (chat.chatId.contains(query.toLowerCase()) || chat.getDisplayName().toLowerCase().contains(query.toLowerCase())) {
