@@ -911,6 +911,14 @@ class Client extends EventEmitter {
 		} else if (StringTools.startsWith(query, "BEGIN:VCARD") && vcard_regex.match(query)) {
 			final parts = vcard_regex.matched(1).split("?");
 			JID.parse(StringTools.urlDecode(parts[0]));
+		} else if (StringTools.startsWith(query, "https://")) {
+			final hashParts = query.split("#");
+			if (hashParts.length > 1) {
+				JID.parse(StringTools.urlDecode(hashParts[1]));
+			} else {
+				final pathParts = hashParts[0].split("/");
+				JID.parse(StringTools.urlDecode(pathParts[pathParts.length - 1]));
+			}
 		} else {
 			JID.parse(query);
 		}
