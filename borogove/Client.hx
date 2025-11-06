@@ -881,9 +881,13 @@ class Client extends EventEmitter {
 		@param callback takes two arguments, the query that was used and the array of results
 	**/
 	public function findAvailableChats(q:String, callback:(String, Array<AvailableChat>) -> Bool) {
+		var haveJid: Map<String, Bool> = [];
 		var results = [];
 		final query = StringTools.trim(q);
 		final checkAndAdd = (jid: JID, prepend = false) -> {
+			if (haveJid[jid.asString()]) return;
+			haveJid[jid.asString()] = true;
+
 			final add = (item) -> prepend ? results.unshift(item) : results.push(item);
 			final discoGet = new DiscoInfoGet(jid.asString());
 			discoGet.onFinished(() -> {
