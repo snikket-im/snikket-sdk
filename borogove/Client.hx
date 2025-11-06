@@ -904,8 +904,12 @@ class Client extends EventEmitter {
 			});
 			sendQuery(discoGet);
 		};
+		final vcard_regex = ~/\nIMPP[^:]*:xmpp:(.+)\n/;
 		final jid = if (StringTools.startsWith(query, "xmpp:")) {
 			final parts = query.substr(5).split("?");
+			JID.parse(StringTools.urlDecode(parts[0]));
+		} else if (StringTools.startsWith(query, "BEGIN:VCARD") && vcard_regex.match(query)) {
+			final parts = vcard_regex.matched(1).split("?");
 			JID.parse(StringTools.urlDecode(parts[0]));
 		} else {
 			JID.parse(query);
