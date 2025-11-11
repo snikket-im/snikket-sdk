@@ -9,6 +9,7 @@ import borogove.queries.MAMQuery;
 
 import thenshim.Promise;
 import thenshim.PromiseTools;
+using StringTools;
 
 #if !NO_OMEMO
 import borogove.OMEMO;
@@ -68,6 +69,8 @@ class MessageSync {
 			}
 		}
 		var query = new MAMQuery(filter, serviceJID);
+		var previousMessageTime = "";
+		var counterSameTime = 0;
 		final eventToken = stream.on("message", function (event) {
 			progress++;
 			var message:Stanza = event.stanza;
@@ -84,6 +87,25 @@ class MessageSync {
 				return EventHandled;
 			}
 			var timestamp = result.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
+			if (timestamp == null) {
+				trace("MAM result with no timestamp", result);
+			} else {
+				// If no subseconds, fix them to at least sort right
+				timestamp = ~/([0-9][0-9]:[0-9][0-9]:[0-9][0-9])(\.[0-9][0-9][0-9])?/.map(timestamp, (ereg) -> {
+					if (ereg.matched(2) == null || ereg.matched(2) == ".000") {
+						if (ereg.matched(1) == previousMessageTime) {
+							counterSameTime++;
+						} else {
+							previousMessageTime = ereg.matched(1);
+							counterSameTime = 1;
+						}
+
+						return ereg.matched(1) + "." + Std.string(counterSameTime).lpad("0", 3);
+					}
+
+					return ereg.matched(0);
+				});
+			}
 
 			final jmiChildren = originalMessage.allTags(null, "urn:xmpp:jingle-message:0");
 			if (jmiChildren.length > 0) {
