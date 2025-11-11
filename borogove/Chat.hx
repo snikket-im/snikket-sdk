@@ -1137,6 +1137,23 @@ class Channel extends Chat {
 		persistence.lastId(client.accountId(), chatId).then(doSync);
 	}
 
+	override public function getDisplayName() {
+		if (this.displayName == chatId) {
+			final title = (info()?.field("muc#roomconfig_roomname")?.value ?? []).join("\n");
+			if (title != null && title != "") return title;
+		}
+
+		return super.getDisplayName();
+	}
+
+	public function description() {
+		return (info()?.field("muc#roominfo_description")?.value ?? []).join("\n");
+	}
+
+	private function info() {
+		return disco?.data?.find(d -> d.field("FORM_TYPE")?.value?.at(0) == "http://jabber.org/protocol/muc#roominfo");
+	}
+
 	@:allow(borogove)
 	override private function getCaps():KeyValueIterator<String, Caps> {
 		return {
