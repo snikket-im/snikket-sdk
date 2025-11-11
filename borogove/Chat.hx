@@ -106,6 +106,9 @@ abstract class Chat {
 
 	@:allow(borogove)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
+		if (chatId == null || chatId == "") {
+			throw "chatId may not be empty";
+		}
 		this.client = client;
 		this.stream = stream;
 		this.persistence = persistence;
@@ -1690,7 +1693,7 @@ class SerializedChat {
 			throw "Unknown class of " + chatId + ": " + klass;
 		}
 		chat.setNotificationsInternal(filterN, mention, notifyReply);
-		if (displayName != null) chat.displayName = displayName;
+		if (displayName != null && displayName != "") chat.displayName = displayName;
 		if (avatarSha1 != null) chat.setAvatarSha1(avatarSha1);
 		chat.setTrusted(trusted);
 		for (resource => p in presence) {

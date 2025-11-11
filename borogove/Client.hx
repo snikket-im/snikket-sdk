@@ -114,14 +114,17 @@ class Client extends EventEmitter {
 	/**
 		Create a new Client to connect to a particular account
 
-		@param address the account to connect to
+		@param accountId the account to connect to
 		@param persistence the persistence layer to use for storage
 	**/
-	public function new(address: String, persistence: Persistence) {
+	public function new(accountId: String, persistence: Persistence) {
+		if (accountId == null || accountId == "") {
+			throw "accountId cannot be empty";
+		}
 		Util.setupTrace();
 		super();
-		this.jid = JID.parse(address);
-		this._displayName = this.jid.node;
+		this.jid = JID.parse(accountId);
+		this._displayName = this.jid.node ?? this.jid.asString();
 		this.persistence = persistence;
 #if !NO_OMEMO
 		this.omemo = new OMEMO(this, persistence);
@@ -144,13 +147,13 @@ class Client extends EventEmitter {
 		});
 
 		stream.on("sm/update", (data) -> {
-			persistence.storeStreamManagement(accountId(), stream.emitSMupdates ? data.sm : null);
+			persistence.storeStreamManagement(this.accountId(), stream.emitSMupdates ? data.sm : null);
 			return EventHandled;
 		});
 
 		stream.on("sm/ack", (data) -> {
 			persistence.updateMessageStatus(
-				accountId(),
+				this.accountId(),
 				data.id,
 				MessageDeliveredToServer
 			).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
@@ -159,7 +162,7 @@ class Client extends EventEmitter {
 
 		stream.on("sm/fail", (data) -> {
 			persistence.updateMessageStatus(
-				accountId(),
+				this.accountId(),
 				data.id,
 				MessageFailedToSend
 			).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
@@ -176,7 +179,7 @@ class Client extends EventEmitter {
 
 			final from = stanza.attr.get("from") == null ? null : JID.parse(stanza.attr.get("from"));
 			var fwd = null;
-			if (from != null && from.asBare().asString() == accountId()) {
+			if (from != null && from.asBare().asString() == this.accountId()) {
 				var carbon = stanza.getChild("received", "urn:xmpp:carbons:2");
 				if (carbon == null) carbon = stanza.getChild("sent", "urn:xmpp:carbons:2");
 				if (carbon != null) {
@@ -276,7 +279,7 @@ class Client extends EventEmitter {
 					chatsToUpdate.push(cast (chat, Chat));
 				}
 			}
-			persistence.storeChats(accountId(), chatsToUpdate);
+			persistence.storeChats(this.accountId(), chatsToUpdate);
 			this.trigger("chats/update", chatsToUpdate);
 
 			return IqResult;
@@ -337,12 +340,12 @@ class Client extends EventEmitter {
 
 				if (c == null) {
 					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(null, mucUser, avatarSha1));
-					persistence.storeChats(accountId(), [chat]);
+					persistence.storeChats(this.accountId(), [chat]);
 					if (chat.livePresence()) this.trigger("chats/update", [chat]);
 				} else {
 					final handleCaps = (caps) -> {
 						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(caps, mucUser, avatarSha1));
-						if (mucUser == null || chat.livePresence()) persistence.storeChats(accountId(), [chat]);
+						if (mucUser == null || chat.livePresence()) persistence.storeChats(this.accountId(), [chat]);
 						return chat;
 					};
 
@@ -375,7 +378,7 @@ class Client extends EventEmitter {
 				if (avatarSha1 != null) {
 					if (from.isBare()) {
 						chat.setAvatarSha1(avatarSha1.hash);
-						persistence.storeChats(accountId(), [chat]);
+						persistence.storeChats(this.accountId(), [chat]);
 					}
 					persistence.hasMedia("sha-1", avatarSha1.hash).then((has) -> {
 						if (has) {
@@ -404,7 +407,7 @@ class Client extends EventEmitter {
 				}
 				// Maybe in the future record it as offine rather than removing it
 				chat.removePresence(JID.parse(stanza.attr.get("from")).resource);
-				persistence.storeChats(accountId(), [chat]);
+				persistence.storeChats(this.accountId(), [chat]);
 				this.trigger("chats/update", [chat]);
 			}
 
