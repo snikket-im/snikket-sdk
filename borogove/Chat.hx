@@ -20,6 +20,7 @@ import borogove.queries.DiscoInfoGet;
 import borogove.queries.MAMQuery;
 using Lambda;
 using StringTools;
+using borogove.Util;
 
 #if cpp
 import HaxeCBridge;

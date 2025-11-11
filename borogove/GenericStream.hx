@@ -1,6 +1,7 @@
 package borogove;
 
 import haxe.io.BytesData;
+import thenshim.Promise;
 import borogove.Stanza;
 import borogove.EventEmitter;
 
@@ -18,9 +19,10 @@ abstract class GenericStream extends EventEmitter {
 	public function new() {
 		super();
 	}
-	
+
 	/* Connections and streams */
 
+	abstract public function register(domain: String, preAuth: Null<String>):Promise<Stanza>;
 	abstract public function connect(jid:String, sm:Null<BytesData>):Void;
 	abstract public function disconnect():Void;
 	abstract public function sendStanza(stanza:Stanza):Void;

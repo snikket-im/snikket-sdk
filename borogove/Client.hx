@@ -17,6 +17,7 @@ import borogove.OMEMO;
 #end
 import borogove.PubsubEvent;
 import borogove.Stream;
+import borogove.Util;
 #if !NO_JINGLE
 import borogove.calls.IceServer;
 import borogove.calls.PeerConnection;
@@ -911,17 +912,17 @@ class Client extends EventEmitter {
 		final vcard_regex = ~/\nIMPP[^:]*:xmpp:(.+)\n/;
 		final jid = if (StringTools.startsWith(query, "xmpp:")) {
 			final parts = query.substr(5).split("?");
-			JID.parse(StringTools.urlDecode(parts[0]));
+			JID.parse(uriDecode(parts[0]));
 		} else if (StringTools.startsWith(query, "BEGIN:VCARD") && vcard_regex.match(query)) {
 			final parts = vcard_regex.matched(1).split("?");
-			JID.parse(StringTools.urlDecode(parts[0]));
+			JID.parse(uriDecode(parts[0]));
 		} else if (StringTools.startsWith(query, "https://")) {
 			final hashParts = query.split("#");
 			if (hashParts.length > 1) {
-				JID.parse(StringTools.urlDecode(hashParts[1]));
+				JID.parse(uriDecode(hashParts[1]));
 			} else {
 				final pathParts = hashParts[0].split("/");
-				JID.parse(StringTools.urlDecode(pathParts[pathParts.length - 1]));
+				JID.parse(uriDecode(pathParts[pathParts.length - 1]));
 			}
 		} else {
 			JID.parse(query);
@@ -931,22 +932,11 @@ class Client extends EventEmitter {
 		}
 
 		if (StringTools.startsWith(query, "https://")) {
-			tink.http.Client.fetch(query, {
-				method: HEAD
-			}).all()
-				.handle(function(o) switch o {
-					case Success(res):
-						final regex = ~/<xmpp:([^>]+)>/;
-						for (link in res.header.get("link")) {
-							if (regex.match(link)) {
-								final parts = regex.matched(1).split("?");
-								final jid = JID.parse(StringTools.urlDecode(parts[0]));
-								if (jid.isValid()) checkAndAdd(jid, true);
-							}
-						}
-					case Failure(e):
-						trace("findAvailable request failed", e);
-				});
+			xmppLinkHeader(query).then(xmppUri -> {
+				final parts = xmppUri.substr(5).split("?");
+				final jid = JID.parse(uriDecode(parts[0]));
+				if (jid.isValid()) checkAndAdd(jid, true);
+			});
 		}
 
 		for (chat in chats) {

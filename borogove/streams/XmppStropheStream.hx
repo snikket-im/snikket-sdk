@@ -3,6 +3,7 @@ package borogove.streams;
 import haxe.DynamicAccess;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
+import thenshim.Promise;
 
 import cpp.Char;
 import cpp.ConstPointer;
@@ -316,6 +317,10 @@ class XmppStropheStream extends GenericStream {
 			stream.ready = false;
 			stream.trigger("status/offline", {});
 		}
+	}
+
+	public function register(domain: String, preAuth: Null<String>) {
+		return Promise.reject("TODO");
 	}
 
 	public function connect(jid:String, sm:Null<BytesData>) {

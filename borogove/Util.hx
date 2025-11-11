@@ -1,6 +1,7 @@
 package borogove;
 
 import haxe.io.Bytes;
+import thenshim.Promise;
 #if js
 import js.html.TextEncoder;
 final textEncoder = new TextEncoder();
@@ -20,6 +21,26 @@ function setupTrace() {
 		}
 	}
 #end
+}
+
+function xmppLinkHeader(url: String) {
+	return new Promise((resolve, reject) -> {
+		tink.http.Client.fetch(url, { method: HEAD })
+			.all()
+			.handle(function(o) switch o {
+				case Success(res):
+					final regex = ~/<(xmpp:[^>]+)>/;
+					for (link in res.header.get("link")) {
+						if (regex.match(link)) {
+							resolve(regex.matched(1));
+							return;
+						}
+					}
+					reject(null);
+				case Failure(e):
+					reject(e);
+			});
+	});
 }
 
 inline function bytesOfString(s: String) {
@@ -62,6 +83,43 @@ function downcast<T, S>(value: T, c: Class<S>): Null<S> {
 function xmlEscape(s: String) {
 	// NOTE: using StringTools.htmlEscape breaks things if this is one half of a surrogate pair in an adjacent cdata
 	return StringTools.replace(StringTools.replace(StringTools.replace(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;");
+}
+
+// Taken from StringTools but modified not to decode + as space
+#if (flash || js || cs || python) inline #end function uriDecode(s:String):String {
+	#if flash
+	return untyped __global__["decodeURIComponent"](s);
+	#elseif js
+	return untyped decodeURIComponent(s);
+	#elseif cs
+	return untyped cs.system.Uri.UnescapeDataString(s);
+	#elseif python
+	return python.lib.urllib.Parse.unquote(s);
+	#elseif lua
+	s = lua.NativeStringTools.gsub(s, "%%(%x%x)", function(h) {
+		return lua.NativeStringTools.char(lua.Lua.tonumber(h, 16));
+	});
+	return s;
+	#else
+	final bytes = new haxe.io.BytesBuffer();
+	var i = 0;
+
+	while (i < s.length) {
+		var c = s.charAt(i);
+		if (c == "%" && i + 2 < s.length) {
+			final value = Std.parseInt("0x" + s.substr(i + 1, 2));
+			if (value != null) {
+				bytes.addByte(value);
+				i += 3;
+				continue;
+			}
+		}
+		bytes.addString(c, UTF8);
+		i++;
+	}
+
+	return bytes.getBytes().toString(); // UTF-8 decode
+	#end
 }
 
 macro function getGitVersion():haxe.macro.Expr.ExprOf<String> {

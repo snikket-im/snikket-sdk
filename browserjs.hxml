@@ -9,6 +9,7 @@
 --library tink_http
 
 borogove.Client
+borogove.Register
 borogove.Push
 borogove.Version
 borogove.persistence.Sqlite

@@ -24,6 +24,7 @@ extern class XmppJsClient {
 	function stop():Promise<Dynamic>;
 	function on(eventName:String, callback:(Dynamic)->Void):Void;
 	function send(stanza:XmppJsXml):Void;
+	final NS:String;
 	var jid:XmppJsJID;
 	var streamFrom:Null<XmppJsJID>;
 	var status: String;
@@ -100,6 +101,47 @@ extern class XmppJsError {
 	public final application: String;
 }
 
+
+@:js.import("@xmpp/client-core", "Client")
+extern class XmppJsClientCore {
+	function new(params: { service: String, domain: String });
+	function start():Promise<Dynamic>;
+}
+
+@:js.import(@default "@xmpp/websocket")
+extern class XmppJsWebsocket {
+	function new(params: { entity: XmppJsClientCore });
+}
+
+#if nodejs
+@:js.import(@default "@xmpp/tcp")
+extern class XmppJsTcp {
+	function new(params: { entity: XmppJsClientCore });
+}
+
+
+@:js.import(@default "@xmpp/starttls")
+extern class XmppJsSTARTTLS {
+	function new(params: { streamFeatures: XmppJsStreamFeatures });
+}
+#end
+
+@:js.import(@default "@xmpp/resolve")
+extern class XmppJsResolve {
+	function new(params: { entity: XmppJsClientCore });
+}
+
+@:js.import(@default "@xmpp/middleware")
+extern class XmppJsMiddleware {
+	function new(params: { entity: XmppJsClientCore });
+}
+
+@:js.import(@default "@xmpp/stream-features")
+extern class XmppJsStreamFeatures {
+	function new(params: { middleware: XmppJsMiddleware });
+	function use(feature: String, ns: String, cb: (ctx: Any, next: ()->Void, feature: Any) -> Promise<Void>):Void;
+}
+
 class XmppJsStream extends GenericStream {
 	private var client:XmppJsClient;
 	private var jid:XmppJsJID;
@@ -128,6 +170,63 @@ class XmppJsStream extends GenericStream {
 				"connection-error" => this.onError,
 			],
 		}, "offline");
+	}
+
+	public function register(domain: String, preAuth: Null<String>) {
+		final entity = new XmppJsClientCore({ service: domain, domain: domain });
+		final middleware = new XmppJsMiddleware({ entity: entity });
+		final streamFeatures = new XmppJsStreamFeatures({ middleware: middleware });
+
+		return new Promise((resolve, reject) -> {
+			if (preAuth != null) {
+				streamFeatures.use("register", "urn:xmpp:ibr-token:0", (ctx, next, feature) -> {
+					client.status = "online";
+					this.sendIq(
+						new Stanza("iq", { type: "set", to: domain }).tag("preauth", { xmlns: "urn:xmpp:pars:0", token: preAuth }),
+						reply -> {
+							if (reply.attr.get("type") == "error") {
+								resolve(reply);
+							} else {
+								next();
+							}
+						}
+					);
+					return Promise.resolve(null);
+				});
+			}
+
+			streamFeatures.use("register", "http://jabber.org/features/iq-register", (ctx, next, feature) -> {
+				client.status = "online";
+				this.sendIq(
+					new Stanza("iq", { type: "get", to: domain }).tag("query", { xmlns: "jabber:iq:register" }),
+					resolve
+				);
+				return Promise.resolve(null);
+			});
+
+			client = cast js.lib.Object.assign(
+				entity,
+				#if nodejs
+				new XmppJsTcp({ entity: entity }),
+				#end
+				new XmppJsWebsocket({ entity: entity }),
+				middleware,
+				streamFeatures,
+				new XmppJsResolve({ entity: entity }),
+				#if nodejs
+				new XmppJsSTARTTLS({ streamFeatures: streamFeatures }),
+				#end
+			);
+
+			client.on("stanza", function (stanza) {
+				this.onStanza(convertToStanza(stanza, client.NS));
+			});
+
+			client.start().catchError((err) -> {
+				trace(err);
+				reject(err);
+			});
+		});
 	}
 
 	public function connect(jidS:String, sm:Null<BytesData>) {
@@ -226,7 +325,7 @@ class XmppJsStream extends GenericStream {
 
 		xmpp.on("stanza", function (stanza) {
 			triggerSMupdate();
-			this.onStanza(convertToStanza(stanza));
+			this.onStanza(convertToStanza(stanza, client.NS));
 		});
 
 		xmpp.streamManagement.on("ack", (stanza) -> {
@@ -283,8 +382,10 @@ class XmppJsStream extends GenericStream {
 		return xml;
 	}
 
-	private static function convertToStanza(el:XmppJsXml):Stanza {
-		var stanza = new Stanza(el.name, el.attrs);
+	private static function convertToStanza(el:XmppJsXml, xmlns:Null<String> = null):Stanza {
+		var attrs: haxe.DynamicAccess<String> = el.attrs ?? {};
+		if (attrs.get("xmlns") == null && xmlns != null) attrs.set("xmlns", xmlns);
+		var stanza = new Stanza(el.name, attrs);
 		for (child in el.children) {
 			if(XmppJsLtx.isText(child)) {
 				stanza.text(cast(child, String));
@@ -313,7 +414,7 @@ class XmppJsStream extends GenericStream {
 	}
 
 	private function triggerSMupdate() {
-		if (client == null || !client.streamManagement.enabled || !emitSMupdates) return;
+		if (client == null || !client.streamManagement?.enabled || !emitSMupdates) return;
 		this.trigger(
 			"sm/update",
 			{

@@ -113,7 +113,7 @@ class Caps {
 		}
 		s.writeByte(0x1c);
 		for (form in data) {
-			final fields = form.fields();
+			final fields = form.fields;
 			fields.sort((x, y) -> Reflect.compare([x.name].concat(x.value).join("\x1f"), [y.name].concat(y.value).join("\x1f")));
 			for (field in fields) {
 				final values = field.value;
@@ -142,7 +142,7 @@ class Caps {
 		}
 		for (form in data) {
 			s += form.field("FORM_TYPE").value[0] + "<";
-			final fields = form.fields();
+			final fields = form.fields;
 			fields.sort((x, y) -> Reflect.compare(x.name, y.name));
 			for (field in fields) {
 				if (field.name != "FORM_TYPE") {
