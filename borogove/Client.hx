@@ -1259,19 +1259,29 @@ class Client extends EventEmitter {
 	**/
 	public function addChatsUpdatedListener(handler:Array<Chat>->Void) {
 		final updateChatBuffer: Map<String, Chat> = [];
+		var lastCall = -1.0;
 		var updateChatTimer = null;
 		return this.on("chats/update", (data: Array<Chat>) -> {
+			final now = haxe.Timer.stamp() * 1000;
 			if (updateChatTimer != null) {
 				updateChatTimer.stop();
 			}
 			for (chat in data) {
 				updateChatBuffer[chat.chatId] = chat;
 			}
-			updateChatTimer = haxe.Timer.delay(() -> {
+			if (lastCall < 0 || now - lastCall >= 500) {
+				lastCall = now;
 				handler({ iterator: updateChatBuffer.iterator }.array());
 				updateChatTimer = null;
 				updateChatBuffer.clear();
-			}, 500);
+			} else {
+				updateChatTimer = haxe.Timer.delay(() -> {
+					lastCall = haxe.Timer.stamp() * 1000;
+					handler({ iterator: updateChatBuffer.iterator }.array());
+					updateChatTimer = null;
+					updateChatBuffer.clear();
+				}, 500);
+			}
 			return EventHandled;
 		});
 	}
