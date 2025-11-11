@@ -1247,6 +1247,10 @@ class Channel extends Chat {
 				} else {
 					inSync = true;
 					sync = null;
+
+					// Sort by time so that eg edits go into the past
+					chatMessages.sort((x, y) -> Reflect.compare(x.timestamp, y.timestamp));
+
 					final lastFromSync = chatMessages[chatMessages.length - 1];
 					if (lastFromSync != null && (lastMessage?.timestamp == null || Reflect.compare(lastFromSync.timestamp, lastMessage?.timestamp) > 0)) {
 						setLastMessage(lastFromSync);
