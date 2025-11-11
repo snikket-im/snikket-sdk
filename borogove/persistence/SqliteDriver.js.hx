@@ -5,6 +5,17 @@ import thenshim.Promise;
 
 typedef Promiser = (String, Dynamic) -> Promise<Dynamic>;
 
+#if nodejs
+class SqliteDriver {
+	public function new(dbfile: String, migrate: (Array<String>->Promise<haxe.iterators.ArrayIterator<Dynamic>>)->Promise<Any>) {
+		throw "TODO";
+	}
+
+	public function exec(sql: haxe.extern.EitherType<String, Array<String>>, ?params: Array<Dynamic>): Promise<haxe.iterators.ArrayIterator<Dynamic>> {
+		throw "TODO";
+	}
+}
+#else
 @:js.import("@sqlite.org/sqlite-wasm", "sqlite3Worker1Promiser")
 extern class Worker1 {
 	static var v2: ({ worker: () -> js.html.Worker }) -> Promise<Promiser>;
@@ -66,3 +77,4 @@ class SqliteDriver {
 		}
 	}
 }
+#end
