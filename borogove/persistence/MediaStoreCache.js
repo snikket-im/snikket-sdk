@@ -69,7 +69,7 @@ export default (cacheName) => {
 			return await cache.match(niUrl);
 		},
 
-		async hasMedia(hashAlgorithm, hash, callback) {
+		async hasMedia(hashAlgorithm, hash) {
 			const response = await this.getMediaResponse(mkNiUrl(hashAlgorithm, hash));
 			return !!response;
 		}

@@ -308,7 +308,12 @@ export default async (dbname, media, tokenize, stemmer) => {
 				r.notificationSettings === undefined ? null : r.notificationSettings != null,
 				r.notificationSettings?.mention,
 				r.notificationSettings?.reply,
-				r.disco ? new borogove.Caps(r.disco.node, r.disco.identities, r.disco.features, (r.disco.data || []).map(s => borogove.Stanza.parse(s))) : null,
+				r.disco ? new borogove.Caps(
+					r.disco.node,
+					(r.disco.identities || []).map((identity) => new borogove.Identity(identity.category, identity.type, identity.name)),
+					r.disco.features || [],
+					(r.disco.data || []).map(s => borogove.Stanza.parse(s))
+				) : null,
 				r.omemoDevices || [],
 				r.class
 			)));
@@ -395,7 +400,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			return await hydrateMessage(message);
 		},
 
-		storeMessages(account, messages, callback) {
+		storeMessages(account, messages) {
 			return Promise.all(messages.map(m =>
 				new Promise(resolve => this.storeMessage(account, m, resolve))
 			));
@@ -526,7 +531,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 			const cursor = store.index("chats").openCursor(
-				IDBKeyRange.bound([account, chatId].concat(bound), [account, chatId, []]),
+				IDBKeyRange.bound([account, chatId, ...bound], [account, chatId, []]),
 				"next"
 			);
 			return this.getMessagesFromCursor(cursor, afterId, bound[0]);
@@ -784,7 +789,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			}
 		},
 
-		getLogin: function(login, callback) {
+		getLogin: function(login) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
 			return Promise.all([
