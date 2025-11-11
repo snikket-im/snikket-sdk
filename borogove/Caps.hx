@@ -11,6 +11,8 @@ import borogove.DataForm;
 import borogove.Hash;
 import borogove.Util;
 
+// exposed for IDB.js, not really part of public API
+@:expose
 class Caps {
 	public final node: String;
 	public final identities: ReadOnlyArray<Identity>;
@@ -166,6 +168,7 @@ class Caps {
 	}
 }
 
+@:expose
 class Identity {
 	public final category:String;
 	public final type:String;
