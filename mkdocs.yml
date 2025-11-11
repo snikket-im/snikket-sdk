@@ -26,6 +26,7 @@ markdown_extensions:
 nav:
   - README: index.md
   - C:
+    - c/index.md
     - API Reference: c/borogove_8h.md
   - JavaScript:
     - js/index.md

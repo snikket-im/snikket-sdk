@@ -180,9 +180,9 @@ abstract class Chat {
 	}
 
 	/**
-		Send a ChatMessage to this Chat
+		Send a message to this Chat
 
-		@param message the ChatMessage to send
+		@param message the ChatMessageBuilder to send
 	**/
 	abstract public function sendMessage(message:ChatMessageBuilder):Void;
 
