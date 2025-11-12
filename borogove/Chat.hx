@@ -1248,14 +1248,6 @@ class Channel extends Chat {
 					inSync = true;
 					sync = null;
 
-					// Sort by time so that eg edits go into the past
-					chatMessages.sort((x, y) -> Reflect.compare(x.timestamp, y.timestamp));
-
-					final lastFromSync = chatMessages[chatMessages.length - 1];
-					if (lastFromSync != null && (lastMessage?.timestamp == null || Reflect.compare(lastFromSync.timestamp, lastMessage?.timestamp) > 0)) {
-						setLastMessage(lastFromSync);
-						client.sortChats();
-					}
 					final serverIds: Map<String, Bool> = [];
 					final dedupedMessages = [];
 					chatMessages.reverse();
@@ -1265,7 +1257,17 @@ class Channel extends Chat {
 							serverIds[m.serverId] = true;
 						}
 					}
-					final readIndex = dedupedMessages.findIndex((m) -> m.serverId == readUpTo() || !m.isIncoming());
+
+					// Sort by time so that eg edits go into the past
+					dedupedMessages.sort((x, y) -> Reflect.compare(x.timestamp, y.timestamp));
+
+					final lastFromSync = dedupedMessages[dedupedMessages.length - 1];
+					if (lastFromSync != null && (lastMessage?.timestamp == null || Reflect.compare(lastFromSync.timestamp, lastMessage?.timestamp) > 0)) {
+						setLastMessage(lastFromSync);
+						client.sortChats();
+					}
+
+					final readIndex = dedupedMessages.findLastIndex((m) -> m.serverId == readUpTo() || !m.isIncoming());
 					if (readIndex < 0) {
 						setUnreadCount(unreadCount() + dedupedMessages.length);
 					} else {

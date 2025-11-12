@@ -149,6 +149,20 @@ class Util {
 		return arr[i];
 	}
 
+	#if js inline #end static public function findLastIndex<T>(it:Array<T>, f:(item:T) -> Bool):Int {
+	#if js
+		return untyped it.findLastIndex(f);
+	#else
+		var i = it.length - 1;
+		while (i > -1) {
+			if (f(it[i]))
+				return i;
+			i--;
+		}
+		return -1;
+	#end
+	}
+
 	inline static public function writeS(o: haxe.io.Output, s: String) {
 		final b = bytesOfString(s);
 		o.writeBytes(b, 0, b.length);
