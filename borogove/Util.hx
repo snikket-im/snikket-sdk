@@ -178,14 +178,14 @@ class Util {
 		var unicodeOffset = 0;
 		var nativeOffset = 0;
 		while (nativeOffset < s.length) {
-			unicodeOffset++;
-			var c = StringTools.utf16CodePointAt(s, nativeOffset++);
 			if (nativeOffset == index) {
 				return unicodeOffset;
 			}
+			var c = StringTools.utf16CodePointAt(s, nativeOffset++);
 			if (c >= StringTools.MIN_SURROGATE_CODE_POINT) {
 				nativeOffset++;
 			}
+			unicodeOffset++;
 		}
 
 		if (nativeOffset == index) {
