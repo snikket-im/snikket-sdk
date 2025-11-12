@@ -71,7 +71,7 @@ class Register {
 	**/
 	public function getForm() {
 		return stream.register(domain, preAuth).then(reply -> {
-			final error = getError(reply);
+			final error = reply.getErrorText();
 			if (error != null) return Promise.reject(error);
 
 			final query = reply.getChild("query", "jabber:iq:register");
@@ -118,7 +118,7 @@ class Register {
 						.tag("query", { xmlns: "jabber:iq:register" })
 						.addChild(toSubmit),
 					(reply) -> {
-						final error = getError(reply);
+						final error = reply.getErrorText();
 						if (error != null) return reject(error);
 
 						// It is conventional for username@domain to be the registered JID
@@ -135,15 +135,5 @@ class Register {
 	**/
 	public function disconnect() {
 		stream.disconnect();
-	}
-
-	private function getError(iq: Stanza) {
-		if (iq.attr.get("type") == "error") {
-			final error = iq.getChild("error");
-			final text = error.getChildText("text", "urn:ietf:params:xml:ns:xmpp-stanzas");
-			return text ?? error.getFirstChild()?.name ?? "error";
-		}
-
-		return null;
 	}
 }

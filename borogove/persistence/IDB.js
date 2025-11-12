@@ -139,6 +139,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 		message.syncPoint = !!value.syncPoint;
 		message.direction = value.direction;
 		message.status = value.status;
+		message.statusText = value.statusText;
 		message.timestamp = value.timestamp && value.timestamp.toISOString();
 		message.from = value.from && borogove.JID.parse(value.from);
 		message.sender = value.sender && borogove.JID.parse(value.sender);
@@ -480,12 +481,12 @@ export default async (dbname, media, tokenize, stemmer) => {
 			store.put(serializeMessage(account, message));
 		},
 
-		updateMessageStatus: async function(account, localId, status) {
+		updateMessageStatus: async function(account, localId, status, statusText) {
 			const tx = db.transaction(["messages"], "readwrite");
 			const store = tx.objectStore("messages");
 			const result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.bound([account, localId], [account, localId, []])));
-			if (result?.value && result.value.direction === enums.MessageDirection.MessageSent && result.value.status !== enums.MessageStatus.MessageDeliveredToDevice) {
-				const newStatus = { ...result.value, status: status };
+			if (result?.value && result.value.direction === enums.MessageDirection.MessageSent && ![enums.MessageStatus.MessageDeliveredToDevice, enums.MessageStatus.MessageFailedToSend].includes(result.value.status)) {
+				const newStatus = { ...result.value, status, statusText };
 				result.update(newStatus);
 				return await hydrateMessage(newStatus);
 			}
@@ -501,8 +502,8 @@ export default async (dbname, media, tokenize, stemmer) => {
 				if (!cresult) break;
 
 				const value = cresult.value;
-				if (value?.versions?.[0]?.localId === localId && value?.direction === enums.MessageDirection.MessageSent && value?.status !== enums.MessageStatus.MessageDeliveredToDevice) {
-					const newStatus = { ...value, versions: [{ ...value.versions[0], status: status }, ...value.versions.slice(1)], status: status };
+				if (value?.versions?.[0]?.localId === localId && value?.direction === enums.MessageDirection.MessageSent && ![enums.MessageStatus.MessageDeliveredToDevice, enums.MessageStatus.MessageFailedToSend].includes(result.value.status)) {
+					const newStatus = { ...value, versions: [{ ...value.versions[0], status, statusText }, ...value.versions.slice(1)], status, statusText };
 					cresult.update(newStatus);
 					return await hydrateMessage(newStatus);
 				}

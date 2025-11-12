@@ -24,7 +24,7 @@ enum abstract MessageType(Int) {
 }
 
 enum MessageStanza {
-	ErrorMessageStanza(stanza: Stanza);
+	ErrorMessageStanza(localId: Null<String>, stanza: Stanza);
 	ChatMessageStanza(message: ChatMessage);
 	ModerateMessageStanza(action: ModerationAction);
 	ReactionUpdateStanza(update: ReactionUpdate);
@@ -50,12 +50,13 @@ class Message {
 	public static function fromStanza(stanza:Stanza, localJid:JID, ?addContext: (ChatMessageBuilder, Stanza)->ChatMessageBuilder, ?encryptionInfo:EncryptionInfo):Message {
 		final fromAttr = stanza.attr.get("from");
 		final from = fromAttr == null ? localJid.domain : fromAttr;
+		final localId = stanza.attr.get("id");
 		if(encryptionInfo==null) {
 			encryptionInfo = EncryptionInfo.fromStanza(stanza);
 		}
 
 		if (stanza.attr.get("type") == "error") {
-			return new Message(from, from, null, ErrorMessageStanza(stanza), encryptionInfo);
+			return new Message(from, from, null, ErrorMessageStanza(localId, stanza), encryptionInfo);
 		}
 
 		var msg = new ChatMessageBuilder();
@@ -89,7 +90,6 @@ class Message {
 			}
 		}
 
-		final localId = stanza.attr.get("id");
 		if (localId != null) msg.localId = localId;
 		var altServerId = null;
 		for (stanzaId in stanza.allTags("stanza-id", "urn:xmpp:sid:0")) {

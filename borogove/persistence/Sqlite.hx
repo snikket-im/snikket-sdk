@@ -130,6 +130,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 2;"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 3) {
+						return exec(["ALTER TABLE messages ADD COLUMN status_text TEXT;",
+						"PRAGMA user_version = 3;"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -355,7 +361,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		@returns Promise resolving to the message or null
 	**/
 	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>): Promise<Null<ChatMessage>> {
-		var q = "SELECT stanza, direction, type, status, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND chat_id=?";
+		var q = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND chat_id=?";
 		final params = [accountId, chatId];
 		if (serverId != null) {
 			q += " AND mam_id=?";
@@ -385,6 +391,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			messages.direction,
 			messages.type,
 			messages.status,
+			messages.status_text,
 			strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp,
 			messages.sender_id,
 			messages.mam_id,
@@ -479,7 +486,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			params.push(MessageSent);
 
 			final q = new StringBuf();
-			q.add("SELECT chat_id AS chatId, stanza, direction, type, status, sender_id, mam_id, mam_by, sync_point, CASE WHEN subq.created_at IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
+			q.add("SELECT chat_id AS chatId, stanza, direction, type, status, status_text, sender_id, mam_id, mam_by, sync_point, CASE WHEN subq.created_at IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
 			q.add(subq.toString());
 			q.add(") subq USING (chat_id) WHERE account_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND chat_id IN (");
 			params.push(accountId);
@@ -522,13 +529,13 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus): Promise<ChatMessage> {
+	public function updateMessageStatus(accountId: String, localId: String, status: MessageStatus, statusText: Null<String>): Promise<ChatMessage> {
 		return db.exec(
-			"UPDATE messages SET status=? WHERE account_id=? AND stanza_id=? AND direction=? AND status <> ?",
-			[status, accountId, localId, MessageSent, MessageDeliveredToDevice]
+			"UPDATE messages SET status=?, status_text=? WHERE account_id=? AND stanza_id=? AND direction=? AND status <> ? AND status <> ?",
+			[status, statusText, accountId, localId, MessageSent, MessageDeliveredToDevice, MessageFailedToSend]
 		).then(_ ->
 			db.exec(
-				"SELECT stanza, direction, type, status, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, correction_id AS stanza_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND stanza_id=? AND direction=? LIMIT 1",
+				"SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, correction_id AS stanza_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND stanza_id=? AND direction=? LIMIT 1",
 				[accountId, localId, MessageSent]
 			)
 		).then(result ->
@@ -803,7 +810,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		} else {
 			final params = [accountId];
 			final q = new StringBuf();
-			q.add("SELECT chat_id, stanza_id, stanza, direction, type, status, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND (");
+			q.add("SELECT chat_id, stanza_id, stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND (");
 			q.add(replyTos.map(parent ->
 				if (parent.serverId != null) {
 					params.push(parent.chatId);
@@ -831,7 +838,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		});
 	}
 
-	private function hydrateMessages(accountId: String, rows: Iterator<{ stanza: String, timestamp: String, direction: MessageDirection, type: MessageType, status: MessageStatus, mam_id: String, mam_by: String, sync_point: Int, sender_id: String, ?stanza_id: String, ?versions: String, ?version_times: String }>): Array<ChatMessage> {
+	private function hydrateMessages(accountId: String, rows: Iterator<{ stanza: String, timestamp: String, direction: MessageDirection, type: MessageType, status: MessageStatus, status_text: Null<String>, mam_id: String, mam_by: String, sync_point: Int, sender_id: String, ?stanza_id: String, ?versions: String, ?version_times: String }>): Array<ChatMessage> {
 		// TODO: Calls can "edit" from multiple senders, but the original direction and sender holds
 		final accountJid = JID.parse(accountId);
 		return { iterator: () -> rows }.map(row -> ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid, (builder, _) -> {
@@ -839,6 +846,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			builder.timestamp = row.timestamp;
 			builder.type = row.type;
 			builder.status = row.status;
+			builder.statusText = row.status_text;
 			builder.senderId = row.sender_id;
 			builder.serverId = row.mam_id == "" ? null : row.mam_id;
 			builder.serverIdBy = row.mam_by == "" ? null : row.mam_by;

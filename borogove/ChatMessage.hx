@@ -190,7 +190,12 @@ class ChatMessage {
 	/**
 		Status of this message
 	**/
-	public var status: MessageStatus;
+	public final status: MessageStatus;
+
+	/**
+		Message to go along with the message status
+	**/
+	public final statusText: Null<String>;
 
 	/**
 		Array of past versions of this message, if it has been edited
@@ -205,7 +210,7 @@ class ChatMessage {
 		Information about the encryption used by the sender of
 		this message.
 	**/
-	public var encryption: Null<EncryptionInfo>;
+	public final encryption: Null<EncryptionInfo>;
 
 	@:allow(borogove)
 	private final stanza: Null<Stanza>;
@@ -232,6 +237,7 @@ class ChatMessage {
 		?lang: Null<String>,
 		?direction: MessageDirection,
 		?status: MessageStatus,
+		?statusText: String,
 		?versions: Array<ChatMessage>,
 		?payloads: Array<Stanza>,
 		?encryption: Null<EncryptionInfo>,
@@ -257,6 +263,7 @@ class ChatMessage {
 		this.lang = params.lang;
 		this.direction = params.direction ?? MessageSent;
 		this.status = params.status ?? MessagePending;
+		this.statusText = params.statusText;
 		this.versions = params.versions ?? [];
 		this.payloads = params.payloads ?? [];
 		this.encryption = params.encryption;

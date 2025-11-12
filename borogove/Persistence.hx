@@ -23,7 +23,7 @@ interface Persistence {
 	public function storeReaction(accountId: String, update: ReactionUpdate): Promise<Null<ChatMessage>>;
 	public function storeMessages(accountId: String, message: Array<ChatMessage>): Promise<Array<ChatMessage>>;
 	public function updateMessage(accountId: String, message: ChatMessage):Void;
-	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus): Promise<ChatMessage>;
+	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus, statusText: Null<String>): Promise<ChatMessage>;
 	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>): Promise<Null<ChatMessage>>;
 	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>): Promise<Array<ChatMessage>>;
 	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>): Promise<Array<ChatMessage>>;

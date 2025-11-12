@@ -82,7 +82,7 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus): Promise<ChatMessage> {
+	public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus, statusText: Null<String>): Promise<ChatMessage> {
 		return Promise.reject("Dummy cannot updateMessageStatus");
 	}
 

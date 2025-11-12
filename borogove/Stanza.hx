@@ -267,6 +267,15 @@ class Stanza {
 		return allTags()[0];
 	}
 
+	public function getErrorText() {
+		if (attr.get("type") == "error") {
+			final error = getError();
+			return error.text ?? error.condition ?? error.type;
+		}
+
+		return null;
+	}
+
 	public function getChild(?name:Null<String>, ?xmlns:Null<String>):Null<Stanza> {
 		var ourXmlns = this.attr.get("xmlns");
 		/*

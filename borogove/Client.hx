@@ -155,7 +155,8 @@ class Client extends EventEmitter {
 			persistence.updateMessageStatus(
 				this.accountId(),
 				data.id,
-				MessageDeliveredToServer
+				MessageDeliveredToServer,
+				null
 			).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
 			return EventHandled;
 		});
@@ -164,7 +165,8 @@ class Client extends EventEmitter {
 			persistence.updateMessageStatus(
 				this.accountId(),
 				data.id,
-				MessageFailedToSend
+				MessageFailedToSend,
+				null
 			).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
 			return EventHandled;
 		});
@@ -460,6 +462,13 @@ class Client extends EventEmitter {
 				persistence.storeReaction(accountId(), update).then((stored) -> if (stored != null) notifyMessageHandlers(stored, ReactionEvent));
 			case ModerateMessageStanza(action):
 				moderateMessage(action).then((stored) -> if (stored != null) notifyMessageHandlers(stored, CorrectionEvent));
+			case ErrorMessageStanza(localId, stanza):
+				persistence.updateMessageStatus(
+					this.accountId(),
+					localId,
+					MessageFailedToSend,
+					stanza.getErrorText(),
+				).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
 			default:
 				// ignore
 				trace("Ignoring non-chat message: " + stanza.toString());

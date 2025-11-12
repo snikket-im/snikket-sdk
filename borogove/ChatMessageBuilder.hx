@@ -119,6 +119,11 @@ class ChatMessageBuilder {
 	public var status: MessageStatus = MessagePending;
 
 	/**
+		Human readable text to go with the status
+	**/
+	public var statusText: Null<String> = null;
+
+	/**
 		Array of past versions of this message, if it has been edited
 	**/
 	public var versions: Array<ChatMessage> = [];
@@ -346,6 +351,7 @@ class ChatMessageBuilder {
 			lang: lang,
 			direction: direction,
 			status: status,
+			statusText: statusText,
 			versions: versions,
 			payloads: payloads,
 			encryption: encryption,
