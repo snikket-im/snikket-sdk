@@ -2,6 +2,7 @@ package borogove;
 
 import borogove.Autolink;
 import borogove.Stanza;
+using borogove.Util;
 
 class XEP0393 {
 	public static function parse(styled: UnicodeString) {
@@ -90,15 +91,15 @@ class XEP0393 {
 	public static function parseSpans(styled: UnicodeString) {
 		final spans = [];
 		var start = 0;
-		var nextLink = null;
+		var nextLink: Null<{ span: Null<Node>, start: Int, end: Int }> = null;
 		final styledLength = styled.length;
 		while (start < styledLength) {
 			final char = styled.charAt(start);
-			if (StringTools.isSpace(styled, start + 1)) {
+			if (isSpace(styled, start + 1)) {
 				// The opening styling directive MUST NOT be followed by a whitespace character
 				spans.push(CData(new TextNode(styled.substr(start, 2))));
 				start += 2;
-			} else if (start != 0 && !StringTools.isSpace(styled, start - 1)) {
+			} else if (start != 0 && !isSpace(styled, start - 1)) {
 				// The opening styling directive MUST be located at the beginning of the parent block, after a whitespace character, or after a different opening styling directive.
 				spans.push(CData(new TextNode(char)));
 				start++;
@@ -122,6 +123,10 @@ class XEP0393 {
 			} else {
 				if (nextLink == null || start > nextLink.start) {
 					nextLink = Autolink.one(styled, start);
+					if (nextLink != null) {
+						nextLink.start = styled.convertIndex(nextLink.start);
+						nextLink.end = styled.convertIndex(nextLink.end);
+					}
 				}
 				if (nextLink != null && nextLink.start == start && nextLink.span != null) {
 					spans.push(nextLink.span);
@@ -135,10 +140,10 @@ class XEP0393 {
 		return spans;
 	}
 
-	public static function parseSpan(tagName: UnicodeString, marker: String, styled: String, start: Int) {
+	public static function parseSpan(tagName: String, marker: String, styled: UnicodeString, start: Int) {
 		var end = start + 1;
 		while (end < styled.length && styled.charAt(end) != marker) {
-			if (StringTools.isSpace(styled, end)) end++; // the closing styling directive MUST NOT be preceeded by a whitespace character
+			if (isSpace(styled, end)) end++; // the closing styling directive MUST NOT be preceeded by a whitespace character
 			end++;
 		}
 		if (end == start + 1) {
@@ -174,7 +179,7 @@ class XEP0393 {
 		var end = 1; // Skip leading >
 		var spaceAfter = 0;
 		while (end < styled.length) {
-			if (styled.charAt(end) != "\n" && StringTools.isSpace(styled, end)) end++;
+			if (styled.charAt(end) != "\n" && isSpace(styled, end)) end++;
 			while (end < styled.length && styled.charAt(end) != "\n") {
 				line += styled.charAt(end);
 				end++;
@@ -217,5 +222,10 @@ class XEP0393 {
 		}
 
 		return { block: new Stanza("pre").text(lines.join("")), rest: styled.substr(end) };
+	}
+
+	private static function isSpace(s: UnicodeString, pos: Int) {
+		// The version in StringTools won't use UnicodeString-aware indices
+		return StringTools.isSpace(s.charAt(pos), 0);
 	}
 }

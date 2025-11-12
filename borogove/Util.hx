@@ -167,4 +167,31 @@ class Util {
 		final b = bytesOfString(s);
 		o.writeBytes(b, 0, b.length);
 	}
+
+	/**
+		Convert a String index to a UnicodeString index
+	**/
+	@:access(StringTools.utf16CodePointAt)
+	@:access(StringTools.MIN_SURROGATE_CODE_POINT)
+	static public function convertIndex(u: UnicodeString, index: Int) {
+		final s: String = u;
+		var unicodeOffset = 0;
+		var nativeOffset = 0;
+		while (nativeOffset < s.length) {
+			unicodeOffset++;
+			var c = StringTools.utf16CodePointAt(s, nativeOffset++);
+			if (nativeOffset == index) {
+				return unicodeOffset;
+			}
+			if (c >= StringTools.MIN_SURROGATE_CODE_POINT) {
+				nativeOffset++;
+			}
+		}
+
+		if (nativeOffset == index) {
+			return unicodeOffset;
+		}
+
+		throw "No matching index";
+	}
 }
