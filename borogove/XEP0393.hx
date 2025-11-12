@@ -5,7 +5,7 @@ import borogove.Stanza;
 using borogove.Util;
 
 class XEP0393 {
-	public static function parse(styled: UnicodeString) {
+	public static function parse(styled: UnicodeString): Array<Stanza> {
 		final blocks = [];
 		while (styled.length > 0) {
 			final result = parseBlock(styled);

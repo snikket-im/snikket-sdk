@@ -171,6 +171,7 @@ class Util {
 	/**
 		Convert a String index to a UnicodeString index
 	**/
+	#if utf16
 	@:access(StringTools.utf16CodePointAt)
 	@:access(StringTools.MIN_SURROGATE_CODE_POINT)
 	static public function convertIndex(u: UnicodeString, index: Int) {
@@ -194,4 +195,9 @@ class Util {
 
 		throw "No matching index";
 	}
+	#else
+	static public function convertIndex(u: UnicodeString, index: Int) {
+		return index;
+	}
+	#end
 }
