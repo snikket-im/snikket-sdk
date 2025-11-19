@@ -70,7 +70,7 @@ class CommandExecute extends GenericQuery {
 			final extActionsField = forms[0]?.form?.field("http://jabber.org/protocol/commands#actions");
 			if (extActionsField != null) extActionsField.type = "hidden";
 			final extActions: Array<FormOption> = (extActionsField?.options ?? []).map(o -> o.toFormOption());
-			final actions = (cmd.getChild("actions")?.allTags()?.map(s -> new FormOption(s.name.capitalize(), s.name))?.filter(o -> o.value != "execute") ?? []).concat(extActions);
+			final actions = extActions.length > 0 ? extActions : (cmd.getChild("actions")?.allTags()?.map(s -> new FormOption(s.name.capitalize(), s.name))?.filter(o -> o.value != "execute") ?? []);
 			if (cmd.attr.get("status") == "executing") {
 				if (actions.length < 1) actions.push(new FormOption("Go", "execute"));
 				if (actions.find(a -> a.value == "cancel") == null) actions.push(new FormOption("Cancel", "cancel"));
