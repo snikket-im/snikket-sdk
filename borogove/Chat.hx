@@ -702,6 +702,33 @@ abstract class Chat {
 	}
 
 	/**
+		This chat's primary mode of interaction is via commands
+	**/
+	public function isApp() {
+		if ({ iterator: getCaps }.array().length < 1) {
+			// No caps so let's guess that domains are apps
+			return chatId.indexOf("@") < 0 && hasCommands();
+		}
+
+		final bot = Caps.withIdentity(getCaps(), "client", "bot").length > 0;
+		final client = Caps.withIdentity(getCaps(), "client", null).length > 0;
+		final account = Caps.withIdentity(getCaps(), "account", null).length > 0;
+		// Clients are not apps, we chat with them
+		if ((client || account) && !bot) return false;
+
+		final noReply = Caps.withFeature(getCaps(), "urn:xmpp:noreply:0").length > 0;
+		// A bot that doesn't want messages is an app
+		if (bot && noReply) return hasCommands();
+
+		final conference = Caps.withIdentity(getCaps(), "conference", null).length > 0;
+		// A MUC component is an app
+		if (conference && chatId.indexOf("@") < 0) return hasCommands();
+
+		// If it's not a client or conference, guess it's an app
+		return !client && !conference && hasCommands();
+	}
+
+	/**
 		Does this chat provide a menu of commands?
 	**/
 	public function hasCommands() {
