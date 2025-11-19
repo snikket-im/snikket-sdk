@@ -695,6 +695,13 @@ abstract class Chat {
 	}
 
 	/**
+		Can the user send messages to this chat?
+	**/
+	public function canSend() {
+		return Caps.withFeature(getCaps(), "urn:xmpp:noreply:0").length < 1;
+	}
+
+	/**
 		Does this chat provide a menu of commands?
 	**/
 	public function hasCommands() {
@@ -1200,13 +1207,25 @@ class Channel extends Chat {
 		return disco?.data?.find(d -> d.field("FORM_TYPE")?.value?.at(0) == "http://jabber.org/protocol/muc#roominfo");
 	}
 
+	@HaxeCBridge.noemit // on superclass as abstract
+	override public function canSend() {
+		if (!super.canSend()) return false;
+		if (_nickInUse == null) return true;
+
+		final p = presence[_nickInUse];
+		if (p == null) return true;
+
+		return p.mucUser.role != "visitor";
+	}
+
 	@:allow(borogove)
 	override private function getCaps():KeyValueIterator<String, Caps> {
 		return ["" => disco].keyValueIterator();
 	}
 
-	override public function setPresence(resource:String, presence:Presence) {
-		final oneTen = presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "110");
+	@:allow(borogove)
+	override private function setPresence(resource:String, presence:Presence) {
+		final oneTen = presence?.mucUser?.statusCodes?.find((status) -> status == "110");
 		if (oneTen != null) {
 			_nickInUse = resource;
 			outbox.start();
@@ -1216,14 +1235,15 @@ class Channel extends Chat {
 		}
 		if (presence != null && presence.mucUser != null && oneTen == null) {
 			final existing = this.presence.get(resource);
-			if (existing != null && existing?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "110") != null) {
-				presence.mucUser.tag("status", { code: "110" });
+			if (existing != null && existing?.mucUser?.statusCodes?.find((status) -> status == "110") != null) {
+				final mucUser: Stanza = presence.mucUser;
+				mucUser.tag("status", { code: "110" }).up();
 				setPresence(resource, presence);
 				return;
 			}
 		}
 		super.setPresence(resource, presence);
-		final tripleThree = presence?.mucUser?.allTags("status").find((status) -> status.attr.get("code") == "333");
+		final tripleThree = presence?.mucUser?.statusCodes?.find((status) -> status == "333");
 		if (oneTen != null && tripleThree != null) {
 			selfPing(true);
 		}
