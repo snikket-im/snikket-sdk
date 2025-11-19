@@ -18,6 +18,7 @@ import borogove.calls.PeerConnection;
 import borogove.calls.Session;
 #end
 import borogove.queries.DiscoInfoGet;
+import borogove.queries.DiscoItemsGet;
 import borogove.queries.MAMQuery;
 using Lambda;
 using StringTools;
@@ -693,6 +694,40 @@ abstract class Chat {
 		}
 	}
 
+	/**
+		Does this chat provide a menu of commands?
+	**/
+	public function hasCommands() {
+		return commandJids().length > 0;
+	}
+
+	public function commands(): Promise<Array<Command>> {
+		return thenshim.PromiseTools.all(commandJids().map(jid -> new Promise((resolve, reject) -> {
+			final itemsGet = new DiscoItemsGet(jid.asString(), "http://jabber.org/protocol/commands");
+			itemsGet.onFinished(() -> {
+				final bareJid = jid.asBare();
+				resolve(itemsGet.getResult().filter(item ->
+					// Remove advertisement of commands at other JIDs for now
+					// It's a potential security/privacy issue depending on UX
+					item.jid != null && item.jid.asBare().equals(jid) && item.node != null
+				).map(item -> new Command(client, item)));
+			});
+			client.sendQuery(itemsGet);
+		}))).then(commands -> commands.flatten());
+	}
+
+	private function commandJids() {
+		final jids = [];
+		final jid = JID.parse(chatId);
+		for (resource in Caps.withFeature(getCaps(), "http://jabber.org/protocol/commands")) {
+			jids.push(resource == "" || resource == null ? jid : jid.withResource(resource));
+		}
+		if (jids.length < 1 && jid.isDomain()) {
+			jids.push(jid);
+		}
+		return jids;
+	}
+
 	private function recomputeUnread(): Promise<Any> {
 		return persistence.getMessagesBefore(client.accountId(), chatId, null, null).then((messages) -> {
 			var i = messages.length;
@@ -1167,12 +1202,7 @@ class Channel extends Chat {
 
 	@:allow(borogove)
 	override private function getCaps():KeyValueIterator<String, Caps> {
-		return {
-			hasNext: () -> false,
-			next: () -> {
-				return { key: "", value: null };
-			}
-		};
+		return ["" => disco].keyValueIterator();
 	}
 
 	override public function setPresence(resource:String, presence:Presence) {

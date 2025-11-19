@@ -961,7 +961,14 @@ class Client extends EventEmitter {
 			if (chat.isTrusted()) {
 				final resources:Map<String, Bool> = [];
 				for (resource in Caps.withIdentity(chat.getCaps(), "gateway", null)) {
-					resources[resource] = true;
+					// Sometimes gateway items also have id "gateway" for whatever reason
+					final identities = chat.getResourceCaps(resource)?.identities ?? [];
+					if (
+						(chat.chatId.indexOf("@") < 0 || identities.find(i -> i.category == "conference") == null) &&
+						identities.find(i -> i.category == "client") == null
+					) {
+						resources[resource] = true;
+					}
 				}
 				/* Gajim advertises this, so just go with identity instead
 				for (resource in Caps.withFeature(chat.getCaps(), "jabber:iq:gateway")) {
