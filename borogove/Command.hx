@@ -4,6 +4,7 @@ import thenshim.Promise;
 
 import borogove.DataForm;
 import borogove.Form;
+import borogove.queries.CommandExecute;
 
 @:expose
 @:allow(borogove.CommandSession)
@@ -19,5 +20,84 @@ class Command {
 		node = params.node;
 		name = params.name ?? params.node;
 		this.client = client;
+	}
+
+	/**
+		Start a new session for this command. May have side effects!
+	**/
+	public function execute(): Promise<CommandSession> {
+		return new CommandSession("executing", null, [], [], this).execute();
+	}
+}
+
+@:expose
+class CommandSession {
+	public final name: String;
+	public final status: String;
+	public final actions: Array<FormOption>;
+	public final forms: Array<Form>;
+	private final sessionid: String;
+	private final command: Command;
+
+	@:allow(borogove)
+	private function new(status: String, sessionid: String, actions: Array<FormOption>, forms: Array<Form>, command: Command) {
+		this.name = forms[0]?.title() != null ? forms[0].title() : command.name;
+		this.status = status;
+		this.sessionid = sessionid;
+		this.actions = actions;
+		this.forms = forms;
+		this.command = command;
+	}
+
+	#if js
+	public function execute(
+		action: Null<String> = null,
+		data: Null<haxe.extern.EitherType<
+			haxe.extern.EitherType<
+				haxe.DynamicAccess<StringOrArray>,
+				Map<String, StringOrArray>
+			>,
+			js.html.FormData
+		>> = null,
+		formIdx: Null<Int> = null
+	)
+	#else
+	public function execute(
+		action: Null<String> = null,
+		data: Null<FormSubmitBuilder> = null,
+		formIdx: Null<Int> = null
+	)
+	#end
+	: Promise<CommandSession> {
+		final extendedAction = action != null && !["prev", "next", "complete", "execute", "cancel"].contains(action);
+		var toSubmit = null;
+		if (data != null || extendedAction) {
+			toSubmit = forms[formIdx ?? 0].submit(data);
+			if (toSubmit == null) return Promise.reject("Invalid submission");
+		}
+
+		if (extendedAction) {
+			if (toSubmit == null) toSubmit = new Stanza("x", { xmlns: "jabber:x:data", type: "submit" });
+			final dataForm: DataForm = toSubmit;
+			final fld = dataForm.field("http://jabber.org/protocol/commands#actions");
+			if (fld == null) {
+				toSubmit.tag("field", { "var": "http://jabber.org/protocol/commands#actions" }).textTag("value", action).up();
+			} else {
+				fld.value = [action];
+			}
+			action = null;
+		}
+
+		return new Promise((resolve, reject) -> {
+			final exe = new CommandExecute(command.jid.asString(), command.node, action, sessionid, toSubmit);
+			exe.onFinished(() -> {
+				if (exe.getResult(command) == null) {
+					reject(exe.responseStanza);
+				} else {
+					resolve(exe.getResult(command));
+				}
+			});
+			command.client.sendQuery(exe);
+		});
 	}
 }

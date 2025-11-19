@@ -12,6 +12,7 @@ export import ChatMessage = borogove.ChatMessage;
 export import ChatMessageBuilder = borogove.ChatMessageBuilder;
 export import Client = borogove.Client;
 export import Command = borogove.Command;
+export import CommandSession = borogove.CommandSession;
 export import Config = borogove.Config;
 export import CustomEmojiReaction = borogove.CustomEmojiReaction;
 export import DirectChat = borogove.DirectChat;
