@@ -25,12 +25,16 @@ class FormItem {
 	public final field: Null<FormField>;
 	public final section: Null<FormSection>;
 	public final status: Null<String>;
+	public final tableHeader: Null<Array<FormField>>;
+	public final tableRows: Null<Array<Array<FormField>>>;
 
 	@:allow(borogove)
-	private function new(text: Null<String>, field: Null<FormField>, section: Null<FormSection>, status: Null<String> = null) {
+	private function new(text: Null<String>, field: Null<FormField>, section: Null<FormSection>, tableHeader: Null<Array<FormField>> = null, tableRows: Null<Array<Array<FormField>>> = null, status: Null<String> = null) {
 		this.text = text;
 		this.field = field;
 		this.section = section;
+		this.tableHeader = tableHeader;
+		this.tableRows = tableRows;
 		this.status = status;
 	}
 }
@@ -133,7 +137,7 @@ class Form implements FormSection {
 		final items = [];
 		for (child in s.allTags()) {
 			if (child.name == "instructions" && (child.attr.get("xmlns") == null || child.attr.get("xmlns") == "jabber:x:data")) {
-				items.push(new FormItem(child.getText(), null, null, child.attr.get("type")));
+				items.push(new FormItem(child.getText(), null, null, null, null, child.attr.get("type")));
 			}
 			if (!hasLayout && child.name == "field" && (child.attr.get("xmlns") == null || child.attr.get("xmlns") == "jabber:x:data")) {
 				final fld: Null<Field> = child;
@@ -146,7 +150,11 @@ class Form implements FormSection {
 				}
 			}
 			if (!hasLayout && child.name == "reported" && (child.attr.get("xmlns") == null || child.attr.get("xmlns") == "jabber:x:data")) {
-				throw "TODO";
+				items.push(new FormItem(
+					null, null, null,
+					form.tableHeader?.map(f -> f.toFormField()),
+					form.tableRows?.map(row -> row.map(f -> f.toFormField())) ?? []
+				));
 			}
 			if (child.name == "page" && child.attr.get("xmlns") == "http://jabber.org/protocol/xdata-layout") {
 				items.push(new FormItem(null, null, new FormLayoutSection(form, child)));
@@ -231,7 +239,11 @@ class FormLayoutSection implements FormSection {
 				items.push(new FormItem(null, form.field(child.attr.get("var")), null));
 			}
 			if (child.name == "reportedref" && (child.attr.get("xmlns") == null || child.attr.get("xmlns") == "http://jabber.org/protocol/xdata-layout")) {
-				throw "TODO";
+				items.push(new FormItem(
+					null, null, null,
+					form.tableHeader?.map(f -> f.toFormField()),
+					form.tableRows?.map(row -> row.map(f -> f.toFormField())) ?? []
+				));
 			}
 			if (child.name == "section" && (child.attr.get("xmlns") == null || child.attr.get("xmlns") == "http://jabber.org/protocol/xdata-layout")) {
 				items.push(new FormItem(null, null, new FormLayoutSection(form, child)));

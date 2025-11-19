@@ -11,6 +11,8 @@ abstract DataForm(Stanza) from Stanza to Stanza {
 	public var title(get, never): Null<String>;
 	public var type(get, never): Null<String>;
 	public var fields(get, never): Array<Field>;
+	public var tableHeader(get, never): Array<Field>;
+	public var tableRows(get, never): Array<Array<Field>>;
 
 	inline public function get_title() {
 		return this.getChildText("title");
@@ -22,6 +24,14 @@ abstract DataForm(Stanza) from Stanza to Stanza {
 
 	inline public function get_fields() {
 		return this.allTags("field");
+	}
+
+	inline public function get_tableHeader() {
+		return this.getChild("reported")?.allTags("field");
+	}
+
+	inline public function get_tableRows() {
+		return this.allTags("item")?.map(row -> row.allTags("field"));
 	}
 
 	public function field(name: String): Null<Field> {
