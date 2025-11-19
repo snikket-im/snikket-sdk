@@ -24,12 +24,14 @@ class FormItem {
 	public final text: Null<String>;
 	public final field: Null<FormField>;
 	public final section: Null<FormSection>;
+	public final status: Null<String>;
 
 	@:allow(borogove)
-	private function new(text: Null<String>, field: Null<FormField>, section: Null<FormSection>) {
+	private function new(text: Null<String>, field: Null<FormField>, section: Null<FormSection>, status: Null<String> = null) {
 		this.text = text;
 		this.field = field;
 		this.section = section;
+		this.status = status;
 	}
 }
 
@@ -51,18 +53,20 @@ class FormSubmitBuilder {
 	}
 
 	@:allow(borogove)
-	private function submit(form: DataForm) {
+	private function submit(form: Null<DataForm>) {
 		final toSubmit = new Stanza("x", { xmlns: "jabber:x:data", type: "submit" });
-		for (f in form.fields) {
-			if (!data.has(f.name) && f.value.length > 0) {
-				final tag = toSubmit.tag("field", { "var": f.name });
-				for (v in f.value) {
-					tag.textTag("value", v);
+		if (form != null) {
+			for (f in form.fields) {
+				if (!data.has(f.name) && f.value.length > 0) {
+					final tag = toSubmit.tag("field", { "var": f.name });
+					for (v in f.value) {
+						tag.textTag("value", v);
+					}
+					tag.up();
+				} else if (f.required && (!data.has(f.name) || data[f.name].length < 1)) {
+					trace("No value provided for required field", f.name);
+					return null;
 				}
-				tag.up();
-			} else if (f.required && (!data.has(f.name) || data[f.name].length < 1)) {
-				trace("No value provided for required field", f.name);
-				return null;
 			}
 		}
 		for (k => vs in data) {
@@ -85,28 +89,59 @@ typedef StringOrArray = haxe.extern.EitherType<String, Array<String>>;
 @:build(HaxeSwiftBridge.expose())
 #end
 class Form implements FormSection {
-	private final form: DataForm;
+	private final form: Null<DataForm>;
+	private final oob: Null<OOB>;
 
 	@:allow(borogove)
-	private function new(form: DataForm) {
+	private function new(form: Null<DataForm>, oob: Null<OOB>) {
+		if (form == null && oob == null) throw "Need a form or OOB";
 		this.form = form;
+		this.oob = oob;
 	}
 
+	/**
+		Is this form entirely results / read-only?
+	**/
+	public function isResult() {
+		if (form == null) return true;
+
+		return form.type == "result";
+	}
+
+	/**
+		Title of this form
+	**/
 	public function title() {
-		return form.title;
+		return form != null ? form.title : oob.desc;
 	}
 
+	/**
+		URL to use instead of this form
+	**/
+	public function url() {
+		return oob?.url;
+	}
+
+	/**
+		Items to render inside this form
+	**/
 	public function items() {
+		if (form == null) return [];
+
 		final s: Stanza = form;
 		final hasLayout = s.getChild("page", "http://jabber.org/protocol/xdata-layout") != null;
 		final items = [];
 		for (child in s.allTags()) {
 			if (child.name == "instructions" && (child.attr.get("xmlns") == null || child.attr.get("xmlns") == "jabber:x:data")) {
-				items.push(new FormItem(child.getText(), null, null));
+				items.push(new FormItem(child.getText(), null, null, child.attr.get("type")));
 			}
 			if (!hasLayout && child.name == "field" && (child.attr.get("xmlns") == null || child.attr.get("xmlns") == "jabber:x:data")) {
 				final fld: Null<Field> = child;
-				if (fld.type != "hidden") {
+				if (fld.type == "fixed" && fld.label == null) {
+					for (v in fld.value) {
+						items.push(new FormItem(v, null, null));
+					}
+				} else if (fld.type != "hidden") {
 					items.push(new FormItem(null, fld, null));
 				}
 			}
@@ -150,7 +185,7 @@ class Form implements FormSection {
 				builder.add(entry[0], entry[1]);
 			}
 		#end
-		} else {
+		} else if (data != null) {
 			for (k => v in ((cast data) : haxe.DynamicAccess<StringOrArray>)) {
 				if (Std.isOfType(v, String)) {
 					builder.add(k, v);

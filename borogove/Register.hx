@@ -66,17 +66,18 @@ class Register {
 	}
 
 	/**
-		Fetch registration form from the server.
+		Fetch registration form options from the server.
 		If you already know what fields your server wants, this is optional.
 	**/
-	public function getForm() {
+	public function getForm(): Promise<Array<Form>> {
 		return stream.register(domain, preAuth).then(reply -> {
 			final error = reply.getErrorText();
 			if (error != null) return Promise.reject(error);
 
 			final query = reply.getChild("query", "jabber:iq:register");
 			final form: DataForm = query.getChild("x", "jabber:x:data");
-			if (form == null) {
+			final oob: OOB = query.getChild("x", "jabber:x:oob");
+			if (form == null && oob == null) {
 				return Promise.reject("No form found");
 			}
 
@@ -86,8 +87,17 @@ class Register {
 				(fuser : Stanza).attr.set("type", "fixed");
 			}
 
-			this.form = new Form(form);
-			return Promise.resolve(this.form);
+			final results = [];
+			if (form != null) {
+				this.form = new Form(form, null);
+				results.push(this.form);
+			}
+			if (oob != null) {
+				final oobForm = new Form(null, oob);
+				results.push(oobForm);
+				if (this.form == null) this.form = oobForm;
+			}
+			return Promise.resolve(results);
 		});
 	}
 
