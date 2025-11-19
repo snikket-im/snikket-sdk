@@ -45,7 +45,7 @@ class FormSubmitBuilder {
 	public function new() { }
 
 	public function add(k: String, v: String) {
-		if (data.has(k)) {
+		if (data.get(k) != null) {
 			data.set(k, data.get(k).concat([v]));
 		} else {
 			data.set(k, [v]);
@@ -57,13 +57,13 @@ class FormSubmitBuilder {
 		final toSubmit = new Stanza("x", { xmlns: "jabber:x:data", type: "submit" });
 		if (form != null) {
 			for (f in form.fields) {
-				if (!data.has(f.name) && f.value.length > 0) {
+				if (data.get(f.name) == null && f.value.length > 0) {
 					final tag = toSubmit.tag("field", { "var": f.name });
 					for (v in f.value) {
 						tag.textTag("value", v);
 					}
 					tag.up();
-				} else if (f.required && (!data.has(f.name) || data[f.name].length < 1)) {
+				} else if (f.required && (data.get(f.name) == null || data[f.name].length < 1)) {
 					trace("No value provided for required field", f.name);
 					return null;
 				}
@@ -125,7 +125,7 @@ class Form implements FormSection {
 	/**
 		Items to render inside this form
 	**/
-	public function items() {
+	public function items(): Array<FormItem> {
 		if (form == null) return [];
 
 		final s: Stanza = form;
