@@ -200,4 +200,15 @@ class Util {
 		return index;
 	}
 	#end
+
+	static public function capitalize(s:String):String {
+		if (s == null || s.length == 0) return s;
+
+		var u: UnicodeString = s;
+
+		var first = u.charAt(0).toUpperCase();
+		var rest  = u.substr(1, u.length - 1);
+
+		return first + rest;
+	}
 }
