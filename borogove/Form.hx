@@ -190,7 +190,12 @@ class Form implements FormSection {
 		#if !nodejs
 		} else if (Std.isOfType(data, js.html.FormData)) {
 			for (entry in new js.lib.HaxeIterator(((cast data) : js.html.FormData).entries())) {
-				builder.add(entry[0], entry[1]);
+				if (form.field(entry[0])?.type == "boolean") {
+					// FormData may have booleans formatted like an HTML form
+					builder.add(entry[0], entry[1] == "on" ? "true" : "false");
+				} else {
+					builder.add(entry[0], entry[1]);
+				}
 			}
 		#end
 		} else if (data != null) {
