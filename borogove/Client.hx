@@ -1438,7 +1438,7 @@ class Client extends EventEmitter {
 			persistence.storeChats(accountId(), [chat]);
 		}
 		final pinnedCount = chat.uiState == Pinned ? 0 : chats.fold((item, result) -> result + (item.uiState == Pinned ? 1 : 0), 0);
-		var idx = chats.indexOf(chat);
+		var idx = chats.findIndex(c -> c.chatId == chat.chatId);
 		if (idx > pinnedCount) {
 			chats.splice(idx, 1);
 			chats.insert(pinnedCount, chat);
