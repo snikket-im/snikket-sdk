@@ -740,7 +740,7 @@ abstract class Chat {
 			final itemsGet = new DiscoItemsGet(jid.asString(), "http://jabber.org/protocol/commands");
 			itemsGet.onFinished(() -> {
 				final bareJid = jid.asBare();
-				resolve(itemsGet.getResult().filter(item ->
+				resolve((itemsGet.getResult() ?? []).filter(item ->
 					// Remove advertisement of commands at other JIDs for now
 					// It's a potential security/privacy issue depending on UX
 					item.jid != null && item.jid.asBare().equals(jid) && item.node != null
