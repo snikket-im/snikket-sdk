@@ -25,6 +25,7 @@ enum abstract CallStatus(Int) {
 #if cpp
 @:build(HaxeSwiftBridge.expose())
 #end
+@:expose
 interface Session {
 	public var sid (get, null): String;
 	public var chatId (get, null): String;
@@ -324,6 +325,7 @@ class OutgoingProposedSession implements Session {
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
+@:expose
 class InitiatedSession implements Session {
 	public var sid (get, null): String;
 	public var chatId (get, null): String;
@@ -700,7 +702,7 @@ class OutgoingSession extends InitiatedSession {
 		remoteDescription = SessionDescription.fromStanza(stanza, true);
 		peerDtlsSetup = remoteDescription.getDtlsSetup();
 		pc.setRemoteDescription({ type: SdpType.ANSWER, sdp: remoteDescription.toSdp() })
-		  .then((_) -> transportInfo(stanza));
+			.then((_) -> transportInfo(stanza));
 		return this;
 	}
 

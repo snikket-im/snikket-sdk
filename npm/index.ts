@@ -1,53 +1,47 @@
-import IDBjs from "./IDB.js";
-import MediaStoreCachejs from "./MediaStoreCache.js";
-import { borogove as enums } from "./borogove-enums.js";
-import { borogove } from "./borogove.js";
+export {
+	borogove_ChatMessageEvent as ChatMessageEvent,
+	borogove_MessageDirection as MessageDirection,
+	borogove_MessageStatus as MessageStatus,
+	borogove_MessageType as MessageType,
+	borogove_ReactionUpdateKind as ReactionUpdateKind,
+	borogove_UiState as UiState,
+	borogove_UserState as UserState,
+} from "./borogove-enums";
+export {
+    borogove_AvailableChat as AvailableChat,
+    borogove_Channel as Channel,
+    borogove_Chat as Chat,
+    borogove_ChatAttachment as ChatAttachment,
+    borogove_ChatMessage as ChatMessage,
+    borogove_ChatMessageBuilder as ChatMessageBuilder,
+    borogove_Client as Client,
+    borogove_Command as Command,
+    borogove_CommandSession as CommandSession,
+    borogove_Config as Config,
+    borogove_CustomEmojiReaction as CustomEmojiReaction,
+    borogove_DirectChat as DirectChat,
+    borogove_EventEmitter as EventEmitter,
+    borogove_Form as Form,
+    borogove_FormSection as FormSection,
+    borogove_FormItem as FormItem,
+    borogove_FormField as FormField,
+    borogove_FormOption as FormOption,
+    borogove_Hash as Hash,
+    borogove_Identicon as Identicon,
+    borogove_Notification as Notification,
+    borogove_Participant as Participant,
+    borogove_Persistence as Persistence,
+    borogove_Push as Push,
+    borogove_Reaction as Reaction,
+    borogove_Register as Register,
+    borogove_SerializedChat as SerializedChat,
+} from "./borogove.js";
 
-// TODO: should we autogenerate this?
-export import AvailableChat = borogove.AvailableChat;
-export import Channel = borogove.Channel;
-export import Chat = borogove.Chat;
-export import ChatAttachment = borogove.ChatAttachment;
-export import ChatMessage = borogove.ChatMessage;
-export import ChatMessageBuilder = borogove.ChatMessageBuilder;
-export import Client = borogove.Client;
-export import Command = borogove.Command;
-export import CommandSession = borogove.CommandSession;
-export import Config = borogove.Config;
-export import CustomEmojiReaction = borogove.CustomEmojiReaction;
-export import DirectChat = borogove.DirectChat;
-export import EventEmitter = borogove.EventEmitter;
-export import Form = borogove.Form;
-export import FormSection = borogove.FormSection;
-export import FormItem = borogove.FormItem;
-export import FormField = borogove.FormField;
-export import FormOption = borogove.FormOption;
-export import Hash = borogove.Hash;
-export import Identicon = borogove.Identicon;
-export import Notification = borogove.Notification;
-export import Participant = borogove.Participant;
-export import Persistence = borogove.Persistence;
-export import Push = borogove.Push;
-export import Reaction = borogove.Reaction;
-export import Register = borogove.Register;
-export import SerializedChat = borogove.SerializedChat;
-export const VERSION = borogove.Version.HUMAN;
-export import calls = borogove.calls;
+import * as persistence from "./persistence";
+export { persistence };
 
-export import CallStatus = enums.calls.CallStatus;
-export import ChatMessageEvent = enums.ChatMessageEvent;
-export import MessageDirection = enums.MessageDirection;
-export import MessageStatus = enums.MessageStatus;
-export import MessageType = enums.MessageType;
-export import ReactionUpdateKind = enums.ReactionUpdateKind;
-export import UiState = enums.UiState;
-export import UserState = enums.UserState;
+import * as calls from "./calls";
+export { calls };
 
-export namespace persistence {
-	export const IDB = IDBjs;
-	export import KeyValueStore = borogove.persistence.KeyValueStore;
-	export import MediaStore = borogove.persistence.MediaStore;
-	export const MediaStoreCache = MediaStoreCachejs;
-	export import Dummy = borogove.persistence.Dummy;
-	export import Sqlite = borogove.persistence.Sqlite;
-}
+import { borogove_Version } from "./borogove.js";
+export const VERSION = borogove_Version.HUMAN;

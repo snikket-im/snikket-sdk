@@ -1,8 +1,23 @@
 // This example persistence driver is written in JavaScript
 // so that SDK users can easily see how to write their own
 
-import { borogove as enums } from "./borogove-enums.js";
-import { borogove } from "./borogove.js";
+// Importing internals not the public interface
+import {
+	borogove_Caps,
+	borogove_Channel,
+	borogove_ChatMessageBuilder,
+	borogove_CustomEmojiReaction,
+	borogove_DirectChat,
+	borogove_Hash,
+	borogove_Identity,
+	borogove_JID,
+	borogove_Presence,
+	borogove_Reaction,
+	borogove_ReactionUpdate,
+	borogove_SerializedChat,
+	borogove_Stanza,
+} from "./borogove.js";
+import * as enums from "./borogove-enums.js";
 
 export default async (dbname, media, tokenize, stemmer) => {
 	if (!tokenize) tokenize = function(s) { return s.split(" "); }
@@ -97,17 +112,17 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 	function hydrateStringReaction(r, senderId, timestamp) {
 		if (r.startsWith("ni://")){
-			return new borogove.CustomEmojiReaction(senderId, timestamp, "", r);
+			return new borogove_CustomEmojiReaction(senderId, timestamp, "", r);
 		} else {
-			return new borogove.Reaction(senderId, timestamp, r);
+			return new borogove_Reaction(senderId, timestamp, r);
 		}
 	}
 
 	function hydrateObjectReaction(r) {
 		if (r.uri) {
-			return new borogove.CustomEmojiReaction(r.senderId, r.timestamp, r.text, r.uri, r.envelopeId);
+			return new borogove_CustomEmojiReaction(r.senderId, r.timestamp, r.text, r.uri, r.envelopeId);
 		} else {
-			return new borogove.Reaction(r.senderId, r.timestamp, r.text, r.envelopeId, r.key);
+			return new borogove_Reaction(r.senderId, r.timestamp, r.text, r.envelopeId, r.key);
 		}
 	}
 
@@ -131,7 +146,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 		const tx = db.transaction(["messages"], "readonly");
 		const store = tx.objectStore("messages");
 
-		const message = new borogove.ChatMessageBuilder();
+		const message = new borogove_ChatMessageBuilder();
 		message.localId = value.localId ? value.localId : null;
 		message.serverId = value.serverId ? value.serverId : null;
 		message.serverIdBy = value.serverIdBy ? value.serverIdBy : null;
@@ -141,20 +156,20 @@ export default async (dbname, media, tokenize, stemmer) => {
 		message.status = value.status;
 		message.statusText = value.statusText;
 		message.timestamp = value.timestamp && value.timestamp.toISOString();
-		message.from = value.from && borogove.JID.parse(value.from);
-		message.sender = value.sender && borogove.JID.parse(value.sender);
+		message.from = value.from && borogove_JID.parse(value.from);
+		message.sender = value.sender && borogove_JID.parse(value.sender);
 		message.senderId = value.senderId;
-		message.recipients = value.recipients.map((r) => borogove.JID.parse(r));
-		message.to = value.to ? borogove.JID.parse(value.to) : message.recipients[0];
-		message.replyTo = value.replyTo.map((r) => borogove.JID.parse(r));
+		message.recipients = value.recipients.map((r) => borogove_JID.parse(r));
+		message.to = value.to ? borogove_JID.parse(value.to) : message.recipients[0];
+		message.replyTo = value.replyTo.map((r) => borogove_JID.parse(r));
 		message.threadId = value.threadId;
 		message.attachments = value.attachments;
 		message.reactions = hydrateReactions(value.reactions, message.timestamp);
 		message.text = value.text;
 		message.lang = value.lang;
-		message.type = value.type || (value.isGroupchat || value.groupchat ? enums.MessageType.Channel : enums.MessageType.Chat);
-		message.payloads = (value.payloads || []).map(borogove.Stanza.parse);
-		message.stanza = value.stanza && borogove.Stanza.parse(value.stanza);
+		message.type = value.type || (value.isGroupchat || value.groupchat ? enums.borogove_MessageType.Channel : enums.borogove_MessageType.Chat);
+		message.payloads = (value.payloads || []).map(borogove_Stanza.parse);
+		message.stanza = value.stanza && borogove_Stanza.parse(value.stanza);
 		if (!message.localId && !message.serverId) message.localId = "NO_ID"; // bad data
 		return message.build();
 	}
@@ -210,7 +225,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 		head.versions = versions;
 		head.reactions = result.value.reactions; // Preserve these, edit doesn't touch them
 		// Calls can "edit" from multiple senders, but the original direction and sender holds
-		if (result.value.type === enums.MessageType.MessageCall) {
+		if (result.value.type === enums.borogove_MessageType.MessageCall) {
 			head.direction = result.value.direction;
 			head.senderId = result.value.senderId;
 			head.from = result.value.from;
@@ -283,7 +298,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					notificationSettings: chat.notificationsFiltered() ? { mention: chat.notifyMention(), reply: chat.notifyReply() } : null,
 					disco: { ...chat.disco, data: chat.disco?.data?.map(d => d.toString()) },
 					omemoDevices: chat.omemoContactDeviceIDs,
-					class: chat instanceof borogove.DirectChat ? "DirectChat" : (chat instanceof borogove.Channel ? "Channel" : "Chat")
+					class: chat instanceof borogove_DirectChat ? "DirectChat" : (chat instanceof borogove_Channel ? "Channel" : "Chat")
 				});
 			}
 		},
@@ -293,12 +308,12 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const store = tx.objectStore("chats");
 			const range = IDBKeyRange.bound([account], [account, []]);
 			const result = await promisifyRequest(store.getAll(range));
-			return await Promise.all(result.map(async (r) => new borogove.SerializedChat(
+			return await Promise.all(result.map(async (r) => new borogove_SerializedChat(
 				r.chatId,
 				r.trusted,
 				r.avatarSha1,
 				new Map(await Promise.all((r.presence instanceof Map ? [...r.presence.entries()] : Object.entries(r.presence)).map(
-					async ([k, p]) => [k, new borogove.Presence(p.caps && await this.getCaps(p.caps), p.mucUser && borogove.Stanza.parse(p.mucUser), p.avatarHash && borogove.Hash.fromUri(p.avatarHash))]
+					async ([k, p]) => [k, new borogove_Presence(p.caps && await this.getCaps(p.caps), p.mucUser && borogove_Stanza.parse(p.mucUser), p.avatarHash && borogove_Hash.fromUri(p.avatarHash))]
 				))),
 				r.displayName,
 				r.uiState,
@@ -309,11 +324,11 @@ export default async (dbname, media, tokenize, stemmer) => {
 				r.notificationSettings === undefined ? null : r.notificationSettings != null,
 				r.notificationSettings?.mention,
 				r.notificationSettings?.reply,
-				r.disco ? new borogove.Caps(
+				r.disco ? new borogove_Caps(
 					r.disco.node,
-					(r.disco.identities || []).map((identity) => new borogove.Identity(identity.category, identity.type, identity.name)),
+					(r.disco.identities || []).map((identity) => new borogove_Identity(identity.category, identity.type, identity.name)),
 					r.disco.features || [],
-					(r.disco.data || []).map(s => borogove.Stanza.parse(s))
+					(r.disco.data || []).map(s => borogove_Stanza.parse(s))
 				) : null,
 				r.omemoDevices || [],
 				r.class
@@ -342,7 +357,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 							result[value.chatId] = result[value.chatId].then((details) => {
 								if (!details.foundAll) {
 									const readUpTo = chats[value.chatId]?.readUpTo();
-									if (readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.MessageDirection.MessageSent) {
+									if (readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.borogove_MessageDirection.MessageSent) {
 										details.foundAll = true;
 									} else {
 										details.unreadCount++;
@@ -352,7 +367,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 							});
 						} else {
 							const readUpTo = chats[value.chatId]?.readUpTo();
-							const haveRead = readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.MessageDirection.MessageSent;
+							const haveRead = readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.borogove_MessageDirection.MessageSent;
 							result[value.chatId] = hydrateMessage(value).then((m) => ({ chatId: value.chatId, message: m, unreadCount: haveRead ? 0 : 1, foundAll: haveRead }));
 						}
 					}
@@ -392,7 +407,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				[account, update.chatId, update.serverId || update.localId, update.senderId, []]
 			), "prev"));
 			const reactions = update.getReactions(hydrateReactionsArray(lastFromSender?.value?.reactions));
-			await promisifyRequest(reactionStore.put({...update, reactions: reactions, append: (update.kind === enums.ReactionUpdateKind.AppendReactions ? update.reactions : null), messageId: update.serverId || update.localId, timestamp: new Date(update.timestamp), account: account}));
+			await promisifyRequest(reactionStore.put({...update, reactions: reactions, append: (update.kind === enums.borogove_ReactionUpdateKind.AppendReactions ? update.reactions : null), messageId: update.serverId || update.localId, timestamp: new Date(update.timestamp), account: account}));
 			if (!result || !result.value) return null;
 			if (lastFromSender?.value && lastFromSender.value.timestamp > new Date(update.timestamp)) return;
 			const message = result.value;
@@ -433,13 +448,13 @@ export default async (dbname, media, tokenize, stemmer) => {
 									if (react.senderId === message.senderId && !previouslyAppended.includes(k)) reactions.push(react);
 								}
 							}
-							this.storeReaction(account, new borogove.ReactionUpdate(message.localId, reactionResult.value.serverId, reactionResult.value.serverIdBy, reactionResult.value.localId, message.chatId(), message.senderId, message.timestamp, reactions, enums.ReactionUpdateKind.CompleteReactions), callback);
+							this.storeReaction(account, new borogove_ReactionUpdate(message.localId, reactionResult.value.serverId, reactionResult.value.serverIdBy, reactionResult.value.localId, message.chatId(), message.senderId, message.timestamp, reactions, enums.borogove_ReactionUpdateKind.CompleteReactions), callback);
 						});
 						return true;
-					} else if (result?.value && !message.isIncoming() && result?.value.direction === enums.MessageDirection.MessageSent && message.versions.length < 1) {
+					} else if (result?.value && !message.isIncoming() && result?.value.direction === enums.borogove_MessageDirection.MessageSent && message.versions.length < 1) {
 						// Duplicate, we trust our own sent ids
 						return promisifyRequest(result.delete());
-					} else if (result?.value && (result.value.senderId == message.senderId || result.value.type == enums.MessageType.MessageCall) && (message.versions.length > 0 || (result.value.versions || []).length > 0)) {
+					} else if (result?.value && (result.value.senderId == message.senderId || result.value.type == enums.borogove_MessageType.MessageCall) && (message.versions.length > 0 || (result.value.versions || []).length > 0)) {
 						hydrateMessage(correctMessage(account, message, result)).then(callback);
 						return true;
 					}
@@ -485,7 +500,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const tx = db.transaction(["messages"], "readwrite");
 			const store = tx.objectStore("messages");
 			const result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.bound([account, localId], [account, localId, []])));
-			if (result?.value && result.value.direction === enums.MessageDirection.MessageSent && ![enums.MessageStatus.MessageDeliveredToDevice, enums.MessageStatus.MessageFailedToSend].includes(result.value.status)) {
+			if (result?.value && result.value.direction === enums.borogove_MessageDirection.MessageSent && ![enums.borogove_MessageStatus.MessageDeliveredToDevice, enums.borogove_MessageStatus.MessageFailedToSend].includes(result.value.status)) {
 				const newStatus = { ...result.value, status, statusText };
 				result.update(newStatus);
 				return await hydrateMessage(newStatus);
@@ -502,7 +517,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				if (!cresult) break;
 
 				const value = cresult.value;
-				if (value?.versions?.[0]?.localId === localId && value?.direction === enums.MessageDirection.MessageSent && ![enums.MessageStatus.MessageDeliveredToDevice, enums.MessageStatus.MessageFailedToSend].includes(result.value.status)) {
+				if (value?.versions?.[0]?.localId === localId && value?.direction === enums.borogove_MessageDirection.MessageSent && ![enums.borogove_MessageStatus.MessageDeliveredToDevice, enums.borogove_MessageStatus.MessageFailedToSend].includes(result.value.status)) {
 					const newStatus = { ...value, versions: [{ ...value.versions[0], status, statusText }, ...value.versions.slice(1)], status, statusText };
 					cresult.update(newStatus);
 					return await hydrateMessage(newStatus);
@@ -638,11 +653,11 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const store = tx.objectStore("keyvaluepairs");
 			const raw = await promisifyRequest(store.get("caps:" + ver));
 			if (raw) {
-				return new borogove.Caps(
+				return new borogove_Caps(
 					raw.node,
-					raw.identities.map((identity) => new borogove.Identity(identity.category, identity.type, identity.name)),
+					raw.identities.map((identity) => new borogove_Identity(identity.category, identity.type, identity.name)),
 					raw.features,
-					(raw.data || []).map(s => borogove.Stanza.parse(s))
+					(raw.data || []).map(s => borogove_Stanza.parse(s))
 				);
 			}
 

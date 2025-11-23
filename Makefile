@@ -21,40 +21,16 @@ hx-build-dep:
 	haxelib --quiet install utest
 	haxelib --quiet git hxcpp https://github.com/HaxeFoundation/hxcpp
 
-
 npm/borogove-browser.js:
 	haxe browserjs.hxml
-	sed -i 's/import { borogove }/import { borogove as enums }/' npm/borogove-browser.d.ts
-	sed -i 's/borogove\.UiState/enums.UiState/g' npm/borogove-browser.d.ts
-	sed -i 's/borogove\.MessageStatus/enums.MessageStatus/g' npm/borogove-browser.d.ts
-	sed -i 's/borogove\.MessageDirection/enums.MessageDirection/g' npm/borogove-browser.d.ts
-	sed -i 's/borogove\.MessageType/enums.MessageType/g' npm/borogove-browser.d.ts
-	sed -i 's/borogove\.UserState/enums.UserState/g' npm/borogove-browser.d.ts
-	sed -i 's/borogove\.ChatMessageEvent/enums.ChatMessageEvent/g' npm/borogove-browser.d.ts
-	sed -i 's/borogove\.ReactionUpdateKind/enums.ReactionUpdateKind/g' npm/borogove-browser.d.ts
-	sed -i 's/borogove\.calls\.CallStatus/enums.calls.CallStatus/g' npm/borogove-browser.d.ts
-	sed -i 's/borogove\.EncryptionMode/enums.EncryptionMode/g' npm/borogove-browser.d.ts
-	sed -i 's/borogove\.EncryptionStatus/enums.EncryptionStatus/g' npm/borogove-browser.d.ts
-	sed -i '1ivar exports = {};' npm/borogove-browser.js
-	sed -i '$$i export const borogove = exports.borogove;' npm/borogove-browser.js
+	sed -i '/;var $$hx_exports = typeof exports != "undefined" ? exports : globalThis;/{N;N;N;d;}' npm/borogove-browser.js
+	sed -i 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove-browser.js
 
 npm/borogove.js:
 	haxe nodejs.hxml
-	sed -i 's/import { borogove }/import { borogove as enums }/' npm/borogove.d.ts
-	sed -i 's/borogove\.UiState/enums.UiState/g' npm/borogove.d.ts
-	sed -i 's/borogove\.MessageStatus/enums.MessageStatus/g' npm/borogove.d.ts
-	sed -i 's/borogove\.MessageDirection/enums.MessageDirection/g' npm/borogove.d.ts
-	sed -i 's/borogove\.MessageType/enums.MessageType/g' npm/borogove.d.ts
-	sed -i 's/borogove\.UserState/enums.UserState/g' npm/borogove.d.ts
-	sed -i 's/borogove\.ChatMessageEvent/enums.ChatMessageEvent/g' npm/borogove.d.ts
-	sed -i 's/borogove\.ReactionUpdateKind/enums.ReactionUpdateKind/g' npm/borogove.d.ts
-	sed -i 's/borogove\.calls\.CallStatus/enums.calls.CallStatus/g' npm/borogove.d.ts
-	sed -i 's/borogove\.EncryptionMode/enums.EncryptionMode/g' npm/borogove.d.ts
-	sed -i 's/borogove\.EncryptionStatus/enums.EncryptionStatus/g' npm/borogove.d.ts
-	sed -i '1iimport { createRequire } from "module";' npm/borogove.js
-	sed -i '1iglobal.require = createRequire(import.meta.url);' npm/borogove.js
-	sed -i '1ivar exports = {};' npm/borogove.js
-	sed -i '$$i export const borogove = exports.borogove;' npm/borogove.js
+	sed -i '/;var $$hx_exports = typeof exports != "undefined" ? exports : globalThis;/{N;N;N;d;}' npm/borogove.js
+	sed -i 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove.js
+	cd npm && npx cjstoesm borogove.js
 
 npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogove/persistence/MediaStoreCache.js borogove/persistence/sqlite-worker1.mjs
 	cp borogove/persistence/IDB.js npm
@@ -62,7 +38,6 @@ npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogov
 	cp borogove/persistence/sqlite-worker1.mjs npm
 	-cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts > /dev/null
 	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts
-	sed -i '1iimport { borogove as enums } from "./borogove-enums.js";' npm/index.js
 
 cpp/output.dso:
 	haxe cpp.hxml
