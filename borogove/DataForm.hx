@@ -211,13 +211,13 @@ class FormField {
 @:build(HaxeSwiftBridge.expose())
 #end
 class FormOption {
-	public final label: Null<String>;
-	public final value: Null<String>;
+	public final label: String;
+	public final value: String;
 
 	@:allow(borogove)
 	private function new(label: Null<String>, value: Null<String>) {
-		this.label = label;
-		this.value = value;
+		this.label = label ?? value;
+		this.value = value ?? "";
 	}
 
 	@:allow(borogove)
