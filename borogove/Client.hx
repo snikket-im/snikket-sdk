@@ -1518,7 +1518,7 @@ class Client extends EventEmitter {
 			for (item in itemsGet.getResult() ?? []) {
 				final infoGet = new DiscoInfoGet(item.jid.asString(), item.node);
 				infoGet.onFinished(() -> {
-					callback(item, infoGet.getResult());
+					callback(item, infoGet.getResult() ?? new Caps("", [], [], []));
 				});
 				sendQuery(infoGet);
 			}
