@@ -73,7 +73,7 @@ class CommandSession {
 		var toSubmit = null;
 		if (data != null || extendedAction) {
 			toSubmit = forms[formIdx ?? 0].submit(data);
-			if (toSubmit == null) return Promise.reject("Invalid submission");
+			if (toSubmit == null && action != "cancel" && action != "prev") return Promise.reject("Invalid submission");
 		}
 
 		if (extendedAction) {
