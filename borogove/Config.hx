@@ -17,7 +17,7 @@ class Config {
 
 		This can be useful eg for intercepting with a Service Worker.
 	**/
-	public static var relativeHashUri = false;
+	public static var relativeHashUri: Bool = false;
 
 	@:allow(borogove)
 	private static var constrainedMemoryMode = false;

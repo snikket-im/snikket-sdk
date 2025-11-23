@@ -26,6 +26,7 @@ class FormItem {
 	public final section: Null<FormSection>;
 	public final status: Null<String>;
 	public final tableHeader: Null<Array<FormField>>;
+	@HaxeCBridge.noemit
 	public final tableRows: Null<Array<Array<FormField>>>;
 
 	@:allow(borogove)

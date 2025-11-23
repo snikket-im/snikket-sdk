@@ -1234,7 +1234,6 @@ class Channel extends Chat {
 		return disco?.data?.find(d -> d.field("FORM_TYPE")?.value?.at(0) == "http://jabber.org/protocol/muc#roominfo");
 	}
 
-	@HaxeCBridge.noemit // on superclass as abstract
 	override public function canSend() {
 		if (!super.canSend()) return false;
 		if (_nickInUse == null) return true;
