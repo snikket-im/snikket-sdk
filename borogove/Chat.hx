@@ -163,7 +163,7 @@ abstract class Chat {
 			sync.onMessages((messageList) -> {
 				final chatMessages = [];
 				for (m in messageList.messages) {
-					switch (m) {
+					switch (m.parsed) {
 					case ChatMessageStanza(message):
 						chatMessages.push(message);
 					case ReactionUpdateStanza(update):
@@ -1440,7 +1440,7 @@ class Channel extends Chat {
 			final promises = [];
 			final pageChatMessages = [];
 			for (m in messageList.messages) {
-				switch (m) {
+				switch (m.parsed) {
 					case ChatMessageStanza(message):
 						for (hash in message.inlineHashReferences()) {
 							client.fetchMediaByHash([hash], [message.from]);

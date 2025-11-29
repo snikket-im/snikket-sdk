@@ -484,34 +484,7 @@ class Client extends EventEmitter {
 					stanza.getErrorText(),
 				).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
 			case MucInviteStanza(serverId, serverIdBy, reason, password):
-				final chat = getChat(message.chatId);
-				if (chat == null) {
-					startChatWith(message.chatId, _ -> Invited, (chat) -> {
-						final inviteExt = chat.extensions.tag("invite", { xmlns: "http://jabber.org/protocol/muc#user", from: message.senderId });
-						if (reason != null) inviteExt.textTag("reason", reason);
-						if (password != null) inviteExt.textTag("password", password);
-						if (message.threadId != null) inviteExt.tag("continue", { thread: message.threadId }).up();
-						if (serverId != null && serverIdBy != null) {
-							inviteExt.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", by: serverIdBy, id: serverId }).up();
-						}
-						inviteExt.up();
-						this.trigger("chats/update", [chat]);
-						persistence.storeChats(accountId(), [chat]);
-					});
-				} else if (chat.uiState == Closed) {
-					chat.extensions.removeChildren("invite", "http://jabber.org/protocol/muc#user");
-					final inviteExt = chat.extensions.tag("invite", { xmlns: "http://jabber.org/protocol/muc#user", from: message.senderId });
-					if (reason != null) inviteExt.textTag("reason", reason);
-					if (password != null) inviteExt.textTag("password", password);
-					if (message.threadId != null) inviteExt.tag("continue", { thread: message.threadId }).up();
-					if (serverId != null && serverIdBy != null) {
-						inviteExt.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", by: serverIdBy, id: serverId }).up();
-					}
-					inviteExt.up();
-					chat.uiState = Invited;
-					this.trigger("chats/update", [chat]);
-					persistence.storeChats(accountId(), [chat]);
-				}
+				mucInvite(message.chatId, getChat(message.chatId), message.senderId, message.threadId, serverId, serverIdBy, reason, password);
 			default:
 				// ignore
 				trace("Ignoring non-chat message: " + stanza.toString());
@@ -1635,6 +1608,31 @@ class Client extends EventEmitter {
 		sendQuery(discoGet);
 	}
 
+	private function mucInvite(chatId: String, chat: Null<Chat>, senderId: String, threadId: Null<String>, serverId: Null<String>, serverIdBy: Null<String>, reason: Null<String>, password: Null<String>) {
+		if (chat == null) {
+			startChatWith(chatId, _ -> Invited, (chat) -> {
+				mucInvite(chatId, chat, senderId, threadId, serverId, serverIdBy, reason, password);
+			});
+			return;
+		}
+
+		// Already open so keep it that way
+		if (chat.uiState != Closed && chat.uiState != Invited) return;
+
+		chat.extensions.removeChildren("invite", "http://jabber.org/protocol/muc#user");
+		final inviteExt = chat.extensions.tag("invite", { xmlns: "http://jabber.org/protocol/muc#user", from: senderId });
+		if (reason != null) inviteExt.textTag("reason", reason);
+		if (password != null) inviteExt.textTag("password", password);
+		if (threadId != null) inviteExt.tag("continue", { thread: threadId }).up();
+		if (serverId != null && serverIdBy != null) {
+			inviteExt.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", by: serverIdBy, id: serverId }).up();
+		}
+		inviteExt.up();
+		chat.uiState = Invited;
+		this.trigger("chats/update", [chat]);
+		persistence.storeChats(accountId(), [chat]);
+	}
+
 	private function serverBlocked(blocked: String) {
 		final chat = getChat(blocked) ?? getDirectChat(blocked, false);
 		chat.block(false, null, false);
@@ -1746,7 +1744,7 @@ class Client extends EventEmitter {
 			final promises = [];
 			final chatMessages = [];
 			for (m in messageList.messages) {
-				switch (m) {
+				switch (m.parsed) {
 					case ChatMessageStanza(message):
 						chatMessages.push(message);
 						if (message.type == MessageChat) chatIds[message.chatId()] = true;
@@ -1765,6 +1763,8 @@ class Client extends EventEmitter {
 							MessageFailedToSend,
 							stanza.getErrorText(),
 						).then(m -> [m]));
+					case MucInviteStanza(serverId, serverIdBy, reason, password):
+						mucInvite(m.chatId, getChat(m.chatId), m.senderId, m.threadId, serverId, serverIdBy, reason, password);
 					default:
 						// ignore
 				}

@@ -17,7 +17,7 @@ import borogove.OMEMO;
 
 typedef MessageList = {
 	var sync:MessageSync;
-	var messages:Array<MessageStanza>;
+	var messages:Array<Message>;
 }
 
 typedef MessageListHandler = (MessageList) -> Void;
@@ -52,7 +52,7 @@ class MessageSync {
 		if (complete) {
 			throw new Exception("Attempt to fetch messages, but already complete");
 		}
-		final promisedMessages:Array<Promise<MessageStanza>> = [];
+		final promisedMessages:Array<Promise<Message>> = [];
 		if (lastPage == null) {
 			if (newestPageFirst == true && (filter.page == null || (filter.page.before == null && filter.page.after == null))) {
 				if (filter.page == null)
@@ -119,26 +119,23 @@ class MessageSync {
 					final decryptedStanza = decryptionResult.stanza;
 					trace("MAM: Decrypted stanza: "+decryptedStanza);
 
-					final msg = Message.fromStanza(decryptedStanza, client.jid, (builder, stanza) -> {
+					return Message.fromStanza(decryptedStanza, client.jid, (builder, stanza) -> {
 						builder.serverId = result.attr.get("id");
 						builder.serverIdBy = serviceJID;
 						builder.encryption = decryptionResult.encryptionInfo;
 						if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
 						return contextHandler(builder, stanza);
-					}).parsed;
-
-					return msg;
+					});
 				}, (err) -> {
 					trace("MAM: Decryption failed: "+err);
-					final msg = Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
+					return Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
 							builder.serverId = result.attr.get("id");
 							builder.serverIdBy = serviceJID;
 							if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
 							return contextHandler(builder, stanza);
 						},
 						new EncryptionInfo(DecryptionFailure, NS.OMEMO, "OMEMO", "internal-error", Std.string(err))
-					).parsed;
-					return msg;
+					);
 				}));
 #end
 				return EventHandled;
@@ -150,7 +147,7 @@ class MessageSync {
 					builder.serverIdBy = serviceJID;
 					if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
 					return contextHandler(builder, stanza);
-				}).parsed;
+				});
 
 				promisedMessages.push(Promise.resolve(msg));
 				//messages.push(msg);
