@@ -1758,6 +1758,13 @@ class Client extends EventEmitter {
 						promises.push(new thenshim.Promise((resolve, reject) -> {
 							moderateMessage(action).then((_) -> resolve(null));
 						}));
+					case ErrorMessageStanza(localId, stanza):
+						promises.push(persistence.updateMessageStatus(
+							accountId(),
+							localId,
+							MessageFailedToSend,
+							stanza.getErrorText(),
+						).then(m -> [m]));
 					default:
 						// ignore
 				}

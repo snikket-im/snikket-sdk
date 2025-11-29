@@ -170,6 +170,13 @@ abstract class Chat {
 						persistence.storeReaction(client.accountId(), update);
 					case ModerateMessageStanza(action):
 						client.moderateMessage(action);
+					case ErrorMessageStanza(localId, stanza):
+						persistence.updateMessageStatus(
+							client.accountId(),
+							localId,
+							MessageFailedToSend,
+							stanza.getErrorText(),
+						);
 					default:
 						// ignore
 					}
@@ -1447,6 +1454,13 @@ class Channel extends Chat {
 						promises.push(new thenshim.Promise((resolve, reject) -> {
 							client.moderateMessage(action).then((_) -> resolve(null));
 						}));
+					case ErrorMessageStanza(localId, stanza):
+						promises.push(persistence.updateMessageStatus(
+							client.accountId(),
+							localId,
+							MessageFailedToSend,
+							stanza.getErrorText(),
+						).then(m -> [m]));
 					default:
 						// ignore
 				}
