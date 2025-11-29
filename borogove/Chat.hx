@@ -173,10 +173,15 @@ abstract class Chat {
 						// ignore
 					}
 				}
-				client.storeMessages(chatMessages).then((chatMessages) -> {
-					resolve(chatMessages.filter((m) -> m != null && m.chatId() == chatId));
-				});
+				if (chatMessages.length < 1 && sync.hasMore()) {
+					sync.fetchNext();
+				} else {
+					client.storeMessages(chatMessages).then((chatMessages) -> {
+						resolve(chatMessages.filter((m) -> m != null && m.chatId() == chatId));
+					});
+				}
 			});
+			sync.onError(reject);
 			sync.fetchNext();
 		});
 	}
