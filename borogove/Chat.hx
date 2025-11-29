@@ -193,6 +193,8 @@ abstract class Chat {
 	**/
 	abstract public function sendMessage(message:ChatMessageBuilder):Void;
 
+	abstract private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem):Void;
+
 	/**
 		Signals that all messages up to and including this one have probably
 		been displayed to the user
@@ -951,13 +953,11 @@ class DirectChat extends Chat {
 		message = prepareOutgoingMessage(message);
 		message.versions = [message.build()]; // This is a correction
 		message.localId = localId;
+		final outboxItem = outbox.newItem();
 		client.storeMessages([message.build()]).then((corrected) -> {
 			message.versions = corrected[0].versions[corrected[0].versions.length - 1]?.localId == localId ? cast corrected[0].versions : [message.build()];
 			message.localId = toSendId;
-			for (recipient in message.recipients) {
-				message.to = recipient;
-				client.sendStanza(message.build().asStanza());
-			}
+			sendMessageStanza(message.build().asStanza(), outboxItem);
 			if (localId == lastMessage?.localId) {
 				setLastMessage(corrected[0]);
 				client.trigger("chats/update", [this]);
@@ -975,30 +975,15 @@ class DirectChat extends Chat {
 		final fromStanza = Message.fromStanza(message.build().asStanza(), client.jid).parsed;
 		switch (fromStanza) {
 			case ChatMessageStanza(_):
-				var outboxItem = outbox.newItem();
+				final outboxItem = outbox.newItem();
 				client.storeMessages([message.build()]).then((stored) -> {
-					thenshim.PromiseTools.all(message.recipients.map(recipient -> {
-						message.to = recipient;
-						final stanza = message.build().asStanza();
-						if (isActive != null) {
-							isActive = true;
-							activeThread = message.threadId;
-							stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
-						}
-						#if NO_OMEMO
-						return Promise.resolve(stanza);
-						#else
-						return client.omemo.encryptMessage(recipient, stanza).then((encryptedStanza) -> {
-							return Promise.resolve(stanza);
-						});
-						#end
-					})).then(stanzas -> {
-						outboxItem.handle(() -> {
-							for (stanza in stanzas) {
-								client.sendStanza(stanza);
-							}
-						});
-					});
+					final stanza = message.build().asStanza();
+					if (isActive != null) {
+						isActive = true;
+						activeThread = message.threadId;
+						stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
+					}
+					sendMessageStanza(stanza, outboxItem);
 					setLastMessage(message.build());
 					client.notifyMessageHandlers(stored[0], stored[0].versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 					client.trigger("chats/update", [this]);
@@ -1040,13 +1025,43 @@ class DirectChat extends Chat {
 			}
 		}
 		final update = new ReactionUpdate(ID.long(), null, null, m.localId, m.chatId(), client.accountId(), Date.format(std.Date.now()), reactions, EmojiReactions);
+		final outboxItem = outbox.newItem();
 		persistence.storeReaction(client.accountId(), update).then((stored) -> {
-			final stanza = update.asStanza();
-			for (recipient in counterparts()) {
-				stanza.attr.set("to", recipient);
-				client.sendStanza(stanza);
-			}
+			sendMessageStanza(update.asStanza(), outboxItem);
 			if (stored != null) client.notifyMessageHandlers(stored, ReactionEvent);
+		});
+	}
+
+	private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem) {
+		if (stanza.name != "message") throw "Can only send message stanza this way";
+
+		if (outboxItem == null) outboxItem = outbox.newItem();
+
+		final counters = counterparts();
+		thenshim.PromiseTools.all(counters.map(counterpart -> {
+			final clone = stanza.clone();
+			clone.attr.set("to", counterpart);
+			if (counters.length > 1 && stanza.getChild("addresses", "http://jabber.org/protocol/address") == null) {
+				final addresses = clone.tag("addresses", { xmlns: "http://jabber.org/protocol/address" });
+				for (counter in counters) {
+					addresses.tag("address", { type: "to", jid: counter, delivered: "true" }).up();
+				}
+				addresses.up();
+			}
+
+			#if NO_OMEMO
+			return Promise.resolve(stanza);
+			#else
+			return client.omemo.encryptMessage(JID.parse(counterpart), stanza).then((encryptedStanza) -> {
+				return Promise.resolve(stanza);
+			});
+			#end
+		})).then(stanzas -> {
+			outboxItem.handle(() -> {
+				for (stanza in stanzas) {
+					client.sendStanza(stanza);
+				}
+			});
 		});
 	}
 
@@ -1539,10 +1554,11 @@ class Channel extends Chat {
 		message = prepareOutgoingMessage(message);
 		message.versions = [message.build()]; // This is a correction
 		message.localId = localId;
+		final outboxItem = outbox.newItem();
 		client.storeMessages([message.build()]).then((corrected) -> {
 			message.versions = corrected[0].versions[0]?.localId == localId ? cast corrected[0].versions : [message.build()];
 			message.localId = toSendId;
-			client.sendStanza(message.build().asStanza());
+			sendMessageStanza(message.build().asStanza(), outboxItem);
 			client.notifyMessageHandlers(corrected[0], CorrectionEvent);
 			if (localId == lastMessage?.localId) {
 				setLastMessage(corrected[0]);
@@ -1570,7 +1586,7 @@ class Channel extends Chat {
 				}
 				final outboxItem = outbox.newItem();
 				client.storeMessages([message.build()]).then((stored) -> {
-					outboxItem.handle(() -> client.sendStanza(stanza));
+					sendMessageStanza(stanza, outboxItem);
 					setLastMessage(stored[0]);
 					client.notifyMessageHandlers(stored[0], stored[0].versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 					client.trigger("chats/update", [this]);
@@ -1607,12 +1623,20 @@ class Channel extends Chat {
 			}
 		}
 		final update = new ReactionUpdate(ID.long(), m.serverId, m.chatId(), null, m.chatId(), getFullJid().asString(), Date.format(std.Date.now()), reactions, EmojiReactions);
+		final outboxItem = outbox.newItem();
 		persistence.storeReaction(client.accountId(), update).then((stored) -> {
-			final stanza = update.asStanza();
-			stanza.attr.set("to", chatId);
-			client.sendStanza(stanza);
+			sendMessageStanza(update.asStanza(), outboxItem);
 			if (stored != null) client.notifyMessageHandlers(stored, ReactionEvent);
 		});
+	}
+
+	private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem) {
+		if (stanza.name != "message") throw "Can only send message stanza this way";
+
+		if (outboxItem == null) outboxItem = outbox.newItem();
+		stanza.attr.set("type", "groupchat");
+		stanza.attr.set("to", chatId);
+		outboxItem.handle(() -> client.sendStanza(stanza));
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
