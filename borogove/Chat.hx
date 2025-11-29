@@ -1113,6 +1113,8 @@ class DirectChat extends Chat {
 	}
 
 	private function sendChatState(state: String, threadId: Null<String>) {
+		if (!isTrusted()) return;
+
 		for (recipient in counterparts()) {
 			final stanza = new Stanza("message", {
 					id: ID.long(),
