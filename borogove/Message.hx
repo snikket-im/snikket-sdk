@@ -28,6 +28,7 @@ enum MessageStanza {
 	ChatMessageStanza(message: ChatMessage);
 	ModerateMessageStanza(action: ModerationAction);
 	ReactionUpdateStanza(update: ReactionUpdate);
+	MucInviteStanza(serverId: Null<String>, serverIdBy: Null<String>, reason: Null<String>, password: Null<String>);
 	UnknownMessageStanza(stanza: Stanza);
 }
 
@@ -116,6 +117,24 @@ class Message {
 		msg.direction = (msg.to == null || msg.to.asBare().equals(localJidBare)) ? MessageReceived : MessageSent;
 		if (msg.from != null && msg.from.asBare().equals(localJidBare)) msg.direction = MessageSent;
 		msg.status = msg.direction == MessageReceived ? MessageDeliveredToDevice : MessageDeliveredToServer; // Delivered to us, a device
+
+		final mucDirectInvite = stanza.getChild("x", "jabber:x:conference");
+		if (mucDirectInvite != null) {
+			final mucJid = mucDirectInvite.attr.get("jid");
+			if (mucJid != null) {
+				return new Message(mucJid, from, mucDirectInvite.attr.get("thread"), MucInviteStanza(msg.serverId, msg.serverIdBy, mucDirectInvite.attr.get("reason"), mucDirectInvite.attr.get("password")), encryptionInfo);
+			}
+		}
+
+		final mucUser = stanza.getChild("x", "http://jabber.org/protocol/muc#user");
+		final mucInvite = mucUser?.getChild("invite");
+		if (mucInvite != null) {
+			final threadId = mucInvite.getChild("continue")?.attr?.get("thread");
+			final reason = mucInvite.getChildText("reason");
+			final password = mucInvite.getChildText("password");
+			// NOTE: this senderId is unverified and unverifiable
+			return new Message(from, mucInvite.attr.get("from") ?? from, threadId, MucInviteStanza(msg.serverId, msg.serverIdBy, reason, password), encryptionInfo);
+		}
 
 		final recipients: Map<String, Bool> = [];
 		final replyTo: Map<String, Bool> = [];

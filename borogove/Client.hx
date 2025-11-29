@@ -413,6 +413,20 @@ class Client extends EventEmitter {
 				this.trigger("chats/update", [chat]);
 			}
 
+			if (stanza.attr.get("from") != null && stanza.attr.get("type") == "subscribe") {
+				final from = JID.parse(stanza.attr.get("from"));
+				final chat = getChat(from.asBare().asString());
+				final nick = stanza.getChildText("nick", "http://jabber.org/protocol/nick");
+				if (chat == null) {
+					startChatWith(from.asBare().asString(), _-> Invited, (chat) -> {
+						if (chat.displayName == chat.chatId && nick != null) chat.displayName = nick;
+					});
+				} else if (chat.uiState == Closed) {
+					chat.uiState = Invited;
+					if (chat.displayName == chat.chatId && nick != null) chat.displayName = nick;
+				}
+			}
+
 			return EventUnhandled;
 		});
 	}
@@ -469,6 +483,35 @@ class Client extends EventEmitter {
 					MessageFailedToSend,
 					stanza.getErrorText(),
 				).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
+			case MucInviteStanza(serverId, serverIdBy, reason, password):
+				final chat = getChat(message.chatId);
+				if (chat == null) {
+					startChatWith(message.chatId, _ -> Invited, (chat) -> {
+						final inviteExt = chat.extensions.tag("invite", { xmlns: "http://jabber.org/protocol/muc#user", from: message.senderId });
+						if (reason != null) inviteExt.textTag("reason", reason);
+						if (password != null) inviteExt.textTag("password", password);
+						if (message.threadId != null) inviteExt.tag("continue", { thread: message.threadId }).up();
+						if (serverId != null && serverIdBy != null) {
+							inviteExt.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", by: serverIdBy, id: serverId }).up();
+						}
+						inviteExt.up();
+						this.trigger("chats/update", [chat]);
+						persistence.storeChats(accountId(), [chat]);
+					});
+				} else if (chat.uiState == Closed) {
+					chat.extensions.removeChildren("invite", "http://jabber.org/protocol/muc#user");
+					final inviteExt = chat.extensions.tag("invite", { xmlns: "http://jabber.org/protocol/muc#user", from: message.senderId });
+					if (reason != null) inviteExt.textTag("reason", reason);
+					if (password != null) inviteExt.textTag("password", password);
+					if (message.threadId != null) inviteExt.tag("continue", { thread: message.threadId }).up();
+					if (serverId != null && serverIdBy != null) {
+						inviteExt.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", by: serverIdBy, id: serverId }).up();
+					}
+					inviteExt.up();
+					chat.uiState = Invited;
+					this.trigger("chats/update", [chat]);
+					persistence.storeChats(accountId(), [chat]);
+				}
 			default:
 				// ignore
 				trace("Ignoring non-chat message: " + stanza.toString());
@@ -602,7 +645,7 @@ class Client extends EventEmitter {
 						final upTo = item.getChild("displayed", "urn:xmpp:mds:displayed:0")?.getChild("stanza-id", "urn:xmpp:sid:0");
 						final chat = getChat(item.attr.get("id"));
 						if (chat == null) {
-							startChatWith(item.attr.get("id"), (caps) -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
+							startChatWith(item.attr.get("id"), _ -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
 						} else {
 							chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")).then(_ -> {
 								persistence.storeChats(accountId(), [chat]);
@@ -1556,30 +1599,33 @@ class Client extends EventEmitter {
 		sendQuery(rosterGet);
 	}
 
-	private function startChatWith(jid: String, handleCaps: (Caps)->UiState, handleChat: (Chat)->Void) {
+	private function startChatWith(jid: String, handleCaps: (Null<Caps>)->UiState, handleChat: (Chat)->Void) {
 		final discoGet = new DiscoInfoGet(jid);
 		discoGet.onFinished(() -> {
 			final resultCaps = discoGet.getResult();
+			final uiState = handleCaps(resultCaps);
 			if (resultCaps == null) {
 				final err = discoGet.responseStanza?.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
 				if (err == null || err?.name == "service-unavailable" || err?.name == "feature-not-implemented") {
 					final chat = getDirectChat(jid, false);
+					chat.uiState = uiState;
 					handleChat(chat);
 					persistence.storeChats(accountId(), [chat]);
+					this.trigger("chats/update", [chat]);
 				}
 			} else {
 				persistence.storeCaps(resultCaps);
-				final uiState = handleCaps(resultCaps);
 				if (resultCaps.isChannel(jid)) {
 					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, false, null, resultCaps);
 					chat.setupNotifications();
-					handleChat(chat);
 					chats.unshift(chat);
+					if (inSync && sendAvailable) chat.selfPing(false);
+					handleChat(chat);
 					persistence.storeChats(accountId(), [chat]);
 					this.trigger("chats/update", [chat]);
-					if (inSync && sendAvailable) chat.selfPing(false);
 				} else {
 					final chat = getDirectChat(jid, false);
+					chat.uiState = uiState;
 					handleChat(chat);
 					persistence.storeChats(accountId(), [chat]);
 					this.trigger("chats/update", [chat]);
@@ -1612,7 +1658,7 @@ class Client extends EventEmitter {
 					final upTo = item.getChild("displayed", "urn:xmpp:mds:displayed:0")?.getChild("stanza-id", "urn:xmpp:sid:0");
 					final chat = getChat(item.attr.get("id"));
 					if (chat == null) {
-						startChatWith(item.attr.get("id"), (caps) -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
+						startChatWith(item.attr.get("id"), _ -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
 					} else {
 						chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")).then(_ -> null, e -> e != null ? Promise.reject(e) : null);
 						chatsToUpdate.push(chat);
@@ -1633,6 +1679,8 @@ class Client extends EventEmitter {
 						startChatWith(
 							item.attr.get("id"),
 							(caps) -> {
+								if (caps == null) return Open;
+
 								final identity = caps.identities[0];
 								final conf = item.getChild("conference", "urn:xmpp:bookmarks:1");
 								if (conf.attr.get("name") == null) {

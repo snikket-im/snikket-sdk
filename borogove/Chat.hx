@@ -32,6 +32,7 @@ enum abstract UiState(Int) {
 	var Pinned;
 	var Open; // or Unspecified
 	var Closed; // Archived
+	var Invited;
 }
 
 enum abstract UserState(Int) {
@@ -335,7 +336,7 @@ abstract class Chat {
 		Pin or unpin this chat
 	**/
 	public function togglePinned(): Void {
-		uiState = uiState == Pinned ? Open : Pinned;
+		uiState = uiState != Pinned ? Pinned : Open;
 		persistence.storeChats(client.accountId(), [this]);
 		client.sortChats();
 		client.trigger("chats/update", [this]);
@@ -441,6 +442,7 @@ abstract class Chat {
 	private function updateFromRoster(item: { fn: Null<String>, subscription: String }) {
 		setTrusted(item.subscription == "both" || item.subscription == "from");
 		if (item.fn != null && item.fn != "") displayName = item.fn;
+		if (uiState == Invited) uiState = Open;
 	}
 
 	/**
@@ -520,9 +522,11 @@ abstract class Chat {
 					p == null || p.isSelf ? null : p.displayName;
 				}).filter(fn -> fn != null).join(", ");
 			}
+		} else if (uiState == Invited) {
+			return '${displayName} (${chatId})';
 		}
 
-		return this.displayName;
+		return displayName;
 	}
 
 	@:allow(borogove)
@@ -575,6 +579,10 @@ abstract class Chat {
 	**/
 	public function setTrusted(trusted:Bool) {
 		this.trusted = trusted;
+		if (trusted && uiState == Invited) {
+			uiState = Open;
+			client.trigger("chats/update", [this]);
+		}
 	}
 
 	/**
@@ -628,6 +636,7 @@ abstract class Chat {
 		@param video do we want video in this call
 	**/
 	public function startCall(audio: Bool, video: Bool) {
+		if (uiState == Invited) uiState = Open;
 		final session = new OutgoingProposedSession(client, JID.parse(chatId));
 		jingleSessions.set(session.sid, session);
 		session.propose(audio, video);
@@ -644,6 +653,7 @@ abstract class Chat {
 		Accept any incoming calls in this Chat
 	**/
 	public function acceptCall() {
+		if (uiState == Invited) uiState = Open;
 		for (session in jingleSessions) {
 			session.accept();
 		}
@@ -968,6 +978,7 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function sendMessage(message: ChatMessageBuilder):Void {
+		if (uiState == Invited) uiState = Open;
 		if (typingTimer != null) typingTimer.stop();
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);
@@ -1095,6 +1106,10 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function bookmark() {
+		if (uiState == Invited) {
+			uiState = Open;
+			client.trigger("chats/update", [this]);
+		}
 		final attr: DynamicAccess<String> = { jid: chatId };
 		if (displayName != null && displayName != "" && displayName != chatId) {
 			attr["name"] = displayName;
@@ -1134,7 +1149,10 @@ class DirectChat extends Chat {
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function close() {
 		if (typingTimer != null) typingTimer.stop();
-		// Should this remove from roster?
+		if (uiState == Invited) {
+			client.sendStanza(new Stanza("presence", { to: chatId, type: "unsubscribed", id: ID.short() }));
+		}
+		// Should this remove from roster? Or set untrusted?
 		uiState = Closed;
 		persistence.storeChats(client.accountId(), [this]);
 		if (!isBlocked) sendChatState("gone", null);
@@ -1170,7 +1188,9 @@ class Channel extends Chat {
 
 	@:allow(borogove)
 	private function selfPing(refresh: Bool) {
-		if (uiState == Closed){
+		if (uiState == Invited) return;
+
+		if (uiState == Closed) {
 			client.sendPresence(
 				getFullJid().asString(),
 				(stanza) -> {
@@ -1209,6 +1229,11 @@ class Channel extends Chat {
 
 	@:allow(borogove)
 	private function join() {
+		if (uiState == Invited || uiState == Closed) {
+			// Do not join
+			return;
+		}
+
 		presence = []; // About to ask for a fresh set
 		_nickInUse = null;
 		outbox.pause();
@@ -1400,8 +1425,13 @@ class Channel extends Chat {
 		sync.fetchNext();
 	}
 
+	override public function setTrusted(trusted: Bool) {
+		super.setTrusted(trusted);
+		if (trusted) selfPing(true);
+	}
+
 	override public function isTrusted() {
-		return uiState != Closed;
+		return uiState != Closed && uiState != Invited;
 	}
 
 	public function isPrivate() {
@@ -1571,6 +1601,7 @@ class Channel extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function sendMessage(message:ChatMessageBuilder):Void {
+		if (uiState == Invited) uiState = Open;
 		if (typingTimer != null) typingTimer.stop();
 		client.chatActivity(this);
 		message = prepareOutgoingMessage(message);
@@ -1668,12 +1699,13 @@ class Channel extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function bookmark() {
+		if (uiState == Invited) uiState = Open;
 		stream.sendIq(
 			new Stanza("iq", { type: "set" })
 				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
 				.tag("publish", { node: "urn:xmpp:bookmarks:1" })
 				.tag("item", { id: chatId })
-				.tag("conference", { xmlns: "urn:xmpp:bookmarks:1", name: getDisplayName(), autojoin: uiState == Closed ? "false" : "true" })
+				.tag("conference", { xmlns: "urn:xmpp:bookmarks:1", name: getDisplayName(), autojoin: uiState == Closed || uiState == Invited ? "false" : "true" })
 				.textTag("nick", client.displayName()) // Redundant but some other clients want it
 				.addChild(extensions)
 				.up().up()
