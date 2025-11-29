@@ -749,6 +749,30 @@ abstract class Chat {
 	}
 
 	/**
+		Invite another chat's participants to participate in this one
+	**/
+	public function invite(chat: Chat, threadId: Null<String> = null) {
+		final attr: DynamicAccess<String> = {
+			xmlns: "jabber:x:conference",
+			jid: chatId
+		};
+		if (threadId != null) {
+			attr.set("continue", "true");
+			attr.set("thread", threadId);
+		}
+		chat.sendMessageStanza(
+			new Stanza("message").tag("x", attr).up()
+		);
+	}
+
+	/**
+		Can the user invite others to this chat?
+	**/
+	public function canInvite() {
+		return false;
+	}
+
+	/**
 		This chat's primary mode of interaction is via commands
 	**/
 	public function isApp() {
@@ -1315,6 +1339,32 @@ class Channel extends Chat {
 		return disco?.data?.find(d -> d.field("FORM_TYPE")?.value?.at(0) == "http://jabber.org/protocol/muc#roominfo");
 	}
 
+
+	override public function invite(chat: Chat, threadId: Null<String> = null) {
+		if (isPrivate()) {
+			client.sendStanza(
+				new Stanza("iq", { to: chatId })
+					.tag("query", { xmlns: "http://jabber.org/protocol/muc#admin" })
+					.tag("item", { affiliation: "member", jid: chat.chatId })
+					.up().up()
+			);
+		}
+
+		super.invite(chat, threadId);
+	}
+
+	override public function canInvite() {
+		if (!isPrivate()) return true;
+		if (_nickInUse == null) return false;
+
+		final p = presence[_nickInUse];
+		if (p == null) return false;
+
+		if (p.mucUser.role == "moderator") return true;
+
+		return false;
+	}
+
 	override public function canSend() {
 		if (!super.canSend()) return false;
 		if (_nickInUse == null) return true;
@@ -1801,6 +1851,16 @@ class Channel extends Chat {
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function close() {
 		if (typingTimer != null) typingTimer.stop();
+		if (uiState == Invited) {
+			for (invite in invites()) {
+				client.sendStanza(
+					new Stanza("message", { id: ID.long(), to: chatId })
+						.tag("x", { xmlns: "http://jabber.org/protocol/muc#user" })
+						.tag("decline", { to: invite.attr.get("from") })
+						.up().up()
+				);
+			}
+		}
 		uiState = Closed;
 		persistence.storeChats(client.accountId(), [this]);
 		selfPing(false);

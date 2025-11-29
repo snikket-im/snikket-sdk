@@ -1637,7 +1637,7 @@ class Client extends EventEmitter {
 
 	private function serverBlocked(blocked: String) {
 		final chat = getChat(blocked) ?? getDirectChat(blocked, false);
-		chat.block(null, false);
+		chat.block(false, null, false);
 	}
 
 	// This is called right before we're going to trigger for all chats anyway, so don't bother with single triggers
