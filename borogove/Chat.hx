@@ -345,8 +345,31 @@ abstract class Chat {
 	/**
 		Block this chat so it will not re-open
 	**/
-	public function block(reportSpam: Null<ChatMessage> = null, onServer: Bool = true): Void {
-		if (reportSpam != null && !onServer) throw "Can't report SPAM if not sending to server";
+	public function block(reportSpam: Bool = false, spamMessage: Null<ChatMessage> = null, onServer: Bool = true): Void {
+		if (reportSpam && !onServer) throw "Can't report SPAM if not sending to server";
+
+		if (onServer && invites().length > 0 && uiState == Invited) {
+			// Block inviters instead
+			for (invite in invites()) {
+				final inviteFrom = JID.parse(invite.attr.get("from"));
+				final inviteFromBareChat = client.getChat(inviteFrom.asBare().asString());
+				final toBlock = inviteFromBareChat != null && Std.isOfType(inviteFromBareChat, Channel) ? inviteFrom.asString() : inviteFrom.asBare().asString();
+
+				final iq = new Stanza("iq", { type: "set", id: ID.short() })
+					.tag("block", { xmlns: "urn:xmpp:blocking" })
+					.tag("item", { jid: toBlock });
+				if (reportSpam) {
+					final report = iq.tag("report", { xmlns: "urn:xmpp:reporting:1", reason: "urn:xmpp:reporting:spam" });
+					final stanzaIdEl = invite.getChild("stanza-id", "urn:xmpp:sid:0");
+					if (stanzaIdEl != null) report.addChild(stanzaIdEl);
+					report.up();
+				}
+				stream.sendIq(iq, (response) -> {});
+			}
+			close();
+			return;
+		}
+
 		isBlocked = true;
 		if (uiState == Closed) {
 			persistence.storeChats(client.accountId(), [this]);
@@ -357,10 +380,17 @@ abstract class Chat {
 			final iq = new Stanza("iq", { type: "set", id: ID.short() })
 				.tag("block", { xmlns: "urn:xmpp:blocking" })
 				.tag("item", { jid: chatId });
-			if (reportSpam != null) {
-				iq
-					.tag("report", { xmlns: "urn:xmpp:reporting:1", reason: "urn:xmpp:reporting:spam" })
-					.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", by: reportSpam.serverIdBy, id: reportSpam.serverId });
+			if (reportSpam) {
+				final report = iq.tag("report", { xmlns: "urn:xmpp:reporting:1", reason: "urn:xmpp:reporting:spam" });
+				if (spamMessage != null) {
+					report.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", by: spamMessage.serverIdBy, id: spamMessage.serverId }).up();
+				} else {
+					for (invite in invites()) {
+						final stanzaIdEl = invite.getChild("stanza-id", "urn:xmpp:sid:0");
+						if (stanzaIdEl != null) report.addChild(stanzaIdEl);
+					}
+				}
+				report.up();
 			}
 			stream.sendIq(iq, (response) -> {});
 		}
@@ -369,7 +399,7 @@ abstract class Chat {
 	/**
 		Unblock this chat so it will open again
 	**/
-	public function unblock(onServer: Bool): Void {
+	public function unblock(onServer: Bool = true): Void {
 		isBlocked = false;
 		uiState = Open;
 		persistence.storeChats(client.accountId(), [this]);
@@ -777,6 +807,10 @@ abstract class Chat {
 			jids.push(jid);
 		}
 		return jids;
+	}
+
+	private function invites() {
+		return extensions.allTags("invite", "http://jabber.org/protocol/muc#user");
 	}
 
 	private function recomputeUnread(): Promise<Any> {
