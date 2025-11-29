@@ -581,7 +581,7 @@ abstract class Chat {
 		Is this a chat with an entity we trust to see our online status?
 	**/
 	public function isTrusted():Bool {
-		return this.trusted;
+		return this.trusted || chatId == client.accountId();
 	}
 
 	@:allow(borogove)
