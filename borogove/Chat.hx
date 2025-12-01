@@ -89,6 +89,10 @@ abstract class Chat {
 		The most recent message in this chat
 	**/
 	public var lastMessage(default, null): Null<ChatMessage>;
+	/**
+		Has this chat ever been bookmarked?
+	**/
+	public var isBookmarked(default, null): Bool = false;
 	@:allow(borogove)
 	private var extensions: Stanza;
 	private var _unreadCount = 0;
@@ -468,6 +472,7 @@ abstract class Chat {
 
 	@:allow(borogove)
 	private function updateFromBookmark(item: Stanza) {
+		isBookmarked = true;
 		final conf = item.getChild("conference", "urn:xmpp:bookmarks:1");
 		final fn = conf.attr.get("name");
 		if (fn != null) displayName = fn;
@@ -477,6 +482,7 @@ abstract class Chat {
 
 	@:allow(borogove)
 	private function updateFromRoster(item: { fn: Null<String>, subscription: String }) {
+		isBookmarked = true;
 		setTrusted(item.subscription == "both" || item.subscription == "from");
 		if (item.fn != null && item.fn != "") displayName = item.fn;
 		if (uiState == Invited) uiState = Open;
@@ -1171,6 +1177,7 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function bookmark() {
+		isBookmarked = true;
 		if (uiState == Invited) {
 			uiState = Open;
 			client.trigger("chats/update", [this]);
