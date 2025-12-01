@@ -1465,9 +1465,13 @@ class Client extends EventEmitter {
 	@:allow(borogove)
 	private function sortChats() {
 		chats.sort((a, b) -> {
-			if (a.uiState == Pinned && b.uiState != Pinned) return -1;
-			if (b.uiState == Pinned && a.uiState != Pinned) return 1;
-			return -Reflect.compare(a.lastMessage?.timestamp ?? "0", b.lastMessage?.timestamp ?? "0");
+			if (a.uiState == b.uiState) {
+				final tcompare = -Reflect.compare(a.lastMessage?.timestamp ?? "0", b.lastMessage?.timestamp ?? "0");
+				if (tcompare != 0) return tcompare;
+				return Reflect.compare(a.getDisplayName(), b.getDisplayName());
+			} else {
+				return Reflect.compare(a.uiState, b.uiState);
+			}
 		});
 	}
 

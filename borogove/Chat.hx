@@ -1249,6 +1249,7 @@ class DirectChat extends Chat {
 		persistence.storeChats(client.accountId(), [this]);
 		if (!isBlocked) sendChatState("gone", null);
 		client.trigger("chats/update", [this]);
+		client.sortChats();
 	}
 }
 
