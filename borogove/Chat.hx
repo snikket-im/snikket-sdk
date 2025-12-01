@@ -1488,7 +1488,7 @@ class Channel extends Chat {
 							localId,
 							MessageFailedToSend,
 							stanza.getErrorText(),
-						).then(m -> [m]));
+						).then(m -> [m], _ -> []));
 					default:
 						// ignore
 				}

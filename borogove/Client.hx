@@ -1766,7 +1766,7 @@ class Client extends EventEmitter {
 							localId,
 							MessageFailedToSend,
 							stanza.getErrorText(),
-						).then(m -> [m]));
+						).then(m -> [m], _ -> []));
 					case MucInviteStanza(serverId, serverIdBy, reason, password):
 						mucInvite(m.chatId, getChat(m.chatId), m.senderId, m.threadId, serverId, serverIdBy, reason, password);
 					default:
