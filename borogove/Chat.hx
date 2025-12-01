@@ -846,6 +846,26 @@ abstract class Chat {
 		return jids;
 	}
 
+	/**
+		The Participant that originally invited us to this Chat, if we were invited
+	**/
+	public function invitedBy() {
+		final inviteEls = invites();
+		if (inviteEls.length < 1) return null;
+
+		final inviteFrom = JID.parse(inviteEls[0].attr.get("from"));
+		final bare = inviteFrom.asBare().asString();
+		final maybeChannel = client.getChat(bare);
+		if (maybeChannel != null) {
+			final channel = maybeChannel.downcast(Channel);
+			if (channel != null) {
+				return channel.getParticipantDetails(inviteFrom.asString());
+			}
+		}
+
+		return (maybeChannel ?? client.getDirectChat(bare)).getParticipantDetails(bare);
+	}
+
 	private function invites() {
 		return extensions.allTags("invite", "http://jabber.org/protocol/muc#user");
 	}
