@@ -31,6 +31,8 @@ export {
     borogove_Notification as Notification,
     borogove_Participant as Participant,
     borogove_Persistence as Persistence,
+    borogove_Profile as Profile,
+    borogove_ProfileItem as ProfileItem,
     borogove_Push as Push,
     borogove_Reaction as Reaction,
     borogove_Register as Register,
