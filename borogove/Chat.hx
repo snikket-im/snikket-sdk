@@ -764,7 +764,7 @@ abstract class Chat {
 	/**
 		Invite another chat's participants to participate in this one
 	**/
-	public function invite(chat: Chat, threadId: Null<String> = null) {
+	public function invite(other: Chat, threadId: Null<String> = null) {
 		final attr: DynamicAccess<String> = {
 			xmlns: "jabber:x:conference",
 			jid: chatId
@@ -773,7 +773,7 @@ abstract class Chat {
 			attr.set("continue", "true");
 			attr.set("thread", threadId);
 		}
-		chat.sendMessageStanza(
+		other.sendMessageStanza(
 			new Stanza("message").tag("x", attr).up()
 		);
 	}

@@ -68,40 +68,42 @@ class ProfileItem {
 		return item.name;
 	}
 
-	public function parameters() {
+	public function parameters(): Array<ProfileItem> {
 		final params = item.getChild("parameters")?.allTags() ?? [];
 		return params.map(param -> new ProfileItem(param));
 	}
 
-	public function text() {
+	public function text(): Array<String> {
 		return item.allTags("text").map(s -> s.getText());
 	}
 
-	public function uri() {
+	public function uri(): Array<String> {
 		return item.allTags("uri").map(s -> s.getText());
 	}
 
-	public function date() {
+	public function date(): Array<String> {
 		return item.allTags("date").map(s -> s.getText());
 	}
 
-	public function time() {
+	public function time(): Array<String> {
 		return item.allTags("time").map(s -> s.getText());
 	}
 
-	public function datetime() {
+	public function datetime(): Array<String> {
 		return item.allTags("datetime").map(s -> s.getText());
 	}
 
-	public function boolean() {
+	@HaxeCBridge.noemit
+	public function boolean(): Array<Bool> {
 		return item.allTags("boolean").map(s -> s.getText() == "true");
 	}
 
-	public function integer() {
-		return item.allTags("integer").map(s -> Std.parseInt(s.getText()));
+	@HaxeCBridge.noemit
+	public function integer(): Array<Int> {
+		return item.allTags("integer").map(s -> Std.parseInt(s.getText()) ?? 0);
 	}
 
-	public function languageTag() {
+	public function languageTag(): Array<String> {
 		return item.allTags("language-tag").map(s -> s.getText());
 	}
 }
