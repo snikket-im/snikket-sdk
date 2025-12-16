@@ -207,6 +207,12 @@ class Stanza {
 		return this;
 	}
 
+	public function insertChild(idx: Int, stanza:Stanza) {
+		serialized = null;
+		this.last_added.children.insert(idx, Element(stanza));
+		return this;
+	}
+
 	public function addChild(stanza:Stanza) {
 		serialized = null;
 		this.last_added.children.push(Element(stanza));
@@ -388,6 +394,17 @@ class Stanza {
 			errorTag.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas")?.name,
 			errorTag.getChildText("text", "urn:ietf:params:xml:ns:xmpp-stanzas")
 		);
+	}
+
+	public function removeChild(remove: Stanza) {
+		children = children.filter((child) -> {
+			switch(child) {
+				case Element(c):
+					return remove != c;
+				default:
+					return true;
+			}
+		});
 	}
 
 	public function removeChildren(?name: String, ?xmlns_:String):Void {

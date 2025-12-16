@@ -15,6 +15,7 @@ import borogove.EncryptionPolicy;
 #if !NO_OMEMO
 import borogove.OMEMO;
 #end
+import borogove.Profile;
 import borogove.PubsubEvent;
 import borogove.Stream;
 import borogove.Util;
@@ -756,21 +757,42 @@ class Client extends EventEmitter {
 	}
 
 	/**
-		Set the current display name for this account on the server
+		Set the current profile for this account on the server
 
-		@param display name to set (ignored if empty or NULL)
+		@param profile to set
+		@param publicAccess set the access for the profile to public
 	**/
-	public function setDisplayName(displayName: String) {
-		if (displayName == null || displayName == "" || displayName == this.displayName()) return;
+	public function setProfile(profile: ProfileBuilder, publicAccess: Bool) {
+		final fn = profile.build().items.find(item -> item.key == "fn");
+		if (fn != null) {
+			final fnText = fn.text()[0];
+			if (fnText != null && fnText != "" && fnText != this.displayName()) {
+				stream.sendIq(
+					new Stanza("iq", { type: "set" })
+						.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
+						.tag("publish", { node: "http://jabber.org/protocol/nick" })
+						.tag("item")
+						.textTag("nick", fnText, { xmlns: "http://jabber.org/protocol/nick" })
+						.up().up().up(),
+					(response) -> { }
+				);
+			}
+		}
 
-		stream.sendIq(
+		publishWithOptions(
 			new Stanza("iq", { type: "set" })
 				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
-				.tag("publish", { node: "http://jabber.org/protocol/nick" })
-				.tag("item")
-				.textTag("nick", displayName, { xmlns: "http://jabber.org/protocol/nick" })
-				.up().up().up(),
-			(response) -> { }
+				.tag("publish", { node: "urn:xmpp:vcard4" })
+				.tag("item", { id: ID.long() })
+				.addChild(profile.buildStanza()),
+			new Stanza("x", { xmlns: "jabber:x:data", type: "submit" })
+				.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
+				.tag("field", { "var": "pubsub#title" }).textTag("value", "Profile").up()
+				.tag("field", { "var": "pubsub#type" }).textTag("value", "urn:ietf:params:xml:ns:vcard-4.0").up()
+				.tag("field", { "var": "pubsub#deliver_payloads" }).textTag("value", "false").up()
+				.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
+				.tag("field", { "var": "pubsub#max_items" }).textTag("value", "1").up()
+				.tag("field", { "var": "pubsub#access_model" }).textTag("value", publicAccess ? "open" : "presence").up(),
 		);
 	}
 

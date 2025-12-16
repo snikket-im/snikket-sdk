@@ -35,12 +35,12 @@ class Participant {
 			final get = new PubsubGet(jid.asString(), "urn:xmpp:vcard4");
 			get.onFinished(() -> {
 				final item = get.getResult()[0];
-				final vcard = item?.getChild("vcard", "urn:ietf:params:xml:ns:vcard-4.0");
-				if (vcard == null) {
-					resolve(new Profile(new Stanza("vcard")));
-				} else {
-					resolve(new Profile(vcard));
+				final fromItem = item?.getChild("vcard", "urn:ietf:params:xml:ns:vcard-4.0");
+				final vcard = fromItem == null ? new Stanza("vcard", { xmlns: "urn:ietf:params:xml:ns:vcard-4.0" }) : fromItem;
+				if (!vcard.hasChild("fn")) {
+					vcard.insertChild(0, new Stanza("fn").textTag("text", displayName));
 				}
+				resolve(new Profile(vcard));
 			});
 			client.sendQuery(get);
 		});

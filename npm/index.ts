@@ -32,6 +32,7 @@ export {
     borogove_Participant as Participant,
     borogove_Persistence as Persistence,
     borogove_Profile as Profile,
+    borogove_ProfileBuilder as ProfileBuilder,
     borogove_ProfileItem as ProfileItem,
     borogove_Push as Push,
     borogove_Reaction as Reaction,
