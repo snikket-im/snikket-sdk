@@ -503,6 +503,7 @@ class ChatMessage {
 						}
 					}
 				}
+				if (quoteText != "") quoteText += "\n";
 				final reaction = EmojiUtil.isEmoji(StringTools.trim(body)) ? StringTools.trim(body) : null;
 				body = quoteText + body;
 				if (replyId != null) {
