@@ -909,47 +909,20 @@ abstract class Chat {
 	}
 
 	private function publishMds() {
-		stream.sendIq(
+		client.publishWithOptions(
 			new Stanza("iq", { type: "set" })
 				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
 				.tag("publish", { node: "urn:xmpp:mds:displayed:0" })
 				.tag("item", { id: chatId })
 				.tag("displayed", { xmlns: "urn:xmpp:mds:displayed:0"})
 				.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", id: readUpTo(), by: readUpToBy })
-				.up().up().up()
-				.tag("publish-options")
-				.tag("x", { xmlns: "jabber:x:data", type: "submit" })
+				.up().up().up(),
+			new Stanza("x", { xmlns: "jabber:x:data", type: "submit" })
 				.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
 				.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
 				.tag("field", { "var": "pubsub#max_items" }).textTag("value", "max").up()
 				.tag("field", { "var": "pubsub#send_last_published_item" }).textTag("value", "never").up()
-				.tag("field", { "var": "pubsub#access_model" }).textTag("value", "whitelist").up()
-				.up().up(),
-			(response) -> {
-				if (response.attr.get("type") == "error") {
-					final preconditionError = response.getChild("error")?.getChild("precondition-not-met", "http://jabber.org/protocol/pubsub#errors");
-					if (preconditionError != null) {
-						// publish options failed, so force them to be right, what a silly workflow
-						stream.sendIq(
-							new Stanza("iq", { type: "set" })
-								.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub#owner" })
-								.tag("configure", { node: "urn:xmpp:mds:displayed:0" })
-								.tag("x", { xmlns: "jabber:x:data", type: "submit" })
-								.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
-								.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
-								.tag("field", { "var": "pubsub#max_items" }).textTag("value", "max").up()
-								.tag("field", { "var": "pubsub#send_last_published_item" }).textTag("value", "never").up()
-								.tag("field", { "var": "pubsub#access_model" }).textTag("value", "whitelist").up()
-								.up().up().up(),
-							(response) -> {
-								if (response.attr.get("type") == "result") {
-									publishMds();
-								}
-							}
-						);
-					}
-				}
-			}
+				.tag("field", { "var": "pubsub#access_model" }).textTag("value", "whitelist").up(),
 		);
 	}
 }

@@ -1486,6 +1486,34 @@ class Client extends EventEmitter {
 	}
 
 	@:allow(borogove)
+	private function publishWithOptions(stanza:Stanza, options:Stanza) {
+		final clone = stanza.clone();
+		clone.findChild("{http://jabber.org/protocol/pubsub}pubsub/publish").tag("publish-options").addChild(options);
+		stream.sendIq(
+			clone,
+			(response) -> {
+				if (response.attr.get("type") == "error") {
+					final preconditionError = response.getChild("error")?.getChild("precondition-not-met", "http://jabber.org/protocol/pubsub#errors");
+					if (preconditionError != null) {
+						// publish options failed, so force them to be right, what a silly workflow
+						stream.sendIq(
+							new Stanza("iq", { type: "set" })
+								.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub#owner" })
+								.tag("configure", { node: stanza.findText("{http://jabber.org/protocol/pubsub}pubsub/publish@node") })
+								.addChild(options),
+							(response) -> {
+								if (response.attr.get("type") == "result") {
+									publishWithOptions(stanza, options);
+								}
+							}
+						);
+					}
+				}
+			}
+		);
+	}
+
+	@:allow(borogove)
 	private function sendStanza(stanza:Stanza) {
 		if (stanza.attr.get("id") == null) stanza.attr.set("id", ID.long());
 		stream.sendStanza(stanza);
