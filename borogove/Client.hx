@@ -929,7 +929,7 @@ class Client extends EventEmitter {
 		Search for chats the user can start or join
 
 		@param q the search query to use
-		@param callback takes two arguments, the query that was used and the array of results
+		@param callback takes two arguments, the query that was used and the array of results, and returns true if we should stop searching
 	**/
 	public function findAvailableChats(q:String, callback:(String, Array<AvailableChat>) -> Bool) {
 		var haveJid: Map<String, Bool> = [];
@@ -1370,7 +1370,7 @@ class Client extends EventEmitter {
 	/**
 		Event fired when an outgoing call starts ringing
 
-		@param handler takes two arguments, the associated Chat ID and Session ID
+		@param handler takes one argument, the associated Session
 		@returns token for use with removeEventListener
 	**/
 	public function addCallRingingListener(handler:(Session)->Void) {
