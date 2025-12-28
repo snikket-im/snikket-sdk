@@ -15,7 +15,7 @@ class XEP0393 {
 		return blocks;
 	}
 
-	public static function render(xhtml: Stanza) {
+	public static function render(xhtml: Stanza, inPre = false) {
 		if (xhtml.name == "br") {
 			return "\n";
 		}
@@ -42,12 +42,12 @@ class XEP0393 {
 			s.add("~");
 		}
 
-		if (xhtml.name == "tt") {
+		if (!inPre && (xhtml.name == "tt" || xhtml.name == "code")) {
 			s.add("`");
 		}
 
 		for (child in xhtml.children) {
-			s.add(renderNode(child));
+			s.add(renderNode(child, xhtml.name == "pre"));
 		}
 
 		if (xhtml.name == "b" || xhtml.name == "strong") {
@@ -62,7 +62,7 @@ class XEP0393 {
 			s.add("~");
 		}
 
-		if (xhtml.name == "tt") {
+		if (!inPre && (xhtml.name == "tt" || xhtml.name == "code")) {
 			s.add("`");
 		}
 
@@ -81,9 +81,9 @@ class XEP0393 {
 		return s.toString();
 	}
 
-	public static function renderNode(xhtml: Node) {
+	public static function renderNode(xhtml: Node, inPre = false) {
 		return switch (xhtml) {
-			case Element(c): render(c);
+			case Element(c): render(c, inPre);
 			case CData(c): c.content;
 		};
 	}
