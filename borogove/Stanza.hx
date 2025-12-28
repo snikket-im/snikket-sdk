@@ -276,7 +276,7 @@ class Stanza {
 	public function getErrorText() {
 		if (attr.get("type") == "error") {
 			final error = getError();
-			return error.text ?? error.condition ?? error.type;
+			return error?.text ?? error?.condition ?? error?.type ?? "error";
 		}
 
 		return null;
