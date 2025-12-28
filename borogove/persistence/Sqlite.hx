@@ -326,7 +326,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			Promise.resolve(null);
 		}).then(_ ->
 			db.exec(
-				"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?,?)").join(","),
+				"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?,?,?)").join(","),
 				messages.flatMap(m -> {
 					final correctable = m;
 					final message = m.versions.length == 1 ? m.versions[0] : m; // TODO: storing multiple versions at once? We never do that right now
@@ -335,7 +335,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 						message.localId ?? "", correctable.localId ?? correctable.serverId, correctable.syncPoint,
 						correctable.chatId(), correctable.senderId,
 						message.timestamp, message.status, message.direction, message.type,
-						message.asStanza().toString()
+						message.asStanza().toString(), message.statusText
 					] : Array<Dynamic>);
 				})
 			)
