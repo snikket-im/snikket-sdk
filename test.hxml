@@ -9,6 +9,7 @@
 
 --library utest
 
+-D test
 -D NO_OMEMO
 --run
 test.TestAll

@@ -6,7 +6,6 @@ import haxe.Exception;
 import borogove.ID;
 import borogove.ResultSet;
 import borogove.Stanza;
-import borogove.Stream;
 import borogove.queries.GenericQuery;
 
 class PubsubGet extends GenericQuery {

@@ -30,6 +30,7 @@ class Participant {
 		this.jid = jid;
 	}
 
+#if !test
 	public function profile(client: Client): Promise<Profile> {
 		return new Promise((resolve, reject) -> {
 			final get = new PubsubGet(jid.asString(), "urn:xmpp:vcard4");
@@ -45,4 +46,5 @@ class Participant {
 			client.sendQuery(get);
 		});
 	}
+#end
 }
