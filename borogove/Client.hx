@@ -339,7 +339,7 @@ class Client extends EventEmitter {
 
 				final mucUser = stanza.getChild("x", "http://jabber.org/protocol/muc#user");
 				final avatarSha1Hex = stanza.findText("{vcard-temp:x:update}x/photo#");
-				final avatarSha1 = avatarSha1Hex == null ? null : Hash.fromHex("sha-1", avatarSha1Hex);
+				final avatarSha1 = avatarSha1Hex == null || avatarSha1Hex == "" ? null : Hash.fromHex("sha-1", avatarSha1Hex);
 
 				if (c == null) {
 					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(null, mucUser, avatarSha1));
