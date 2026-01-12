@@ -6,8 +6,16 @@ import borogove.DataForm;
 import borogove.Form;
 import borogove.queries.CommandExecute;
 
+#if cpp
+import HaxeCBridge;
+#end
+
 @:expose
 @:allow(borogove.CommandSession)
+#if cpp
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
 class Command {
 	public final name: String;
 	private final jid: JID;
@@ -31,6 +39,10 @@ class Command {
 }
 
 @:expose
+#if cpp
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
 class CommandSession {
 	public final name: String;
 	public final status: String;
@@ -59,20 +71,20 @@ class CommandSession {
 			>,
 			js.html.FormData
 		>> = null,
-		formIdx: Null<Int> = null
+		formIdx: Int = 0
 	)
 	#else
 	public function execute(
 		action: Null<String> = null,
 		data: Null<FormSubmitBuilder> = null,
-		formIdx: Null<Int> = null
+		formIdx: Int = 0
 	)
 	#end
 	: Promise<CommandSession> {
 		final extendedAction = action != null && !["prev", "next", "complete", "execute", "cancel"].contains(action);
 		var toSubmit = null;
 		if (data != null || extendedAction) {
-			toSubmit = forms[formIdx ?? 0].submit(data);
+			toSubmit = forms[formIdx].submit(data);
 			if (toSubmit == null && action != "cancel" && action != "prev") return Promise.reject("Invalid submission");
 		}
 
