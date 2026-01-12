@@ -189,6 +189,9 @@ class HaxeSwiftBridge {
 						builder.add(" = true");
 					case EConst(CIdent("false")):
 						builder.add(" = false");
+					case EConst(CInt(i, null)):
+						builder.add(" = ");
+						builder.add(Std.string(i));
 					case null:
 						builder.add(" = nil");
 					default:
