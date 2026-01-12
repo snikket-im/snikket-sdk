@@ -17,7 +17,6 @@ borogove.persistence.MediaStoreFS
 
 --cpp cpp
 -D analyzer-optimize
--D annotate-source
 -D NO_OMEMO
 -D HXCPP_ALIGN_ALLOC
 -D HXCPP_CPP17
