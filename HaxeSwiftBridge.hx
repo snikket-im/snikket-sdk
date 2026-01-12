@@ -239,7 +239,7 @@ class HaxeSwiftBridge {
 				return wrapper + "(" + item + "!)";
 			}
 		case TAbstract(_.get().name => "Null", [param]):
-			return castToSwift(item, param, true);
+			return castToSwift(item, param, true, isRet);
 		case TAbstract(_.get() => t, []):
 			return item;
 		case TAbstract(_.get() => t, params):
