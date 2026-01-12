@@ -55,7 +55,7 @@ class Caps {
 			// If we won't need to generate ver we don't actually need to sort
 			features.sort((x, y) -> x == y ? 0 : (x < y ? -1 : 1));
 			identities.sort((x, y) -> x.ver() == y.ver() ? 0 : (x.ver() < y.ver() ? -1 : 1));
-			data.sort((x, y) -> Reflect.compare(x.field("FORM_TYPE")?.value, y.field("FORM_TYPE")?.value));
+			data.sort((x, y) -> Reflect.compare((x.field("FORM_TYPE")?.value ?? []).join("\n"), (y.field("FORM_TYPE")?.value ?? []).join("\n")));
 		}
 
 		this.node = node;
