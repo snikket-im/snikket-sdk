@@ -172,6 +172,13 @@ class XmppJsStream extends GenericStream {
 		}, "offline");
 	}
 
+	public function enableDebug() {
+		debug = true;
+		if (client != null) {
+			new XmppJsDebug(client, true);
+		}
+	}
+
 	public function register(domain: String, preAuth: Null<String>) {
 		final entity = new XmppJsClientCore({ service: domain, domain: domain });
 		final middleware = new XmppJsMiddleware({ entity: entity });
