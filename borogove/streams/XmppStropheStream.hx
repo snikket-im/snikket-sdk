@@ -212,6 +212,28 @@ class XmppStropheStream extends GenericStream {
 		);
 		StropheConn.set_certfail_handler(conn, cpp.Callable.fromStaticFunction(strophe_certfail_handler));
 		NativeGc.addFinalizable(this, false);
+
+		this.on("auth/password", function (event) {
+			final o = this;
+			final pass = event.password;
+			if (event.fastCount != null) {
+				StropheConn.set_fast(conn, NativeString.c_str(pass), event.fastCount);
+			} else {
+				StropheConn.set_pass(conn, NativeString.c_str(pass));
+				StropheConn.set_fast(conn, null, -1);
+			}
+			StropheConn.set_user_agent_id(conn, NativeString.c_str(clientId));
+			StropheConn.connect_client(
+				this.conn,
+				null,
+				0,
+				cpp.Callable.fromStaticFunction(strophe_connect),
+				untyped __cpp__("o.GetPtr()")
+			);
+
+			return EventHandled;
+		});
+
 	}
 
 	public function newId():String {
@@ -325,20 +347,6 @@ class XmppStropheStream extends GenericStream {
 
 	public function connect(jid:String, sm:Null<BytesData>) {
 		StropheConn.set_jid(conn, NativeString.c_str(jid));
-		this.on("auth/password", function (event) {
-			var o = this;
-			var pass = event.password;
-			StropheConn.set_pass(conn, NativeString.c_str(pass));
-			StropheConn.connect_client(
-				this.conn,
-				null,
-				0,
-				cpp.Callable.fromStaticFunction(strophe_connect),
-				untyped __cpp__("o.GetPtr()")
-			);
-
-			return EventHandled;
-		});
 		this.trigger("auth/password-needed", {});
 		poll();
 	}
