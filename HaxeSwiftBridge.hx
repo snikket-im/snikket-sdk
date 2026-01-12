@@ -446,7 +446,13 @@ class HaxeSwiftBridge {
 						case Constructor:
 							builder.add("\tpublic init(");
 							convertArgs(builder, targs);
-							builder.add(") {\n\t\to = c_");
+							builder.add(") {\n\t\t");
+							if (superClass == null) {
+								builder.add("o = (");
+							} else {
+								builder.add("super.init(");
+							}
+							builder.add("c_");
 							builder.add(libName);
 							builder.add(".");
 							builder.add(cFuncName);
@@ -455,7 +461,7 @@ class HaxeSwiftBridge {
 								if (i > 0) builder.add(", ");
 								builder.add(castToC(arg.name, arg.t));
 							}
-							builder.add(")\n\t}\n\n");
+							builder.add("))\n\t}\n\n");
 						case Member:
 							builder.add("\tpublic func ");
 							builder.add(funcName);
