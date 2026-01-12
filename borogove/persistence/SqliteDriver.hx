@@ -12,13 +12,11 @@ class SqliteDriver {
 	private final dbfile: String;
 	private final ready: Promise<Bool>;
 	private var setReady: (Bool)->Void;
-	private var mainLoop: sys.thread.EventLoop;
 
 	public function new(dbfile: String, migrate: (Array<String>->Promise<haxe.iterators.ArrayIterator<Dynamic>>)->Promise<Any>) {
 		this.dbfile = dbfile;
 		readPool = Config.constrainedMemoryMode ? writePool : new sys.thread.ElasticThreadPool(10);
 		ready = new Promise((resolve, reject) -> setReady = resolve);
-		mainLoop = sys.thread.Thread.current().events;
 
 		writePool.run(() -> {
 			final db = sys.db.Sqlite.open(dbfile);
@@ -51,10 +49,10 @@ class SqliteDriver {
 					// Though from sqlite docs it seems like it should be safe?
 					final arr = { iterator: () -> result }.array();
 					dbs.push(db);
-					mainLoop.run(() -> { resolve(arr.iterator()); });
+					resolve(arr.iterator());
 				} catch (e) {
 					dbs.push(db);
-					mainLoop.run(() -> reject(e));
+					reject(e);
 				}
 			});
 		});

@@ -123,6 +123,11 @@ class Client extends EventEmitter {
 			throw "accountId cannot be empty";
 		}
 		Util.setupTrace();
+		#if (!js && target.threaded)
+		final mainLoop = sys.thread.Thread.current().events;
+		var promiseFactory = cast(Promise.factory, thenshim.fallback.FallbackPromiseFactory);
+		promiseFactory.scheduler.addNext = mainLoop.run;
+		#end
 		super();
 		this.jid = JID.parse(accountId);
 		this._displayName = this.jid.node ?? this.jid.asString();
