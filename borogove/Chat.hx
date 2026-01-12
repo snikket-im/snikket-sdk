@@ -678,7 +678,7 @@ abstract class Chat {
 		@param audio do we want audio in this call
 		@param video do we want video in this call
 	**/
-	public function startCall(audio: Bool, video: Bool) {
+	public function startCall(audio: Bool, video: Bool): Session {
 		if (uiState == Invited) uiState = Open;
 		final session = new OutgoingProposedSession(client, JID.parse(chatId));
 		jingleSessions.set(session.sid, session);
