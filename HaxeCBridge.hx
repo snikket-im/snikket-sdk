@@ -397,7 +397,12 @@ class HaxeCBridge {
 							kind: FFun({ret: TPath({name: "SizeT", pack: ["cpp"]}), params: [], args: [{name: "outPtr", type: ptrT}], expr: macro { final x = $i{field.name}; if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(x); } return x.length; } })
 						});
 						if (!field.access.contains(AFinal)) {
-							final cptrT = TPath({name: "ConstPointer", pack: ["cpp"], params: [TPType(convertedType.args[0])]});
+							final cptrT = switch (convertedType.args[0]) {
+								case TPath(tp):
+									TPath({name: "ConstPointer", pack: ["cpp"], params: tp.params});
+								default:
+									throw "Unsupported array type";
+							}
 							fields.insert(insertTo, {
 								name: "set_" + field.name + "__fromC",
 								doc: field.doc,
