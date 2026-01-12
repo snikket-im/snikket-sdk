@@ -60,7 +60,8 @@ class Reaction {
 		@returns the return value of the callback
 	**/
 	#if cpp
-	public function render(forText: (String) -> String, forImage: (String, String) -> String) {
+	@:allow(borogove)
+	private function render(forText: (String) -> String, forImage: (String, String) -> String) {
 	#else
 	public function render<T>(forText: (String) -> T, forImage: (String, String) -> T) {
 	#end
@@ -94,7 +95,8 @@ class CustomEmojiReaction extends Reaction {
 	}
 
 	#if cpp
-	override public function render(forText: (String) -> String, forImage: (String, String) -> String) {
+	@:allow(borogove)
+	override private function render(forText: (String) -> String, forImage: (String, String) -> String) {
 	#else
 	override public function render<T>(forText: (String) -> T, forImage: (String, String) -> T) {
 	#end
