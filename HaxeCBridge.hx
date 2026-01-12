@@ -282,16 +282,23 @@ class HaxeCBridge {
 						final atype = convertSecondaryTPtoType(path.params[0]);
 						final aargs = atype.args;
 						args.push({name: "handler", type: TPath({name: "Callable", pack: ["cpp"], params: [TPType(TFunction(aargs.concat([TNamed("handler__context", TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]}))]), TPath({name: "Void", pack: []})))]})});
-						promisify.push(macro v);
 						if (atype.retainType == null) {
 							promisifyE.push(macro false);
 						} else {
 							promisifyE.push(macro null);
 						}
 						if (atype.retainType == "Array") {
+							promisify.push(macro v);
 							promisify.push(macro v.length);
 							promisifyE.push(macro 0);
+						} else if (atype.retainType == "String") {
+							promisify.push(macro HaxeCBridge.retainHaxeString(v));
+						} else if (atype.retainType == "Object") {
+							promisify.push(macro HaxeCBridge.retainHaxeObject(v));
+						} else {
+							promisify.push(macro v);
 						}
+
 						args.push({name: "handler__context", type: TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(TPath({ name: "Void", pack: ["cpp"] }))]})});
 						promisify.push(macro handler__context);
 						promisifyE.push(macro handler__context);
