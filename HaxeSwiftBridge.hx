@@ -334,7 +334,12 @@ class HaxeSwiftBridge {
 		builder.add(" {\n");
 		if (!cls.isInterface && superClass == null) {
 			// We don't want this to be public, but it needs to be for the protocol, hmm
-			builder.add("\tpublic let o: UnsafeMutableRawPointer\n\n\tinternal init(_ ptr: UnsafeMutableRawPointer) {\n\t\to = ptr\n\t}\n\n");
+			builder.add("\tpublic let o: UnsafeMutableRawPointer\n\n");
+			builder.add("\tinternal init(_ ptr: UnsafeMutableRawPointer) {\n\t\to = ptr\n\t}\n\n");
+		}
+
+		if (!cls.isInterface && superClass != null) {
+			builder.add("\tinternal override init(_ ptr: UnsafeMutableRawPointer) {\n\t\tsuper.init(ptr)\n\t}\n\n");
 		}
 
 		function convertVar(f: ClassField, read: VarAccess, write: VarAccess, isStatic: Bool = false) {
