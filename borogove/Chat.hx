@@ -53,6 +53,7 @@ enum abstract EncryptionMode(Int) {
 	var EncryptedOMEMO; // Use OMEMO
 }
 
+@:expose
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
