@@ -154,6 +154,7 @@ extern class DescriptionMedia {
 	public function mid():StdString;
 	public function type():StdString;
 	public function payloadTypes(): StdVector<Int>;
+	public function hasPayloadType(payloadType: Int): Bool;
 	public function rtpMap(payloadType: Int): cpp.RawPointer<RtpMap>;
 	public function addSSRC(ssrc: cpp.UInt32, cname: cpp.StdString): Void;
 }
@@ -354,7 +355,10 @@ class MediaStreamTrack {
 	private var mutex = new sys.thread.Mutex();
 
 	@:allow(borogove)
-	private var media(get, default): StdOptional<DescriptionMedia>;
+	private var media: StdOptional<DescriptionMedia>;
+
+	@:allow(borogove)
+	private var remoteMedia: cpp.Pointer<DescriptionMedia>;
 
 	@:allow(borogove)
 	private var track(default, set): SharedPtr<Track>;
@@ -396,14 +400,6 @@ class MediaStreamTrack {
 		};
 	}
 
-	private function get_media() {
-		if (untyped __cpp__("!track")) {
-			return media;
-		}
-
-		final d = track.ref.description();
-		return new StdOptional(untyped __cpp__("d"));
-	}
 	private function get_id() {
 		if (untyped __cpp__("!track")) {
 			return media.value().mid();
@@ -411,7 +407,7 @@ class MediaStreamTrack {
 
 		return track.ref.mid();
 	}
-	private function get_kind() { return get_media().value().type(); }
+	private function get_kind() { return media.value().type(); }
 	private function get_muted() { return false; }
 
 	private function get_supportedAudioFormats() {
@@ -421,11 +417,14 @@ class MediaStreamTrack {
 		final codecs = [];
 		final payloadTypes = m.payloadTypes();
 		for (i in 0...payloadTypes.size()) {
-			final rtp: RtpMap = cpp.Pointer.fromRaw(m.rtpMap(payloadTypes.at(i))).ref;
-			codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), rtp.clockRate, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
-			if (rtp.format == "opus") { // We can encode opus from 8k or 16k too, it's just 48k internal
-				codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), 16000, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
-				codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), 8000, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
+			final payloadType = payloadTypes.at(i);
+			if (remoteMedia == null || remoteMedia.ref.hasPayloadType(payloadType)) {
+				final rtp: RtpMap = cpp.Pointer.fromRaw(m.rtpMap(payloadType)).ref;
+				codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), rtp.clockRate, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
+				if (rtp.format == "opus") { // We can encode opus from 8k or 16k too, it's just 48k internal
+					codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), 16000, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
+					codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), 8000, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
+				}
 			}
 		}
 
@@ -687,6 +686,8 @@ extern class Description {
 	public function new(sdp: cpp.StdString, sdpType: cpp.Struct<DescriptionType>):Void;
 	public function generateSdp(): StdString;
 	public function iceUfrag(): StdOptional<StdString>;
+	public function mediaCount(): Int;
+	public function media(index: Int): cpp.RawPointer<DescriptionMedia>;
 }
 
 @:native("rtc::Candidate")
@@ -768,6 +769,7 @@ extern class PC {
 	@:native("std::make_shared<rtc::PeerConnection>")
 	public static function makeShared(config: PCConfiguration): SharedPtr<PC>;
 	public function localDescription():StdOptional<Description>;
+	public function remoteDescription():StdOptional<Description>;
 	public function setLocalDescription(sdpType: DescriptionType):Void;
 	public function onLocalDescription(callback: cpp.Callable<Description->Void>):Void;
 	public function setRemoteDescription(description: Description):Void;
@@ -920,8 +922,20 @@ class PeerConnection {
 	}
 
 	public function setRemoteDescription(description : SessionDescriptionInit): Promise<Any> {
-		pc.ref.setRemoteDescription(new Description(cpp.StdString.ofString(description.sdp), description.type));
+		final remote = new Description(cpp.StdString.ofString(description.sdp), description.type);
+		pc.ref.setRemoteDescription(remote);
 		hasRemote = true;
+		// Update local tracks with remote media
+		for (i in 0...remote.mediaCount()) {
+			untyped __cpp__("auto mediaVariant = remote1.media(i)");
+			final mediaPointer: cpp.RawPointer<cpp.RawPointer<DescriptionMedia>> = untyped __cpp__("std::get_if<rtc::Description::Media *>(&mediaVariant)");
+			final media = mediaPointer == null ? null : cpp.Pointer.fromRaw(cpp.Pointer.fromRaw(mediaPointer).ref);
+			final mid = media.ref.mid();
+			final track = tracks[mid];
+			if (track != null) {
+				track.remoteMedia = media;
+			}
+		}
 		return Promise.resolve(null);
 	}
 
