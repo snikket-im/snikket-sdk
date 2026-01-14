@@ -216,13 +216,7 @@ class XmppStropheStream extends GenericStream {
 		this.on("auth/password", function (event) {
 			final o = this;
 			final pass = event.password;
-			if (event.fastCount != null) {
-				StropheConn.set_fast(conn, NativeString.c_str(pass), event.fastCount);
-			} else {
-				StropheConn.set_pass(conn, NativeString.c_str(pass));
-				StropheConn.set_fast(conn, null, -1);
-			}
-			StropheConn.set_user_agent_id(conn, NativeString.c_str(clientId));
+			StropheConn.set_pass(conn, NativeString.c_str(pass));
 			StropheConn.connect_client(
 				this.conn,
 				null,
