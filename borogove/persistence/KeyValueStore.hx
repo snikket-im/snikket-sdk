@@ -3,6 +3,11 @@ package borogove.persistence;
 import thenshim.Promise;
 
 #if cpp
+import HaxeCBridge;
+#end
+
+#if cpp
+@:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
 interface KeyValueStore {

@@ -8,6 +8,7 @@ import HaxeCBridge;
 
 @:expose
 #if cpp
+@:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
 interface FormSection {

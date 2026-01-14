@@ -23,6 +23,7 @@ enum abstract CallStatus(Int) {
 }
 
 #if cpp
+@:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
 @:expose
@@ -47,7 +48,7 @@ interface Session {
 	public function callStatus():CallStatus;
 	public function audioTracks():Array<MediaStreamTrack>;
 	public function videoTracks():Array<MediaStreamTrack>;
-	public function dtmf():Null<DTMFSender>;
+	public function dtmf():Null<borogove.calls.PeerConnection.DTMFSender>;
 }
 
 private function mkCallMessage(to: JID, from: JID, event: Stanza) {
@@ -327,7 +328,9 @@ class OutgoingProposedSession implements Session {
 #end
 @:expose
 class InitiatedSession implements Session {
+	@HaxeCBridge.noemit
 	public var sid (get, null): String;
+	@HaxeCBridge.noemit
 	public var chatId (get, null): String;
 	private final client: Client;
 	private final counterpart: JID;
@@ -383,6 +386,7 @@ class InitiatedSession implements Session {
 		trace("Tried to retract session in wrong state: " + sid, this);
 	}
 
+	@HaxeCBridge.noemit
 	public function accept() {
 		if (accepted || remoteDescription == null) return;
 		accepted = true;
@@ -391,6 +395,7 @@ class InitiatedSession implements Session {
 		client.trigger("call/media", { session: this, audio: audio, video: video });
 	}
 
+	@HaxeCBridge.noemit
 	public function hangup() {
 		client.sendStanza(
 			new Stanza("iq", { to: counterpart.asString(), type: "set", id: ID.medium() })
@@ -504,6 +509,7 @@ class InitiatedSession implements Session {
 		})).then((_) -> {});
 	}
 
+	@HaxeCBridge.noemit
 	public function addMedia(streams: Array<MediaStream>): Void {
 		if (pc == null) throw "tried to add media before PeerConnection exists";
 
@@ -517,6 +523,7 @@ class InitiatedSession implements Session {
 		setupLocalDescription("content-add", oldMids, true);
 	}
 
+	@HaxeCBridge.noemit
 	public function callStatus() {
 		return if (pc == null || pc.connectionState == "connecting" || pc.connectionState == "new") {
 			Connecting;
@@ -527,6 +534,7 @@ class InitiatedSession implements Session {
 		}
 	}
 
+	@HaxeCBridge.noemit
 	public function audioTracks(): Array<MediaStreamTrack> {
 		if (pc == null) return [];
 		return pc.getTransceivers()
@@ -534,6 +542,7 @@ class InitiatedSession implements Session {
 			.map((t) -> t.receiver.track);
 	}
 
+	@HaxeCBridge.noemit
 	public function videoTracks(): Array<MediaStreamTrack> {
 		if (pc == null) return [];
 		return pc.getTransceivers()
@@ -541,6 +550,7 @@ class InitiatedSession implements Session {
 			.map((t) -> t.receiver.track);
 	}
 
+	@HaxeCBridge.noemit
 	public function dtmf() {
 		if (pc == null) return null;
 		final transceiver = pc.getTransceivers().find((t) -> t.sender != null && t.sender.track != null && t.sender.track.kind == "audio" && !t.sender.track.muted);

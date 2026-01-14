@@ -96,7 +96,7 @@ class HaxeCBridge {
 	static public function expose(?namespace: String) {
 		var clsRef = Context.getLocalClass(); 
 		var cls = clsRef.get();
-		var fields = Context.getBuildFields();
+		var buildFields = Context.getBuildFields();
 
 		if (libName == null) {
 			// if we cannot determine a libName from --main or -D, we use the first exposed class
@@ -107,10 +107,27 @@ class HaxeCBridge {
 			}
 		}
 
-		queuedClasses.push({
-			cls: clsRef,
-			namespace: namespace
-		});
+		final companionFields = [];
+		final companion: TypeDefinition = {
+			pack: cls.pack,
+			name: cls.name + "__Companion",
+			pos: cls.pos,
+			kind: TDClass(null, [], false, true, false),
+			meta: [
+				{ pos: cls.pos, name: ":keep" },
+				{ pos: cls.pos, name: "HaxeCBridge.name", params: [macro $v{cls.pack.join("_") + "_" + cls.name}]}
+			],
+			fields: companionFields,
+		};
+		final fields = if (cls.isInterface) {
+			companionFields;
+		} else {
+			queuedClasses.push({
+				cls: clsRef,
+				namespace: namespace
+			});
+			buildFields;
+		}
 
 		// add @:keep
 		cls.meta.add(':keep', [], Context.currentPos());
@@ -175,7 +192,7 @@ class HaxeCBridge {
 			firstRun = false;
 		}
 
-		final forloop = fields.slice(0);
+		final forloop = buildFields.slice(0);
 		var insertTo = 0;
 		for (field in forloop) {
 			insertTo++;
@@ -306,14 +323,22 @@ class HaxeCBridge {
 						if (wrapper.doc != null) wrapper.doc = ~/@returns Promise resolving to/.replace(wrapper.doc, "@param handler which receives");
 					default:
 					}
-					if (wrap) {
-						if (outPtr) {
-							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro { final out = $i{field.name}($a{passArgs}); if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(out); } return out.length; }, args: args});
-						} else if (promisify.length > 0) {
-							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro if (handler == null) $i{field.name}($a{passArgs}); else $i{field.name}($a{passArgs}).then(v->handler($a{promisify}), e->handler($a{promisifyE})), args: args});
+					if (wrap || cls.isInterface) {
+						final pth = if (cls.isInterface) {
+							wrapper.access.push(AStatic);
+							args.insert(0, { name: "self", type: TPath({ pack: cls.pack, name: cls.name }) });
+							["self", field.name];
 						} else {
-							wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: macro return $i{field.name}($a{passArgs}), args: args});
+							[field.name];
 						}
+						final expr = if (outPtr) {
+							macro { final out = $p{pth}($a{passArgs}); if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(out); } return out.length; };
+						} else if (promisify.length > 0) {
+							macro if (handler == null) $p{pth}($a{passArgs}); else $p{pth}($a{passArgs}).then(v->handler($a{promisify}), e->handler($a{promisifyE}));
+						} else {
+							macro return $p{pth}($a{passArgs});
+						}
+						wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: expr, args: args});
 						fields.insert(insertTo, wrapper);
 						insertTo++;
 						field.meta.push({name: "HaxeCBridge.noemit", params: [{ pos: field.pos, expr: EConst(CString("wrapped")) }], pos: field.pos});
@@ -361,14 +386,16 @@ class HaxeCBridge {
 						});
 						insertTo++;
 					default:
+						final selfArg = cls.isInterface ? [{ name: "__self", type: TPath({ pack: cls.pack, name: cls.name }) }] : [];
+						final pth = cls.isInterface ? ["__self", field.name] : [field.name];
 						if (get != "null" && get != "never") {
 							fields.insert(insertTo, {
 								name: field.name + "__fromC",
 								doc: field.doc,
 								meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
-								access: field.access,
+								access: field.access.concat(cls.isInterface ? [AStatic] : []),
 								pos: field.pos,
-								kind: FFun({ret: t, params: [], args: [], expr: macro { return $i{field.name} }})
+								kind: FFun({ret: t, params: [], args: selfArg, expr: macro { return $p{pth} }})
 							});
 							insertTo++;
 						}
@@ -379,7 +406,7 @@ class HaxeCBridge {
 								meta: [{name: "HaxeCBridge.wrapper", params: [], pos: field.pos}],
 								access: field.access,
 								pos: field.pos,
-								kind: FFun({ret: TPath({name: "Void", pack: []}), params: [], args: [{name: "value", type: t}], expr: macro $i{field.name} = value})
+								kind: FFun({ret: TPath({name: "Void", pack: []}), params: [], args: selfArg.concat([{name: "value", type: t}]), expr: macro $p{pth} = value})
 							});
 							insertTo++;
 						}
@@ -441,7 +468,31 @@ class HaxeCBridge {
 			}
 		}
 
-		return fields;
+		if (cls.isInterface) {
+			// An interface can't contain methods so we make a companion object
+			// Haxe already makes one in C++... but this lets us customize it
+			// and also works with the rest of the codegen without more changes
+			final fullPath = companion.pack.join(".") + "." + companion.name;
+			Context.defineModule(
+				fullPath,
+				[companion],
+				[
+					{ path: [{ pos: companion.pos, name: "HaxeCBridge" }], mode: INormal },
+					{ path: cls.module.split(".").map(p -> { pos: companion.pos, name: p }), mode: INormal }
+				]
+			);
+			final ct = Context.getType(fullPath);
+			switch (ct) {
+				case TInst(ref, _):
+					queuedClasses.push({
+						cls: ref,
+						namespace: namespace
+					});
+				default: Context.error("Comanion must be a class", companion.pos);
+			}
+		}
+
+		return buildFields;
 	}
 
 	static function convertSecondaryTP(tp: TypeParam) {
@@ -530,7 +581,7 @@ class HaxeCBridge {
 		function convertFunction(f: ClassField, kind: FunctionInfoKind) {
 			var isConvertibleMethod = f.isPublic && !f.isAbstract && !f.isExtern && !f.meta.has("HaxeCBridge.noemit") && switch f.kind {
 				case FVar(_), FMethod(MethMacro): false; // skip macro methods
-				case FMethod(_): true;
+				case FMethod(_): f.expr() != null;
 			}
 
 			if (!isConvertibleMethod) return;

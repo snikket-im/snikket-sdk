@@ -288,6 +288,200 @@ class HaxeSwiftBridge {
 		}
 	}
 
+	static function buildVar(f: ClassField, libName: String, cFuncNameGet: String, cFuncNameSet: String, read: VarAccess, write: VarAccess, isStatic: Bool, builder: hx.strings.StringBuilder, genBody: Bool, genAccess: Bool) {
+		builder.add("\t");
+		if (genAccess) builder.add("public ");
+		builder.add("var ");
+		builder.add(f.name);
+		builder.add(": ");
+		builder.add(getSwiftType(f.type));
+		builder.add(" {\n");
+		if (read == AccNormal || read == AccCall) {
+			builder.add("\t\tget");
+			if (genBody) {
+				builder.add(" {\n\t\t\t");
+				builder.add(castToSwift('c_${libName}.${cFuncNameGet}(${isStatic ? '' : 'o'})', f.type, false, true));
+				builder.add("\n\t\t}");
+			}
+			builder.add("\n");
+		}
+		if (write == AccNormal || write == AccCall) {
+			builder.add("\t\tset");
+			if (genBody) {
+				builder.add(" {\n\t\t\tc_");
+				builder.add(libName);
+				builder.add(".");
+				builder.add(cFuncNameSet);
+				builder.add("(" + (isStatic ? "" : "o, "));
+				builder.add(castToC("newValue", f.type));
+				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(f.type), Context.currentPos()), false) {
+				case TInst(_.get().name => "Array", [param]):
+					builder.add(", ");
+					builder.add("newValue.count");
+				default:
+				}
+				builder.add(")\n\t\t}");
+			}
+			builder.add("\n");
+		}
+		builder.add("\t}\n\n");
+	}
+
+	static function mkSwiftAsync(ibuilder: hx.strings.StringBuilder, ret: haxe.macro.Type) {
+		ibuilder.add("{ (");
+		ibuilder.add("a");
+		switch (ret) {
+		case TInst(_.get().name => "Array", params):
+			ibuilder.add(", a_length");
+		default:
+		}
+		ibuilder.add(", ctx");
+		ibuilder.add(") in\n\t\t\t\tlet cont = Unmanaged<AnyObject>.fromOpaque(ctx!).takeRetainedValue() as! UnsafeContinuation<");
+		ibuilder.add(getSwiftType(ret));
+		ibuilder.add(", Never>\n\t\t\t\t");
+		final cbuilder = new hx.strings.StringBuilder("cont.resume");
+		cbuilder.add("(returning: ");
+		cbuilder.add(castToSwift("a", ret));
+		cbuilder.add(")");
+		ibuilder.add(cbuilder.toString());
+		ibuilder.add("\n\t\t\t},\n\t\t\t__");
+		ibuilder.add("cont_ptr");
+	}
+
+	static function buildMember(funcName: String, cFuncName: String, fld: Field, targs: Array<{ t: Type, opt: Bool, name: String }>, tret: Type, builder: hx.strings.StringBuilder, genBody: Bool, genAccess: Bool) {
+		var finalTret = tret;
+		builder.add("\t");
+		if (genAccess) builder.add("public ");
+		builder.add("func ");
+		builder.add(funcName);
+		builder.add("(");
+		convertArgs(builder, targs, fld?.kind);
+		builder.add(") ");
+		switch tret {
+			case TAbstract(_.get().name => "Promise", params):
+				builder.add("async ");
+			default:
+		}
+		builder.add("-> ");
+		switch tret {
+			case TAbstract(_.get().name => "Promise", params):
+				builder.add(getSwiftType(params[0]));
+			default:
+				builder.add(getSwiftType(tret));
+		}
+		if (genBody) {
+			builder.add(" {\n\t\t");
+			switch tret {
+				case TAbstract(_.get().name => "Promise", params):
+				builder.add("return await withUnsafeContinuation { cont in\n\t\t");
+				builder.add("let __cont_ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(cont as AnyObject).toOpaque())\n\t\t");
+				default:
+			}
+			for (arg in targs) {
+				switch (arg.t) {
+				case TFun(fargs, fret):
+					builder.add("let __");
+					builder.add(arg.name);
+					builder.add("_ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(");
+					builder.add(arg.name);
+					builder.add(" as AnyObject).toOpaque())\n\t\t");
+				default:
+				}
+			}
+			for (arg in targs) {
+				final allowNull = switch arg.t {
+				case TAbstract(_.get().name => "Null", [param]): true;
+				default: false;
+				};
+				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
+				case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+				builder.add("with" + (allowNull ? "Optional" : "") + "ArrayOfCStrings(" + arg.name + ") { __" + arg.name + " in ");
+				default:
+				}
+			}
+			final ibuilder = new hx.strings.StringBuilder("c_");
+			ibuilder.add(libName);
+			ibuilder.add(".");
+			ibuilder.add(cFuncName);
+			ibuilder.add("(\n\t\t\tself.o");
+			for (arg in targs) {
+				ibuilder.add(",\n\t\t\t");
+				final allowNull = switch arg.t {
+				case TAbstract(_.get().name => "Null", [param]): true;
+				default: false;
+				};
+				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
+				case TFun(fargs, fret):
+					ibuilder.add("{ (");
+					for (i => farg in fargs) {
+						if (i > 0) ibuilder.add(", ");
+						ibuilder.add("a" + i);
+						switch (farg.t) {
+						case TInst(_.get().name => "Array", params):
+							ibuilder.add(", a" + i + "_length");
+						default:
+						}
+					}
+					if (fargs.length > 0) ibuilder.add(", ");
+					ibuilder.add("ctx");
+					// TODO unretained vs retained
+					ibuilder.add(") in\n\t\t\t\tlet ");
+					ibuilder.add(arg.name);
+					ibuilder.add(" = Unmanaged<AnyObject>.fromOpaque(ctx!).takeUnretainedValue() as! ");
+					ibuilder.add(getSwiftType(arg.t));
+					ibuilder.add("\n\t\t\t\t");
+					final cbuilder = new hx.strings.StringBuilder(arg.name);
+					cbuilder.add("(");
+					for (i => farg in fargs) {
+						if (i > 0) cbuilder.add(", ");
+						cbuilder.add(castToSwift("a" + i, farg.t));
+					}
+					cbuilder.add(")");
+					ibuilder.add("return ");
+					ibuilder.add(castToC(cbuilder.toString(), fret, false));
+					ibuilder.add("\n\t\t\t},\n\t\t\t__");
+					ibuilder.add(arg.name);
+					ibuilder.add("_ptr");
+				case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+					ibuilder.add("__");
+					ibuilder.add(arg.name);
+					ibuilder.add(", ");
+					ibuilder.add(arg.name + (allowNull ? "?" : "") + ".count" + (allowNull ? " ?? 0" : ""));
+				case TInst(_.get().name => "Array", [param]):
+					ibuilder.add(castToC(arg.name, arg.t));
+					ibuilder.add(", ");
+					ibuilder.add(arg.name + (allowNull ? "?" : "") + ".count" + (allowNull ? " ?? 0" : ""));
+				default:
+					ibuilder.add(castToC(arg.name, arg.t));
+				}
+			}
+			switch tret {
+				case TAbstract(_.get().name => "Promise", params):
+					ibuilder.add(",\n\t\t\t");
+					mkSwiftAsync(ibuilder, params[0]);
+					finalTret = Context.resolveType(TPath({name: "Void", pack: []}), Context.currentPos());
+				default:
+			}
+			ibuilder.add("\n\t\t)");
+			builder.add("return ");
+			builder.add(castToSwift(ibuilder.toString(), finalTret, false, true));
+			for (arg in targs) {
+				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
+				case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+				builder.add("}");
+				default:
+				}
+			}
+			switch tret {
+				case TAbstract(_.get().name => "Promise", params):
+				builder.add("\n\t\t}");
+				default:
+			}
+			builder.add("\n\t}");
+		}
+		builder.add("\n\n");
+	}
+
 	static function convertQueuedClass(clsRef: Ref<ClassType>, namespace: String, fields: Array<Field>) {
 		var cls = clsRef.get();
 
@@ -305,6 +499,7 @@ class HaxeSwiftBridge {
 				.concat(safeIdent(classPrefix.join('.')) != libName ? classPrefix : [])
 				.filter(s -> s != '');
 
+		final extensionBuilder = new hx.strings.StringBuilder("public extension " + cls.name + " {\n");
 		final builder = new hx.strings.StringBuilder(cls.isInterface ? "public protocol " : "public class ");
 		builder.add(cls.name);
 		final superClass = if (cls.superClass == null) {
@@ -346,7 +541,6 @@ class HaxeSwiftBridge {
 			final noemit = f.meta.extract("HaxeCBridge.noemit")[0];
 			var isConvertibleMethod = f.isPublic && !f.isExtern && (noemit == null || (noemit.params != null && noemit.params.length > 0));
 			if (!isConvertibleMethod) return;
-			if (cls.isInterface) return;
 			if (read != AccNormal && read != AccCall) return; // Swift doesn't allow write-only
 
 			final cNameMeta = getCNameMeta(f.meta);
@@ -357,60 +551,15 @@ class HaxeSwiftBridge {
 			final cleanDoc = f.doc != null ? StringTools.trim(removeIndentation(f.doc)) : null;
 			if (cleanDoc != null) builder.add('\t/**\n${cleanDoc.split('\n').map(l -> '\t ' + l).join('\n')}\n\t */\n');
 
-			builder.add("\tpublic var ");
-			builder.add(f.name);
-			builder.add(": ");
-			builder.add(getSwiftType(f.type));
-			builder.add(" {\n");
-			if (read == AccNormal || read == AccCall) {
-				builder.add("\t\tget {\n\t\t\t");
-				builder.add(castToSwift('c_${libName}.${cFuncNameGet}(${isStatic ? '' : 'o'})', f.type, false, true));
-				builder.add("\n\t\t}\n");
-			}
-			if (write == AccNormal || write == AccCall) {
-				builder.add("\t\tset {\n\t\t\tc_");
-				builder.add(libName);
-				builder.add(".");
-				builder.add(cFuncNameSet);
-				builder.add("(" + (isStatic ? "" : "o, "));
-				builder.add(castToC("newValue", f.type));
-				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(f.type), Context.currentPos()), false) {
-				case TInst(_.get().name => "Array", [param]):
-					builder.add(", ");
-					builder.add("newValue.count");
-				default:
-				}
-				builder.add(")\n\t\t}\n");
-			}
-			builder.add("\t}\n\n");
-		}
 
-		function mkSwiftAsync(ibuilder: hx.strings.StringBuilder, ret: haxe.macro.Type) {
-			ibuilder.add("{ (");
-			ibuilder.add("a");
-			switch (ret) {
-			case TInst(_.get().name => "Array", params):
-				ibuilder.add(", a_length");
-			default:
-			}
-			ibuilder.add(", ctx");
-			ibuilder.add(") in\n\t\t\t\tlet cont = Unmanaged<AnyObject>.fromOpaque(ctx!).takeRetainedValue() as! UnsafeContinuation<");
-			ibuilder.add(getSwiftType(ret));
-			ibuilder.add(", Never>\n\t\t\t\t");
-			final cbuilder = new hx.strings.StringBuilder("cont.resume");
-			cbuilder.add("(returning: ");
-			cbuilder.add(castToSwift("a", ret));
-			cbuilder.add(")");
-			ibuilder.add(cbuilder.toString());
-			ibuilder.add("\n\t\t\t},\n\t\t\t__");
-			ibuilder.add("cont_ptr");
+			buildVar(f, libName, cFuncNameGet, cFuncNameSet, read, write, isStatic, builder, !cls.isInterface, !cls.isInterface);
+			if (cls.isInterface) buildVar(f, libName, cFuncNameGet, cFuncNameSet, read, write, isStatic, extensionBuilder, true, false);
 		}
 
 		function convertFunction(f: ClassField, kind: SwiftFunctionInfoKind, ?fld: Field) {
 			final noemit = f.meta.extract("HaxeCBridge.noemit")[0];
 			var isConvertibleMethod = f.isPublic && !f.isExtern && !f.meta.has("HaxeCBridge.wrapper") && (noemit == null || (noemit.params != null && noemit.params.length > 0));
 			if (!isConvertibleMethod) return;
-			if (cls.isInterface) return;
 			switch f.type {
 				case TFun(targs, tret):
 					final cNameMeta = getCNameMeta(f.meta);
@@ -463,131 +612,8 @@ class HaxeSwiftBridge {
 							}
 							builder.add("))\n\t}\n\n");
 						case Member:
-							builder.add("\tpublic func ");
-							builder.add(funcName);
-							builder.add("(");
-							convertArgs(builder, targs, fld?.kind);
-							builder.add(") ");
-							switch tret {
-								case TAbstract(_.get().name => "Promise", params):
-									builder.add("async ");
-								default:
-							}
-							builder.add("-> ");
-							switch tret {
-								case TAbstract(_.get().name => "Promise", params):
-									builder.add(getSwiftType(params[0]));
-								default:
-									builder.add(getSwiftType(tret));
-							}
-							builder.add(" {\n\t\t");
-							switch tret {
-								case TAbstract(_.get().name => "Promise", params):
-								builder.add("return await withUnsafeContinuation { cont in\n\t\t");
-								builder.add("let __cont_ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(cont as AnyObject).toOpaque())\n\t\t");
-								default:
-							}
-							for (arg in targs) {
-								switch (arg.t) {
-								case TFun(fargs, fret):
-									builder.add("let __");
-									builder.add(arg.name);
-									builder.add("_ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(");
-									builder.add(arg.name);
-									builder.add(" as AnyObject).toOpaque())\n\t\t");
-								default:
-								}
-							}
-							for (arg in targs) {
-								final allowNull = switch arg.t {
-								case TAbstract(_.get().name => "Null", [param]): true;
-								default: false;
-								};
-								switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
-								case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
-								builder.add("with" + (allowNull ? "Optional" : "") + "ArrayOfCStrings(" + arg.name + ") { __" + arg.name + " in ");
-								default:
-								}
-							}
-							final ibuilder = new hx.strings.StringBuilder("c_");
-							ibuilder.add(libName);
-							ibuilder.add(".");
-							ibuilder.add(cFuncName);
-							ibuilder.add("(\n\t\t\tself.o");
-							for (arg in targs) {
-								ibuilder.add(",\n\t\t\t");
-								final allowNull = switch arg.t {
-								case TAbstract(_.get().name => "Null", [param]): true;
-								default: false;
-								};
-								switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
-								case TFun(fargs, fret):
-									ibuilder.add("{ (");
-									for (i => farg in fargs) {
-										if (i > 0) ibuilder.add(", ");
-										ibuilder.add("a" + i);
-										switch (farg.t) {
-										case TInst(_.get().name => "Array", params):
-											ibuilder.add(", a" + i + "_length");
-										default:
-										}
-									}
-									if (fargs.length > 0) ibuilder.add(", ");
-									ibuilder.add("ctx");
-									// TODO unretained vs retained
-									ibuilder.add(") in\n\t\t\t\tlet ");
-									ibuilder.add(arg.name);
-									ibuilder.add(" = Unmanaged<AnyObject>.fromOpaque(ctx!).takeUnretainedValue() as! ");
-									ibuilder.add(getSwiftType(arg.t));
-									ibuilder.add("\n\t\t\t\t");
-									final cbuilder = new hx.strings.StringBuilder(arg.name);
-									cbuilder.add("(");
-									for (i => farg in fargs) {
-										if (i > 0) cbuilder.add(", ");
-										cbuilder.add(castToSwift("a" + i, farg.t));
-									}
-									cbuilder.add(")");
-									ibuilder.add("return ");
-									ibuilder.add(castToC(cbuilder.toString(), fret, false));
-									ibuilder.add("\n\t\t\t},\n\t\t\t__");
-									ibuilder.add(arg.name);
-									ibuilder.add("_ptr");
-								case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
-									ibuilder.add("__");
-									ibuilder.add(arg.name);
-									ibuilder.add(", ");
-									ibuilder.add(arg.name + (allowNull ? "?" : "") + ".count" + (allowNull ? " ?? 0" : ""));
-								case TInst(_.get().name => "Array", [param]):
-									ibuilder.add(castToC(arg.name, arg.t));
-									ibuilder.add(", ");
-									ibuilder.add(arg.name + (allowNull ? "?" : "") + ".count" + (allowNull ? " ?? 0" : ""));
-								default:
-									ibuilder.add(castToC(arg.name, arg.t));
-								}
-							}
-							switch tret {
-								case TAbstract(_.get().name => "Promise", params):
-									ibuilder.add(",\n\t\t\t");
-									mkSwiftAsync(ibuilder, params[0]);
-									finalTret = Context.resolveType(TPath({name: "Void", pack: []}), Context.currentPos());
-								default:
-							}
-							ibuilder.add("\n\t\t)");
-							builder.add("return ");
-							builder.add(castToSwift(ibuilder.toString(), finalTret, false, true));
-							for (arg in targs) {
-								switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
-								case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
-								builder.add("}");
-								default:
-								}
-							}
-							switch tret {
-								case TAbstract(_.get().name => "Promise", params):
-								builder.add("\n\t\t}");
-								default:
-							}
-							builder.add("\n\t}\n\n");
+							buildMember(funcName, cFuncName, fld, targs, tret, builder, !cls.isInterface, !cls.isInterface);
+							if (cls.isInterface) buildMember(funcName, cFuncName, fld, targs, tret, extensionBuilder, true, false);
 						case Static:
 							builder.add("\tpublic static func ");
 							builder.add(funcName);
@@ -682,7 +708,9 @@ class HaxeSwiftBridge {
 		for (f in cls.fields.get()) {
 			switch (f.kind) {
 			case FMethod(MethMacro):
-			case FMethod(_): convertFunction(f, Member, fields.find(fld -> f.name == fld.name));
+			case FMethod(_):
+				final fld = fields.find(fld -> f.name == fld.name);
+				if (fld != null) convertFunction(f, Member, fld);
 			case FVar(read, write): convertVar(f, read, write);
 			}
 		}
@@ -698,7 +726,10 @@ class HaxeSwiftBridge {
 		builder.add("}\n");
 
 		if (cls.isInterface) {
-			// TODO: extension with defaults for all exposed methods
+			extensionBuilder.add("}\n");
+			builder.add("\n");
+			builder.add(extensionBuilder.toString());
+
 			builder.add("\npublic class Any");
 			builder.add(cls.name);
 			builder.add(": ");
@@ -757,7 +788,7 @@ class HaxeSwiftBridge {
 				c_' + libName + '.' + libName + '_stop(wait)
 			}
 
-			public protocol SDKObject {
+			public protocol SDKObject: Sendable {
 				var o: UnsafeMutableRawPointer {get}
 			}
 
