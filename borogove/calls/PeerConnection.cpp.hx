@@ -915,9 +915,15 @@ class PeerConnection {
 
 	public function setLocalDescription(sdpType: Null<SdpType>): Promise<Any> {
 		return new Promise((resolve, reject) -> {
-			waitingOnLocal = resolve;
-			if (!hasRemote) addPendingTracks();
-			pc.ref.setLocalDescription(sdpType ?? SdpType.UNSPEC);
+			if (hasLocal) {
+				// This prevents re-set-up when we want it, but usually we don't for now
+				// and it fixes inbound creating an offer when we want an answer
+				resolve(null);
+			} else {
+				waitingOnLocal = resolve;
+				if (!hasRemote) addPendingTracks();
+				pc.ref.setLocalDescription(sdpType ?? SdpType.UNSPEC);
+			}
 		});
 	}
 
