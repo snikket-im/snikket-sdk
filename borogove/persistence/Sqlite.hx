@@ -172,6 +172,18 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 3"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 4) {
+						return exec(["CREATE INDEX messages_stanza_id on messages (account_id, stanza_id)",
+						"PRAGMA user_version = 4"]);
+					}
+					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 5) {
+						return exec(["CREATE INDEX messages_mam_id on messages (account_id, chat_id, mam_id)",
+						"PRAGMA user_version = 5"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -199,7 +211,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 	@HaxeCBridge.noemit
 	public function lastId(accountId: String, chatId: Null<String>): Promise<Null<String>> {
 		final params = [accountId];
-		var q = "SELECT mam_id FROM messages WHERE mam_id IS NOT NULL AND sync_point AND account_id=?";
+		var q = "SELECT mam_id, MAX(row) FROM (SELECT mam_id, ROWID as row FROM messages";
+		if (chatId == null) {
+			// Index would actually slow us down here because we order by ROWID and barely filter
+			q += " NOT INDEXED";
+		}
+		q += " WHERE mam_id IS NOT NULL AND sync_point AND account_id=?";
 		if (chatId == null) {
 			q += " AND mam_by=?";
 			params.push(accountId);
@@ -207,7 +224,11 @@ class Sqlite implements Persistence implements KeyValueStore {
 			q += " AND chat_id=?";
 			params.push(chatId);
 		}
-		q += " ORDER BY ROWID DESC LIMIT 1";
+		if (chatId != null) {
+			// Surely it is in the most recent 1000
+			q += " ORDER BY created_at DESC LIMIT 1000";
+		}
+		q += ")";
 		return db.exec(q, params).then(iter -> cast (iter.next()?.mam_id, Null<String>));
 	}
 
@@ -419,7 +440,18 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	private function getMessages(accountId: String, chatId: String, time: Null<String>, op: String): Promise<Array<ChatMessage>> {
-		var q = "SELECT
+		var q = "WITH page AS (SELECT stanza_id, mam_id FROM messages where account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id)";
+		final params = [accountId, chatId];
+		if (time != null) {
+			q += " AND messages.created_at " + op + "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)";
+			params.push(time);
+		}
+		q += " ORDER BY messages.created_at";
+		if (op == "<" || op == "<=") q += " DESC";
+		q += ", messages.ROWID";
+		if (op == "<" || op == "<=") q += " DESC";
+		q += " LIMIT 50) ";
+		q += "SELECT
 			correction_id AS stanza_id,
 			versions.stanza,
 			json_group_object(CASE WHEN versions.mam_id IS NULL OR versions.mam_id='' THEN versions.stanza_id ELSE versions.mam_id END, strftime('%FT%H:%M:%fZ', versions.created_at / 1000.0, 'unixepoch')) AS version_times,
@@ -434,17 +466,15 @@ class Sqlite implements Persistence implements KeyValueStore {
 			messages.mam_by,
 			messages.sync_point,
 			MAX(versions.created_at)
-			FROM messages INNER JOIN messages versions USING (correction_id, sender_id) WHERE (messages.stanza_id IS NULL OR messages.stanza_id='' OR messages.stanza_id=correction_id) AND messages.account_id=? AND messages.chat_id=?";
-		final params = [accountId, chatId];
-		if (time != null) {
-			q += " AND messages.created_at " + op + "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)";
-			params.push(time);
-		}
-		q += " GROUP BY correction_id, messages.sender_id ORDER BY messages.created_at";
+			FROM messages INNER JOIN messages versions USING (correction_id, sender_id) WHERE (messages.stanza_id, messages.mam_id) IN (SELECT * FROM page) AND messages.account_id=? AND messages.chat_id=? GROUP BY correction_id, messages.sender_id";
+		q += " ORDER BY messages.created_at";
 		if (op == "<" || op == "<=") q += " DESC";
 		q += ", messages.ROWID";
 		if (op == "<" || op == "<=") q += " DESC";
-		q += " LIMIT 50";
+
+		params.push(accountId);
+		params.push(chatId);
+
 		return db.exec(q, params).then(result -> hydrateMessages(accountId, result)).then(iter -> {
 			final arr = [];
 			final replyTos = [];
@@ -491,63 +521,25 @@ class Sqlite implements Persistence implements KeyValueStore {
 		).then(results -> results.flatten());
 	}
 
+
+	private function getChatUnreadDetails(accountId: String, chat: Chat): Promise<{ chatId: String, message: ChatMessage, unreadCount: Int }> {
+		return db.exec(
+			"WITH subq as (SELECT ROWID as row, COALESCE(MAX(created_at), 0) as created_at FROM messages where account_id=? AND chat_id=? AND (mam_id=? OR direction=?)) SELECT chat_id AS chatId, stanza, direction, type, status, status_text, sender_id, mam_id, mam_by, sync_point, CASE WHEN (SELECT row FROM subq) IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages WHERE account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND (messages.created_at >= (SELECT created_at FROM subq) AND (messages.created_at <> (SELECT created_at FROM subq) OR messages.ROWID = (SELECT row FROM subq)))",
+			[accountId, chat.chatId, chat.readUpTo(), MessageSent, accountId, chat.chatId]
+		).then(result -> {
+			final row: Dynamic = result.next();
+			final lastMessage = row.stanza == null ? [] : hydrateMessages(accountId, [row].iterator());
+			return { unreadCount: row.unreadCount, chatId: chat.chatId, message: lastMessage[0] };
+		});
+	}
+
 	@HaxeCBridge.noemit
 	public function getChatsUnreadDetails(accountId: String, chats: Array<Chat>): Promise<Array<{ chatId: String, message: ChatMessage, unreadCount: Int }>> {
 		if (chats == null || chats.length < 1) {
 			return Promise.resolve([]);
 		}
 
-		return Promise.resolve(null).then(_ -> {
-			final params: Array<Dynamic> = [accountId]; // subq is first in final q, so subq params first
-
-			final subq = new StringBuf();
-			subq.add("SELECT chat_id, ROWID as row, MAX(created_at) AS created_at FROM messages WHERE account_id=?");
-			subq.add(" AND chat_id IN (");
-			for (i => chat in chats) {
-				if (i != 0) subq.add(",");
-				subq.add("?");
-				params.push(chat.chatId);
-			}
-			subq.add(") AND (mam_id IN (");
-			var didOne = false;
-			for (chat in chats) {
-				if (chat.readUpTo() != null) {
-					if (didOne) subq.add(",");
-					subq.add("?");
-					params.push(chat.readUpTo());
-					didOne = true;
-				}
-			}
-			subq.add(") OR direction=?) GROUP BY chat_id");
-			params.push(MessageSent);
-
-			final q = new StringBuf();
-			q.add("SELECT chat_id AS chatId, stanza, direction, type, status, status_text, sender_id, mam_id, mam_by, sync_point, CASE WHEN subq.created_at IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages LEFT JOIN (");
-			q.add(subq.toString());
-			q.add(") subq USING (chat_id) WHERE account_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND chat_id IN (");
-			params.push(accountId);
-			for (i => chat in chats) {
-				if (i != 0) q.add(",");
-				q.add("?");
-				params.push(chat.chatId);
-			}
-			q.add(") AND (subq.created_at IS NULL OR messages.created_at > subq.created_at OR (messages.created_at=subq.created_at AND messages.ROWID >= subq.row)) GROUP BY chat_id;");
-			return db.exec(q.toString(), params);
-		}).then(result ->
-			{ iterator: () -> result }.array()
-		).then((rows: Array<Dynamic>) ->
-			Promise.resolve(hydrateMessages(accountId, rows.iterator())).then(messages -> {
-				final details = [];
-				for (i => m in messages) {
-					details.push({
-						unreadCount: rows[i].unreadCount,
-						chatId: rows[i].chatId,
-						message: m
-					});
-				}
-				return details;
-			})
-		);
+		return thenshim.PromiseTools.all(chats.map(chat -> getChatUnreadDetails(accountId, chat)));
 	}
 
 	@HaxeCBridge.noemit
@@ -844,22 +836,33 @@ class Sqlite implements Persistence implements KeyValueStore {
 		return (if (replyTos.length < 1) {
 			Promise.resolve(null);
 		} else {
-			final params = [accountId];
-			final q = new StringBuf();
-			q.add("SELECT chat_id, stanza_id, stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND (");
-			q.add(replyTos.map(parent ->
+			final mamIds = [];
+			final mamIdsS = [];
+			final stanzaIds = [];
+			final stanzaIdsS = [];
+			var params = [accountId];
+			final qStart = "SELECT chat_id, stanza_id, stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=?";
+			for (parent in replyTos) {
 				if (parent.serverId != null) {
-					params.push(parent.chatId);
-					params.push(parent.serverId);
-					" (chat_id=? AND mam_id=?)";
+					mamIds.push(parent.chatId);
+					mamIds.push(parent.serverId);
+					mamIdsS.push("(?,?)");
 				} else {
-					params.push(parent.chatId);
-					params.push(parent.localId);
-					" (chat_id=? AND stanza_id=?)";
+					stanzaIds.push(parent.chatId);
+					stanzaIds.push(parent.localId);
+					stanzaIdsS.push("(?,?)");
 				}
-			).join(" OR "));
-			q.add(")");
-			db.exec(q.toString(), params);
+			}
+			final q = [];
+			if (mamIds.length > 0) {
+				q.push(qStart + " AND (chat_id, mam_id) IN (" + mamIdsS.join(",") + ")");
+				params = params.concat(mamIds);
+			}
+			if (stanzaIds.length > 0) {
+				q.push(qStart + " AND (chat_id, stanza_id) IN (" + stanzaIdsS.join(",") + ")");
+				params = params.concat(stanzaIds);
+			}
+			db.exec(q.join(" UNION ALL "), params);
 		}).then(iter -> {
 			if (iter != null) {
 				final parents = { iterator: () -> iter }.array();
