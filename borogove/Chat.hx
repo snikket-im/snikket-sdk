@@ -1235,7 +1235,8 @@ class DirectChat extends Chat {
 class Channel extends Chat {
 	@:allow(borogove)
 	private var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"], []);
-	private var inSync = true;
+	@:allow(borogove)
+	private var inSync = false;
 	private var sync = null;
 	private var forceLive = false;
 	private var _nickInUse = null;

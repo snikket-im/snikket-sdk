@@ -817,8 +817,16 @@ class Client extends EventEmitter {
 
 		if (data.resumed) {
 			inSync = true;
+			for (chat in getChats()) {
+				final channel = Std.downcast(chat, Channel);
+				if (channel != null) {
+					channel.inSync = true;
+				}
+			}
+
 			stream.emitSMupdates = true;
 			this.trigger("status/online", {});
+			this.trigger("chats/update", chats);
 			return EventHandled;
 		}
 
