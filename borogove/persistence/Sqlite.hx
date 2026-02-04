@@ -32,6 +32,42 @@ class Sqlite implements Persistence implements KeyValueStore {
 	final db: SqliteDriver;
 	final media: MediaStore;
 
+	@:allow(borogove)
+	private static function prepare(q: { sql: String, ?params: Array<Dynamic> }): String {
+		return ~/\?/gm.map(q.sql, f -> {
+			var p = (q.params ?? []).shift();
+			return switch (Type.typeof(p)) {
+				case TClass(String):
+					if (p.indexOf("\000") >= 0) {
+						var hexChars = new Array<String>();
+						for (i in 0...p.length) {
+							hexChars.push(StringTools.hex(StringTools.fastCodeAt(p, i), 2));
+						}
+						"x'" + hexChars.join("") + "'";
+					} else {
+						"'" + p.split("'").join("''") + "'";
+					}
+				case TBool:
+					p == true ? "1" : "0";
+				case TFloat:
+					Std.string(p);
+				case TInt:
+					Std.string(p);
+				case TNull:
+					"NULL";
+				case TClass(Array):
+					var bytes:Bytes = Bytes.ofData(p);
+					"X'" + bytes.toHex() + "'";
+				case TClass(haxe.io.Bytes):
+					var bytes:Bytes = cast p;
+					"X'" + bytes.toHex() + "'";
+				case _:
+					throw("UKNONWN: " + Type.typeof(p));
+			}
+		});
+
+	}
+
 	/**
 		Create a basic persistence layer based on sqlite
 
@@ -43,7 +79,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		this.media = media;
 		media.setKV(this);
 		db = new SqliteDriver(dbfile, (exec) -> {
-			exec(["PRAGMA user_version;"]).then(iter -> {
+			exec(["PRAGMA user_version"]).then(iter -> {
 				final version = Std.parseInt(iter.next()?.user_version) ?? 0;
 				return Promise.resolve(null).then(_ -> {
 					if (version < 1) {
@@ -62,9 +98,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 							type INTEGER NOT NULL,
 							stanza TEXT NOT NULL,
 							PRIMARY KEY (account_id, mam_id, mam_by, stanza_id)
-						) STRICT;",
-						"CREATE INDEX messages_created_at ON messages (account_id, chat_id, created_at);",
-						"CREATE INDEX messages_correction_id ON messages (correction_id);",
+						) STRICT",
+						"CREATE INDEX messages_created_at ON messages (account_id, chat_id, created_at)",
+						"CREATE INDEX messages_correction_id ON messages (correction_id)",
 						"CREATE TABLE chats (
 							account_id TEXT NOT NULL,
 							chat_id TEXT NOT NULL,
@@ -80,15 +116,15 @@ class Sqlite implements Persistence implements KeyValueStore {
 							presence BLOB NOT NULL,
 							class TEXT NOT NULL,
 							PRIMARY KEY (account_id, chat_id)
-						) STRICT;",
+						) STRICT",
 						"CREATE TABLE keyvaluepairs (
 							k TEXT NOT NULL PRIMARY KEY,
 							v TEXT NOT NULL
-						) STRICT;",
+						) STRICT",
 						"CREATE TABLE caps (
 							sha1 BLOB NOT NULL PRIMARY KEY,
 							caps BLOB NOT NULL
-						) STRICT;",
+						) STRICT",
 						"CREATE TABLE services (
 							account_id TEXT NOT NULL,
 							service_id TEXT NOT NULL,
@@ -96,7 +132,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 							node TEXT,
 							caps BLOB NOT NULL,
 							PRIMARY KEY (account_id, service_id)
-						) STRICT;",
+						) STRICT",
 						"CREATE TABLE accounts (
 							account_id TEXT NOT NULL,
 							client_id TEXT NOT NULL,
@@ -105,7 +141,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 							fast_count INTEGER NOT NULL DEFAULT 0,
 							sm_state BLOB,
 							PRIMARY KEY (account_id)
-						) STRICT;",
+						) STRICT",
 						"CREATE TABLE reactions (
 							account_id TEXT NOT NULL,
 							update_id TEXT NOT NULL,
@@ -118,22 +154,22 @@ class Sqlite implements Persistence implements KeyValueStore {
 							reactions BLOB NOT NULL,
 							kind INTEGER NOT NULL,
 							PRIMARY KEY (account_id, chat_id, sender_id, update_id)
-						) STRICT;",
-						"PRAGMA user_version = 1;"]);
+						) STRICT",
+						"PRAGMA user_version = 1"]);
 					}
 					return Promise.resolve(null);
 				}).then(_ -> {
 					if (version < 2) {
-						return exec(["ALTER TABLE chats ADD COLUMN notifications_filtered INTEGER;",
-						"ALTER TABLE chats ADD COLUMN notify_mention INTEGER NOT NULL DEFAULT 0;",
-						"ALTER TABLE chats ADD COLUMN notify_reply INTEGER NOT NULL DEFAULT 0;",
-						"PRAGMA user_version = 2;"]);
+						return exec(["ALTER TABLE chats ADD COLUMN notifications_filtered INTEGER",
+						"ALTER TABLE chats ADD COLUMN notify_mention INTEGER NOT NULL DEFAULT 0",
+						"ALTER TABLE chats ADD COLUMN notify_reply INTEGER NOT NULL DEFAULT 0",
+						"PRAGMA user_version = 2"]);
 					}
 					return Promise.resolve(null);
 				}).then(_ -> {
 					if (version < 3) {
-						return exec(["ALTER TABLE messages ADD COLUMN status_text TEXT;",
-						"PRAGMA user_version = 3;"]);
+						return exec(["ALTER TABLE messages ADD COLUMN status_text TEXT",
+						"PRAGMA user_version = 3"]);
 					}
 					return Promise.resolve(null);
 				});

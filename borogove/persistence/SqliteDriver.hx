@@ -24,13 +24,13 @@ class SqliteDriver {
 			db.request("PRAGMA temp_store=2");
 			if (Config.constrainedMemoryMode) db.request("PRAGMA cache_size=0");
 			dbs.push(db);
-			migrate((sql) -> this.execute(writePool, sql, [])).then(_ -> {
+			migrate((sql) -> this.execute(writePool, sql.map(q -> { sql: q, params: [] }))).then(_ -> {
 				setReady(true);
 			});
 		});
 	}
 
-	private function execute(pool: sys.thread.IThreadPool, qs: Array<String>, params: Array<Dynamic>) {
+	private function execute(pool: sys.thread.IThreadPool, qs: Array<{ sql: String, ?params: Array<Dynamic> }>) {
 		return new Promise((resolve, reject) -> {
 			pool.run(() -> {
 				var db = dbs.pop(false);
@@ -40,12 +40,8 @@ class SqliteDriver {
 					}
 					var result = null;
 					for (q in qs) {
-						if (result == null) {
-							final prepared = prepare(db, q, params);
-							result = db.request(prepared);
-						} else {
-							db.request(q);
-						}
+						final prepared = Sqlite.prepare(q);
+						result = db.request(prepared);
 					}
 					// In testing, not copying to an array here caused BAD ACCESS sometimes
 					// Though from sqlite docs it seems like it should be safe?
@@ -60,37 +56,15 @@ class SqliteDriver {
 		});
 	}
 
-	public function exec(sql: haxe.extern.EitherType<String, Array<String>>, ?params: Array<Dynamic>) {
+
+	public function execMany(qs: Array<{ sql: String, ?params: Array<Dynamic> }>) {
 		return ready.then(_ -> {
-			final qs = Std.isOfType(sql, String) ? [sql] : sql;
-			final pool = StringTools.startsWith(qs[0], "SELECT") ? readPool : writePool;
-			return execute(pool, qs, params ?? []);
+			final pool = StringTools.startsWith(qs[0].sql, "SELECT") ? readPool : writePool;
+			return execute(pool, qs);
 		});
 	}
 
-	private function prepare(db: Connection, sql:String, params: Array<Dynamic>): String {
-		return ~/\?/gm.map(sql, f -> {
-			var p = params.shift();
-			return switch (Type.typeof(p)) {
-				case TClass(String):
-					db.quote(p);
-				case TBool:
-					p == true ? "1" : "0";
-				case TFloat:
-					Std.string(p);
-				case TInt:
-					Std.string(p);
-				case TNull:
-					"NULL";
-				case TClass(Array):
-					var bytes:Bytes = Bytes.ofData(p);
-					"X'" + bytes.toHex() + "'";
-				case TClass(haxe.io.Bytes):
-					var bytes:Bytes = cast p;
-					"X'" + bytes.toHex() + "'";
-				case _:
-					throw("UKNONWN: " + Type.typeof(p));
-			}
-		});
+	public function exec(sql: String, ?params: Array<Dynamic>) {
+		return execMany([{ sql: sql, params: params }]);
 	}
 }

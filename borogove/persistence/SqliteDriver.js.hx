@@ -36,25 +36,26 @@ class SqliteDriver {
 			return sqlite("open", { filename: dbfile, vfs: "opfs-sahpool" });
 		}).then(openResult -> {
 			dbId = openResult.dbId;
-			return migrate((sql) -> this.exec(sql));
+			return migrate((sql) -> this.execMany(sql.map(q -> { sql: q, params: [] })));
 		});
 	}
 
-	public function exec(sql: haxe.extern.EitherType<String, Array<String>>, ?params: Array<Dynamic>): Promise<haxe.iterators.ArrayIterator<Dynamic>> {
+	public function execMany(qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<haxe.iterators.ArrayIterator<Dynamic>> {
 		if (sqlite == null || dbId == null) {
 			// Not ready yet
 			return new Promise((resolve, reject) -> haxe.Timer.delay(() -> resolve(null), 100))
-				.then(_ -> exec(sql, params));
+				.then(_ -> execMany(qs));
 		}
 
-		final qs = Std.isOfType(sql, String) ? sql : (cast sql).join("");
+		final first = qs.shift();
+		final sql = qs.map(q -> Sqlite.prepare(q) + ";");
 		final items: Array<Dynamic> = [];
 		var signalAllDone;
 		final allDone = new Promise((resolve, reject) -> signalAllDone = resolve);
 		return sqlite('exec', {
 			dbId: dbId,
-			sql: qs,
-			bind: (params ?? []).map(formatParam),
+			sql: [first.sql + ";"].concat(sql),
+			bind: (first.params ?? []).map(formatParam),
 			rowMode: "object",
 			callback: (r) -> {
 				if (r.rowNumber == null) {
@@ -65,6 +66,10 @@ class SqliteDriver {
 				null;
 			}
 		}).then(_ -> allDone).then(_ -> items.iterator());
+	}
+
+	public function exec(sql: String, ?params: Array<Dynamic>) {
+		return execMany([{ sql: sql, params: params }]);
 	}
 
 	private function formatParam(p: Dynamic): Dynamic {
