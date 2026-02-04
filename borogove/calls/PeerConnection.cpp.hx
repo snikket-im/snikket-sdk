@@ -412,18 +412,24 @@ class MediaStreamTrack {
 
 	private function get_supportedAudioFormats() {
 		final maybeMedia = media;
-		if (!maybeMedia.has_value()) return [];
+		if (!maybeMedia.has_value() || remoteMedia == null) return [];
 		final m = maybeMedia.value();
 		final codecs = [];
 		final payloadTypes = m.payloadTypes();
+		final rPayloadTypes = remoteMedia.ref.payloadTypes();
+
 		for (i in 0...payloadTypes.size()) {
-			final payloadType = payloadTypes.at(i);
-			if (remoteMedia == null || remoteMedia.ref.hasPayloadType(payloadType)) {
-				final rtp: RtpMap = cpp.Pointer.fromRaw(m.rtpMap(payloadType)).ref;
-				codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), rtp.clockRate, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
-				if (rtp.format == "opus") { // We can encode opus from 8k or 16k too, it's just 48k internal
-					codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), 16000, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
-					codecs.push(new AudioFormat(rtp.format, payloadTypes.at(i), 8000, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
+			final lpayloadType = payloadTypes.at(i);
+			final lrtp: RtpMap = cpp.Pointer.fromRaw(m.rtpMap(lpayloadType)).ref;
+			for (j in 0...rPayloadTypes.size()) {
+				final payloadType = rPayloadTypes.at(i);
+				final rtp: RtpMap = cpp.Pointer.fromRaw(remoteMedia.ref.rtpMap(payloadType)).ref;
+				if (rtp.format == lrtp.format.toString() && rtp.clockRate == lrtp.clockRate) {
+					codecs.push(new AudioFormat(rtp.format, payloadType, rtp.clockRate, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
+					if (rtp.format == "opus") { // We can encode opus from 8k or 16k too, it's just 48k internal
+						codecs.push(new AudioFormat(rtp.format, payloadType, 16000, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
+						codecs.push(new AudioFormat(rtp.format, payloadType, 8000, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
+					}
 				}
 			}
 		}
@@ -791,6 +797,7 @@ class PeerConnection {
 	var pc: cpp.Pointer<PC>;
 	var waitingOnLocal: Null<Any->Void> = null;
 	final tracks: Map<String, MediaStreamTrack> = [];
+	final remoteMedia: Map<String, cpp.Pointer<DescriptionMedia>> = [];
 	final trackListeners = [];
 	final localCandidateListeners = [];
 	final stateChangeListeners = [];
@@ -893,6 +900,10 @@ class PeerConnection {
 				matchingTrack;
 			}
 			tracks[media.id] = media;
+			final rMedia = remoteMedia[media.id];
+			if (rMedia != null) {
+				media.remoteMedia = rMedia;
+			}
 			for (cb in trackListeners) {
 				cb({ track: media, streams: [] });
 			}
@@ -941,6 +952,7 @@ class PeerConnection {
 			if (track != null) {
 				track.remoteMedia = media;
 			}
+			remoteMedia[mid] = media;
 		}
 		return Promise.resolve(null);
 	}
