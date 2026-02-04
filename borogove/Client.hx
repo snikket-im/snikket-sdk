@@ -400,7 +400,7 @@ class Client extends EventEmitter {
 									this.trigger("chats/update", [chat]);
 								});
 							});
-							sendQuery(vcardGet);
+							sendQueryLazy(vcardGet);
 						}
 					});
 				}
@@ -602,7 +602,7 @@ class Client extends EventEmitter {
 								this.trigger("chats/update", [chat]);
 							});
 						});
-						sendQuery(pubsubGet);
+						sendQueryLazy(pubsubGet);
 					}
 				});
 			}
@@ -1476,7 +1476,7 @@ class Client extends EventEmitter {
 						persistence.storeMedia(r.type, r.bytes.getData()).then(_ -> resolve(null));
 					}
 				});
-				sendQuery(q);
+				sendQueryLazy(q);
 			}).then(x -> x, (_) -> fetchMediaByHashOneCounterpart(hashes.slice(1), counterpart));
 		});
 	}
@@ -1518,6 +1518,24 @@ class Client extends EventEmitter {
 	@:allow(borogove)
 	private function sendQuery(query:GenericQuery) {
 		this.stream.sendIq(query.getQueryStanza(), query.handleResponse);
+	}
+
+	private var lazyQueryTimer = null;
+	private final queriesToSend = [];
+	private function sendNextLazyQuery() {
+		if (lazyQueryTimer != null) return;
+		lazyQueryTimer = haxe.Timer.delay(() -> {
+			final query = queriesToSend.shift();
+			if (query != null) sendQuery(query);
+
+			lazyQueryTimer = null;
+			if (queriesToSend.length > 0) sendNextLazyQuery();
+		}, 2000);
+	}
+
+	private function sendQueryLazy(query:GenericQuery) {
+		queriesToSend.push(query);
+		sendNextLazyQuery();
 	}
 
 	@:allow(borogove)
