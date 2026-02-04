@@ -853,7 +853,7 @@ class Client extends EventEmitter {
 					for (detail in details) {
 						var chat = getChat(detail.chatId) ?? getDirectChat(detail.chatId, false);
 						final initialLastId = chat.lastMessageId();
-						chat.setLastMessage(detail.message);
+						if (detail.message != null) chat.setLastMessage(detail.message);
 						chat.setUnreadCount(detail.unreadCount);
 						if (detail.unreadCount > 0 && initialLastId != chat.lastMessageId()) {
 							chatActivity(chat, false);
