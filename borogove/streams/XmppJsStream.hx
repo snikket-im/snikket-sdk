@@ -145,7 +145,7 @@ extern class XmppJsStreamFeatures {
 class XmppJsStream extends GenericStream {
 	private var client:XmppJsClient;
 	private var jid:XmppJsJID;
-	private var debug = true;
+	private var debug = js.Browser.getLocalStorage()?.getItem("BOROGOVE_XMPP_DEBUG") == "1" || js.Syntax.code("process?.env?.BOROGOVE_XMPP_DEBUG") == "1";
 	private var state:FSM;
 	private var pending:Array<XmppJsXml> = [];
 	private var pendingOnIq:Array<{type:IqRequestType,tag:String,xmlns:String,handler:(Stanza)->IqResult}> = [];
@@ -170,13 +170,6 @@ class XmppJsStream extends GenericStream {
 				"connection-error" => this.onError,
 			],
 		}, "offline");
-	}
-
-	public function enableDebug() {
-		debug = true;
-		if (client != null) {
-			new XmppJsDebug(client, true);
-		}
 	}
 
 	public function register(domain: String, preAuth: Null<String>) {
