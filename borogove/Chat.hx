@@ -20,6 +20,7 @@ import borogove.calls.Session;
 import borogove.queries.DiscoInfoGet;
 import borogove.queries.DiscoItemsGet;
 import borogove.queries.MAMQuery;
+import borogove.queries.VcardTempGet;
 using Lambda;
 using StringTools;
 using borogove.Util;
@@ -1555,6 +1556,25 @@ class Channel extends Chat {
 				persistence.storeChats(client.accountId(), [this]);
 			}
 			if (callback != null) callback();
+			final avatarSha1Hex = info()?.field("muc#roominfo_avatarhash")?.value?.join("");
+			if (avatarSha1Hex != null && avatarSha1Hex != "") {
+				final hash = Hash.fromHex("sha-1", avatarSha1Hex);
+				avatarSha1 = hash.hash;
+				persistence.hasMedia("sha-1", avatarSha1).then((has) -> {
+					if (!has) {
+trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1Hex);
+						final vcardGet = new VcardTempGet(JID.parse(chatId));
+						vcardGet.onFinished(() -> {
+							final vcard = vcardGet.getResult();
+							if (vcard.photo == null) return;
+							persistence.storeMedia(vcard.photo.mime, vcard.photo.data.getData()).then(_ -> {
+								client.trigger("chats/update", [this]);
+							});
+						});
+						client.sendQueryLazy(vcardGet);
+					}
+				});
+			}
 		});
 		client.sendQuery(discoGet);
 	}

@@ -1533,6 +1533,7 @@ class Client extends EventEmitter {
 		}, 2000);
 	}
 
+	@:allow(borogove)
 	private function sendQueryLazy(query:GenericQuery) {
 		queriesToSend.push(query);
 		sendNextLazyQuery();
