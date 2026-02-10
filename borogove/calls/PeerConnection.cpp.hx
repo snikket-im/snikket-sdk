@@ -422,7 +422,7 @@ class MediaStreamTrack {
 			final lpayloadType = payloadTypes.at(i);
 			final lrtp: RtpMap = cpp.Pointer.fromRaw(m.rtpMap(lpayloadType)).ref;
 			for (j in 0...rPayloadTypes.size()) {
-				final payloadType = rPayloadTypes.at(i);
+				final payloadType = rPayloadTypes.at(j);
 				final rtp: RtpMap = cpp.Pointer.fromRaw(remoteMedia.ref.rtpMap(payloadType)).ref;
 				if (rtp.format == lrtp.format.toString() && rtp.clockRate == lrtp.clockRate) {
 					codecs.push(new AudioFormat(rtp.format, payloadType, rtp.clockRate, rtp.encParams == "" ? 1 : Std.parseInt(rtp.encParams)));
