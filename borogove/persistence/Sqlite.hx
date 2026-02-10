@@ -389,7 +389,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					final message = m.versions.length == 1 ? m.versions[0] : m; // TODO: storing multiple versions at once? We never do that right now
 					([
 						accountId, message.serverId ?? "", message.serverIdBy ?? "",
-						message.localId ?? "", correctable.localId ?? correctable.serverId, correctable.syncPoint,
+						message.localId ?? "", correctable.callSid() ?? correctable.localId ?? correctable.serverId, correctable.syncPoint,
 						correctable.chatId(), correctable.senderId,
 						message.timestamp, message.status, message.direction, message.type,
 						message.asStanza().toString(), message.statusText
@@ -441,7 +441,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	private function getMessages(accountId: String, chatId: String, time: Null<String>, op: String): Promise<Array<ChatMessage>> {
 		var q = "WITH page AS (SELECT stanza_id, mam_id FROM messages where account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id)";
-		final params = [accountId, chatId];
+		final params: Array<Dynamic> = [accountId, chatId];
 		if (time != null) {
 			q += " AND messages.created_at " + op + "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)";
 			params.push(time);
@@ -466,7 +466,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			messages.mam_by,
 			messages.sync_point,
 			MAX(versions.created_at)
-			FROM messages INNER JOIN messages versions USING (correction_id, sender_id) WHERE (messages.stanza_id, messages.mam_id) IN (SELECT * FROM page) AND messages.account_id=? AND messages.chat_id=? GROUP BY correction_id, messages.sender_id";
+			FROM messages INNER JOIN messages versions USING (correction_id, sender_id) WHERE (messages.stanza_id, messages.mam_id) IN (SELECT * FROM page) AND messages.account_id=? AND messages.chat_id=? GROUP BY correction_id, CASE WHEN messages.type=? THEN 'call' ELSE messages.sender_id END";
 		q += " ORDER BY messages.created_at";
 		if (op == "<" || op == "<=") q += " DESC";
 		q += ", messages.ROWID";
@@ -474,6 +474,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 		params.push(accountId);
 		params.push(chatId);
+		params.push(MessageCall);
 
 		return db.exec(q, params).then(result -> hydrateMessages(accountId, result)).then(iter -> {
 			final arr = [];
