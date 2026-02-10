@@ -97,6 +97,7 @@ class Client extends EventEmitter {
 	private var token: Null<String> = null;
 	private var fastCount: Null<Int> = null;
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
+	private final brokenAvatars: Map<String, JID> = [];
 	@:allow(borogove)
 	private final encryptionPolicy:EncryptionPolicy = {
 		allowUnencryptedOutgoing: true,
@@ -383,7 +384,8 @@ class Client extends EventEmitter {
 						}
 					});
 				}
-				if (avatarSha1 != null) {
+				final channel = Std.downcast(chat, Channel);
+				if (channel != null && avatarSha1 != null && brokenAvatars[avatarSha1Hex] == null) {
 					if (from.isBare()) {
 						chat.setAvatarSha1(avatarSha1.hash);
 						persistence.storeChats(this.accountId(), [chat]);
@@ -395,7 +397,10 @@ class Client extends EventEmitter {
 							final vcardGet = new VcardTempGet(from);
 							vcardGet.onFinished(() -> {
 								final vcard = vcardGet.getResult();
-								if (vcard.photo == null) return;
+								if (vcard.photo == null) {
+									brokenAvatars[avatarSha1Hex] = from;
+									return;
+								}
 								persistence.storeMedia(vcard.photo.mime, vcard.photo.data.getData()).then(_ -> {
 									this.trigger("chats/update", [chat]);
 								});
