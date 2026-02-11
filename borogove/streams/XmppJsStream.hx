@@ -73,8 +73,10 @@ extern class XmppJsXml {
 	@:overload(function(textContent:String):Void { })
 	function append(el:XmppJsXml):Void;
 	function toString():String;
+	function getName():String;
+	function getNS():String;
+	function findNS(prefix:String):String;
 
-	var name:String;
 	var attrs:Dynamic;
 	var children:Array<Dynamic>;
 }
@@ -219,7 +221,7 @@ class XmppJsStream extends GenericStream {
 			);
 
 			client.on("stanza", function (stanza) {
-				this.onStanza(convertToStanza(stanza, client.NS));
+				this.onStanza(convertToStanza(stanza));
 			});
 
 			client.start().catchError((err) -> {
@@ -325,7 +327,7 @@ class XmppJsStream extends GenericStream {
 
 		xmpp.on("stanza", function (stanza) {
 			triggerSMupdate();
-			this.onStanza(convertToStanza(stanza, client.NS));
+			this.onStanza(convertToStanza(stanza));
 		});
 
 		xmpp.streamManagement.on("ack", (stanza) -> {
@@ -369,12 +371,27 @@ class XmppJsStream extends GenericStream {
 		client.stop();
 	}
 
-	public static function convertFromStanza(el:Stanza):XmppJsXml {
-		var xml = new XmppJsXml(el.name, el.attr);
+	public static function convertFromStanza(el:Stanza, prefixes: Null<Map<String, String>> = null, prefixCount = 0):XmppJsXml {
+		if (prefixes == null) prefixes = [];
+		var attrs: haxe.DynamicAccess<String> = {};
+		for (attr => val in el.attr) {
+			final parts = attr.split("}");
+			if (parts.length == 1) {
+				attrs.set(attr, val);
+			}
+			if (parts.length == 2) {
+				if (prefixes[parts[0]] == null) {
+					prefixes[parts[0]] = "ns" + prefixCount++;
+					attrs.set("xmlns:" + prefixes[parts[0]], parts[0].substr(1));
+				}
+				attrs.set(prefixes[parts[0]] + ":" + parts[1], val);
+			}
+		}
+		var xml = new XmppJsXml(el.name, attrs);
 		if(el.children.length > 0) {
 			for(child in el.children) {
 				switch(child) {
-					case Element(stanza): xml.append(convertFromStanza(stanza));
+					case Element(stanza): xml.append(convertFromStanza(stanza, prefixes, prefixCount));
 					case CData(text): xml.append(text.content);
 				};
 			}
@@ -382,10 +399,19 @@ class XmppJsStream extends GenericStream {
 		return xml;
 	}
 
-	private static function convertToStanza(el:XmppJsXml, xmlns:Null<String> = null):Stanza {
-		var attrs: haxe.DynamicAccess<String> = el.attrs ?? {};
-		if (attrs.get("xmlns") == null && xmlns != null) attrs.set("xmlns", xmlns);
-		var stanza = new Stanza(el.name, attrs);
+	private static function convertToStanza(el:XmppJsXml):Stanza {
+		var attrs: haxe.DynamicAccess<String> = {};
+		for (attr => val in el.attrs ?? attrs) {
+			final parts = attr.split(":");
+			if (parts.length == 1) {
+				attrs.set(attr, val);
+			}
+			if (parts.length == 2 && parts[0] != "xmlns") {
+				attrs.set("{" + el.findNS(parts[0]) + "}" + parts[1], val);
+			}
+		}
+		attrs.set("xmlns", el.getNS());
+		var stanza = new Stanza(el.getName(), attrs);
 		for (child in el.children) {
 			if(XmppJsLtx.isText(child)) {
 				stanza.text(cast(child, String));
