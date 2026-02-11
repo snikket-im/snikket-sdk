@@ -112,8 +112,8 @@ class MessageSync {
 				jmi.set(jmiChildren[0].attr.get("id"), originalMessage);
 			}
 
-			if (originalMessage.hasChild("encrypted", NS.OMEMO)) {
 #if !NO_OMEMO
+			if (originalMessage.hasChild("encrypted", NS.OMEMO)) {
 				trace("MAM: Processing OMEMO message from " + originalMessage.attr.get("from"));
 				promisedMessages.push(client.omemo.decryptMessage(originalMessage, null).then((decryptionResult) -> {
 					final decryptedStanza = decryptionResult.stanza;
@@ -137,21 +137,20 @@ class MessageSync {
 						new EncryptionInfo(DecryptionFailure, NS.OMEMO, "OMEMO", "internal-error", Std.string(err))
 					);
 				}));
-#end
 				return EventHandled;
-			} else {
-				trace("MAM: Processing non-OMEMO message from " + originalMessage.attr.get("from"));
-
-				final msg = Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
-					builder.serverId = result.attr.get("id");
-					builder.serverIdBy = serviceJID;
-					if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
-					return contextHandler(builder, stanza);
-				});
-
-				promisedMessages.push(Promise.resolve(msg));
-				//messages.push(msg);
 			}
+#end
+
+			trace("MAM: Processing non-OMEMO message from " + originalMessage.attr.get("from"));
+
+			final msg = Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
+				builder.serverId = result.attr.get("id");
+				builder.serverIdBy = serviceJID;
+				if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
+				return contextHandler(builder, stanza);
+			});
+
+			promisedMessages.push(Promise.resolve(msg));
 
 			return EventHandled;
 		});
