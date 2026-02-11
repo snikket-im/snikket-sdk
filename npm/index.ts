@@ -28,6 +28,7 @@ export {
     borogove_FormOption as FormOption,
     borogove_Hash as Hash,
     borogove_Identicon as Identicon,
+    borogove_LinkMetadata as LinkMetadata,
     borogove_Notification as Notification,
     borogove_Participant as Participant,
     borogove_Persistence as Persistence,

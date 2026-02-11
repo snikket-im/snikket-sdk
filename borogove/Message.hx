@@ -1,5 +1,6 @@
 package borogove;
 
+import borogove.ChatMessage;
 import borogove.Reaction;
 using Lambda;
 using StringTools;
@@ -333,6 +334,20 @@ class Message {
 		if (replaceId != null) {
 			if (msg.versions.length < 1) msg.versions = [msg.build()];
 			msg.localId = replaceId;
+		}
+
+		for (desc in stanza.allTags("Description", "http://www.w3.org/1999/02/22-rdf-syntax-ns#")) {
+			final about = desc.attr.get("{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about");
+			if (about != null) {
+				msg.linkMetadata.push(new LinkMetadata(
+					about,
+					desc.getChildText("url", "https://ogp.me/ns#"),
+					desc.getChildText("title", "https://ogp.me/ns#"),
+					desc.getChildText("description", "https://ogp.me/ns#"),
+					desc.allTags("image", "https://ogp.me/ns#").map(el -> el.getText()),
+					desc.allTags("video", "https://ogp.me/ns#").map(el -> el.getText())
+				));
+			}
 		}
 
 		return new Message(msg.chatId(), msg.senderId, msg.threadId, ChatMessageStanza(msg.build()), encryptionInfo);

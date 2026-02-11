@@ -164,6 +164,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 		message.replyTo = value.replyTo.map((r) => borogove_JID.parse(r));
 		message.threadId = value.threadId;
 		message.attachments = value.attachments;
+		message.linkMetadata = value.linkMetadata ?? [];
 		message.reactions = hydrateReactions(value.reactions, message.timestamp);
 		message.text = value.text;
 		message.lang = value.lang;

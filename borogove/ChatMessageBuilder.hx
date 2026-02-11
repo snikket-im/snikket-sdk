@@ -138,6 +138,11 @@ class ChatMessageBuilder {
 	public var encryption: Null<EncryptionInfo>;
 
 	/**
+		Metadata about links associated with this message
+	**/
+	public var linkMetadata: Array<LinkMetadata> = [];
+
+	/**
 		WARNING: if you set this, you promise all the attributes of this builder match it
 	**/
 	@:allow(borogove)
@@ -355,6 +360,7 @@ class ChatMessageBuilder {
 			versions: versions,
 			payloads: payloads,
 			encryption: encryption,
+			linkMetadata: linkMetadata,
 			stanza: stanza,
 		});
 	}

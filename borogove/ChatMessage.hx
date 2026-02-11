@@ -29,6 +29,31 @@ import borogove.Util;
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
+class LinkMetadata {
+	public final about: String;
+	public final url: String;
+	public final title: Null<String>;
+	public final description: Null<String>;
+	public final image: ReadOnlyArray<String>;
+	public final video: ReadOnlyArray<String>;
+
+	@:allow(borogove)
+	private function new(about: String, url: Null<String>, title: Null<String>, description: Null<String>, image: ReadOnlyArray<String>, video: ReadOnlyArray<String>) {
+		this.about = about;
+		this.url = url ?? about;
+		this.title = title;
+		this.description = description;
+		this.image = image;
+		this.video = video;
+	}
+}
+
+@:expose
+@:nullSafety(StrictThreaded)
+#if cpp
+@:build(HaxeCBridge.expose())
+@:build(HaxeSwiftBridge.expose())
+#end
 class ChatAttachment {
 	/**
 		Filename
@@ -212,6 +237,11 @@ class ChatMessage {
 	**/
 	public final encryption: Null<EncryptionInfo>;
 
+	/**
+		Metadata about links associated with this message
+	**/
+	public final linkMetadata: ReadOnlyArray<LinkMetadata>;
+
 	@:allow(borogove)
 	private final stanza: Null<Stanza>;
 
@@ -241,6 +271,7 @@ class ChatMessage {
 		?versions: Array<ChatMessage>,
 		?payloads: Array<Stanza>,
 		?encryption: Null<EncryptionInfo>,
+		?linkMetadata: Array<LinkMetadata>,
 		?stanza: Null<Stanza>,
 	}) {
 		this.localId = params.localId;
@@ -267,6 +298,7 @@ class ChatMessage {
 		this.versions = params.versions ?? [];
 		this.payloads = params.payloads ?? [];
 		this.encryption = params.encryption;
+		this.linkMetadata = params.linkMetadata ?? [];
 		this.stanza = params.stanza;
 	}
 
