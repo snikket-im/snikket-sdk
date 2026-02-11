@@ -151,6 +151,7 @@ class XmppJsStream extends GenericStream {
 	private var state:FSM;
 	private var pending:Array<XmppJsXml> = [];
 	private var pendingOnIq:Array<{type:IqRequestType,tag:String,xmlns:String,handler:(Stanza)->IqResult}> = [];
+	private var lastSMState: Null<{ id: String, outbound: Int, inbound: Int, outbound_q: Array<{ stanza: String, stamp: String }> }> = null;
 	private var initialSM: Null<BytesData> = null;
 	private var resumed = false;
 	private var everConnected = false;
@@ -440,15 +441,23 @@ class XmppJsStream extends GenericStream {
 	}
 
 	private function triggerSMupdate() {
-		if (client == null || !client.streamManagement?.enabled || !emitSMupdates) return;
+		if ((lastSMState == null || pending.length < 1) && (client == null || !client.streamManagement?.enabled || !emitSMupdates)) return;
+		if (client?.streamManagement?.enabled) {
+			lastSMState = {
+				id: client.streamManagement.id,
+				outbound: client.streamManagement.outbound,
+				inbound: client.streamManagement.inbound,
+				outbound_q: (client.streamManagement.outbound_q ?? []).map((item) -> { stanza: item.stanza.toString(), stamp: item.stamp })
+			};
+		}
 		this.trigger(
 			"sm/update",
 			{
 				sm: bytesOfString(Json.stringify({
-					id: client.streamManagement.id,
-					outbound: client.streamManagement.outbound,
-					inbound: client.streamManagement.inbound,
-					outbound_q: (client.streamManagement.outbound_q ?? []).map((item) -> { stanza: item.stanza.toString(), stamp: item.stamp }),
+					id: lastSMState.id,
+					outbound: lastSMState.outbound,
+					inbound: lastSMState.inbound,
+					outbound_q: lastSMState.outbound_q,
 					pending: pending.map((stanza) -> stanza.toString())
 				})).getData()
 			}
