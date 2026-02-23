@@ -288,6 +288,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					account: account,
 					chatId: chat.chatId,
 					trusted: chat.trusted,
+					isBookmarked: chat.isBookmarked,
 					avatarSha1: chat.avatarSha1,
 					presence: new Map([...chat.presence.entries()].map(([k, p]) => [k, { caps: p.caps?.ver(), mucUser: p.mucUser?.toString(), avatarHash: p.avatarHash?.serializeUri() }])),
 					displayName: chat.displayName,
@@ -312,6 +313,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			return await Promise.all(result.map(async (r) => new borogove_SerializedChat(
 				r.chatId,
 				r.trusted,
+				r.isBookmarked,
 				r.avatarSha1,
 				new Map(await Promise.all((r.presence instanceof Map ? [...r.presence.entries()] : Object.entries(r.presence)).map(
 					async ([k, p]) => [k, new borogove_Presence(p.caps && await this.getCaps(p.caps), p.mucUser && borogove_Stanza.parse(p.mucUser), p.avatarHash && borogove_Hash.fromUri(p.avatarHash))]

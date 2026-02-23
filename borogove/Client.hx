@@ -1083,7 +1083,7 @@ class Client extends EventEmitter {
 		}
 
 		final chat = if (availableChat.isChannel()) {
-			final channel = new Channel(this, this.stream, this.persistence, availableChat.chatId, Open, false, null, availableChat.caps);
+			final channel = new Channel(this, this.stream, this.persistence, availableChat.chatId, Open, false, false, null, availableChat.caps);
 			channel.setupNotifications();
 			chats.unshift(channel);
 			channel.selfPing(false);
@@ -1680,7 +1680,7 @@ class Client extends EventEmitter {
 			} else {
 				persistence.storeCaps(resultCaps);
 				if (resultCaps.isChannel(jid)) {
-					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, false, null, resultCaps);
+					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, false, false, null, resultCaps);
 					chat.setupNotifications();
 					chats.unshift(chat);
 					if (inSync && sendAvailable) chat.selfPing(false);

@@ -114,7 +114,7 @@ abstract class Chat {
 	private var omemoContactDeviceIDs: Null<Array<Int>> = null;
 
 	@:allow(borogove)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBookmarked = false, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
 		if (chatId == null || chatId == "") {
 			throw "chatId may not be empty";
 		}
@@ -123,6 +123,7 @@ abstract class Chat {
 		this.persistence = persistence;
 		this.chatId = chatId;
 		this.uiState = uiState;
+		this.isBookmarked = isBookmarked;
 		this.isBlocked = isBlocked;
 		this.extensions = extensions ?? new Stanza("extensions", { xmlns: "urn:xmpp:bookmarks:1" });
 		this.readUpToId = readUpToId;
@@ -936,8 +937,8 @@ abstract class Chat {
 #end
 class DirectChat extends Chat {
 	@:allow(borogove)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
-		super(client, stream, persistence, chatId, uiState, isBlocked, extensions, readUpToId, readUpToBy, omemoContactDeviceIDs);
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBookmarked = false, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
+		super(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensions, readUpToId, readUpToBy, omemoContactDeviceIDs);
 		outbox.start();
 	}
 
@@ -1243,8 +1244,8 @@ class Channel extends Chat {
 	private var _nickInUse = null;
 
 	@:allow(borogove)
-	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBlocked = false, extensions = null, readUpToId = null, readUpToBy = null, ?disco: Caps) {
-		super(client, stream, persistence, chatId, uiState, isBlocked, extensions, readUpToId, readUpToBy);
+	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBookmarked = false, isBlocked = false, extensions = null, readUpToId = null, readUpToBy = null, ?disco: Caps) {
+		super(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensions, readUpToId, readUpToBy);
 		if (disco != null) {
 			this.disco = disco;
 			if (!disco.features.contains("http://jabber.org/protocol/muc")) {
@@ -1949,6 +1950,7 @@ class AvailableChat {
 class SerializedChat {
 	public final chatId:String;
 	public final trusted:Bool;
+	public final isBookmarked:Bool;
 	public final avatarSha1:Null<BytesData>;
 	public final presence:Map<String, Presence>;
 	public final displayName:Null<String>;
@@ -1964,9 +1966,10 @@ class SerializedChat {
 	public final notifyMention: Bool;
 	public final notifyReply: Bool;
 
-	public function new(chatId: String, trusted: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, disco: Null<Caps>, omemoContactDeviceIDs: Array<Int>, klass: String) {
+	public function new(chatId: String, trusted: Bool, isBookmarked: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, disco: Null<Caps>, omemoContactDeviceIDs: Array<Int>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
+		this.isBookmarked = isBookmarked;
 		this.avatarSha1 = avatarSha1;
 		this.presence = presence;
 		this.displayName = displayName;
@@ -1989,9 +1992,9 @@ class SerializedChat {
 		var mention = notifyMention;
 
 		final chat = if (klass == "DirectChat") {
-			new DirectChat(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy, omemoContactDeviceIDs);
+			new DirectChat(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensionsStanza, readUpToId, readUpToBy, omemoContactDeviceIDs);
 		} else if (klass == "Channel") {
-			final channel = new Channel(client, stream, persistence, chatId, uiState, isBlocked, extensionsStanza, readUpToId, readUpToBy);
+			final channel = new Channel(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensionsStanza, readUpToId, readUpToBy);
 			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"], []);
 			if (notificationsFiltered == null && !channel.isPrivate()) {
 				mention = filterN = true;

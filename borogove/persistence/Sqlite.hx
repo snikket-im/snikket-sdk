@@ -184,6 +184,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 5"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 6) {
+						return exec(["ALTER TABLE chats ADD COLUMN bookmarked INTEGER NOT NULL DEFAULT 0",
+						"PRAGMA user_version = 6"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -271,7 +277,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			for (_ in storeChatBuffer) {
 				if (!first) q.add(",");
 				first = false;
-				q.add("(?,?,?,?,?,?,?,?,?,?,?,jsonb(?),?,?,?,?)");
+				q.add("(?,?,?,?,?,?,?,?,?,?,?,jsonb(?),?,?,?,?,?)");
 			}
 			db.exec(
 				q.toString(),
@@ -284,7 +290,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 						chat.extensions.toString(), chat.readUpTo(), chat.readUpToBy,
 						channel?.disco?.verRaw().hash, Json.stringify(mapPresence(chat)),
 						Type.getClassName(Type.getClass(chat)).split(".").pop(),
-						chat.notificationsFiltered(), chat.notifyMention(), chat.notifyReply()
+						chat.notificationsFiltered(), chat.notifyMention(), chat.notifyReply(),
+						chat.isBookmarked
 					];
 					return row;
 				})
@@ -297,7 +304,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 	@HaxeCBridge.noemit
 	public function getChats(accountId: String): Promise<Array<SerializedChat>> {
 		return db.exec(
-			"SELECT chat_id, trusted, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, notifications_filtered, notify_mention, notify_reply, json(caps) AS caps, caps_ver, json(presence) AS presence, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
+			"SELECT chat_id, trusted, bookmarked, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, notifications_filtered, notify_mention, notify_reply, json(caps) AS caps, caps_ver, json(presence) AS presence, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
 			[accountId]
 		).then(result -> {
 			final fetchCaps: Map<BytesData, Bool> = [];
@@ -339,7 +346,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					);
 				}
 				// FIXME: Empty OMEMO contact device ids hardcoded in next line
-				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, row.capsObj, [], Reflect.field(row, "class")));
+				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.bookmarked != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, row.capsObj, [], Reflect.field(row, "class")));
 			}
 			return chats;
 		});
