@@ -22,7 +22,6 @@ export {
     borogove_DirectChat as DirectChat,
     borogove_EventEmitter as EventEmitter,
     borogove_Form as Form,
-    borogove_FormSection as FormSection,
     borogove_FormItem as FormItem,
     borogove_FormField as FormField,
     borogove_FormOption as FormOption,
@@ -31,7 +30,6 @@ export {
     borogove_LinkMetadata as LinkMetadata,
     borogove_Notification as Notification,
     borogove_Participant as Participant,
-    borogove_Persistence as Persistence,
     borogove_Profile as Profile,
     borogove_ProfileBuilder as ProfileBuilder,
     borogove_ProfileItem as ProfileItem,
@@ -39,6 +37,10 @@ export {
     borogove_Reaction as Reaction,
     borogove_Register as Register,
     borogove_SerializedChat as SerializedChat,
+} from "./borogove.js";
+export type {
+    borogove_FormSection as FormSection,
+    borogove_Persistence as Persistence,
 } from "./borogove.js";
 
 import * as persistence from "./persistence";
