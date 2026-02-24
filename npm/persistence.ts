@@ -3,7 +3,6 @@ export { default as MediaStoreCache } from "./MediaStoreCache.js";
 
 export {
 	borogove_persistence_Dummy as Dummy,
-	borogove_persistence_Sqlite as Sqlite,
 } from "./borogove.js";
 export type {
 	borogove_persistence_KeyValueStore as KeyValueStore,

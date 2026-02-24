@@ -25,6 +25,11 @@ npm/borogove-browser.js:
 	haxe browserjs.hxml
 	sed -i '/;var $$hx_exports = typeof exports != "undefined" ? exports : globalThis;/{N;N;N;d;}' npm/borogove-browser.js
 	sed -i 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove-browser.js
+	cd npm && npx cjstoesm borogove-browser.js
+	awk -f optional-sqlite.awk npm/borogove-browser.js
+	mv npm/browser-no-sqlite.js npm/borogove-browser.js
+	awk -f optional-sqlite-types.awk npm/borogove-browser.d.ts
+	mv npm/no-sqlite.d.ts npm/borogove-browser.d.ts
 
 npm/borogove.js:
 	haxe nodejs.hxml
