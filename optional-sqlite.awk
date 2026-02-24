@@ -9,6 +9,11 @@ BEGIN {
 	next
 }
 
+/^borogove_persistence_Sqlite.__meta__ =/ {
+	print >> "npm/sqlite-wasm.js"
+	next
+}
+
 /^class borogove_persistence_Sqlite {/ {
 	skipping = 1
 }
