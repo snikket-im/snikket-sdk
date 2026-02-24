@@ -147,7 +147,7 @@ extern class XmppJsStreamFeatures {
 class XmppJsStream extends GenericStream {
 	private var client:XmppJsClient;
 	private var jid:XmppJsJID;
-	private var debug = js.Browser.getLocalStorage()?.getItem("BOROGOVE_XMPP_DEBUG") == "1" || js.Syntax.code("process?.env?.BOROGOVE_XMPP_DEBUG") == "1";
+	private var debug = js.Browser.getLocalStorage()?.getItem("BOROGOVE_XMPP_DEBUG") == "1" || js.Syntax.code("globalThis.process?.env?.BOROGOVE_XMPP_DEBUG") == "1";
 	private var state:FSM;
 	private var pending:Array<XmppJsXml> = [];
 	private var pendingOnIq:Array<{type:IqRequestType,tag:String,xmlns:String,handler:(Stanza)->IqResult}> = [];
