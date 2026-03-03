@@ -278,7 +278,7 @@ class ChatMessageBuilder {
 		final htmlIdx = payloads.findIndex((p) -> p.attr.get("xmlns") == "http://jabber.org/protocol/xhtml-im" && p.name == "html");
 		if (htmlIdx >= 0) payloads.splice(htmlIdx, 1);
 		payloads.push(htmlEl);
-		text = XEP0393.render(body);
+		text = ~/\n$/.replace(XEP0393.render(body), "");
 	}
 
 	private function htmlToNode(node: htmlparser.HtmlNode) {
