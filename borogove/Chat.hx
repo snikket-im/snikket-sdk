@@ -535,7 +535,7 @@ abstract class Chat {
 			case MessageCall:
 				lastMessage.isIncoming() ? "Incoming Call" : "Outgoing Call";
 			default:
-				lastMessage.text.split("\n").find(line -> !~/(^[ \n]*$)|(^>)/.match(line));
+				lastMessage.text.split("\n").find(line -> !~/(^[ \n]*$)|(^>)/.match(line)) ?? lastMessage.text ?? "";
 		}
 	}
 
