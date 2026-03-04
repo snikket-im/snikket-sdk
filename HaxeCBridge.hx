@@ -1023,13 +1023,19 @@ class HaxeCBridge {
 			}
 			
 			HAXE_C_BRIDGE_LINKAGE
-			void ${namespace}_release(const void* ptr) {
+			void ${namespace}_release(const void *ptr) {
 				struct Callback {
-					static void run(void* data) {
+					static void run(void *data) {
 						HaxeCBridge::releaseHaxePtr(data);
 					}
 				};
 				HaxeCBridgeInternal::runInMainThread(Callback::run, (void*)ptr);
+			}
+
+			HAXE_C_BRIDGE_LINKAGE
+			void ${namespace}_set_finalizer(const void *ptr, void (*finalize)(void *)) {
+				// This is already locked internally so should be safe to just call
+				__hxcpp_set_finalizer((hx::Object*)ptr, (void*)finalize);
 			}
 		')
 		+ ctx.functionDeclarations.map(d -> generateFunctionImplementation(namespace, d)).join('\n') + '\n'
@@ -1879,6 +1885,22 @@ class CConverterContext {
 				kind: Function({
 					name: functionIdent,
 					args: [{name: 'ptr', type: Ident("const void*")}],
+					ret: Ident('void')
+				})
+			});
+			supportDeclaredFunctionIdentifiers.set(functionIdent, Context.currentPos());
+
+			supportFunctionDeclarations.push({
+				doc: code('
+					Register a finalizer to run when this object is garbage collected
+
+					Thread-safety: can be called on any thread.
+
+					@param ptr a handle to an arbitrary SDK object returned from an SDK function
+					@param finalize a function pointer that will be called with ptr right before it is fully released'),
+				kind: Function({
+					name: '${declarationPrefix}_set_finalizer',
+					args: [{name: 'ptr', type: Ident("const void*")}, {name: 'finalize', type: FunctionPointer('finalize', ["ptr"], [Ident("void*")], Ident("void"), [])}],
 					ret: Ident('void')
 				})
 			});
