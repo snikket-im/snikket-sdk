@@ -6,6 +6,7 @@ import haxe.crypto.Base64;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
 import thenshim.Promise;
+import borogove.AvailableChatIterator;
 import borogove.Caps;
 import borogove.Chat;
 import borogove.ChatMessage;
@@ -31,7 +32,6 @@ import borogove.queries.DiscoItemsGet;
 import borogove.queries.ExtDiscoGet;
 import borogove.queries.GenericQuery;
 import borogove.queries.HttpUploadSlot;
-import borogove.queries.JabberIqGatewayGet;
 import borogove.queries.PubsubGet;
 import borogove.queries.Push2Disable;
 import borogove.queries.Push2Enable;
@@ -60,10 +60,12 @@ class Client extends EventEmitter {
 	/**
 		Set to false to suppress sending available presence
 	**/
+	@:allow(borogove)
 	public var sendAvailable(null, default): Bool = true;
 	private var stream:GenericStream;
 	@:allow(borogove)
 	private var jid(default,null):JID;
+	@:allow(borogove)
 	private var chats: Array<Chat> = [];
 	private var persistence: Persistence;
 	private final caps = new Caps(
@@ -947,119 +949,10 @@ class Client extends EventEmitter {
 		Search for chats the user can start or join
 
 		@param q the search query to use
-		@param callback takes two arguments, the query that was used and the array of results, and returns true if we should stop searching
+		@returns an async iterator of AvailableChat matching the query
 	**/
-	public function findAvailableChats(q:String, callback:(String, Array<AvailableChat>) -> Bool) {
-		var haveJid: Map<String, Bool> = [];
-		var results = [];
-		final query = StringTools.trim(q);
-		final checkAndAdd = (jid: JID, prepend = false) -> {
-			if (haveJid[jid.asString()]) return;
-			haveJid[jid.asString()] = true;
-
-			final add = (item) -> prepend ? results.unshift(item) : results.push(item);
-			final discoGet = new DiscoInfoGet(jid.asString());
-			discoGet.onFinished(() -> {
-				final resultCaps = discoGet.getResult();
-				if (resultCaps == null) {
-					final err = discoGet.responseStanza?.getChild("error")?.getChild(null, "urn:ietf:params:xml:ns:xmpp-stanzas");
-					if (err == null || err?.name == "service-unavailable" || err?.name == "feature-not-implemented") {
-						add(new AvailableChat(jid.asString(), jid.node == null ? query : jid.node, jid.asString(), new Caps("", [], [], [])));
-					}
-				} else {
-					persistence.storeCaps(resultCaps);
-					final identity = resultCaps.identities[0];
-					final displayName = identity?.name ?? query;
-					final note = jid.asString() + (identity == null ? "" : " (" + identity.type + ")");
-					add(new AvailableChat(jid.asString(), displayName, note, resultCaps));
-				}
-				if (callback != null && callback(q, results)) callback = null;
-			});
-			sendQuery(discoGet);
-		};
-		final vcard_regex = ~/\nIMPP[^:]*:xmpp:(.+)\n/;
-		final jid = if (StringTools.startsWith(query, "xmpp:")) {
-			final parts = query.substr(5).split("?");
-			JID.parse(uriDecode(parts[0]));
-		} else if (StringTools.startsWith(query, "BEGIN:VCARD") && vcard_regex.match(query)) {
-			final parts = vcard_regex.matched(1).split("?");
-			JID.parse(uriDecode(parts[0]));
-		} else if (StringTools.startsWith(query, "https://")) {
-			final hashParts = query.split("#");
-			if (hashParts.length > 1) {
-				JID.parse(uriDecode(hashParts[1]));
-			} else {
-				final pathParts = hashParts[0].split("/");
-				JID.parse(uriDecode(pathParts[pathParts.length - 1]));
-			}
-		} else {
-			JID.parse(query);
-		}
-		if (jid.isValid()) {
-			checkAndAdd(jid, true);
-		}
-
-		if (StringTools.startsWith(query, "https://")) {
-			xmppLinkHeader(query).then(xmppUri -> {
-				final parts = xmppUri.substr(5).split("?");
-				final jid = JID.parse(uriDecode(parts[0]));
-				if (jid.isValid()) checkAndAdd(jid, true);
-			});
-		}
-
-		for (chat in chats) {
-			if (chat.chatId != jid.asBare().asString()) {
-				if (chat.chatId.contains(query.toLowerCase()) || chat.getDisplayName().toLowerCase().contains(query.toLowerCase())) {
-					final channel = Util.downcast(chat, Channel);
-					results.push(new AvailableChat(chat.chatId, chat.getDisplayName(), chat.chatId, channel == null || channel.disco == null ? new Caps("", [], [], []) : channel.disco));
-				}
-			}
-			if (chat.isTrusted()) {
-				final resources:Map<String, Bool> = [];
-				for (resource in Caps.withIdentity(chat.getCaps(), "gateway", null)) {
-					// Sometimes gateway items also have id "gateway" for whatever reason
-					final identities = chat.getResourceCaps(resource)?.identities ?? [];
-					if (
-						(chat.chatId.indexOf("@") < 0 || identities.find(i -> i.category == "conference") == null) &&
-						identities.find(i -> i.category == "client") == null
-					) {
-						resources[resource] = true;
-					}
-				}
-				/* Gajim advertises this, so just go with identity instead
-				for (resource in Caps.withFeature(chat.getCaps(), "jabber:iq:gateway")) {
-					resources[resource] = true;
-				}*/
-				if (!sendAvailable && JID.parse(chat.chatId).isDomain()) {
-					resources[null] = true;
-				}
-				for (resource in resources.keys()) {
-					final bareJid = JID.parse(chat.chatId);
-					final fullJid = new JID(bareJid.node, bareJid.domain, bareJid.isDomain() && resource == "" ? null : resource);
-					final jigGet = new JabberIqGatewayGet(fullJid.asString(), query);
-					jigGet.onFinished(() -> {
-						if (jigGet.getResult() == null) {
-							final caps = chat.getResourceCaps(resource);
-							if (bareJid.isDomain() && caps.features.contains("jid\\20escaping")) {
-								checkAndAdd(new JID(query, bareJid.domain));
-							} else if (bareJid.isDomain()) {
-								checkAndAdd(new JID(StringTools.replace(query, "@", "%"), bareJid.domain));
-							}
-						} else {
-							switch (jigGet.getResult()) {
-								case Left(error): return;
-								case Right(result):
-									checkAndAdd(JID.parse(result));
-							}
-						}
-					});
-					sendQuery(jigGet);
-				}
-			}
-		}
-		if (!jid.isValid() && results.length > 0) {
-			if (callback != null && callback(q, results)) callback = null;
-		}
+	public function findAvailableChats(q:String): AvailableChatIterator {
+		return new AvailableChatIterator(q, this, persistence);
 	}
 
 	/**

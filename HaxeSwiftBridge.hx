@@ -549,6 +549,10 @@ class HaxeSwiftBridge {
 			builder.add(", ");
 			builder.add(iface.t.get().name);
 		}
+		final asyncSequence = cls.meta.extract(":HaxeSwiftBridge.asyncSequence").find(_ -> true)?.params?.map(identToStr);
+		if (asyncSequence != null) {
+			builder.add(", AsyncIteratorProtocol, AsyncSequence");
+		}
 		if (!cls.isInterface) {
 			builder.add(", @unchecked Sendable");
 		}
@@ -561,6 +565,13 @@ class HaxeSwiftBridge {
 				builder.add("\tinternal static var __contextLifetime: [Int32: UnsafeMutableRawPointer] = [:]\n");
 			}
 			builder.add("\n\tinternal init(_ ptr: UnsafeMutableRawPointer) {\n\t\to = ptr\n\t\tc_borogove.borogove_set_finalizer(ptr, releaseContexts)\n\t}\n\n");
+		}
+
+
+		if (asyncSequence != null) {
+			builder.add("\tpublic typealias Element = " + asyncSequence[0] + "\n");
+			builder.add("\tpublic typealias AsyncIterator = AvailableChatIterator\n");
+			builder.add("\tpublic func makeAsyncIterator() -> AvailableChatIterator { return self }\n\n");
 		}
 
 		if (!cls.isInterface && superClass != null) {
