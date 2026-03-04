@@ -151,12 +151,29 @@ class AvailableChatIterator {
 	/**
 		Get the next AvailableChat from this iterator
 	**/
+	#if js
+	@:native("[Symbol.asyncIterator]")
+	public function asyncIterator() {
+		return this;
+	}
+
+	public function next(): Promise<{ done: Bool, ?value: AvailableChat }> {
+		return internalNext().then(v -> {
+			return { done: v == null, value: v };
+		});
+	}
+	#else
 	public function next(): Promise<Null<AvailableChat>> {
+		return internalNext();
+	}
+	#end
+
+	private function internalNext(): Promise<Null<AvailableChat>> {
 		if (results.length < 1) return Promise.resolve(null);
 
 		return results.shift().then(available -> {
 			if (available == null || dedup[available.chatId]) {
-				return this.next();
+				return this.internalNext();
 			} else {
 				dedup[available.chatId] = true;
 				return Promise.resolve(available);

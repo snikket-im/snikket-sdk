@@ -9,6 +9,7 @@ export {
 } from "./borogove-enums";
 export {
     borogove_AvailableChat as AvailableChat,
+    borogove_AvailableChatIterator as AvailableChatIterator,
     borogove_Channel as Channel,
     borogove_Chat as Chat,
     borogove_ChatAttachment as ChatAttachment,
