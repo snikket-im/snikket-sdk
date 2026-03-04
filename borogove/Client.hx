@@ -1219,6 +1219,7 @@ class Client extends EventEmitter {
 		@param handler takes one argument, the Client that needs a password
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addPasswordNeededListener(handler:Client->Void) {
 		return this.on("auth/password-needed", (data) -> {
 			handler(this);
@@ -1232,6 +1233,7 @@ class Client extends EventEmitter {
 		@param handler takes no arguments
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addStatusOnlineListener(handler:()->Void) {
 		return this.on("status/online", (data) -> {
 			handler();
@@ -1245,6 +1247,7 @@ class Client extends EventEmitter {
 		@param handler takes no arguments
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addStatusOfflineListener(handler:()->Void) {
 		return this.on("status/offline", (data) -> {
 			handler();
@@ -1258,6 +1261,7 @@ class Client extends EventEmitter {
 		@param handler takes no arguments
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addConnectionFailedListener(handler:()->Void) {
 		return stream.on("status/error", (data) -> {
 			handler();
@@ -1271,6 +1275,7 @@ class Client extends EventEmitter {
 		@param handler takes two arguments, the PEM of the cert and an array of DNS names, and must return true to accept or false to reject
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addTlsCheckListener(handler:(String, Array<String>)->Bool) {
 		return stream.on("tls/check", (data) -> {
 			return EventValue(handler(data.pem, data.dnsNames));
@@ -1281,6 +1286,7 @@ class Client extends EventEmitter {
 	// TODO: haxe cpp erases enum into int, so using it as a callback arg is hard
 	// could just use int in C bindings, or need to come up with a good strategy
 	// for the wrapper
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addUserStateListener(handler: (String,String,Null<String>,UserState)->Void):EventHandlerToken {
 		return this.on("chat-state/update", (data) -> {
 			handler(data.message.senderId, data.message.chatId, data.message.threadId, data.userState);
@@ -1299,6 +1305,7 @@ class Client extends EventEmitter {
 	**/
 	#if cpp
 		// HaxeCBridge doesn't support "secondary" enums yet
+		@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 		public function addChatMessageListener(handler:(ChatMessage, Int)->Void) {
 	#else
 		public function addChatMessageListener(handler:(ChatMessage, ChatMessageEvent)->Void):EventHandlerToken {
@@ -1316,6 +1323,7 @@ class Client extends EventEmitter {
 		@param handler takes one argument, the ChatMessage
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addSyncMessageListener(handler:(ChatMessage)->Void):EventHandlerToken {
 		return this.on("message/sync", (data) -> {
 			handler(data);
@@ -1329,6 +1337,7 @@ class Client extends EventEmitter {
 		@param handler takes one argument, an array of Chats that were updated
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addChatsUpdatedListener(handler:Array<Chat>->Void) {
 		final updateChatBuffer: Map<String, Chat> = [];
 		var lastCall = -1.0;
@@ -1365,6 +1374,7 @@ class Client extends EventEmitter {
 		@param handler takes one argument, the call Session
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addCallRingListener(handler:(Session)->Void) {
 		return this.on("call/ring", (data) -> {
 			handler(data.session);
@@ -1378,6 +1388,7 @@ class Client extends EventEmitter {
 		@param handler takes two arguments, the associated Chat ID and Session ID
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addCallRetractListener(handler:(String,String)->Void) {
 		return this.on("call/retract", (data) -> {
 			handler(data.chatId, data.sid);
@@ -1391,6 +1402,7 @@ class Client extends EventEmitter {
 		@param handler takes one argument, the associated Session
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addCallRingingListener(handler:(Session)->Void) {
 		return this.on("call/ringing", (data) -> {
 			handler(data);
@@ -1404,6 +1416,7 @@ class Client extends EventEmitter {
 		@param handler takes one argument, the associated Session
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addCallUpdateStatusListener(handler:(InitiatedSession)->Void) {
 		return this.on("call/updateStatus", (data) -> {
 			handler(data.session);
@@ -1419,6 +1432,7 @@ class Client extends EventEmitter {
 		       and a boolean indicating if video is desired
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addCallMediaListener(handler:(InitiatedSession,Bool,Bool)->Void) {
 		return this.on("call/media", (data) -> {
 			handler(data.session, data.audio, data.video);
@@ -1433,6 +1447,7 @@ class Client extends EventEmitter {
 		       the new MediaStreamTrack, and an array of any associated MediaStreams
 		@returns token for use with removeEventListener
 	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addCallTrackListener(handler:(InitiatedSession,MediaStreamTrack,Array<MediaStream>)->Void) {
 		return this.on("call/track", (data) -> {
 			handler(data.session, data.track, data.streams);

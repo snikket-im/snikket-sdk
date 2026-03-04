@@ -20,8 +20,9 @@ typedef EventHandlerToken = Int;
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
+@:HaxeSwiftBridge.contextLifetime
 class EventEmitter {
-	private var nextEventHandlerToken = 0;
+	private static var nextEventHandlerToken = 0;
 	private var eventHandlers:Map<String,Map<EventHandlerToken, EventCallback>> = [];
 
 	private function new() { }
@@ -72,6 +73,7 @@ class EventEmitter {
 
 		@param token the token that was returned when the listener was added
 	**/
+	@:HaxeSwiftBridge.contextLifetimeEnds(token)
 	public function removeEventListener(token:EventHandlerToken) {
 		for (handlers in eventHandlers) {
 			handlers.remove(token);

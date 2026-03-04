@@ -272,6 +272,15 @@ class HaxeSwiftBridge {
 		}
 	}
 
+	static function identToStr(expr: Expr) {
+		switch (expr.expr) {
+		case EConst(CIdent(s)):
+			return s;
+		default:
+			throw "ident expencted";
+		}
+	}
+
 	static function metaIsSwiftExpose(e: ExprDef) {
 		return switch (e) {
 			case ECall(call, args):
@@ -424,7 +433,6 @@ class HaxeSwiftBridge {
 					}
 					if (fargs.length > 0) ibuilder.add(", ");
 					ibuilder.add("ctx");
-					// TODO unretained vs retained
 					ibuilder.add(") in\n\t\t\t\tlet ");
 					ibuilder.add(arg.name);
 					ibuilder.add(" = Unmanaged<AnyObject>.fromOpaque(ctx!).takeUnretainedValue() as! ");
@@ -463,8 +471,27 @@ class HaxeSwiftBridge {
 				default:
 			}
 			ibuilder.add("\n\t\t)");
-			builder.add("return ");
+			builder.add("let __result = ");
 			builder.add(castToSwift(ibuilder.toString(), finalTret, false, true));
+			for (arg in targs) {
+				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
+				case TFun(fargs, fret):
+					final contextLifetime = fld.meta.filter(meta -> meta.name == ":HaxeSwiftBridge.contextLifetime").map(meta -> meta.params.map(identToStr)).find(params -> params[0] == arg.name);
+					if (contextLifetime != null) {
+						builder.add("\n\t\t" + contextLifetime[1] +  ".__contextLifetime[__result] = __" + arg.name + "_ptr");
+					}
+					builder.add("\n\t\tcontextLifetime[o] = (contextLifetime[o] ?? []) + [__" + arg.name + "_ptr]");
+				default:
+				}
+			}
+			final lifetimeEnds = fld.meta.find(meta -> meta.name == ":HaxeSwiftBridge.contextLifetimeEnds");
+			if (lifetimeEnds != null) {
+				builder.add("\n\t\tSelf.__contextLifetime[" + identToStr(lifetimeEnds.params[0]) + "].map { ending in\n");
+				builder.add("\t\t\tUnmanaged<AnyObject>.fromOpaque(ending).release()\n");
+				builder.add("\t\t\tcontextLifetime[o] = contextLifetime[o]?.filter { $0 != ending }\n");
+				builder.add("\t\t}");
+			}
+			builder.add("\n\t\treturn __result");
 			for (arg in targs) {
 				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
 				case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
@@ -529,8 +556,11 @@ class HaxeSwiftBridge {
 		builder.add(" {\n");
 		if (!cls.isInterface && superClass == null) {
 			// We don't want this to be public, but it needs to be for the protocol, hmm
-			builder.add("\tpublic let o: UnsafeMutableRawPointer\n\n");
-			builder.add("\tinternal init(_ ptr: UnsafeMutableRawPointer) {\n\t\to = ptr\n\t}\n\n");
+			builder.add("\tpublic let o: UnsafeMutableRawPointer\n");
+			if (!cls.meta.extract(":HaxeSwiftBridge.contextLifetime").empty()) {
+				builder.add("\tinternal static var __contextLifetime: [Int32: UnsafeMutableRawPointer] = [:]\n");
+			}
+			builder.add("\n\tinternal init(_ ptr: UnsafeMutableRawPointer) {\n\t\to = ptr\n\t\tc_borogove.borogove_set_finalizer(ptr, releaseContexts)\n\t}\n\n");
 		}
 
 		if (!cls.isInterface && superClass != null) {
@@ -804,6 +834,15 @@ class HaxeSwiftBridge {
 
 			internal func useString(_ mptr: UnsafeMutableRawPointer?) -> String? {
 				return useString(UnsafePointer(mptr?.assumingMemoryBound(to: CChar.self)))
+			}
+
+			internal var contextLifetime: [UnsafeMutableRawPointer: [UnsafeMutableRawPointer]] = [:]
+
+			internal func releaseContexts(o: UnsafeMutableRawPointer?) {
+				if let o {
+					contextLifetime[o]?.map { Unmanaged<AnyObject>.fromOpaque($0).release() }
+					contextLifetime[o] = nil
+				}
 			}
 
 			// From https://github.com/swiftlang/swift/blob/dfc3933a05264c0c19f7cd43ea0dca351f53ed48/stdlib/private/SwiftPrivate/SwiftPrivate.swift
