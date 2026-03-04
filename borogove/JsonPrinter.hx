@@ -30,6 +30,7 @@ package borogove;
 
 	@see https://haxe.org/manual/std-Json-encoding.html
 **/
+@:expose
 class JsonPrinter {
 	/**
 		Encodes `o`'s value and returns the resulting JSON string.

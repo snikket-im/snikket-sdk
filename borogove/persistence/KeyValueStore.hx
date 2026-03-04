@@ -10,6 +10,7 @@ import HaxeCBridge;
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
+@:expose
 interface KeyValueStore {
 	public function get(k: String): Promise<Null<String>>;
 	public function set(k: String, v: Null<String>): Promise<Bool>;

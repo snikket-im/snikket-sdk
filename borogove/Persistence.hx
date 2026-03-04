@@ -19,6 +19,7 @@ using borogove.SignalProtocol;
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
+@:expose
 interface Persistence {
 	public function lastId(accountId: String, chatId: Null<String>): Promise<Null<String>>;
 	public function storeChats(accountId: String, chats: Array<Chat>):Void;
