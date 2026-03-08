@@ -602,7 +602,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function storeCaps(caps:Caps) {
-		storeCapsSet([ caps.verRaw().hash => caps ]);
+		final map: Map<BytesData, Caps> = [];
+		map[caps.verRaw().hash] = caps;
+		storeCapsSet(map);
 	}
 
 	private function storeCapsSet(capsSet:Map<BytesData, Caps>) {
