@@ -2,7 +2,7 @@ HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 
 .PHONY: all test doc hx-build-dep cpp/libborogove.dso npm/borogove-browser.js npm/borogove.js cpp
 
-all: npm libborogove.so
+all: npm libborogove.batteriesincluded.so libborogove.so libborogove.a
 
 test:
 	haxe test.hxml
@@ -51,14 +51,16 @@ cpp/libborogove.dso:
 	$(RM) cpp/libborogove.dso.hash
 
 cpp:
+	haxe -D no-compilation cpp.hxml
 	$(RM) -r cpp/obj
+	$(RM) cpp/*.dso
 	$(RM) cpp/src/__main__.cpp
 	$(RM) cpp/src/__files__.cpp
-	cp cpp/alt/SSL-mbedtls3.cpp cpp/src/hx/libs/ssl/SSL.cpp
 	cp "$(shell haxelib libpath hxcpp)"/include/*.h cpp/include/
 	cp -r "$(shell haxelib libpath hxcpp)"/include/hx cpp/include/
 	cp -r "$(shell haxelib libpath hxcpp)"/include/cpp cpp/include/
 	mkdir -p cpp/src/hx/libs/ssl
+	cp cpp/alt/SSL-mbedtls3.cpp cpp/src/hx/libs/ssl/SSL.cpp
 	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/std cpp/src/hx/libs/
 	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/regexp cpp/src/hx/libs/
 	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/sqlite cpp/src/hx/libs/
@@ -82,9 +84,22 @@ cpp:
 	cp "$(shell haxelib libpath hxcpp)"/src/Array.cpp cpp/src/
 	cp "$(shell haxelib libpath hxcpp)"/src/Dynamic.cpp cpp/src/
 	cp "$(shell haxelib libpath hxcpp)"/src/Math.cpp cpp/src/
+	cd cpp && ./configure.simple
 
-libborogove.so: cpp/libborogove.dso
-	mv cpp/libborogove.dso libborogove.so
+libborogove.batteriesincluded.so: cpp/libborogove.dso
+	mv cpp/libborogove.dso libborogove.batteriesincluded.so
+
+cpp/libborogove.so: cpp
+	cd cpp && $(MAKE) -j libborogove.so
+
+cpp/libborogove.a: cpp
+	cd cpp && $(MAKE) -j libborogove.a
+
+libborogove.so: cpp/libborogove.so
+	mv cpp/libborogove.so libborogove.so
+
+libborogove.a: cpp/libborogove.a
+	mv cpp/libborogove.a libborogove.a
 
 doc:
 	npx @microsoft/api-extractor run -c npm/api-extractor.json || true

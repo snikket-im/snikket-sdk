@@ -59,18 +59,15 @@ RUN printf '#!/bin/bash\nexec /usr/bin/node --tls-max-v1.2 "$@"' > /usr/local/bi
  && npm install typescript
 
 RUN haxelib setup /opt/haxe
-
 ENV HAXE_STD_PATH=/opt/haxe/std
-
 COPY Makefile *.hxml /usr/src/sdk/
-
 COPY . /usr/src/sdk/
 
 RUN make hx-build-dep
-
 RUN cd /opt/haxe/hxcpp/git/tools/hxcpp && haxe compile.hxml
 
 RUN make
+RUN cd cpp && make clean
 
 RUN make test
 
@@ -80,6 +77,8 @@ WORKDIR /opt/sdk
 
 COPY --from=build /usr/src/sdk/cpp ./cpp
 COPY --from=build /usr/src/sdk/libborogove.so ./libborogove.so
+COPY --from=build /usr/src/sdk/libborogove.a ./libborogove.a
+COPY --from=build /usr/src/sdk/libborogove.batteriesincluded.so ./libborogove.batteriesincluded.so
 COPY --from=build /usr/src/sdk/npm ./npm
 
 CMD ["cp", "-R", "/opt/sdk", "/output"]

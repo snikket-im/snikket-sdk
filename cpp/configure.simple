@@ -3,7 +3,10 @@
 # Create a Makefile just from the sources
 
 echo 'CXXFLAGS=-Wno-invalid-offsetof -fPIC -O2 -DHX_LINUX -DHX_SMART_STRINGS=1 -DHXCPP_M64 -DHXCPP_VISIT_ALLOCS -DHXCPP_API_LEVEL=430 -Iinclude' > Makefile
-echo 'LDFLAGS=-shared -lmbedtls -ldatachannel $$(pkg-config --libs sqlite3 opus libstrophe) $$(pcre2-config --libs16 --libs8)' >> Makefile
+echo 'LDFLAGS=-shared -flto -lmbedtls -ldatachannel $$(pkg-config --libs sqlite3 opus libstrophe) $$(pcre2-config --libs16 --libs8)' >> Makefile
+echo >> Makefile
+
+echo ".PHONY: clean" >> Makefile
 echo >> Makefile
 
 printf "libborogove.so: " >> Makefile
@@ -15,3 +18,7 @@ echo >> Makefile
 printf "libborogove.a: " >> Makefile
 find src -name '*.cpp' -print0 | xargs -0 | sed -e's/\.cpp/\.o/g' >> Makefile
 echo '	$(AR) rcs $@ $^' >> Makefile
+
+echo "clean:" >> Makefile
+echo '	find -name *.o -delete' >> Makefile
+echo '	$(RM) *.so *.a' >> Makefile

@@ -3,6 +3,8 @@ npm/*.d.ts
 npm/*.js
 npm/*.mjs
 npm/*.map
+*.so
+*.a
 npm/borogove-enums.ts
 npm/borogove-browser-enums.ts
 node_modules
