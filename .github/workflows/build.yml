@@ -53,7 +53,7 @@ jobs:
 
     - name: Build
       run: |
-        make
+        make -j$(nproc)
         cd cpp && make clean
 
     - name: libborogove Artifact
