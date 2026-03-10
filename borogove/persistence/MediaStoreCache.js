@@ -48,7 +48,7 @@ export default (cacheName) => {
 
 			addEventListener("fetch", (event) => {
 				const url = new URL(event.request.url);
-				if (url.pathname.startsWith("/.well-known/ni/")) {
+				if (url.origin === self.location.origin && url.pathname.startsWith("/.well-known/ni/")) {
 					event.respondWith(waitForMedia(url.pathname));
 				}
 			});
