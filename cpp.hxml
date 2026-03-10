@@ -22,3 +22,4 @@ borogove.persistence.MediaStoreFS
 -D HXCPP_CPP17
 -D HaxeCBridge.name=borogove
 -D dll_link
+-D HAXE_OUTPUT_FILE=libborogove

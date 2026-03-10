@@ -46,11 +46,11 @@ npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogov
 	-cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts > /dev/null
 	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts
 
-cpp/output.dso:
+cpp/libborogove.dso:
 	haxe cpp.hxml
 
-libborogove.so: cpp/output.dso
-	mv cpp/output.dso libborogove.so
+libborogove.so: cpp/libborogove.dso
+	mv cpp/libborogove.dso libborogove.so
 
 doc:
 	npx @microsoft/api-extractor run -c npm/api-extractor.json || true
