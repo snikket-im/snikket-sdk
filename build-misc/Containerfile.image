@@ -72,7 +72,7 @@ RUN cd /opt/haxe/hxcpp/git/tools/hxcpp && haxe compile.hxml
 
 RUN make
 
-RUN haxe test.hxml
+RUN make test
 
 FROM docker.io/debian:stable-slim
 
