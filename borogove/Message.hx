@@ -63,7 +63,7 @@ class Message {
 
 		var msg = new ChatMessageBuilder();
 		msg.stanza = stanza;
-		msg.timestamp =stanza.findText("{urn:xmpp:delay}delay@stamp");
+		msg.timestamp = stanza.findText("{urn:xmpp:delay}delay@stamp");
 		msg.threadId = stanza.getChildText("thread");
 		msg.lang = stanza.attr.get("xml:lang");
 		msg.text = stanza.getChildText("body");
