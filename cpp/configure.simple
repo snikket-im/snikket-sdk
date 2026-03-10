@@ -9,3 +9,9 @@ echo >> Makefile
 printf "libborogove.so: " >> Makefile
 find src -name '*.cpp' -print0 | xargs -0 | sed -e's/\.cpp/\.o/g' >> Makefile
 echo '	$(CXX) -o $@ $^ $(LDFLAGS)' >> Makefile
+
+echo >> Makefile
+
+printf "libborogove.a: " >> Makefile
+find src -name '*.cpp' -print0 | xargs -0 | sed -e's/\.cpp/\.o/g' >> Makefile
+echo '	$(AR) rcs $@ $^' >> Makefile
