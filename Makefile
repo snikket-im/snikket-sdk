@@ -19,7 +19,7 @@ hx-build-dep:
 	haxelib --quiet install hxnodejs
 	haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
 	haxelib --quiet install utest
-	haxelib --quiet git hxcpp https://github.com/HaxeFoundation/hxcpp
+	haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
 
 npm/borogove-browser.js:
 	haxe browserjs.hxml
