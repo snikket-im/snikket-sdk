@@ -20,7 +20,7 @@ jobs:
         sudo apt-get update -oAcquire::AllowInsecureRepositories=true
         sudo apt-get install --allow-unauthenticated deb-multimedia-keyring
         sudo apt-get update
-        sudo apt-get install -y haxe libstrophe-dev libopus-dev libdatachannel-dev
+        sudo apt-get install -y haxe libstrophe-dev libopus-dev libdatachannel-dev libpcre2-dev libmbedtls-dev libsqlite3-dev
         haxelib setup ~/haxe
 
     - name: Cache haxelib
