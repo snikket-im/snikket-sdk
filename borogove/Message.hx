@@ -322,7 +322,7 @@ class Message {
 				replyToMessage.from = replyToJid == null ? null : JID.parse(replyToJid);
 				replyToMessage.senderId = isGroupchat ? replyToMessage.from?.asString() : replyToMessage.from?.asBare()?.asString();
 				replyToMessage.replyId = replyToID;
-				if (msg.serverIdBy != null && msg.serverIdBy != localJid.asBare().asString()) {
+				if ((msg.serverIdBy != null && msg.serverIdBy != localJid.asBare().asString()) || isGroupchat) {
 					replyToMessage.serverId = replyToID;
 				} else {
 					replyToMessage.localId = replyToID;
