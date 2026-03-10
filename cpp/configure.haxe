@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# Make a Makefile mostly from the haxe build XML
+
+echo ".PHONY: all" > Makefile
+echo "all: libborogove.so" >> Makefile
+
+echo "CXXFLAGS = -Wno-invalid-offsetof -fPIC -O2 -DHX_LINUX -DHX_SMART_STRINGS=1 -DHXCPP_M64 -DHXCPP_VISIT_ALLOCS" >> Makefile
+echo 'LDFLAGS = -shared -lmbedtls $$(pkg-config --libs sqlite3) $$(pcre2-config --libs16 --libs8)' >> Makefile
+
+xsltproc make.xslt Build.xml >> Makefile
+xsltproc make.xslt $(haxelib libpath hxcpp)toolchain/haxe-target.xml >> Makefile
+xsltproc --stringparam DIR src/hx/libs/std/ make.xslt $(haxelib libpath hxcpp)src/hx/libs/std/Build.xml >> Makefile
+
+echo 'SRCS += src/hx/libs/ssl/SSL.cpp src/hx/libs/sqlite/Sqlite.cpp src/hx/libs/regexp/RegExp.cpp' >> Makefile
+echo 'CXXFLAGS += -DHXCPP_API_LEVEL=$(HXCPP_API_LEVEL)' >> Makefile
+
+echo >> Makefile
+echo 'OBJS = $(SRCS:.cpp=.o)' >> Makefile
+echo 'libborogove.so: $(OBJS)' >> Makefile
+echo '	$(CXX) -o $@ $^ $(LDFLAGS)' >> Makefile
