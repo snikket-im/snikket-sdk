@@ -38,18 +38,7 @@ jobs:
 
     - name: Haxe Dependencies
       run: |
-        haxelib --quiet git jsImport https://github.com/back2dos/jsImport
-        haxelib --quiet install datetime
-        haxelib --quiet install haxe-strings
-        haxelib --quiet install hsluv
-        haxelib --quiet install tink_http
-        haxelib --quiet install sha
-        haxelib --quiet install thenshim
-        haxelib --quiet install HtmlParser
-        haxelib --quiet install hxnodejs
-        haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
-        haxelib --quiet install utest
-        haxelib --quiet git hxcpp https://github.com/singpolyma/hxcpp update-sqlite
+        make hx-build-dep
         cd ~/haxe/hxcpp/git/tools/hxcpp
         haxe compile.hxml
 
@@ -63,7 +52,9 @@ jobs:
       run: make test
 
     - name: Build
-      run: make
+      run: |
+        make
+        cd cpp && make clean
 
     - name: libborogove Artifact
       uses: actions/upload-artifact@v4
@@ -71,7 +62,19 @@ jobs:
         name: libborogove
         path: |
           libborogove.so
+          libborogove.a
+          libborogove.batteriesincluded.so
           cpp/borogove.h
+
+    - name: cpp Tarball
+      run: tar -cjf cpp.tar.gz cpp/
+
+    - name: cpp Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: cpp
+        path: |
+          cpp.tar.gz
 
     - name: NPM Tarball
       run: tar -cjf npm.tar.gz npm/
