@@ -96,5 +96,5 @@ doc:
 	haxelib run dox --toplevel-package borogove -i haxedoc.xml -o site/haxe/
 
 clean:
-	rm -f npm/browser.js npm/index.js npm/borogove.js npm/borogove-enums.js
-	rm -f npm/index.d.ts npm/borogove.d.ts npm/borogove-enums.d.ts npm/borogove-enums.ts
+	$(RM) npm/*.js npm/*.mjs npm/*.d.ts npm/*.map npm/borogove-enums.ts npm/borogove-browser-enums.ts
+	$(RM) -r cpp/src cpp/include cpp/obj cpp/*.h cpp/*.dso.hash cpp/Build.xml cpp/Options.txt cpp/Borogove.swift libborogove.so
