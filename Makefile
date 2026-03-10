@@ -90,10 +90,10 @@ libborogove.batteriesincluded.so: cpp/libborogove.dso
 	mv cpp/libborogove.dso libborogove.batteriesincluded.so
 
 cpp/libborogove.so: cpp
-	cd cpp && $(MAKE) -j$$(nproc) libborogove.so
+	$(MAKE) -C cpp libborogove.so
 
 cpp/libborogove.a: cpp
-	cd cpp && $(MAKE) -j$$(nproc) libborogove.a
+	$(MAKE) -C cpp libborogove.a
 
 libborogove.so: cpp/libborogove.so
 	mv cpp/libborogove.so libborogove.so
