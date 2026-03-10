@@ -190,6 +190,13 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 6"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 7) {
+						return exec(["DELETE FROM messages WHERE rowid IN (SELECT rowid FROM (select rowid, ROW_NUMBER() OVER (PARTITION BY account_id, stanza_id ORDER BY (mam_id <> '') DESC, rowid DESC) AS rn FROM messages WHERE direction=1 AND stanza_id<>'') WHERE rn<>1)",
+						"CREATE UNIQUE INDEX messages_stanza_id_sent_unique ON messages (account_id, stanza_id) WHERE stanza_id<>'' AND direction=" + Std.string(MessageSent),
+						"PRAGMA user_version = 7"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -377,34 +384,27 @@ class Sqlite implements Persistence implements KeyValueStore {
 			}
 		}
 
-		return (if (chatIds.length > 0 && localIds.length > 0) {
-			// Hmm, this loses the original timestamp though
-			final q = new StringBuf();
-			q.add("DELETE FROM messages WHERE account_id=? AND direction=? AND chat_id IN (");
-			q.add(chatIds.map(_ -> "?").join(","));
-			q.add(") AND stanza_id IN (");
-			q.add(localIds.map(_ -> "?").join(","));
-			q.add(")");
-			db.exec(q.toString(), ([accountId, MessageSent] : Array<Dynamic>).concat(chatIds).concat(localIds));
-		} else {
-			Promise.resolve(null);
-		}).then(_ ->
-			db.exec(
-				"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?,?,?)").join(","),
-				messages.flatMap(m -> {
-					final correctable = m;
-					final message = m.versions.length == 1 ? m.versions[0] : m; // TODO: storing multiple versions at once? We never do that right now
-					([
-						accountId, message.serverId ?? "", message.serverIdBy ?? "",
-						message.localId ?? "", correctable.callSid() ?? correctable.localId ?? correctable.serverId, correctable.syncPoint,
-						correctable.chatId(), correctable.senderId,
-						message.timestamp, message.status, message.direction, message.type,
-						message.asStanza().toString(), message.statusText
-					] : Array<Dynamic>);
-				})
-			)
+		// Hmm, if there is an existing one this loses the original timestamp though
+		return db.exec(
+			"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?,?,?)").join(","),
+			messages.flatMap(m -> {
+				final correctable = m;
+				final message = m.versions.length == 1 ? m.versions[0] : m; // TODO: storing multiple versions at once? We never do that right now
+				([
+					accountId, message.serverId ?? "", message.serverIdBy ?? "",
+					message.localId ?? "", correctable.callSid() ?? correctable.localId ?? correctable.serverId, correctable.syncPoint,
+					correctable.chatId(), correctable.senderId,
+					message.timestamp, message.status, message.direction, message.type,
+					message.asStanza().toString(), message.statusText
+				] : Array<Dynamic>);
+			})
 		).then(_ ->
-			hydrateReplyTo(accountId, messages, replyTos).then(ms -> hydrateReactions(accountId, ms))
+			hydrateReplyTo(accountId, messages, replyTos)
+		).then(ms ->
+			hydrateReactions(accountId, ms)
+		).then(hydrated ->
+			// We delay one more cycle to match updateMessageStatus
+			Promise.resolve(hydrated)
 		);
 
 		// TODO: retract custom emoji?
@@ -567,22 +567,20 @@ class Sqlite implements Persistence implements KeyValueStore {
 	@HaxeCBridge.noemit
 	public function updateMessageStatus(accountId: String, localId: String, status: MessageStatus, statusText: Null<String>): Promise<ChatMessage> {
 		return db.exec(
-			"UPDATE messages SET status=?, status_text=? WHERE account_id=? AND stanza_id=? AND direction=? AND status <> ? AND status <> ?",
+			"UPDATE messages SET status=?, status_text=? WHERE account_id=? AND stanza_id=? AND direction=? AND status <> ? AND status <> ? RETURNING stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, correction_id AS stanza_id, mam_id, mam_by, sync_point",
 			[status, statusText, accountId, localId, MessageSent, MessageDeliveredToDevice, MessageFailedToSend]
-		).then(_ ->
-			db.exec(
-				"SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, correction_id AS stanza_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND stanza_id=? AND direction=? LIMIT 1",
-				[accountId, localId, MessageSent]
-			)
 		).then(result ->
-			thenshim.PromiseTools.all(hydrateMessages(accountId, result).map(message ->
-				(if (message.replyToMessage != null) {
+			thenshim.PromiseTools.all(hydrateMessages(accountId, result).map(message ->{
+				return (if (message.replyToMessage != null) {
 					hydrateReplyTo(accountId, [message], [{ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
 				} else {
 					Promise.resolve([message]);
-				}).then(messages -> hydrateReactions(accountId, messages))
+				}).then(messages -> hydrateReactions(accountId, messages));}
 			))
-		).then(hydrated -> hydrated.flatten()).then(hydrated -> hydrated.length > 0 ? Promise.resolve(hydrated[0]) : Promise.reject("Message not found: " + localId));
+		).then(hydrated -> {
+			final flat = hydrated.flatten();
+			return flat.length > 0 ? Promise.resolve(flat[0]) : Promise.reject("Message not found: " + localId);
+		});
 	}
 
 	@HaxeCBridge.noemit
