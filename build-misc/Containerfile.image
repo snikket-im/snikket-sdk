@@ -33,6 +33,9 @@ RUN apt-get update \
 		  libexpat1-dev \
 		  libssl-dev \
 		  zlib1g-dev \
+		  libmbedtls-dev \
+		  libsqlite3-dev \
+		  libpcre2-dev \
         neko \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/*
@@ -66,7 +69,7 @@ COPY . /usr/src/sdk/
 RUN make hx-build-dep
 RUN cd /opt/haxe/hxcpp/git/tools/hxcpp && haxe compile.hxml
 
-RUN make
+RUN make -j$(nproc)
 RUN cd cpp && make clean
 
 RUN make test
