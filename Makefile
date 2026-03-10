@@ -1,6 +1,6 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 
-.PHONY: all test doc hx-build-dep cpp/output.dso npm/borogove-browser.js npm/borogove.js
+.PHONY: all test doc hx-build-dep cpp/libborogove.dso npm/borogove-browser.js npm/borogove.js cpp
 
 all: npm libborogove.so
 
@@ -48,6 +48,39 @@ npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogov
 
 cpp/libborogove.dso:
 	haxe cpp.hxml
+
+cpp:
+	$(RM) cpp/src/__main__.cpp
+	$(RM) cpp/src/__files__.cpp
+	cp "$(shell haxelib libpath hxcpp)"/include/*.h cpp/include/
+	cp -r "$(shell haxelib libpath hxcpp)"/include/hx cpp/include/
+	cp -r "$(shell haxelib libpath hxcpp)"/include/cpp cpp/include/
+	mkdir -p cpp/src/hx/libs/ssl
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/libs/ssl/SSL.cpp cpp/src/hx/libs/ssl/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/libs/ssl/SSL.cpp cpp/src/hx/libs/ssl/
+	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/std cpp/src/hx/libs/
+	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/regexp cpp/src/hx/libs/
+	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/sqlite cpp/src/hx/libs/
+	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/gc cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/StdLibs.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/Lib.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/Hash.h cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/Hash.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/Date.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/Thread.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/CFFI.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/Unicase.h cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/Debug.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/Anon.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/Class.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/Object.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/Boot.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/hx/NoFiles.cpp cpp/src/hx/
+	cp "$(shell haxelib libpath hxcpp)"/src/String.cpp cpp/src/
+	cp "$(shell haxelib libpath hxcpp)"/src/Enum.cpp cpp/src/
+	cp "$(shell haxelib libpath hxcpp)"/src/Array.cpp cpp/src/
+	cp "$(shell haxelib libpath hxcpp)"/src/Dynamic.cpp cpp/src/
+	cp "$(shell haxelib libpath hxcpp)"/src/Math.cpp cpp/src/
 
 libborogove.so: cpp/libborogove.dso
 	mv cpp/libborogove.dso libborogove.so
