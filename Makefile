@@ -48,16 +48,17 @@ npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogov
 
 cpp/libborogove.dso:
 	haxe cpp.hxml
+	$(RM) cpp/libborogove.dso.hash
 
 cpp:
+	$(RM) -r cpp/obj
 	$(RM) cpp/src/__main__.cpp
 	$(RM) cpp/src/__files__.cpp
+	cp cpp/alt/SSL-mbedtls3.cpp cpp/src/hx/libs/ssl/SSL.cpp
 	cp "$(shell haxelib libpath hxcpp)"/include/*.h cpp/include/
 	cp -r "$(shell haxelib libpath hxcpp)"/include/hx cpp/include/
 	cp -r "$(shell haxelib libpath hxcpp)"/include/cpp cpp/include/
 	mkdir -p cpp/src/hx/libs/ssl
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/libs/ssl/SSL.cpp cpp/src/hx/libs/ssl/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/libs/ssl/SSL.cpp cpp/src/hx/libs/ssl/
 	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/std cpp/src/hx/libs/
 	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/regexp cpp/src/hx/libs/
 	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/sqlite cpp/src/hx/libs/
