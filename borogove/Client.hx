@@ -674,9 +674,9 @@ class Client extends EventEmitter {
 		startOffline().then(_ ->
 			persistence.getStreamManagement(accountId())
 		).then((sm) -> {
-			stream.on("auth/password-needed", (data) -> {
+			stream.on("auth/password-needed", (data: { ?mechanisms: Array<{ name: String, canFast: Bool, canOther: Bool }> }) -> {
 				fastMechanism = data.mechanisms?.find((mech) -> mech.canFast)?.name;
-				if (token == null || (fastMechanism == null && data.mechanimsms != null)) {
+				if (token == null || (fastMechanism == null && data.mechanisms != null)) {
 					this.trigger("auth/password-needed", { accountId: accountId() });
 				} else {
 					this.stream.trigger("auth/password", { password: token, mechanism: fastMechanism, fastCount: fastCount });
