@@ -44,31 +44,32 @@ Let’s continue by starting your first chat. A chat contains messages, a list o
 
 ```c
 void *chat = NULL;
+void *available_chats_iterator = NULL;
 
 // This will run on a background thread
-bool available_chats(const char *q, void **chats, size_t cchats, void *client) {
-	// You can check if q is the search we expect
+bool available_chats(void *achat, void *client) {
+	// You can check if borogove_available_chat_iterator_q is the search we expect
 	// Allows running searches in parallel as a user types
 
-	chat = borogove_client_start_chat(client, chats[0]);
+	if (achat) {
+		chat = borogove_client_start_chat(client, chat);
 
-	// Don't forget to release your memory
-	for (size_t i = 0; i < cchats; i++) {
-		borogove_release(chats[i]);
+		// Don't forget to release your memory
+		borogove_release(achat);
 	}
-	borogove_release(chats);
-	borogove_release(q);
 
-	// Stop searching
-	return true;
+	// Call next again, or stop searching
+	borogove_release(available_chats_iterator);
+	available_chats_iterator = NULL;
 }
 
 // And in main...
 
-borogove_client_find_available_chats(client, "hatter@example.com", available_chats, client);
+avilable_chats_iterator = borogove_client_find_available_chats(client, "hatter@example.com");
+borogove_available_chat_iterator_next(available_chats_iterator, available_chats, client);
 ```
 
-`borogove_client_find_available_chats` will call the callback with all results found so far, and keep searching until either it has exhausted all options or the callback returns `true`. Here we just store in a global the first chat that was found, as simple example.
+`borogove_client_find_available_chats` will return an iterator that can be stepped asynchronously with a callback. Here we just store in a global the first chat that was found, as a simple example.
 
 You can always search by the full ID or URI of any chat on the network. Locally known chats will also be returned, as well as any chats from other services configured on the account.
 

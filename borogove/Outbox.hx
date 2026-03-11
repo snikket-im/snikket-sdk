@@ -1,7 +1,7 @@
 package borogove;
 
 class Outbox {
-	private final items = [];
+	private final items: Array<OutboxItem> = [];
 	private var paused = true;
 
 	public function new() { }

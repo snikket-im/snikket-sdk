@@ -42,22 +42,17 @@ In real life you probably want to prompt the user when receiving the event. You 
 Let’s continue by starting your first chat. A chat contains messages, a list of people that are participating, and optionally a list of members. The example below shows how to start a chat with a new contact:
 
 ```typescript
-const chat = await new Promise(resolve => {
-	const search = "hatter@example.com";
-	client.findAvailableChats(search, (q, availableChats) => {
-		// Check if the results are for our search
-		// Allows running searches in parallel as a user types
-		if (search !== q) return;
+async function findOneChat(client: borogove.Client): borogove.Chat {
+	const iterator = client.findAvailableChats("hatter@example.com");
+	for await (const availableChat of iterator) {
+        return client.startChat(availableChat);
+    }
 
-		resolve(client.startChat(availableChats[0]));
-
-		// Stop searching
-		return true;
-	});
-});
+    return null;
+}
 ```
 
-[`findAvailableChats`](./borogove.client.findavailablechats.md) will call the callback with all results found so far, and keep searching until either it has exhausted all options or the callback returns `true`. Here we just create a promise to resolve to the first chat that is found.
+[`findAvailableChats`](./borogove.client.findavailablechats.md) return an async iterator over all the search results. Here we return the first one that is found.
 
 You can always search by the full ID or URI of any chat on the network. Locally known chats will also be returned, as well as any chats from other services configured on the account.
 
