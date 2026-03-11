@@ -11,5 +11,7 @@
 
 -D test
 -D NO_OMEMO
+-D no-traces
+-w -WDeprecated
 --run
 test.TestAll
