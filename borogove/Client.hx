@@ -454,9 +454,13 @@ class Client extends EventEmitter {
 			if (channel != null) channel.selfPing(true);
 		}
 
+		var newChat: Null<Chat> = null;
+
 		final message = Message.fromStanza(stanza, this.jid, (builder, stanza) -> {
 			var chat = getChat(builder.chatId());
-			if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(builder.chatId());
+			final isNewChat = chat == null;
+			if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(builder.chatId(), false);
+			if (isNewChat) newChat = chat;
 			if (chat == null) return builder;
 			return chat.prepareIncomingMessage(builder, stanza);
 		}, encryptionInfo);
@@ -474,6 +478,8 @@ class Client extends EventEmitter {
 							chat.setLastMessage(chatMessage);
 							if (chatMessage.versions.length < 1) chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
 							chatActivity(chat);
+						} else if (newChat != null) {
+							this.trigger("chats/update", [newChat]);
 						}
 					};
 					if (chatMessage.serverId == null) {
@@ -487,8 +493,10 @@ class Client extends EventEmitter {
 					fetchMediaByHash([hash], [from]);
 				}
 				persistence.storeReaction(accountId(), update).then((stored) -> if (stored != null) notifyMessageHandlers(stored, ReactionEvent));
+				if (newChat != null) this.trigger("chats/update", [newChat]);
 			case ModerateMessageStanza(action):
 				moderateMessage(action).then((stored) -> if (stored != null) notifyMessageHandlers(stored, CorrectionEvent));
+				if (newChat != null) this.trigger("chats/update", [newChat]);
 			case ErrorMessageStanza(localId, stanza):
 				persistence.updateMessageStatus(
 					this.accountId(),
@@ -496,11 +504,13 @@ class Client extends EventEmitter {
 					MessageFailedToSend,
 					stanza.getErrorText(),
 				).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
+				if (newChat != null) this.trigger("chats/update", [newChat]);
 			case MucInviteStanza(serverId, serverIdBy, reason, password):
 				mucInvite(message.chatId, getChat(message.chatId), message.senderId, message.threadId, serverId, serverIdBy, reason, password);
 			default:
 				// ignore
 				trace("Ignoring non-chat message: " + stanza.toString());
+				if (newChat != null) this.trigger("chats/update", [newChat]);
 		}
 
 #if !NO_JINGLE
