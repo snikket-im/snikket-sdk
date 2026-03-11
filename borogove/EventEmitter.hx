@@ -27,7 +27,7 @@ class EventEmitter {
 
 	private function new() { }
 
-	@:allow(borogove)
+	@:allow(borogove, test)
 	private function on(eventName:String, callback:EventCallback):EventHandlerToken {
 		var handlers = eventHandlers.get(eventName);
 		if(handlers == null) {
@@ -49,7 +49,7 @@ class EventEmitter {
 		});
 	}
 
-	@:allow(borogove)
+	@:allow(borogove, test)
 	private function trigger(eventName:String, eventData:Dynamic):EventResult {
 		final handlers = eventHandlers.get(eventName);
 		if (handlers == null) return EventUnhandled;

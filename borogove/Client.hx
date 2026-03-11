@@ -62,6 +62,7 @@ class Client extends EventEmitter {
 	**/
 	@:allow(borogove)
 	public var sendAvailable(null, default): Bool = true;
+	@:allow(test)
 	private var stream:GenericStream;
 	@:allow(borogove)
 	private var jid(default,null):JID;
@@ -112,7 +113,7 @@ class Client extends EventEmitter {
 	private final omemo: OMEMO;
 #end
 
-	@:allow(borogove)
+	@:allow(borogove, test)
 	private var inSync(default, null) = false;
 
 	/**

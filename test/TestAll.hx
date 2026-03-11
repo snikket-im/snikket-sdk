@@ -10,6 +10,7 @@ class TestAll {
 			new TestChatMessageBuilder(),
 			new TestStanza(),
 			new TestCaps(),
+			new TestClient(),
 			new TestXEP0393(),
 		]);
 	}
