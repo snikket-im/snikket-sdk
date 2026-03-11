@@ -45,10 +45,10 @@ Let’s continue by starting your first chat. A chat contains messages, a list o
 async function findOneChat(client: borogove.Client): borogove.Chat {
 	const iterator = client.findAvailableChats("hatter@example.com");
 	for await (const availableChat of iterator) {
-        return client.startChat(availableChat);
-    }
+		return client.startChat(availableChat);
+	}
 
-    return null;
+	return null;
 }
 ```
 
