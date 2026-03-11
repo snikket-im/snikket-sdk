@@ -61,13 +61,12 @@ RUN printf '#!/bin/bash\nexec /usr/bin/node --tls-max-v1.2 "$@"' > /usr/local/bi
  && chmod a+x /usr/local/bin/node \
  && npm install typescript
 
-RUN haxelib setup /opt/haxe
-ENV HAXE_STD_PATH=/opt/haxe/std
 COPY Makefile *.hxml /usr/src/sdk/
 COPY . /usr/src/sdk/
 
+RUN haxelib setup /opt/haxe
+ENV HAXE_STD_PATH=/opt/haxe/std
 RUN make hx-build-dep
-RUN cd /opt/haxe/hxcpp/git/tools/hxcpp && haxe compile.hxml
 
 RUN make -j$(nproc)
 RUN cd cpp && make clean

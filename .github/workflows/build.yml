@@ -39,8 +39,6 @@ jobs:
     - name: Haxe Dependencies
       run: |
         make hx-build-dep
-        cd ~/haxe/hxcpp/git/tools/hxcpp
-        haxe compile.hxml
 
     - name: NPM Dependencies
       run: |
