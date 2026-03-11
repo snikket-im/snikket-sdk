@@ -68,6 +68,26 @@ chat.sendMessage(new borogove.ChatMessageBuilder({
 }));
 ```
 
+We can also load the most recent messages from a chat's history:
+
+```typescript
+const messages = await chat.getMessagesBefore(null, null);
+```
+
+and send a reply to one of those:
+
+```typescript
+const reply = messages[0].reply();
+reply.text = "Is that so?";
+chat.sendMessage(reply);
+```
+
+and mark off that we've read all these:
+
+```typescript
+chat.markReadUpTo(messages[messages.length - 1]);
+```
+
 ## Events
 
 This is how you can listen to events:
