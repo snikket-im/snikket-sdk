@@ -880,7 +880,7 @@ class HaxeCBridge {
 				HxMutex threadManageMutex;
 
 				void defaultExceptionHandler(const char* info) {
-					printf("Unhandled haxe exception: %s\\n", info);
+					fprintf(stderr, "Unhandled Borogove exception: %s\\n", info);
 				}
 
 				typedef void (* MainThreadCallback)(void* data);
