@@ -39,7 +39,6 @@ abstract class GenericStream extends EventEmitter {
 		sendStanza(stanza);
 	}
 
-	@:allow(test)
 	private function onStanza(stanza:Stanza):Void {
 		trace("stanza received!");
 		final xmlns = stanza.attr.get("xmlns");

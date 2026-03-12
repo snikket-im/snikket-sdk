@@ -4,6 +4,7 @@ import utest.Assert;
 import utest.Async;
 import borogove.ChatMessageBuilder;
 
+@:access(borogove)
 class TestChatMessageBuilder extends utest.Test {
 	public function testConvertHtmlToXHTML() {
 		final msg = new ChatMessageBuilder();

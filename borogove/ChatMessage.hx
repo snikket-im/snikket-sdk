@@ -228,7 +228,7 @@ class ChatMessage {
 	@:allow(borogove)
 	public final versions: ReadOnlyArray<ChatMessage>;
 
-	@:allow(borogove, test)
+	@:allow(borogove)
 	private final payloads: ReadOnlyArray<Stanza>;
 
 	/**

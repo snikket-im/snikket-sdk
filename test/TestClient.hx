@@ -7,6 +7,7 @@ import borogove.Client;
 import borogove.Stanza;
 import borogove.persistence.Dummy;
 
+@:access(borogove)
 class TestClient extends utest.Test {
 	public function testAccountId() {
 		final persistence = new Dummy();

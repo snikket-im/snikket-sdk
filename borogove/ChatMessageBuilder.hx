@@ -128,7 +128,7 @@ class ChatMessageBuilder {
 	**/
 	public var versions: Array<ChatMessage> = [];
 
-	@:allow(borogove, test)
+	@:allow(borogove)
 	private var payloads: Array<Stanza> = [];
 
 	/**

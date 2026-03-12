@@ -132,7 +132,6 @@ class Stanza {
 
 	#if (!cpp && !js)
 	@:allow(borogove)
-	@:allow(test)
 	private static function fromXml(el:Xml):Stanza {
 		if(el.nodeType == XmlType.Document) {
 			return fromXml(el.firstElement());
