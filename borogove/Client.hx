@@ -1034,8 +1034,8 @@ class Client extends EventEmitter {
 		}
 		final chat = new DirectChat(this, this.stream, this.persistence, chatId);
 		persistence.storeChats(accountId(), [chat]);
-		chats.unshift(chat);
-		if (triggerIfNew) this.trigger("chats/update", [chat]);
+		chats.push(chat);
+		chatActivity(chat, triggerIfNew);
 		return chat;
 	}
 

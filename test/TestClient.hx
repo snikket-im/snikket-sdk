@@ -41,6 +41,17 @@ class TestClient extends utest.Test {
 		Assert.equals("Test Name", client.displayName());
 	}
 
+	public function testSortAfterDirectChat() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final pinned = client.getDirectChat("pinned@example.com");
+		pinned.togglePinned();
+		client.getDirectChat("notpinned@example.com");
+		Assert.equals(2, client.chats.length);
+		Assert.equals(pinned, client.chats[0]);
+		Assert.equals(pinned, client.getChats()[0]);
+	}
+
 	public function testStart(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
