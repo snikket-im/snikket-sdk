@@ -79,6 +79,7 @@ and send a reply to one of those:
 
 ```typescript
 const reply = messages[0].reply();
+reply.localId = crypto.randomUUID();
 reply.text = "Is that so?";
 chat.sendMessage(reply);
 ```

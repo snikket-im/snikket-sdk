@@ -10,6 +10,9 @@ Let's get started by  initializing the client and setting the current user and p
 #include <borogove.h>
 
 int main(void) {
+	// Initialize SDK
+	borogove_setup(NULL);
+
 	// Cache avatars and other media in a directory
 	void *media_store = borogove_persistence_media_store_fs_new("./media");
 
@@ -83,6 +86,34 @@ Now that we have the chat set up, let's send our first message.
 // Add to available_chats handler
 
 coid *builder = borogove_chat_message_builder_new();
+borogove_chat_message_builder_set_local_id(builder, "UUID");
+borogove_chat_message_builder_set_text(builder, "I would like some tea.");
+borogove_chat_send_message(chat, builder);
+borogove_release(builder);
+```
+
+We can also load the most recent messages from a chat's history:
+
+```c
+static void history_handler(void **msgs, size_t count, void *ctx) {
+	for (size_t i = 0; i < count; i++) {
+		printf("%s\n", borogove_chat_message_text(msgs[i]));
+		borogove_release(msgs[i]);
+	}
+
+	borogove_release(msgs);
+}
+
+// ...
+
+borogove_chat_get_messages_before(chat, NULL, NULL, history_handler, NULL);
+```
+
+and send a reply to one of those:
+
+```c
+void *builder = borogove_chat_message_reply(msgs[0]);
+borogove_chat_message_builder_set_local_id(builder, "UUID");
 borogove_chat_message_builder_set_text(builder, "I would like some tea.");
 borogove_chat_send_message(chat, builder);
 borogove_release(builder);
