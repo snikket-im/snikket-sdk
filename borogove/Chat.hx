@@ -1021,13 +1021,14 @@ class DirectChat extends Chat {
 		message.replyTo = [message.sender];
 		message.recipients = counterparts().map((p) -> JID.parse(p));
 		message.to = message.recipients[0];
+		if (message.localId == null) message.localId = ID.long();
 		return message;
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function correctMessage(localId:String, message:ChatMessageBuilder) {
-		final toSendId = message.localId;
 		message = prepareOutgoingMessage(message);
+		final toSendId = message.localId;
 		message.versions = [message.build()]; // This is a correction
 		message.localId = localId;
 		final outboxItem = outbox.newItem();
@@ -1700,13 +1701,14 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		message.replyTo = [message.sender];
 		message.to = JID.parse(chatId);
 		message.recipients = [message.to];
+		if (message.localId == null) message.localId = ID.long();
 		return message;
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function correctMessage(localId:String, message:ChatMessageBuilder) {
-		final toSendId = message.localId;
 		message = prepareOutgoingMessage(message);
+		final toSendId = message.localId;
 		message.versions = [message.build()]; // This is a correction
 		message.localId = localId;
 		final outboxItem = outbox.newItem();

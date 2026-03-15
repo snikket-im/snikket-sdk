@@ -86,7 +86,6 @@ Now that we have the chat set up, let's send our first message.
 // Add to available_chats handler
 
 coid *builder = borogove_chat_message_builder_new();
-borogove_chat_message_builder_set_local_id(builder, "UUID");
 borogove_chat_message_builder_set_text(builder, "I would like some tea.");
 borogove_chat_send_message(chat, builder);
 borogove_release(builder);
@@ -113,7 +112,6 @@ and send a reply to one of those:
 
 ```c
 void *builder = borogove_chat_message_reply(msgs[0]);
-borogove_chat_message_builder_set_local_id(builder, "UUID");
 borogove_chat_message_builder_set_text(builder, "I would like some tea.");
 borogove_chat_send_message(chat, builder);
 borogove_release(builder);

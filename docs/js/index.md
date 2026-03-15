@@ -84,7 +84,6 @@ Now that we have the chat set up, let's send our first message.
 
 ```typescript
 chat.sendMessage(new borogove.ChatMessageBuilder({
-	localId: crypto.randomUUID(),
 	text: "I would like some tea."
 }));
 ```
@@ -99,7 +98,6 @@ and send a reply to one of those:
 
 ```typescript
 const reply = messages[0].reply();
-reply.localId = crypto.randomUUID();
 reply.text = "Is that so?";
 chat.sendMessage(reply);
 ```
