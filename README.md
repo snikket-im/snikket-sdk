@@ -13,6 +13,26 @@ Also Typescript typings are generated which include documenation comments.
 
     npm install https://gitpkg-singpolyma.vercel.app/snikket-im/snikket-sdk/npm?compiled
 
+There is a known bug in one of our JavaScript dependencies for browser builds, if xmpp.js is <= 0.14.0 then you may need something like this vite.config.js example
+
+```js
+resolve: {
+	alias: {
+		// https://github.com/xmppjs/xmpp.js/issues/1093
+		"node:dns": "./src/dns-stub.js",
+	},
+},
+```
+
+And then the stub:
+
+```js
+export default {
+	lookup: (x, y, cb) => cb(null, []),
+	resolveSrv: (x, cb) => cb(null, []),
+};
+```
+
 # C
 
 `libborogove.so` and `cpp/borogove.h`, the latter has documentation comments.
