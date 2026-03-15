@@ -18,7 +18,6 @@
     "./sqlite-wasm": "./sqlite-wasm.js"
   },
   "scripts": {
-    "postinstall": "patch-package",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -26,8 +25,7 @@
   "dependencies": {
     "@xmpp/client": "^0.14.0",
     "@xmpp/debug": "^0.14.0",
-    "@xmpp/sasl-scram-sha-1": "^0.14.0",
-    "patch-package": "^8.0.1"
+    "@xmpp/sasl-scram-sha-1": "^0.14.0"
   },
   "peerDependenciesMeta": {
     "@sqlite.org/sqlite-wasm": {
