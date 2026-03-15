@@ -240,11 +240,10 @@ abstract class Chat {
 	/**
 		Correct an already-send message by replacing it with a new one
 
-		@param localId the localId of the message to correct
-		       must be the localId of the first version ever sent, not a subsequent correction
+		@param localId the ChatMessage to correct
 		@param message the new ChatMessage to replace it with
 	**/
-	abstract public function correctMessage(localId:String, message:ChatMessageBuilder):Void;
+	abstract public function correctMessage(correct:ChatMessage, message:ChatMessageBuilder):Void;
 
 	/**
 		Add new reaction to a message in this Chat
@@ -1026,17 +1025,17 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function correctMessage(localId:String, message:ChatMessageBuilder) {
+	public function correctMessage(correct:ChatMessage, message:ChatMessageBuilder) {
 		message = prepareOutgoingMessage(message);
 		final toSendId = message.localId;
 		message.versions = [message.build()]; // This is a correction
-		message.localId = localId;
+		message.localId = correct.localId;
 		final outboxItem = outbox.newItem();
 		client.storeMessages([message.build()]).then((corrected) -> {
-			message.versions = corrected[0].versions[corrected[0].versions.length - 1]?.localId == localId ? cast corrected[0].versions : [message.build()];
+			message.versions = corrected[0].versions[corrected[0].versions.length - 1]?.localId == correct.localId ? cast corrected[0].versions : [message.build()];
 			message.localId = toSendId;
 			sendMessageStanza(message.build().asStanza(), outboxItem);
-			if (localId == lastMessage?.localId) {
+			if (corrected[0].canReplace(lastMessage)) {
 				setLastMessage(corrected[0]);
 				client.trigger("chats/update", [this]);
 			}
@@ -1089,7 +1088,11 @@ class DirectChat extends Chat {
 			correct.localId = ID.long();
 			correct.setHtml("");
 			correct.text = null;
-			correctMessage(reaction.envelopeId, correct);
+
+			final fakeEnvelope = new ChatMessageBuilder();
+			fakeEnvelope.localId = reaction.envelopeId;
+			fakeEnvelope.senderId = reaction.senderId;
+			correctMessage(fakeEnvelope.build(), correct);
 			return;
 		}
 
@@ -1706,18 +1709,18 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function correctMessage(localId:String, message:ChatMessageBuilder) {
+	public function correctMessage(correct:ChatMessage, message:ChatMessageBuilder) {
 		message = prepareOutgoingMessage(message);
 		final toSendId = message.localId;
 		message.versions = [message.build()]; // This is a correction
-		message.localId = localId;
+		message.localId = correct.localId;
 		final outboxItem = outbox.newItem();
 		client.storeMessages([message.build()]).then((corrected) -> {
-			message.versions = corrected[0].versions[0]?.localId == localId ? cast corrected[0].versions : [message.build()];
+			message.versions = corrected[0].versions[0]?.localId == correct.localId ? cast corrected[0].versions : [message.build()];
 			message.localId = toSendId;
 			sendMessageStanza(message.build().asStanza(), outboxItem);
 			client.notifyMessageHandlers(corrected[0], CorrectionEvent);
-			if (localId == lastMessage?.localId) {
+			if (corrected[0].canReplace(lastMessage)) {
 				setLastMessage(corrected[0]);
 				client.trigger("chats/update", [this]);
 			}
@@ -1768,7 +1771,12 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 			correct.localId = ID.long();
 			correct.setHtml("");
 			correct.text = null;
-			correctMessage(reaction.envelopeId, correct);
+
+
+			final fakeEnvelope = new ChatMessageBuilder();
+			fakeEnvelope.localId = reaction.envelopeId;
+			fakeEnvelope.senderId = reaction.senderId;
+			correctMessage(fakeEnvelope.build(), correct);
 			return;
 		}
 
