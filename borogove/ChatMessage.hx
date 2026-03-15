@@ -445,6 +445,16 @@ class ChatMessage {
 	}
 
 	/**
+		Is this message the same as or a replacement for some other one?
+	**/
+	public function canReplace(other: ChatMessage) {
+		return
+			(other.serverId != null && serverId == other.serverId && serverIdBy == other.serverIdBy) ||
+			(localId == other.localId &&
+				((!isIncoming() && !other.isIncoming()) || (senderId == other.senderId && versions.length > 0)));
+	}
+
+	/**
 		Is this an incoming message?
 	**/
 	public function isIncoming():Bool {
