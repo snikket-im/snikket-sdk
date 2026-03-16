@@ -254,24 +254,24 @@ export default async (dbname, media, tokenize, stemmer) => {
 	}
 
 	const obj = {
-		lastId: async function(account, jid) {
+		lastId: async function(account, chatId) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 			var cursor = null;
-			if (jid === null) {
+			if (chatId === null) {
 				cursor = store.index("accounts").openCursor(
 					IDBKeyRange.bound([account], [account, []]),
 					"prev"
 				);
 			} else {
 				cursor = store.index("chats").openCursor(
-					IDBKeyRange.bound([account, jid], [account, jid, []]),
+					IDBKeyRange.bound([account, chatId], [account, chatId, []]),
 					"prev"
 				);
 			}
 			while (true) {
 				const result = await promisifyRequest(cursor);
-				if (!result || (result.value.syncPoint && result.value.serverId && (jid || result.value.serverIdBy === account))) {
+				if (!result || (result.value.syncPoint && result.value.serverId && ((chatId && result.value.serverIdBy == chatId) || result.value.serverIdBy === account))) {
 					return result ? result.value.serverId : null;
 				} else {
 					result.continue();

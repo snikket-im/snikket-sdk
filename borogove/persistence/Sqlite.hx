@@ -234,7 +234,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			q += " AND mam_by=?";
 			params.push(accountId);
 		} else {
-			q += " AND chat_id=?";
+			q += " AND mam_by=?";
 			params.push(chatId);
 		}
 		if (chatId != null) {
