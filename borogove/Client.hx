@@ -113,6 +113,7 @@ class Client extends EventEmitter {
 
 	@:allow(borogove)
 	private var inSync(default, null) = false;
+	private var firstSync = true;
 
 	/**
 		Create a new Client to connect to a particular account
@@ -690,6 +691,7 @@ class Client extends EventEmitter {
 				}
 				return EventHandled;
 			});
+			firstSync = true;
 			stream.connect(jid.asString(), sm);
 		});
 	}
@@ -833,10 +835,14 @@ class Client extends EventEmitter {
 
 		if (data.resumed) {
 			inSync = true;
-			for (chat in getChats()) {
-				final channel = Std.downcast(chat, Channel);
-				if (channel != null) {
-					channel.inSync = true;
+			if (firstSync) {
+				// We resumed from disk so these must have been synced before
+				// and will get anything since live
+				for (chat in getChats()) {
+					final channel = Std.downcast(chat, Channel);
+					if (channel != null) {
+						channel.inSync = true;
+					}
 				}
 			}
 
