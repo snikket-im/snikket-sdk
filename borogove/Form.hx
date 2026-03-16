@@ -46,6 +46,7 @@ class FormItem {
 @:build(HaxeSwiftBridge.expose())
 #end
 class FormSubmitBuilder {
+	@:allow(borogove.Form)
 	private final data: Map<String, Array<String>> = [];
 
 	public function new() { }
@@ -197,6 +198,12 @@ class Form implements FormSection {
 					builder.add(entry[0], entry[1] == "on" ? "true" : "false");
 				} else {
 					builder.add(entry[0], entry[1]);
+				}
+			}
+
+			for (field in form.fields) {
+				if (field.type == "boolean" && builder.data[field.name] == null) {
+					builder.add(field.name, "false");
 				}
 			}
 		#end
