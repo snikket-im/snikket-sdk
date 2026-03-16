@@ -18,7 +18,7 @@ class BoB extends GenericQuery {
 	public function new(to: Null<String>, uri: String) {
 		if (!uri.startsWith("cid:") || !uri.endsWith("@bob.xmpp.org") || !uri.contains("+")) throw "invalid BoB URI";
 
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza("iq", { to: to, type: "get", id: queryId })
 			.tag("data", { xmlns: xmlns, cid: uri.substr(4) }).up();
 	}

@@ -318,7 +318,7 @@ class ChatMessage {
 	public function reply() {
 		final m = new ChatMessageBuilder();
 		m.type = type;
-		m.threadId = threadId ?? ID.long();
+		m.threadId = threadId ?? ID.unique();
 		m.replyToMessage = this;
 		return m;
 	}

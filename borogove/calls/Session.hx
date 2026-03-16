@@ -63,7 +63,7 @@ private function mkCallMessage(to: JID, from: JID, event: Stanza) {
 	m.text = "call " + event.name;
 	m.timestamp = Date.format(std.Date.now());
 	m.payloads.push(event);
-	m.localId = ID.long();
+	m.localId = ID.unique();
 	if (event.name != "propose") {
 		m.versions = [m.build()];
 	}
@@ -205,7 +205,7 @@ class OutgoingProposedSession implements Session {
 	private function new(client: Client, to: JID) {
 		this.client = client;
 		this.to = to;
-		this._sid = ID.long();
+		this._sid = ID.unique();
 	}
 
 	@:allow(borogove)
@@ -398,7 +398,7 @@ class InitiatedSession implements Session {
 	@HaxeCBridge.noemit
 	public function hangup() {
 		client.sendStanza(
-			new Stanza("iq", { to: counterpart.asString(), type: "set", id: ID.medium() })
+			new Stanza("iq", { to: counterpart.asString(), type: "set", id: ID.unique() })
 				.tag("jingle", { xmlns: "urn:xmpp:jingle:1", action: "session-terminate", sid: sid })
 				.tag("reason").tag("success")
 				.up().up().up()
@@ -467,7 +467,7 @@ class InitiatedSession implements Session {
 						) != null) {
 							final modify = gonnaAccept.toStanza("content-modify", sid, initiator);
 							modify.attr.set("to", counterpart.asString());
-							modify.attr.set("id", ID.medium());
+							modify.attr.set("id", ID.unique());
 							client.sendStanza(modify);
 						}
 					}
@@ -588,7 +588,7 @@ class InitiatedSession implements Session {
 			sid
 		).toStanza(initiator);
 		transportInfo.attr.set("to", counterpart.asString());
-		transportInfo.attr.set("id", ID.medium());
+		transportInfo.attr.set("id", ID.unique());
 		client.sendStanza(transportInfo);
 	}
 
@@ -629,7 +629,7 @@ class InitiatedSession implements Session {
 				if (pc != null) client.trigger("call/updateStatus", { session: this });
 				if (pc != null && (pc.connectionState == "closed" || pc.connectionState == "failed")) {
 					client.sendStanza(
-						new Stanza("iq", { to: counterpart.asString(), type: "set", id: ID.medium() })
+						new Stanza("iq", { to: counterpart.asString(), type: "set", id: ID.unique() })
 							.tag("jingle", { xmlns: "urn:xmpp:jingle:1", action: "session-terminate", sid: sid })
 							.tag("reason").tag("connectivity-error")
 							.up().up().up()
@@ -673,7 +673,7 @@ class InitiatedSession implements Session {
 			if (beforeSend != null) beforeSend(descriptionToSend);
 			final sessionAccept = descriptionToSend.toStanza(type, sid, initiator);
 			sessionAccept.attr.set("to", counterpart.asString());
-			sessionAccept.attr.set("id", ID.medium());
+			sessionAccept.attr.set("id", ID.unique());
 			client.sendStanza(sessionAccept);
 
 			final outboundCandidate = queuedOutboundCandidate.copy();

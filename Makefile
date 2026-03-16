@@ -13,7 +13,7 @@ hx-build-dep:
 	haxelib --quiet install haxe-strings
 	haxelib --quiet install hsluv
 	haxelib --quiet install tink_http
-	haxelib --quiet install sha
+	haxelib --quiet install uuidv7
 	haxelib --quiet install thenshim
 	haxelib --quiet install HtmlParser
 	haxelib --quiet install hxnodejs
@@ -28,6 +28,7 @@ npm/borogove-browser.js:
 	sed -i 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove-browser.js
 	sed -i 's/"\[Symbol.asyncIterator\]"() {/[Symbol.asyncIterator]() {/g' npm/borogove-browser.js
 	cd npm && npx cjstoesm borogove-browser.js
+	sed -i 's/import crypto from "crypto";//g' npm/borogove-browser.js
 	awk -f optional-sqlite.awk npm/borogove-browser.js
 	mv npm/browser-no-sqlite.js npm/borogove-browser.js
 	awk -f optional-sqlite-types.awk npm/borogove-browser.d.ts

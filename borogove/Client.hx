@@ -1,8 +1,7 @@
 package borogove;
 
-import sha.SHA256;
-
 import haxe.crypto.Base64;
+import haxe.crypto.Sha256;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
 import thenshim.Promise;
@@ -708,7 +707,7 @@ class Client extends EventEmitter {
 		return persistence.getLogin(accountId()).then(login -> {
 			token = login.token;
 			fastCount = login.fastCount;
-			stream.clientId = login.clientId ?? ID.long();
+			stream.clientId = login.clientId ?? ID.unique();
 			jid = jid.withResource(stream.clientId);
 			if (!updateDisplayName(login.displayName) && login.clientId == null) {
 				persistence.storeLogin(jid.asBare().asString(), stream.clientId, this.displayName(), null);
@@ -805,7 +804,7 @@ class Client extends EventEmitter {
 			new Stanza("iq", { type: "set" })
 				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
 				.tag("publish", { node: "urn:xmpp:vcard4" })
-				.tag("item", { id: ID.long() })
+				.tag("item", { id: ID.unique() })
 				.addChild(profile.buildStanza()),
 			new Stanza("x", { xmlns: "jabber:x:data", type: "submit" })
 				.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
@@ -882,7 +881,7 @@ class Client extends EventEmitter {
 					if (sendAvailable) {
 						// Enable carbons
 						sendStanza(
-							new Stanza("iq", { type: "set", id: ID.short() })
+							new Stanza("iq", { type: "set", id: ID.unique() })
 								.tag("enable", { xmlns: "urn:xmpp:carbons:2" })
 								.up()
 						);
@@ -908,7 +907,7 @@ class Client extends EventEmitter {
 	**/
 	public function prepareAttachment(source: AttachmentSource): Promise<Null<ChatAttachment>> {
 		return persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0").then((services) -> {
-			final sha256 = new sha.SHA256();
+			final sha256 = new Sha256();
 			return new Promise((resolve, reject) -> {
 				source.tinkSource().chunked().forEach((chunk) -> {
 					sha256.update(chunk);
@@ -1492,7 +1491,7 @@ class Client extends EventEmitter {
 
 	@:allow(borogove)
 	private function sendStanza(stanza:Stanza) {
-		if (stanza.attr.get("id") == null) stanza.attr.set("id", ID.long());
+		if (stanza.attr.get("id") == null) stanza.attr.set("id", ID.unique());
 		stream.sendStanza(stanza);
 	}
 

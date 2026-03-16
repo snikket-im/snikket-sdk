@@ -89,12 +89,6 @@ extern class XmppJsLtx {
 	static function parse(input:String):XmppJsXml;
 }
 
-@:js.import(@default "@xmpp/id")
-extern class XmppJsId {
-	@:selfCall
-	static function id():String;
-}
-
 @:js.import(@default "@xmpp/error")
 extern class XmppJsError {
 	public final name: String;
@@ -434,10 +428,6 @@ class XmppJsStream extends GenericStream {
 			client.send(convertFromStanza(stanza));
 		}
 		triggerSMupdate();
-	}
-
-	public function newId():String {
-		return XmppJsId.id();
 	}
 
 	private function triggerSMupdate() {

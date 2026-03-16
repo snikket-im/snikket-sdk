@@ -29,7 +29,7 @@ class Profile {
 		this.vcard = vcard;
 		this.items = items != null ? items : vcard.allTags().filter(el ->
 			TYPES[el.name] != null // remove unknown or compound property
-		).map(child -> new ProfileItem(child, child.name + "/" + ID.short()));
+		).map(child -> new ProfileItem(child, child.name + "/" + ID.unique()));
 	}
 }
 
@@ -55,7 +55,7 @@ class ProfileItem {
 
 	public function parameters(): Array<ProfileItem> {
 		final params = item.getChild("parameters")?.allTags() ?? [];
-		return params.map(param -> new ProfileItem(param, id + "/" + ID.short()));
+		return params.map(param -> new ProfileItem(param, id + "/" + ID.unique()));
 	}
 
 	public function text(): Array<String> {
@@ -159,7 +159,7 @@ class ProfileBuilder {
 		if (type != null) {
 			final el = new Stanza(k).textTag(type, v);
 			vcard.addChild(el);
-			items.push(new ProfileItem(el, k + "/" + ID.short()));
+			items.push(new ProfileItem(el, k + "/" + ID.unique()));
 		} else {
 			throw 'Unknown profile property ${k}';
 		}

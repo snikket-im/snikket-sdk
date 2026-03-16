@@ -26,11 +26,10 @@ abstract class GenericStream extends EventEmitter {
 	abstract public function connect(jid:String, sm:Null<BytesData>):Void;
 	abstract public function disconnect():Void;
 	abstract public function sendStanza(stanza:Stanza):Void;
-	abstract public function newId():String;
 	abstract public function onIq(type:IqRequestType, tag:String, xmlns:String, handler:(Stanza)->IqResult):Void;
 
 	public function sendIq(stanza:Stanza, callback:(stanza:Stanza)->Void):Void {
-		var id = newId();
+		var id = ID.unique();
 		stanza.attr.set("id", id);
 		this.once('iq-response/$id', function (event) {
 			callback(event.stanza);

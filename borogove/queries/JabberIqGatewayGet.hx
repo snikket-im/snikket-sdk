@@ -19,7 +19,7 @@ class JabberIqGatewayGet extends GenericQuery {
 	private var result:Null<Either<String, String>>;
 
 	public function new(to: String, ?prompt: String) {
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza(
 			"iq",
 			{ to: to, type: prompt == null ? "get" : "set", id: queryId }

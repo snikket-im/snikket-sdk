@@ -20,7 +20,7 @@ class RosterGet extends GenericQuery {
 		var attr: DynamicAccess<String> = { xmlns: xmlns };
 		if (ver != null) attr["ver"] = ver;
 		/* Build basic query */
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza("iq", { type: "get" })
 			.tag("query", attr)
 			.up();

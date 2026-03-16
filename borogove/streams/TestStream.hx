@@ -18,10 +18,6 @@ class TestStream extends GenericStream {
 
 	public function disconnect() { }
 
-	public function newId() {
-		return ID.long();
-	}
-
 	public function sendStanza(stanza:Stanza) {
 		this.trigger("sendStanza", stanza);
 	}

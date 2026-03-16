@@ -20,7 +20,7 @@ class VcardTempGet extends GenericQuery {
 
 	public function new(to: JID) {
 		/* Build basic query */
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza("iq", { to: to.asString(), type: "get", id: queryId });
 		queryStanza.tag("vCard", { xmlns: xmlns }).up();
 	}

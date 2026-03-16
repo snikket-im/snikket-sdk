@@ -19,7 +19,7 @@ class ExtDiscoGet extends GenericQuery {
 
 	public function new(to: String) {
 		/* Build basic query */
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza(
 			"iq",
 			{ to: to, type: "get", id: queryId }

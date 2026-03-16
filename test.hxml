@@ -3,9 +3,9 @@
 --library haxe-strings
 --library hsluv
 --library hxtsdgen
---library sha
 --library thenshim
 --library tink_http
+--library uuidv7
 
 --library utest
 

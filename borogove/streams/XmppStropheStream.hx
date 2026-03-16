@@ -230,10 +230,6 @@ class XmppStropheStream extends GenericStream {
 
 	}
 
-	public function newId():String {
-		return ID.long();
-	}
-
 	public static function strophe_certfail_handler(cert:StropheTlsCert, err:RawConstPointer<Char>): Int {
 #if STROPHE_HAVE_TLS_CERT_USERDATA
 		final userdata = StropheTlsCert.get_userdata(cert);

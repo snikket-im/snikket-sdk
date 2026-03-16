@@ -57,7 +57,7 @@ class MAMQuery extends GenericQuery {
 
 	public function new(params:MAMQueryParams, ?jid:String) {
 		/* Build basic query */
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza("iq", { type: "set", to: jid })
 			.tag("query", { xmlns: xmlns, queryid: queryId })
 				.tag("x", { xmlns: "jabber:x:data", type: "submit" })

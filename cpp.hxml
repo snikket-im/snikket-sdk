@@ -4,9 +4,9 @@
 --library haxe-strings
 --library hsluv
 --library tink_http
---library sha
 --library thenshim
 --library HtmlParser
+--library uuidv7
 
 HaxeCBridge
 borogove.Client

@@ -200,7 +200,7 @@ class Message {
 			final reactionId = reactionsEl.attr.get("id");
 			if (reactionId != null) {
 				return new Message(msg.chatId(), msg.senderId, msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
-					stanza.attr.get("id") ?? ID.long(),
+					stanza.attr.get("id") ?? ID.unique(),
 					isGroupchat ? reactionId : null,
 					isGroupchat ? msg.chatId() : null,
 					isGroupchat ? null : reactionId,
@@ -280,7 +280,7 @@ class Message {
 			final text = msg.text;
 			if (text != null && EmojiUtil.isOnlyEmoji(text.trim())) {
 				return new Message(msg.chatId(), msg.senderId, msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
-					stanza.attr.get("id") ?? ID.long(),
+					stanza.attr.get("id") ?? ID.unique(),
 					isGroupchat ? replyToID : null,
 					isGroupchat ? msg.chatId() : null,
 					isGroupchat ? null : replyToID,
@@ -300,7 +300,7 @@ class Message {
 						final hash = Hash.fromUri(els[0].attr.get("src") ?? "");
 						if (hash != null) {
 							return new Message(msg.chatId(), msg.senderId, msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
-								stanza.attr.get("id") ?? ID.long(),
+								stanza.attr.get("id") ?? ID.unique(),
 								isGroupchat ? replyToID : null,
 								isGroupchat ? msg.chatId() : null,
 								isGroupchat ? null : replyToID,

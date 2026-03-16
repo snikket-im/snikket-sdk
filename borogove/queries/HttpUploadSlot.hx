@@ -21,7 +21,7 @@ class HttpUploadSlot extends GenericQuery {
 
 	public function new(to: String, filename: String, size: Int, mime: String, hashes: Array<Hash>) {
 		/* Build basic query */
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza(
 			"iq",
 			{ to: to, type: "get", id: queryId }

@@ -4,9 +4,9 @@
 --library hsluv
 --library hxtsdgen
 --library jsImport
---library sha
 --library thenshim
 --library tink_http
+--library uuidv7
 
 borogove.Client
 borogove.Register

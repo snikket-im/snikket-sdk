@@ -14,7 +14,7 @@ class Push2Enable extends GenericQuery {
 	private var responseStanza:Stanza;
 
 	public function new(to: String, service: String, client: String, ua_public: Bytes, auth_secret: Bytes, jwt_alg: Null<String>, jwt_key: Bytes, jwt_claims: Map<String, String>, grace: Int, filters: Array<{ jid: String, mention: Bool, reply: Bool }>) {
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza(
 			"iq",
 			{ to: to, type: "set", id: queryId }

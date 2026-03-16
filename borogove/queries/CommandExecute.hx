@@ -26,7 +26,7 @@ class CommandExecute extends GenericQuery {
 		attr["action"] = action ?? "execute";
 		if (sessionid != null) attr["sessionid"] = sessionid;
 		/* Build basic query */
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza(
 			"iq",
 			{ to: to, type: "set", id: queryId }

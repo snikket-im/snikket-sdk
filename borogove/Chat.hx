@@ -247,7 +247,7 @@ abstract class Chat {
 	**/
 	public function addReaction(m:ChatMessage, reaction:Reaction) {
 		final toSend = m.reply();
-		toSend.localId = ID.long();
+		toSend.localId = ID.unique();
 		reaction.render(
 			(text) -> {
 				toSend.text = text.replace("\u{fe0f}", "");
@@ -362,7 +362,7 @@ abstract class Chat {
 				final inviteFromBareChat = client.getChat(inviteFrom.asBare().asString());
 				final toBlock = inviteFromBareChat != null && Std.isOfType(inviteFromBareChat, Channel) ? inviteFrom.asString() : inviteFrom.asBare().asString();
 
-				final iq = new Stanza("iq", { type: "set", id: ID.short() })
+				final iq = new Stanza("iq", { type: "set", id: ID.unique() })
 					.tag("block", { xmlns: "urn:xmpp:blocking" })
 					.tag("item", { jid: toBlock });
 				if (reportSpam) {
@@ -384,7 +384,7 @@ abstract class Chat {
 			close(); // close persists
 		}
 		if (onServer) {
-			final iq = new Stanza("iq", { type: "set", id: ID.short() })
+			final iq = new Stanza("iq", { type: "set", id: ID.unique() })
 				.tag("block", { xmlns: "urn:xmpp:blocking" })
 				.tag("item", { jid: chatId });
 			if (reportSpam) {
@@ -413,7 +413,7 @@ abstract class Chat {
 		client.trigger("chats/update", [this]);
 		if (onServer) {
 			stream.sendIq(
-				new Stanza("iq", { type: "set", id: ID.short() })
+				new Stanza("iq", { type: "set", id: ID.unique() })
 					.tag("unblock", { xmlns: "urn:xmpp:blocking" })
 					.tag("item", { jid: chatId }).up().up(),
 				(response) -> {}
@@ -1020,7 +1020,7 @@ class DirectChat extends Chat {
 		message.replyTo = [message.sender];
 		message.recipients = counterparts().map((p) -> JID.parse(p));
 		message.to = message.recipients[0];
-		if (message.localId == null) message.localId = ID.long();
+		if (message.localId == null) message.localId = ID.unique();
 		return message;
 	}
 
@@ -1085,7 +1085,7 @@ class DirectChat extends Chat {
 		if (Std.isOfType(reaction, CustomEmojiReaction)) {
 			if (reaction.envelopeId == null) throw "Cannot remove custom emoji reaction without envelopeId";
 			final correct = m.reply();
-			correct.localId = ID.long();
+			correct.localId = ID.unique();
 			correct.setHtml("");
 			correct.text = null;
 
@@ -1106,7 +1106,7 @@ class DirectChat extends Chat {
 				}
 			}
 		}
-		final update = new ReactionUpdate(ID.long(), null, null, m.localId, m.chatId(), client.accountId(), Date.format(std.Date.now()), reactions, EmojiReactions);
+		final update = new ReactionUpdate(ID.unique(), null, null, m.localId, m.chatId(), client.accountId(), Date.format(std.Date.now()), reactions, EmojiReactions);
 		final outboxItem = outbox.newItem();
 		persistence.storeReaction(client.accountId(), update).then((stored) -> {
 			sendMessageStanza(update.asStanza(), outboxItem);
@@ -1160,7 +1160,7 @@ class DirectChat extends Chat {
 			if (message.isIncoming() && message.localId != null) {
 				for (recipient in counterparts()) {
 					// TODO: extended addressing when relevant
-					final stanza = new Stanza("message", { to: recipient, id: ID.long() })
+					final stanza = new Stanza("message", { to: recipient, id: ID.unique() })
 						.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: message.localId }).up();
 					if (message.threadId != null) {
 						stanza.textTag("thread", message.threadId);
@@ -1193,8 +1193,8 @@ class DirectChat extends Chat {
 				.up().up(),
 			(response) -> {
 				if (response.attr.get("type") == "error") return;
-				stream.sendStanza(new Stanza("presence", { to: chatId, type: "subscribe", id: ID.short() }));
-				if (isTrusted()) stream.sendStanza(new Stanza("presence", { to: chatId, type: "subscribed", id: ID.short() }));
+				stream.sendStanza(new Stanza("presence", { to: chatId, type: "subscribe", id: ID.unique() }));
+				if (isTrusted()) stream.sendStanza(new Stanza("presence", { to: chatId, type: "subscribed", id: ID.unique() }));
 			}
 		);
 	}
@@ -1204,7 +1204,7 @@ class DirectChat extends Chat {
 
 		for (recipient in counterparts()) {
 			final stanza = new Stanza("message", {
-					id: ID.long(),
+					id: ID.unique(),
 					type: "chat",
 					from: client.jid.asString(),
 					to: recipient
@@ -1222,7 +1222,7 @@ class DirectChat extends Chat {
 	public function close() {
 		if (typingTimer != null) typingTimer.stop();
 		if (uiState == Invited) {
-			client.sendStanza(new Stanza("presence", { to: chatId, type: "unsubscribed", id: ID.short() }));
+			client.sendStanza(new Stanza("presence", { to: chatId, type: "unsubscribed", id: ID.unique() }));
 		}
 		// Should this remove from roster? Or set untrusted?
 		uiState = Closed;
@@ -1710,7 +1710,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		message.replyTo = [message.sender];
 		message.to = JID.parse(chatId);
 		message.recipients = [message.to];
-		if (message.localId == null) message.localId = ID.long();
+		if (message.localId == null) message.localId = ID.unique();
 		return message;
 	}
 
@@ -1774,7 +1774,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		if (Std.isOfType(reaction, CustomEmojiReaction)) {
 			if (reaction.envelopeId == null) throw "Cannot remove custom emoji reaction without envelopeId";
 			final correct = m.reply();
-			correct.localId = ID.long();
+			correct.localId = ID.unique();
 			correct.setHtml("");
 			correct.text = null;
 
@@ -1794,7 +1794,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 				if (react != null && !Std.isOfType(react, CustomEmojiReaction)) reactions.push(react);
 			}
 		}
-		final update = new ReactionUpdate(ID.long(), m.serverId, m.chatId(), null, m.chatId(), getFullJid().asString(), Date.format(std.Date.now()), reactions, EmojiReactions);
+		final update = new ReactionUpdate(ID.unique(), m.serverId, m.chatId(), null, m.chatId(), getFullJid().asString(), Date.format(std.Date.now()), reactions, EmojiReactions);
 		final outboxItem = outbox.newItem();
 		persistence.storeReaction(client.accountId(), update).then((stored) -> {
 			sendMessageStanza(update.asStanza(), outboxItem);
@@ -1822,7 +1822,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 			// Only send markers for others messages,
 			// it's obvious we've read our own
 			if (message.isIncoming() && message.serverId != null) {
-				final stanza = new Stanza("message", { to: chatId, id: ID.long(), type: "groupchat" })
+				final stanza = new Stanza("message", { to: chatId, id: ID.unique(), type: "groupchat" })
 					.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: message.serverId }).up();
 				if (message.threadId != null) {
 					stanza.textTag("thread", message.threadId);
@@ -1890,7 +1890,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 
 	private function sendChatState(state: String, threadId: Null<String>) {
 		final stanza = new Stanza("message", {
-				id: ID.long(),
+				id: ID.unique(),
 				type: "groupchat",
 				from: client.jid.asString(),
 				to: chatId
@@ -1909,7 +1909,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		if (uiState == Invited) {
 			for (invite in invites()) {
 				client.sendStanza(
-					new Stanza("message", { id: ID.long(), to: chatId })
+					new Stanza("message", { id: ID.unique(), to: chatId })
 						.tag("x", { xmlns: "http://jabber.org/protocol/muc#user" })
 						.tag("decline", { to: invite.attr.get("from") })
 						.up().up()

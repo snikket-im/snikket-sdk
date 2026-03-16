@@ -14,7 +14,7 @@ class Push2Disable extends GenericQuery {
 	private var responseStanza:Stanza;
 
 	public function new(to: String) {
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza(
 			"iq",
 			{ to: to, type: "set", id: queryId }

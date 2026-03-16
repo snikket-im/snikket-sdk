@@ -20,7 +20,7 @@ class DiscoItemsGet extends GenericQuery {
 		var attr: DynamicAccess<String> = { xmlns: xmlns };
 		if (node != null) attr["node"] = node;
 		/* Build basic query */
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza(
 			"iq",
 			{ to: to, type: "get", id: queryId }

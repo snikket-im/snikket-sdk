@@ -19,7 +19,7 @@ class PubsubGet extends GenericQuery {
 		var attr: DynamicAccess<String> = { node: node };
 		if (ver != null) attr["ver"] = ver;
 		/* Build basic query */
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza("iq", { to: to, type: "get", id: queryId });
 		final items = queryStanza
 			.tag("pubsub", { xmlns: xmlns })

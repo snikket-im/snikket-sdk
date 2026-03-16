@@ -18,7 +18,7 @@ class BlocklistGet extends GenericQuery {
 
 	public function new() {
 		/* Build basic query */
-		queryId = ID.short();
+		queryId = ID.unique();
 		queryStanza = new Stanza("iq", { type: "get", id: queryId })
 			.tag("blocklist", { xmlns: xmlns }).up();
 	}
