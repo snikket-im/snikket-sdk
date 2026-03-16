@@ -867,6 +867,11 @@ abstract class Chat {
 	}
 
 	private function recomputeUnread(): Promise<Any> {
+		if (lastMessage != null && lastMessage.serverId == readUpToId) {
+			setUnreadCount(0);
+			return Promise.resolve(null);
+		}
+
 		return persistence.getMessagesBefore(client.accountId(), chatId, null).then((messages) -> {
 			var i = messages.length;
 			while (--i >= 0) {
@@ -879,7 +884,10 @@ abstract class Chat {
 	@:allow(borogove)
 	private function markReadUpToId(upTo: String, upToBy: String): Promise<Any> {
 		if (upTo == null) return Promise.reject(null);
-		if (readUpTo() == upTo) return Promise.reject(null);
+		if (readUpToId == upTo) {
+			if (lastMessage != null && lastMessage.serverId == readUpToId) setUnreadCount(0);
+			return Promise.reject(null);
+		}
 
 		readUpToId = upTo;
 		readUpToBy = upToBy;
@@ -889,7 +897,10 @@ abstract class Chat {
 
 	private function markReadUpToMessage(message: ChatMessage): Promise<Any> {
 		if (message.serverId == null || message.chatId() != chatId) return Promise.reject(null);
-		if (readUpTo() == message.serverId) return Promise.reject(null);
+		if (readUpToId == message.serverId) {
+			if (lastMessage != null && lastMessage.serverId == readUpToId) setUnreadCount(0);
+			return Promise.reject(null);
+		}
 
 		if (readUpToId == null) {
 			return markReadUpToId(message.serverId, message.serverIdBy);
