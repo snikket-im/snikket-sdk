@@ -500,35 +500,23 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>): Promise<Array<ChatMessage>> {
-		return getMessages(accountId, chatId, beforeTime, "<");
+	public function getMessagesBefore(accountId: String, chatId: String, before: Null<ChatMessage>): Promise<Array<ChatMessage>> {
+		return getMessages(accountId, chatId, before?.timestamp, "<");
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>): Promise<Array<ChatMessage>> {
-		return getMessages(accountId, chatId, afterTime, ">");
+	public function getMessagesAfter(accountId: String, chatId: String, after: Null<ChatMessage>): Promise<Array<ChatMessage>> {
+		return getMessages(accountId, chatId, after?.timestamp, ">");
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>): Promise<Array<ChatMessage>> {
-		return (if (aroundTime == null) {
-			getMessage(accountId, chatId, aroundId, null).then(m ->
-				if (m != null) {
-					Promise.resolve(m.timestamp);
-				} else {
-					getMessage(accountId, chatId, null, aroundId).then(m -> m?.timestamp);
-				}
-			);
-		} else {
-			Promise.resolve(aroundTime);
-		}).then(aroundTime ->
-			thenshim.PromiseTools.all([
-				getMessages(accountId, chatId, aroundTime, "<"),
-				getMessages(accountId, chatId, aroundTime, ">=")
-			])
-		).then(results -> results.flatten());
+	public function getMessagesAround(accountId: String, around: ChatMessage): Promise<Array<ChatMessage>> {
+		final chatId = around.chatId();
+		return thenshim.PromiseTools.all([
+			getMessages(accountId, chatId, around.timestamp, "<"),
+			getMessages(accountId, chatId, around.timestamp, ">=")
+		]).then(results -> results.flatten());
 	}
-
 
 	private function getChatUnreadDetails(accountId: String, chat: Chat): Promise<{ chatId: String, message: ChatMessage, unreadCount: Int }> {
 		return db.exec(

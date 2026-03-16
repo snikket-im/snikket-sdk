@@ -57,17 +57,17 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>): Promise<Array<ChatMessage>> {
+	public function getMessagesBefore(accountId: String, chatId: String, before: Null<ChatMessage>): Promise<Array<ChatMessage>> {
 		return Promise.resolve([]);
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>): Promise<Array<ChatMessage>> {
+	public function getMessagesAfter(accountId: String, chatId: String, after: Null<ChatMessage>): Promise<Array<ChatMessage>> {
 		return Promise.resolve([]);
 	}
 
 	@HaxeCBridge.noemit
-	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>): Promise<Array<ChatMessage>> {
+	public function getMessagesAround(accountId: String, around: Null<ChatMessage>): Promise<Array<ChatMessage>> {
 		return Promise.resolve([]);
 	}
 

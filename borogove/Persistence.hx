@@ -33,9 +33,9 @@ interface Persistence {
 	public function updateMessage(accountId: String, message: ChatMessage):Void;
 	public function updateMessageStatus(accountId: String, localId: String, status:borogove.Message.MessageStatus, statusText: Null<String>): Promise<ChatMessage>;
 	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>): Promise<Null<ChatMessage>>;
-	public function getMessagesBefore(accountId: String, chatId: String, beforeId: Null<String>, beforeTime: Null<String>): Promise<Array<ChatMessage>>;
-	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<String>, afterTime: Null<String>): Promise<Array<ChatMessage>>;
-	public function getMessagesAround(accountId: String, chatId: String, aroundId: Null<String>, aroundTime: Null<String>): Promise<Array<ChatMessage>>;
+	public function getMessagesBefore(accountId: String, chatId: String, before: Null<ChatMessage>): Promise<Array<ChatMessage>>;
+	public function getMessagesAfter(accountId: String, chatId: String, afterId: Null<ChatMessage>): Promise<Array<ChatMessage>>;
+	public function getMessagesAround(accountId: String, around: ChatMessage): Promise<Array<ChatMessage>>;
 	public function hasMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool>;
 	public function storeMedia(mime:String, bytes:BytesData): Promise<Bool>;
 	public function removeMedia(hashAlgorithm:String, hash:BytesData):Void;

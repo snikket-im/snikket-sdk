@@ -531,47 +531,36 @@ export default async (dbname, media, tokenize, stemmer) => {
 			throw "Message not found: " + localId;
 		},
 
-		getMessagesBefore: async function(account, chatId, beforeId, beforeTime) {
-			// TODO: if beforeId is present but beforeTime is null, lookup time
-			const bound = beforeTime ? new Date(beforeTime) : [];
+		getMessagesBefore: async function(account, chatId, before) {
+			const bound = before ? new Date(before.timestamp) : [];
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 			const cursor = store.index("chats").openCursor(
 				IDBKeyRange.bound([account, chatId], [account, chatId, bound]),
 				"prev"
 			);
-			const messages = await this.getMessagesFromCursor(cursor, beforeId, bound);
+			const messages = await this.getMessagesFromCursor(cursor, before?.serverId || before?.localId, bound);
 			return messages.reverse();
 		},
 
-		getMessagesAfter: async function(account, chatId, afterId, afterTime) {
-			// TODO: if afterId is present but afterTime is null, lookup time
-			const bound = afterTime ? [new Date(afterTime)] : [];
+		getMessagesAfter: async function(account, chatId, after) {
+			const bound = after ? [new Date(after.timestamp)] : [];
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 			const cursor = store.index("chats").openCursor(
 				IDBKeyRange.bound([account, chatId, ...bound], [account, chatId, []]),
 				"next"
 			);
-			return this.getMessagesFromCursor(cursor, afterId, bound[0]);
+			return this.getMessagesFromCursor(cursor, after?.serverId || after?.localId, bound[0]);
 		},
 
-		getMessagesAround: async function(account, chatId, id, timeArg) {
-			if (!id && !timeArg) throw "Around what?";
-
-			const time = await (
-				timeArg ? Promise.resolve(timeArg) :
-					this.getMessage(account, chatId, id, null).then((m) =>
-						m ? m.timestamp : this.getMessage(account, chatId, null, id).then((m2) => m2?.timestamp)
-					)
-			);
-			if (!time) return [];
-
-			const before = this.getMessagesBefore(account, chatId, id, time);
+		getMessagesAround: async function(account, around) {
+			const chatId = around.chatId();
+			const before = this.getMessagesBefore(account, chatId, around);
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 			const cursor = store.index("chats").openCursor(
-				IDBKeyRange.bound([account, chatId, new Date(time)], [account, chatId, []]),
+				IDBKeyRange.bound([account, chatId, new Date(around.timestamp)], [account, chatId, []]),
 				"next"
 			);
 			const aroundAndAfter = this.getMessagesFromCursor(cursor, null, null);

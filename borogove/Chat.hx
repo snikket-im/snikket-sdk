@@ -867,7 +867,7 @@ abstract class Chat {
 	}
 
 	private function recomputeUnread(): Promise<Any> {
-		return persistence.getMessagesBefore(client.accountId(), chatId, null, null).then((messages) -> {
+		return persistence.getMessagesBefore(client.accountId(), chatId, null).then((messages) -> {
 			var i = messages.length;
 			while (--i >= 0) {
 				if (messages[i].serverId == readUpToId || !messages[i].isIncoming()) break;
@@ -965,7 +965,9 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesBefore(before: Null<ChatMessage>):Promise<Array<ChatMessage>> {
-		return persistence.getMessagesBefore(client.accountId(), chatId, before?.serverId ?? before?.localId, before?.timestamp).then((messages) ->
+		if (before.chatId() != chatId) throw "Cannot look before from a different chat";
+
+		return persistence.getMessagesBefore(client.accountId(), chatId, before).then((messages) ->
 			if (messages.length > 0) {
 				Promise.resolve(messages);
 			} else {
@@ -979,10 +981,12 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAfter(after: Null<ChatMessage>):Promise<Array<ChatMessage>> {
+		if (after.chatId() != chatId) throw "Cannot look after from a different chat";
 		if (after != null && lastMessage != null && lastMessage.canReplace(after) && !syncing()) {
 			return Promise.resolve([]);
 		}
-		return persistence.getMessagesAfter(client.accountId(), chatId, after?.serverId ?? after?.localId, after?.timestamp).then((messages) ->
+
+		return persistence.getMessagesAfter(client.accountId(), chatId, after).then((messages) ->
 			if (messages.length > 0) {
 				Promise.resolve(messages);
 			} else {
@@ -996,8 +1000,10 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAround(around: ChatMessage):Promise<Array<ChatMessage>> {
+		if (around.chatId() != chatId) throw "Cannot look around from a different chat";
+
 		// TODO: fetch more from MAM if nothing locally?
-		return persistence.getMessagesAround(client.accountId(), chatId, around.serverId ?? around.localId, around.timestamp);
+		return persistence.getMessagesAround(client.accountId(), around);
 	}
 
 	@:allow(borogove)
@@ -1632,7 +1638,9 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesBefore(before: Null<ChatMessage>):Promise<Array<ChatMessage>> {
-		return persistence.getMessagesBefore(client.accountId(), chatId, before?.serverId ?? before?.localId, before?.timestamp).then((messages) ->
+		if (before.chatId() != chatId) throw "Cannot look before from a different chat";
+
+		return persistence.getMessagesBefore(client.accountId(), chatId, before).then((messages) ->
 			if (messages.length > 0) {
 				Promise.resolve(messages);
 			} else {
@@ -1651,10 +1659,12 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAfter(after: Null<ChatMessage>):Promise<Array<ChatMessage>> {
+		if (after.chatId() != chatId) throw "Cannot look after from a different chat";
 		if (after != null && lastMessage != null && lastMessage.canReplace(after) && !syncing()) {
 			return Promise.resolve([]);
 		}
-		return persistence.getMessagesAfter(client.accountId(), chatId, after?.serverId ?? after?.localId, after?.timestamp).then((messages) ->
+
+		return persistence.getMessagesAfter(client.accountId(), chatId, after).then((messages) ->
 			if (messages.length > 0) {
 				Promise.resolve(messages);
 			} else {
@@ -1673,8 +1683,10 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAround(around: ChatMessage):Promise<Array<ChatMessage>> {
+		if (around.chatId() != chatId) throw "Cannot look around from a different chat";
+
 		// TODO: fetch more from MAM if nothing locally
-		return persistence.getMessagesAround(client.accountId(), chatId, around.serverId ?? around.localId, around.timestamp);
+		return persistence.getMessagesAround(client.accountId(), around);
 	}
 
 	@:allow(borogove)
