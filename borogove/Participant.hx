@@ -2,6 +2,7 @@ package borogove;
 
 import thenshim.Promise;
 
+import borogove.Chat;
 import borogove.queries.PubsubGet;
 
 #if cpp
@@ -19,14 +20,16 @@ class Participant {
 	public final photoUri: Null<String>;
 	public final placeholderUri: String;
 	public final isSelf: Bool;
+	public final chat: Null<AvailableChat>;
 	private final jid: JID;
 
 	@:allow(borogove)
-	private function new(displayName: String, photoUri: Null<String>, placeholderUri: String, isSelf: Bool, jid: JID) {
+	private function new(displayName: String, photoUri: Null<String>, placeholderUri: String, isSelf: Bool, jid: JID, chat: Null<AvailableChat>) {
 		this.displayName = displayName;
 		this.photoUri = photoUri;
 		this.placeholderUri = placeholderUri;
 		this.isSelf = isSelf;
+		this.chat = chat;
 		this.jid = jid;
 	}
 

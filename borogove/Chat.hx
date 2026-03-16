@@ -973,7 +973,14 @@ class DirectChat extends Chat {
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipantDetails(participantId:String): Participant {
 		final chat = client.getDirectChat(participantId);
-		return new Participant(chat.getDisplayName(), chat.getPhoto(), chat.getPlaceholder(), chat.chatId == client.accountId(), JID.parse(participantId));
+		return new Participant(
+			chat.getDisplayName(),
+			chat.getPhoto(),
+			chat.getPlaceholder(),
+			chat.chatId == client.accountId(),
+			JID.parse(participantId),
+			new AvailableChat(participantId, chat.getDisplayName(), "", new Caps("", [], [], []))
+		);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -1640,12 +1647,27 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	public function getParticipantDetails(participantId:String): Participant {
 		if (participantId == getFullJid().asString()) {
 			final chat = client.getDirectChat(client.accountId(), false);
-			return new Participant(client.displayName(), chat.getPhoto(), chat.getPlaceholder(), true, JID.parse(chat.chatId));
+			return new Participant(
+				client.displayName(),
+				chat.getPhoto(),
+				chat.getPlaceholder(),
+				true,
+				JID.parse(chat.chatId),
+				new AvailableChat(chat.chatId, chat.getDisplayName(), "", new Caps("", [], [], []))
+			);
 		} else {
 			final jid = JID.parse(participantId);
 			final nick = jid.resource;
 			final placeholderUri = Color.defaultPhoto(participantId, nick == null ? " " : nick.charAt(0));
-			return new Participant(nick ?? "", presence[nick]?.avatarHash?.toUri(), placeholderUri, false, jid);
+			final ppresence = presence[nick];
+			return new Participant(
+				nick ?? "",
+				ppresence?.avatarHash?.toUri(),
+				placeholderUri,
+				false,
+				jid,
+				ppresence?.mucUser?.jid == null ? null : new AvailableChat(ppresence.mucUser.jid.asBare().asString(), nick ?? "", "", new Caps("", [], [], []))
+			);
 		}
 	}
 
