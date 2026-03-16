@@ -503,6 +503,8 @@ abstract class Chat {
 		An ID of the last message displayed to the user
 	**/
 	public function readUpTo(): Promise<Null<ChatMessage>> {
+		if (readUpToId == null) return Promise.resolve(null);
+
 		return persistence.getMessage(client.accountId(), chatId, readUpToId, null);
 	}
 
@@ -976,14 +978,14 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesBefore(before: Null<ChatMessage>):Promise<Array<ChatMessage>> {
-		if (before.chatId() != chatId) throw "Cannot look before from a different chat";
+		if (before != null && before.chatId() != chatId) throw "Cannot look before from a different chat";
 
 		return persistence.getMessagesBefore(client.accountId(), chatId, before).then((messages) ->
 			if (messages.length > 0) {
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = { with: this.chatId };
-				if (before.serverId != null) filter.page = { before: before.serverId };
+				if (before?.serverId != null) filter.page = { before: before.serverId };
 				var sync  = new MessageSync(this.client, this.stream, filter);
 				fetchFromSync(sync);
 			}
@@ -992,7 +994,7 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAfter(after: Null<ChatMessage>):Promise<Array<ChatMessage>> {
-		if (after.chatId() != chatId) throw "Cannot look after from a different chat";
+		if (after != null && after.chatId() != chatId) throw "Cannot look after from a different chat";
 		if (after != null && lastMessage != null && lastMessage.canReplace(after) && !syncing()) {
 			return Promise.resolve([]);
 		}
@@ -1002,7 +1004,7 @@ class DirectChat extends Chat {
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = { with: this.chatId };
-				if (after.serverId != null) filter.page = { after: after.serverId };
+				if (after?.serverId != null) filter.page = { after: after.serverId };
 				var sync  = new MessageSync(this.client, this.stream, filter);
 				fetchFromSync(sync);
 			}
@@ -1649,7 +1651,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesBefore(before: Null<ChatMessage>):Promise<Array<ChatMessage>> {
-		if (before.chatId() != chatId) throw "Cannot look before from a different chat";
+		if (before != null && before.chatId() != chatId) throw "Cannot look before from a different chat";
 
 		return persistence.getMessagesBefore(client.accountId(), chatId, before).then((messages) ->
 			if (messages.length > 0) {
@@ -1670,7 +1672,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAfter(after: Null<ChatMessage>):Promise<Array<ChatMessage>> {
-		if (after.chatId() != chatId) throw "Cannot look after from a different chat";
+		if (after != null && after.chatId() != chatId) throw "Cannot look after from a different chat";
 		if (after != null && lastMessage != null && lastMessage.canReplace(after) && !syncing()) {
 			return Promise.resolve([]);
 		}

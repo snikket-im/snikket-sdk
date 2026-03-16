@@ -382,6 +382,8 @@ export default async (dbname, media, tokenize, stemmer) => {
 		},
 
 		getMessage: async function(account, chatId, serverId, localId) {
+			if (!serverId && !localId) throw "Can't getMessage by no id";
+
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 			let result;
