@@ -431,8 +431,8 @@ class XmppJsStream extends GenericStream {
 	}
 
 	private function triggerSMupdate() {
-		if ((lastSMState == null || pending.length < 1) && (client == null || !client.streamManagement?.enabled || !emitSMupdates)) return;
-		if (client?.streamManagement?.enabled) {
+		if (lastSMState == null && (client == null || !client.streamManagement?.enabled || !emitSMupdates)) return;
+		if (client?.streamManagement?.enabled || (client?.streamManagement?.outbound_q?.length ?? 0) > 0) {
 			lastSMState = {
 				id: client.streamManagement.id,
 				outbound: client.streamManagement.outbound,
