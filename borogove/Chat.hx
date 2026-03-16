@@ -502,8 +502,8 @@ abstract class Chat {
 	/**
 		An ID of the last message displayed to the user
 	**/
-	public function readUpTo() {
-		return readUpToId;
+	public function readUpTo(): Promise<Null<ChatMessage>> {
+		return persistence.getMessage(client.accountId(), chatId, readUpToId, null);
 	}
 
 	/**
@@ -891,11 +891,11 @@ abstract class Chat {
 		if (message.serverId == null || message.chatId() != chatId) return Promise.reject(null);
 		if (readUpTo() == message.serverId) return Promise.reject(null);
 
-		if (readUpTo() == null) {
+		if (readUpToId == null) {
 			return markReadUpToId(message.serverId, message.serverIdBy);
 		}
 
-		return persistence.getMessage(client.accountId(), chatId, readUpTo(), null).then((readMessage) -> {
+		return readUpTo().then((readMessage) -> {
 			if (readMessage != null && Reflect.compare(message.timestamp, readMessage.timestamp) <= 0) {
 				return Promise.reject(null);
 			}
@@ -911,7 +911,7 @@ abstract class Chat {
 				.tag("publish", { node: "urn:xmpp:mds:displayed:0" })
 				.tag("item", { id: chatId })
 				.tag("displayed", { xmlns: "urn:xmpp:mds:displayed:0"})
-				.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", id: readUpTo(), by: readUpToBy })
+				.tag("stanza-id", { xmlns: "urn:xmpp:sid:0", id: readUpToId, by: readUpToBy })
 				.up().up().up(),
 			new Stanza("x", { xmlns: "jabber:x:data", type: "submit" })
 				.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
@@ -1510,7 +1510,7 @@ class Channel extends Chat {
 						client.sortChats();
 					}
 
-					final readIndex = dedupedMessages.findLastIndex((m) -> m.serverId == readUpTo() || !m.isIncoming());
+					final readIndex = dedupedMessages.findLastIndex((m) -> m.serverId == readUpToId || !m.isIncoming());
 					if (readIndex < 0) {
 						setUnreadCount(unreadCount() + dedupedMessages.length);
 					} else {

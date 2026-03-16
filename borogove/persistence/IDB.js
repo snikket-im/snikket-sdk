@@ -359,7 +359,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 						if (result[value.chatId]) {
 							result[value.chatId] = result[value.chatId].then((details) => {
 								if (!details.foundAll) {
-									const readUpTo = chats[value.chatId]?.readUpTo();
+									const readUpTo = chats[value.chatId]?.readUpToId;
 									if (readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.borogove_MessageDirection.MessageSent) {
 										details.foundAll = true;
 									} else {
@@ -369,7 +369,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 								return details;
 							});
 						} else {
-							const readUpTo = chats[value.chatId]?.readUpTo();
+							const readUpTo = chats[value.chatId]?.readUpToId;
 							const haveRead = readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.borogove_MessageDirection.MessageSent;
 							result[value.chatId] = hydrateMessage(value).then((m) => ({ chatId: value.chatId, message: m, unreadCount: haveRead ? 0 : 1, foundAll: haveRead }));
 						}
