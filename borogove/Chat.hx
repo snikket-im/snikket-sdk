@@ -138,32 +138,26 @@ abstract class Chat {
 	/**
 		Fetch a page of messages before some point
 
-		@param beforeId id of the message to look before
-		@param beforeTime timestamp of the message to look before,
-		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
+		@param before ChatMessage to look before, or null to start at the end
 		@returns Promise resolving to an array of ChatMessage that are found
 	**/
-	abstract public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>):Promise<Array<ChatMessage>>;
+	abstract public function getMessagesBefore(before: Null<ChatMessage>):Promise<Array<ChatMessage>>;
 
 	/**
 		Fetch a page of messages after some point
 
-		@param afterId id of the message to look after
-		@param afterTime timestamp of the message to look after,
-		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
+		@param after ChatMessage to look after, or null to start at the beginning
 		@returns Promise resolving to an array of ChatMessage that are found
 	**/
-	abstract public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>):Promise<Array<ChatMessage>>;
+	abstract public function getMessagesAfter(after: Null<ChatMessage>):Promise<Array<ChatMessage>>;
 
 	/**
 		Fetch a page of messages around (before, including, and after) some point
 
-		@param aroundId id of the message to look around
-		@param aroundTime timestamp of the message to look around,
-		       String in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
+		@param around ChatMessage to look around
 		@returns Promise resolving to an array of ChatMessage that are found
 	**/
-	abstract public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>):Promise<Array<ChatMessage>>;
+	abstract public function getMessagesAround(around: ChatMessage):Promise<Array<ChatMessage>>;
 
 	private function fetchFromSync(sync: MessageSync): Promise<Array<ChatMessage>> {
 		return new thenshim.Promise((resolve, reject) -> {
@@ -970,13 +964,13 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>):Promise<Array<ChatMessage>> {
-		return persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime).then((messages) ->
+	public function getMessagesBefore(before: Null<ChatMessage>):Promise<Array<ChatMessage>> {
+		return persistence.getMessagesBefore(client.accountId(), chatId, before?.serverId ?? before?.localId, before?.timestamp).then((messages) ->
 			if (messages.length > 0) {
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = { with: this.chatId };
-				if (beforeId != null) filter.page = { before: beforeId };
+				if (before.serverId != null) filter.page = { before: before.serverId };
 				var sync  = new MessageSync(this.client, this.stream, filter);
 				fetchFromSync(sync);
 			}
@@ -984,16 +978,16 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>):Promise<Array<ChatMessage>> {
-		if (afterId == lastMessageId() && !syncing()) {
+	public function getMessagesAfter(after: Null<ChatMessage>):Promise<Array<ChatMessage>> {
+		if (after != null && lastMessage != null && lastMessage.canReplace(after) && !syncing()) {
 			return Promise.resolve([]);
 		}
-		return persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime).then((messages) ->
+		return persistence.getMessagesAfter(client.accountId(), chatId, after?.serverId ?? after?.localId, after?.timestamp).then((messages) ->
 			if (messages.length > 0) {
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = { with: this.chatId };
-				if (afterId != null) filter.page = { after: afterId };
+				if (after.serverId != null) filter.page = { after: after.serverId };
 				var sync  = new MessageSync(this.client, this.stream, filter);
 				fetchFromSync(sync);
 			}
@@ -1001,9 +995,9 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>):Promise<Array<ChatMessage>> {
+	public function getMessagesAround(around: ChatMessage):Promise<Array<ChatMessage>> {
 		// TODO: fetch more from MAM if nothing locally?
-		return persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime);
+		return persistence.getMessagesAround(client.accountId(), chatId, around.serverId ?? around.localId, around.timestamp);
 	}
 
 	@:allow(borogove)
@@ -1637,13 +1631,13 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesBefore(beforeId:Null<String>, beforeTime:Null<String>):Promise<Array<ChatMessage>> {
-		return persistence.getMessagesBefore(client.accountId(), chatId, beforeId, beforeTime).then((messages) ->
+	public function getMessagesBefore(before: Null<ChatMessage>):Promise<Array<ChatMessage>> {
+		return persistence.getMessagesBefore(client.accountId(), chatId, before?.serverId ?? before?.localId, before?.timestamp).then((messages) ->
 			if (messages.length > 0) {
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = {};
-				if (beforeId != null) filter.page = { before: beforeId };
+				if (before?.serverId != null) filter.page = { before: before.serverId };
 				var sync = new MessageSync(this.client, this.stream, filter, chatId);
 				sync.addContext((builder, stanza) -> {
 					builder = prepareIncomingMessage(builder, stanza);
@@ -1656,16 +1650,16 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesAfter(afterId:Null<String>, afterTime:Null<String>):Promise<Array<ChatMessage>> {
-		if (afterId == lastMessageId() && !syncing()) {
+	public function getMessagesAfter(after: Null<ChatMessage>):Promise<Array<ChatMessage>> {
+		if (after != null && lastMessage != null && lastMessage.canReplace(after) && !syncing()) {
 			return Promise.resolve([]);
 		}
-		return persistence.getMessagesAfter(client.accountId(), chatId, afterId, afterTime).then((messages) ->
+		return persistence.getMessagesAfter(client.accountId(), chatId, after?.serverId ?? after?.localId, after?.timestamp).then((messages) ->
 			if (messages.length > 0) {
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = {};
-				if (afterId != null) filter.page = { after: afterId };
+				if (after?.serverId != null) filter.page = { after: after.serverId };
 				var sync = new MessageSync(this.client, this.stream, filter, chatId);
 				sync.addContext((builder, stanza) -> {
 					builder = prepareIncomingMessage(builder, stanza);
@@ -1678,9 +1672,9 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getMessagesAround(aroundId:Null<String>, aroundTime:Null<String>):Promise<Array<ChatMessage>> {
+	public function getMessagesAround(around: ChatMessage):Promise<Array<ChatMessage>> {
 		// TODO: fetch more from MAM if nothing locally
-		return persistence.getMessagesAround(client.accountId(), chatId, aroundId, aroundTime);
+		return persistence.getMessagesAround(client.accountId(), chatId, around.serverId ?? around.localId, around.timestamp);
 	}
 
 	@:allow(borogove)
