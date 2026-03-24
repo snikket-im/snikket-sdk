@@ -30,7 +30,7 @@ class Dummy implements Persistence {
 	public function new() { }
 
 	@HaxeCBridge.noemit
-	public function lastId(accountId: String, chatId: Null<String>): Promise<Null<String>> {
+	public function syncPoint(accountId: String, chatId: Null<String>): Promise<Null<ChatMessage>> {
 		return Promise.resolve(null);
 	}
 

@@ -21,7 +21,7 @@ using borogove.SignalProtocol;
 #end
 @:expose
 interface Persistence {
-	public function lastId(accountId: String, chatId: Null<String>): Promise<Null<String>>;
+	public function syncPoint(accountId: String, chatId: Null<String>): Promise<Null<ChatMessage>>;
 	public function storeChats(accountId: String, chats: Array<Chat>):Void;
 	@HaxeCBridge.noemit
 	public function getChats(accountId: String): Promise<Array<SerializedChat>>;

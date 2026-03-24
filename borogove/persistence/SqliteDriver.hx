@@ -39,6 +39,7 @@ class SqliteDriver {
 						db = sys.db.Sqlite.open(dbfile);
 					}
 					var result = null;
+					if (qs.length > 1) db.request("BEGIN TRANSACTION");
 					for (q in qs) {
 						final prepared = Sqlite.prepare(q);
 						result = db.request(prepared);
@@ -46,9 +47,11 @@ class SqliteDriver {
 					// In testing, not copying to an array here caused BAD ACCESS sometimes
 					// Though from sqlite docs it seems like it should be safe?
 					final arr = { iterator: () -> result }.array();
+					if (qs.length > 1) db.request("COMMIT");
 					dbs.push(db);
 					resolve(arr.iterator());
 				} catch (e) {
+					if (qs.length > 1) db.request("ROLLBACK");
 					dbs.push(db);
 					reject(e);
 				}

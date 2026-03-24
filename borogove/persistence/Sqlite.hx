@@ -198,6 +198,29 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 7"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 8) {
+						return exec(["ALTER TABLE messages ADD COLUMN sort_id TEXT NOT NULL DEFAULT 'a '",
+						"CREATE INDEX messages_sort_id ON messages (account_id, chat_id, sort_id)"]).then(_ ->
+							exec(["SELECT ROWID FROM messages ORDER BY created_at"])
+						).then(rows -> {
+							var promise = Promise.resolve(null);
+							var toInsert = [];
+							var sortId = "a ";
+							for (row in rows) {
+								sortId = FractionalIndexing.between(sortId, null);
+								toInsert.push("UPDATE messages SET sort_id='" + StringTools.replace(sortId, "'", "''") + "' WHERE ROWID=" + row.rowid);
+								if (toInsert.length >= 10000) {
+									promise = promise.then(_ -> exec(toInsert));
+									toInsert = [];
+								}
+							}
+							return promise.then(_ -> exec(toInsert));
+						}).then(_ ->
+							exec(["PRAGMA user_version = 8"])
+						);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -223,14 +246,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function lastId(accountId: String, chatId: Null<String>): Promise<Null<String>> {
+	public function syncPoint(accountId: String, chatId: Null<String>): Promise<Null<ChatMessage>> {
 		final params = [accountId];
-		var q = "SELECT mam_id, MAX(row) FROM (SELECT mam_id, ROWID as row FROM messages";
-		if (chatId == null) {
-			// Index would actually slow us down here because we order by ROWID and barely filter
-			q += " NOT INDEXED";
-		}
-		q += " WHERE mam_id IS NOT NULL AND sync_point AND account_id=?";
+		var q = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point, sort_id FROM messages WHERE mam_id IS NOT NULL AND mam_id<>'' AND sync_point AND account_id=?";
 		if (chatId == null) {
 			q += " AND mam_by=?";
 			params.push(accountId);
@@ -239,11 +257,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 			params.push(chatId);
 		}
 		if (chatId != null) {
-			// Surely it is in the most recent 1000
-			q += " ORDER BY created_at DESC LIMIT 1000";
+			q += " ORDER BY sort_id DESC LIMIT 1";
 		}
-		q += ")";
-		return db.exec(q, params).then(iter -> cast (iter.next()?.mam_id, Null<String>));
+		return db.exec(q, params).then(result -> hydrateMessages(accountId, result)[0]);
 	}
 
 	private final storeChatBuffer: Map<String, Chat> = [];
@@ -295,7 +311,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					final row: Array<Dynamic> = [
 						accountId, chat.chatId, chat.isTrusted(), chat.avatarSha1,
 						chat.getDisplayName(), chat.uiState, chat.isBlocked,
-						chat.extensions.toString(), chat.readUpTo(), chat.readUpToBy,
+						chat.extensions.toString(), chat.readUpToId, chat.readUpToBy,
 						channel?.disco?.verRaw().hash, Json.stringify(mapPresence(chat)),
 						Type.getClassName(Type.getClass(chat)).split(".").pop(),
 						chat.notificationsFiltered(), chat.notifyMention(), chat.notifyReply(),
@@ -370,6 +386,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		final localIds = [];
 		final replyTos = [];
 		for (message in messages) {
+			if (message.sortId == null) throw "Cannot store a message with no sortId";
 			if (message.serverId == null && message.localId == null) throw "Cannot store a message with no id";
 			if (message.serverId == null && message.isIncoming()) throw "Cannot store an incoming message with no server id";
 			if (message.serverId != null && message.serverIdBy == null) throw "Cannot store a message with a server id and no by";
@@ -388,7 +405,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		return storeMessagesSerialized.run(() ->
 			// Hmm, if there is an existing one this loses the original timestamp though
 			db.exec(
-				"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?,?,?)").join(","),
+				"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?,?,?,?)").join(","),
 				messages.flatMap(m -> {
 					final correctable = m;
 					final message = m.versions.length == 1 ? m.versions[0] : m; // TODO: storing multiple versions at once? We never do that right now
@@ -397,7 +414,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 						message.localId ?? "", correctable.callSid() ?? correctable.localId ?? correctable.serverId, correctable.syncPoint,
 						correctable.chatId(), correctable.senderId,
 						message.timestamp, message.status, message.direction, message.type,
-						message.asStanza().toString(), message.statusText
+						message.asStanza().toString(), message.statusText, message.sortId
 					] : Array<Dynamic>);
 				})
 			).then(_ ->
@@ -425,7 +442,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		@returns Promise resolving to the message or null
 	**/
 	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>): Promise<Null<ChatMessage>> {
-		var q = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=? AND chat_id=?";
+		var q = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sort_id, sync_point FROM messages WHERE account_id=? AND chat_id=?";
 		final params = [accountId, chatId];
 		if (serverId != null) {
 			q += " AND mam_id=?";
@@ -446,16 +463,17 @@ class Sqlite implements Persistence implements KeyValueStore {
 		);
 	}
 
-	private function getMessages(accountId: String, chatId: String, time: Null<String>, op: String): Promise<Array<ChatMessage>> {
+	private function getMessages(accountId: String, chatId: String, sortId: Null<String>, op: String): Promise<Array<ChatMessage>> {
 		var q = "WITH page AS (SELECT stanza_id, mam_id FROM messages where account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id)";
 		final params: Array<Dynamic> = [accountId, chatId];
-		if (time != null) {
-			q += " AND messages.created_at " + op + "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)";
-			params.push(time);
+		if (sortId != null) {
+			q += " AND messages.sort_id " + op + " ?";
+			params.push(sortId);
 		}
 		q += " ORDER BY messages.created_at";
 		if (op == "<" || op == "<=") q += " DESC";
-		q += ", messages.ROWID";
+		// Should not need this, but just in case?
+		q += ", messages.created_at";
 		if (op == "<" || op == "<=") q += " DESC";
 		q += " LIMIT 50) ";
 		q += "SELECT
@@ -471,12 +489,13 @@ class Sqlite implements Persistence implements KeyValueStore {
 			messages.sender_id,
 			messages.mam_id,
 			messages.mam_by,
+			messages.sort_id,
 			messages.sync_point,
 			MAX(versions.created_at)
 			FROM messages INNER JOIN messages versions USING (correction_id, sender_id) WHERE (messages.stanza_id, messages.mam_id) IN (SELECT * FROM page) AND messages.account_id=? AND messages.chat_id=? GROUP BY correction_id, CASE WHEN messages.type=? THEN 'call' ELSE messages.sender_id END";
-		q += " ORDER BY messages.created_at";
+		q += " ORDER BY messages.sort_id";
 		if (op == "<" || op == "<=") q += " DESC";
-		q += ", messages.ROWID";
+		q += ", messages.created_at";
 		if (op == "<" || op == "<=") q += " DESC";
 
 		params.push(accountId);
@@ -501,27 +520,27 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function getMessagesBefore(accountId: String, chatId: String, before: Null<ChatMessage>): Promise<Array<ChatMessage>> {
-		return getMessages(accountId, chatId, before?.timestamp, "<");
+		return getMessages(accountId, chatId, before?.sortId, "<");
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesAfter(accountId: String, chatId: String, after: Null<ChatMessage>): Promise<Array<ChatMessage>> {
-		return getMessages(accountId, chatId, after?.timestamp, ">");
+		return getMessages(accountId, chatId, after?.sortId, ">");
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesAround(accountId: String, around: ChatMessage): Promise<Array<ChatMessage>> {
 		final chatId = around.chatId();
 		return thenshim.PromiseTools.all([
-			getMessages(accountId, chatId, around.timestamp, "<"),
-			getMessages(accountId, chatId, around.timestamp, ">=")
+			getMessages(accountId, chatId, around.sortId, "<"),
+			getMessages(accountId, chatId, around.sortId, ">=")
 		]).then(results -> results.flatten());
 	}
 
 	private function getChatUnreadDetails(accountId: String, chat: Chat): Promise<{ chatId: String, message: ChatMessage, unreadCount: Int }> {
 		return db.exec(
-			"WITH subq as (SELECT ROWID as row, COALESCE(MAX(created_at), 0) as created_at FROM messages where account_id=? AND chat_id=? AND (mam_id=? OR direction=?)) SELECT chat_id AS chatId, stanza, direction, type, status, status_text, sender_id, mam_id, mam_by, sync_point, CASE WHEN (SELECT row FROM subq) IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', MAX(messages.created_at) / 1000.0, 'unixepoch') AS timestamp FROM messages WHERE account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND (messages.created_at >= (SELECT created_at FROM subq) AND (messages.created_at <> (SELECT created_at FROM subq) OR messages.ROWID = (SELECT row FROM subq)))",
-			[accountId, chat.chatId, chat.readUpTo(), MessageSent, accountId, chat.chatId]
+			"WITH subq as (SELECT ROWID as row, COALESCE(MAX(sort_id, 'a ') as sort_id FROM messages where account_id=? AND chat_id=? AND (mam_id=? OR direction=?)) SELECT chat_id AS chatId, stanza, direction, type, status, status_text, sender_id, mam_id, mam_by, MAX(sort_id), sync_point, CASE WHEN (SELECT row FROM subq) IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp FROM messages WHERE account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND (messages.sort_id >= (SELECT sort_id FROM subq) AND (messages.sort_id <> (SELECT sort_id FROM subq) OR messages.ROWID = (SELECT row FROM subq)))",
+			[accountId, chat.chatId, chat.readUpToId, MessageSent, accountId, chat.chatId]
 		).then(result -> {
 			final row: Dynamic = result.next();
 			final lastMessage = row.stanza == null ? [] : hydrateMessages(accountId, [row].iterator());
@@ -556,7 +575,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 	public function updateMessageStatus(accountId: String, localId: String, status: MessageStatus, statusText: Null<String>): Promise<ChatMessage> {
 		return storeMessagesSerialized.run(() ->
 			db.exec(
-				"UPDATE messages SET status=?, status_text=? WHERE account_id=? AND stanza_id=? AND direction=? AND status <> ? AND status <> ? RETURNING stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, correction_id AS stanza_id, mam_id, mam_by, sync_point",
+				"UPDATE messages SET status=?, status_text=? WHERE account_id=? AND stanza_id=? AND direction=? AND status <> ? AND status <> ? RETURNING stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, correction_id AS stanza_id, sort_id, mam_id, mam_by, sync_point",
 				[status, statusText, accountId, localId, MessageSent, MessageDeliveredToDevice, MessageFailedToSend]
 			).then(result ->
 				thenshim.PromiseTools.all(hydrateMessages(accountId, result).map(message ->{
@@ -839,7 +858,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			final stanzaIds = [];
 			final stanzaIdsS = [];
 			var params = [accountId];
-			final qStart = "SELECT chat_id, stanza_id, stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point FROM messages WHERE account_id=?";
+			final qStart = "SELECT chat_id, stanza_id, stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sort_id, sync_point FROM messages WHERE account_id=?";
 			for (parent in replyTos) {
 				if (parent.serverId != null) {
 					mamIds.push(parent.chatId);
@@ -875,7 +894,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		});
 	}
 
-	private function hydrateMessages(accountId: String, rows: Iterator<{ stanza: String, timestamp: String, direction: MessageDirection, type: MessageType, status: MessageStatus, status_text: Null<String>, mam_id: String, mam_by: String, sync_point: Int, sender_id: String, ?stanza_id: String, ?versions: String, ?version_times: String }>): Array<ChatMessage> {
+	private function hydrateMessages(accountId: String, rows: Iterator<{ stanza: String, timestamp: String, direction: MessageDirection, type: MessageType, status: MessageStatus, status_text: Null<String>, mam_id: String, mam_by: String, sort_id: String, sync_point: Int, sender_id: String, ?stanza_id: String, ?versions: String, ?version_times: String }>): Array<ChatMessage> {
 		// TODO: Calls can "edit" from multiple senders, but the original direction and sender holds
 		final accountJid = JID.parse(accountId);
 		return { iterator: () -> rows }.map(row -> ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid, (builder, _) -> {
@@ -887,6 +906,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			builder.senderId = row.sender_id;
 			builder.serverId = row.mam_id == "" ? null : row.mam_id;
 			builder.serverIdBy = row.mam_by == "" ? null : row.mam_by;
+			builder.sortId = row.sort_id;
 			if (builder.direction != row.direction) {
 				builder.direction = row.direction;
 				final replyTo = builder.replyTo;

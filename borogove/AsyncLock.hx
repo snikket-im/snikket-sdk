@@ -2,6 +2,7 @@ package borogove;
 
 import thenshim.Promise;
 
+@:expose
 class AsyncLock {
 	private var p: Promise<Any>;
 

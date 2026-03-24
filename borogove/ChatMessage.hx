@@ -133,6 +133,9 @@ class ChatMessage {
 	public final type: MessageType;
 
 	@:allow(borogove)
+	private final sortId : Null<String>;
+
+	@:allow(borogove)
 	private final syncPoint : Bool;
 
 	@:allow(borogove)
@@ -250,6 +253,7 @@ class ChatMessage {
 		?localId: Null<String>,
 		?serverId: Null<String>,
 		?serverIdBy: Null<String>,
+		?sortId: Null<String>,
 		?type: MessageType,
 		?syncPoint: Bool,
 		?replyId: Null<String>,
@@ -277,6 +281,7 @@ class ChatMessage {
 		this.localId = params.localId;
 		this.serverId = params.serverId;
 		this.serverIdBy = params.serverIdBy;
+		this.sortId = params.sortId;
 		this.type = params.type ?? MessageChat;
 		this.syncPoint = params.syncPoint ?? false;
 		this.replyId = params.replyId;

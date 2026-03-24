@@ -65,5 +65,6 @@ skipping {
 
 END {
 	print "export { borogove_Map }" >> "npm/browser-no-sqlite.js"
+	print "export { FractionalIndexing_between, FractionalIndexing_BASE_95_DIGITS }" >> "npm/browser-no-sqlite.js"
 	print "export { $bind, $getIterator, Std, EReg, Type, Reflect, Lambda, haxe_io_Bytes, haxe_Timer, haxe_Exception, haxe_crypto_Base64, haxe_iterators_ArrayIterator, js_Boot, js_lib_HaxeIterator, thenshim_Promise, thenshim_PromiseTools }" >> "npm/browser-no-sqlite.js"
 }

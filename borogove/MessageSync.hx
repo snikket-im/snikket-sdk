@@ -32,16 +32,19 @@ class MessageSync {
 	private var handler:MessageListHandler;
 	private var contextHandler:(ChatMessageBuilder, Stanza)->ChatMessageBuilder = (b,_)->b;
 	private var errorHandler:(Stanza)->Void;
+	private var sortA:Null<String>;
+	private final sortB:Null<String>;
 	public var lastPage(default, null):ResultSetPageResult;
 	public var progress(default, null): Int = 0;
 	private var complete:Bool = false;
-	private var newestPageFirst:Bool = true;
 	public var jmi(default, null): Map<String, Stanza> = [];
 
-	public function new(client:Client, stream:GenericStream, filter:MessageFilter, ?serviceJID:String) {
+	public function new(client:Client, stream:GenericStream, filter:MessageFilter, sortA: Null<String>, sortB: Null<String>, ?serviceJID:String) {
 		this.client = client;
 		this.stream = stream;
 		this.filter = Reflect.copy(filter);
+		this.sortA = sortA;
+		this.sortB = sortB;
 		this.serviceJID = serviceJID != null ? serviceJID : client.accountId();
 	}
 
@@ -53,26 +56,14 @@ class MessageSync {
 			throw new Exception("Attempt to fetch messages, but already complete");
 		}
 		final promisedMessages:Array<Promise<Message>> = [];
-		if (lastPage == null) {
-			if (newestPageFirst == true && (filter.page == null || (filter.page.before == null && filter.page.after == null))) {
-				if (filter.page == null)
-					filter.page = {};
-				filter.page.before = ""; // Request last page of results
-			}
-		} else {
-			if (filter.page == null)
-				filter.page = {};
-			if (newestPageFirst == true) {
-				filter.page.before = lastPage.first;
-			} else {
-				filter.page.after = lastPage.last;
-			}
+		if (lastPage != null) {
+			if (filter.page == null) filter.page = {};
+			filter.page.after = lastPage.last;
 		}
 		var query = new MAMQuery(filter, serviceJID);
 		var previousMessageTime = "";
 		var counterSameTime = 0;
 		final eventToken = stream.on("message", function (event) {
-			progress++;
 			var message:Stanza = event.stanza;
 			var from = message.attr.exists("from") ? message.attr.get("from") : client.accountId();
 			if (from != serviceJID) { // Only listen for results from the JID we queried
@@ -82,10 +73,12 @@ class MessageSync {
 			if (result == null || result.attr.get("queryid") != query.queryId) { // Not (a|our) MAM result
 				return EventUnhandled;
 			}
+			progress++;
 			var originalMessage = result.findChild("{urn:xmpp:forward:0}forwarded/{jabber:client}message");
 			if (originalMessage == null) { // No message, nothing for us to do
 				return EventHandled;
 			}
+			sortA = FractionalIndexing.between(sortA, sortB, FractionalIndexing.BASE_95_DIGITS);
 			var timestamp = result.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
 			if (timestamp == null) {
 				trace("MAM result with no timestamp", result);
@@ -120,6 +113,7 @@ class MessageSync {
 					trace("MAM: Decrypted stanza: "+decryptedStanza);
 
 					return Message.fromStanza(decryptedStanza, client.jid, (builder, stanza) -> {
+						builder.sortId = sortA;
 						builder.serverId = result.attr.get("id");
 						builder.serverIdBy = serviceJID;
 						builder.encryption = decryptionResult.encryptionInfo;
@@ -129,6 +123,7 @@ class MessageSync {
 				}, (err) -> {
 					trace("MAM: Decryption failed: "+err);
 					return Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
+							builder.sortId = sortA;
 							builder.serverId = result.attr.get("id");
 							builder.serverIdBy = serviceJID;
 							if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
@@ -144,6 +139,7 @@ class MessageSync {
 			trace("MAM: Processing non-OMEMO message from " + originalMessage.attr.get("from"));
 
 			final msg = Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
+				builder.sortId = sortA;
 				builder.serverId = result.attr.get("id");
 				builder.serverIdBy = serviceJID;
 				if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
@@ -192,9 +188,5 @@ class MessageSync {
 
 	public function onError(handler:(Stanza)->Void) {
 		this.errorHandler = handler;
-	}
-
-	public function setNewestPageFirst(newestPageFirst:Bool):Void {
-		this.newestPageFirst = newestPageFirst;
 	}
 }

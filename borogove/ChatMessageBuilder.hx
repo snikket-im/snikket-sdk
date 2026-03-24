@@ -45,6 +45,9 @@ class ChatMessageBuilder {
 	**/
 	public var serverIdBy: Null<String> = null;
 
+	@:allow(borogove)
+	private var sortId: Null<String> = null;
+
 	/**
 		The type of this message (Chat, Call, etc)
 	**/
@@ -339,6 +342,7 @@ class ChatMessageBuilder {
 			localId: localId,
 			serverId: serverId,
 			serverIdBy: serverIdBy,
+			sortId: sortId,
 			type: type,
 			syncPoint: syncPoint,
 			replyId: replyId,

@@ -14,6 +14,7 @@ hx-build-dep:
 	haxelib --quiet install hsluv
 	haxelib --quiet install tink_http
 	haxelib --quiet install uuidv7
+	haxelib --quiet install fractional-indexing
 	haxelib --quiet install thenshim
 	haxelib --quiet install HtmlParser
 	haxelib --quiet install hxnodejs

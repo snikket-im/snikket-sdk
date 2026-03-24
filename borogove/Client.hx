@@ -97,6 +97,7 @@ class Client extends EventEmitter {
 	private var fastMechanism: Null<String> = null;
 	private var token: Null<String> = null;
 	private var fastCount: Null<Int> = null;
+	private var sortId: String = "a ";
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
 	private final brokenAvatars: Map<String, JID> = [];
 	@:allow(borogove)
@@ -706,7 +707,11 @@ class Client extends EventEmitter {
 		// Do a big GC before starting a new client
 		cpp.NativeGc.run(true);
 		#end
-		return persistence.getLogin(accountId()).then(login -> {
+		return persistence.syncPoint(accountId(), null).then((point) -> {
+			if (point?.sortId != null) sortId = point.sortId;
+
+			return persistence.getLogin(accountId());
+		}).then(login -> {
 			token = login.token;
 			fastCount = login.fastCount;
 			stream.clientId = login.clientId ?? ID.unique();
@@ -1439,7 +1444,19 @@ class Client extends EventEmitter {
 	}
 
 	@:allow(borogove)
-	private function storeMessages(messages: Array<ChatMessage>): Promise<Null<Array<ChatMessage>>> {
+	private function nextSortId() {
+		sortId = FractionalIndexing.between(sortId, null, FractionalIndexing.BASE_95_DIGITS);
+		return sortId;
+	}
+
+	@:allow(borogove)
+	private function storeMessageBuilder(builder: ChatMessageBuilder): Promise<ChatMessage> {
+		if (builder.sortId == null) builder.sortId = nextSortId();
+		return storeMessages([builder.build()]).then(result -> result[0]);
+	}
+
+	@:allow(borogove)
+	private function storeMessages(messages: Array<ChatMessage>): Promise<Array<ChatMessage>> {
 		return persistence.storeMessages(accountId(), messages);
 	}
 
@@ -1720,7 +1737,7 @@ class Client extends EventEmitter {
 		if (Std.isOfType(persistence, borogove.persistence.Dummy)) {
 			callback(true); // No reason to sync if we're not storing anyway
 		} else {
-			persistence.lastId(accountId(), null).then((lastId) -> doSync(callback, lastId));
+			persistence.syncPoint(accountId(), null).then((point) -> doSync(callback, point));
 		}
 	}
 
@@ -1739,16 +1756,17 @@ class Client extends EventEmitter {
 	}
 #end
 
-	private function doSync(callback: Null<(Bool)->Void>, lastId: Null<String>) {
+	private function doSync(callback: Null<(Bool)->Void>, syncPoint: Null<ChatMessage>, ?sortA: Null<String>) {
 		var thirtyDaysAgo = Date.format(
 			DateTools.delta(std.Date.now(), DateTools.days(-30))
 		);
 		var sync = new MessageSync(
 			this,
 			stream,
-			lastId == null ? { startTime: thirtyDaysAgo } : { page: { after: lastId } }
+			syncPoint == null ? { startTime: thirtyDaysAgo } : { page: { after: syncPoint.serverId } },
+			sortA ?? syncPoint?.sortId,
+			null
 		);
-		sync.setNewestPageFirst(false);
 		sync.addContext((builder, stanza) -> {
 			builder.syncPoint = true;
 			return builder;
@@ -1783,13 +1801,14 @@ class Client extends EventEmitter {
 						// ignore
 				}
 			}
-			promises.push(persistence.storeMessages(accountId(), chatMessages));
+			promises.push(storeMessages(chatMessages));
 			trace("SYNC: MAM page wait for writes");
 			thenshim.PromiseTools.all(promises).then((results) -> {
 				for (messages in results) {
 					if (messages != null) {
 						for (message in messages) {
 							this.trigger("message/sync", message);
+							sortId = message.sortId;
 						}
 					}
 				}
@@ -1816,9 +1835,9 @@ class Client extends EventEmitter {
 			});
 		});
 		sync.onError((stanza) -> {
-			if (lastId != null) {
-				// Gap in sync, out newest message has expired from server
-				doSync(callback, null);
+			if (syncPoint != null) {
+				// Gap in sync, our newest message has expired from server
+				doSync(callback, null, syncPoint.sortId);
 			} else {
 				trace("SYNC: error", stanza);
 				if (callback != null) callback(false);

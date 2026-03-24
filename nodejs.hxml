@@ -8,6 +8,7 @@
 --library thenshim
 --library tink_http
 --library uuidv7
+--library fractional-indexing
 
 borogove.Client
 borogove.Register

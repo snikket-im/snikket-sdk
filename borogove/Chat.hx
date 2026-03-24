@@ -54,6 +54,8 @@ enum abstract EncryptionMode(Int) {
 	var EncryptedOMEMO; // Use OMEMO
 }
 
+final UUIDv7_PATTERN = ~/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
 @:expose
 #if cpp
 @:build(HaxeCBridge.expose())
@@ -98,6 +100,7 @@ abstract class Chat {
 	@:allow(borogove)
 	private var extensions: Stanza;
 	private var _unreadCount = 0;
+	@:allow(borogove)
 	private var readUpToId: Null<String>;
 	@:allow(borogove)
 	private var readUpToBy: Null<String>;
@@ -886,8 +889,7 @@ abstract class Chat {
 	@:allow(borogove)
 	private function markReadUpToId(upTo: String, upToBy: String): Promise<Any> {
 		if (upTo == null) return Promise.reject(null);
-		if (readUpToId == upTo) {
-			if (lastMessage != null && lastMessage.serverId == readUpToId) setUnreadCount(0);
+		if (readUpToId == upTo || (UUIDv7_PATTERN.match(readUpToId) && UUIDv7_PATTERN.match(upTo) && upTo < readUpToId)) {
 			return Promise.reject(null);
 		}
 
@@ -904,12 +906,12 @@ abstract class Chat {
 			return Promise.reject(null);
 		}
 
-		if (readUpToId == null) {
+		if (readUpToId == null || (UUIDv7_PATTERN.match(readUpToId) && UUIDv7_PATTERN.match(message.serverId))) {
 			return markReadUpToId(message.serverId, message.serverIdBy);
 		}
 
 		return readUpTo().then((readMessage) -> {
-			if (readMessage != null && Reflect.compare(message.timestamp, readMessage.timestamp) <= 0) {
+			if (readMessage != null && message.sortId <= readMessage.sortId) {
 				return Promise.reject(null);
 			}
 
@@ -988,12 +990,12 @@ class DirectChat extends Chat {
 		if (before != null && before.chatId() != chatId) throw "Cannot look before from a different chat";
 
 		return persistence.getMessagesBefore(client.accountId(), chatId, before).then((messages) ->
-			if (messages.length > 0) {
+			if (messages.length > 0 || (before != null && before.serverId == null)) {
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = { with: this.chatId };
 				if (before?.serverId != null) filter.page = { before: before.serverId };
-				var sync  = new MessageSync(this.client, this.stream, filter);
+				var sync = new MessageSync(this.client, this.stream, filter, null, before?.sortId);
 				fetchFromSync(sync);
 			}
 		);
@@ -1007,12 +1009,12 @@ class DirectChat extends Chat {
 		}
 
 		return persistence.getMessagesAfter(client.accountId(), chatId, after).then((messages) ->
-			if (messages.length > 0) {
+			if (messages.length > 0 || (after != null && after.serverId == null)) {
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = { with: this.chatId };
 				if (after?.serverId != null) filter.page = { after: after.serverId };
-				var sync  = new MessageSync(this.client, this.stream, filter);
+				var sync = new MessageSync(this.client, this.stream, filter, after?.sortId, null);
 				fetchFromSync(sync);
 			}
 		);
@@ -1029,6 +1031,7 @@ class DirectChat extends Chat {
 	@:allow(borogove)
 	private function prepareIncomingMessage(message:ChatMessageBuilder, stanza:Stanza) {
 		message.syncPoint = !syncing();
+		if (message.sortId == null) message.sortId = client.nextSortId();
 		return message;
 	}
 
@@ -1051,15 +1054,15 @@ class DirectChat extends Chat {
 		message.versions = [message.build()]; // This is a correction
 		message.localId = correct.localId;
 		final outboxItem = outbox.newItem();
-		client.storeMessages([message.build()]).then((corrected) -> {
-			message.versions = corrected[0].versions[corrected[0].versions.length - 1]?.localId == correct.localId ? cast corrected[0].versions : [message.build()];
+		client.storeMessageBuilder(message).then((corrected) -> {
+			message.versions = corrected.versions[corrected.versions.length - 1]?.localId == correct.localId ? cast corrected.versions : [message.build()];
 			message.localId = toSendId;
 			sendMessageStanza(message.build().asStanza(), outboxItem);
-			if (corrected[0].canReplace(lastMessage)) {
-				setLastMessage(corrected[0]);
+			if (corrected.canReplace(lastMessage)) {
+				setLastMessage(corrected);
 				client.trigger("chats/update", [this]);
 			}
-			client.notifyMessageHandlers(corrected[0], CorrectionEvent);
+			client.notifyMessageHandlers(corrected, CorrectionEvent);
 		});
 	}
 
@@ -1074,7 +1077,7 @@ class DirectChat extends Chat {
 		switch (fromStanza) {
 			case ChatMessageStanza(_):
 				final outboxItem = outbox.newItem();
-				client.storeMessages([message.build()]).then((stored) -> {
+				client.storeMessageBuilder(message).then((stored) -> {
 					final stanza = message.build().asStanza();
 					if (isActive != null) {
 						isActive = true;
@@ -1082,8 +1085,8 @@ class DirectChat extends Chat {
 						stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
 					}
 					sendMessageStanza(stanza, outboxItem);
-					setLastMessage(message.build());
-					client.notifyMessageHandlers(stored[0], stored[0].versions.length > 1 ? CorrectionEvent : DeliveryEvent);
+					setLastMessage(stored);
+					client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 					client.trigger("chats/update", [this]);
 				});
 			case ReactionUpdateStanza(update):
@@ -1266,6 +1269,7 @@ class Channel extends Chat {
 	private var sync = null;
 	private var forceLive = false;
 	private var _nickInUse = null;
+	private var sortId = null;
 
 	@:allow(borogove)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBookmarked = false, isBlocked = false, extensions = null, readUpToId = null, readUpToBy = null, ?disco: Caps) {
@@ -1344,7 +1348,7 @@ class Channel extends Chat {
 				return stanza;
 			}
 		);
-		persistence.lastId(client.accountId(), chatId).then(doSync);
+		persistence.syncPoint(client.accountId(), chatId).then((point) -> doSync(point));
 	}
 
 	private function selfPingSuccess() {
@@ -1355,7 +1359,7 @@ class Channel extends Chat {
 		// We did a self ping to see if we were in the room and found we are
 		// But we may have missed messages if we were disconnected in the middle
 		inSync = false;
-		persistence.lastId(client.accountId(), chatId).then(doSync);
+		persistence.syncPoint(client.accountId(), chatId).then(point -> doSync(point));
 	}
 
 	override public function getDisplayName() {
@@ -1442,7 +1446,7 @@ class Channel extends Chat {
 		}
 	}
 
-	private function doSync(lastId: Null<String>) {
+	private function doSync(syncPoint: Null<ChatMessage>, ?sortA: Null<String>) {
 		if (!disco.features.contains("urn:xmpp:mam:2")) {
 			inSync = true;
 			return;
@@ -1455,10 +1459,11 @@ class Channel extends Chat {
 		sync = new MessageSync(
 			client,
 			stream,
-			lastId == null ? { startTime: threeDaysAgo } : { page: { after: lastId } },
+			syncPoint == null ? { startTime: threeDaysAgo } : { page: { after: syncPoint.serverId } },
+			sortA ?? syncPoint?.sortId,
+			null,
 			chatId
 		);
-		sync.setNewestPageFirst(false);
 		sync.addContext((builder, stanza) -> {
 			builder = prepareIncomingMessage(builder, stanza);
 			builder.syncPoint = true;
@@ -1525,7 +1530,7 @@ class Channel extends Chat {
 					dedupedMessages.sort((x, y) -> Reflect.compare(x.timestamp, y.timestamp));
 
 					final lastFromSync = dedupedMessages[dedupedMessages.length - 1];
-					if (lastFromSync != null && (lastMessage?.timestamp == null || Reflect.compare(lastFromSync.timestamp, lastMessage?.timestamp) > 0)) {
+					if (lastFromSync != null && (lastMessage == null || lastFromSync.sortId > lastMessage.sortId)) {
 						setLastMessage(lastFromSync);
 						client.sortChats();
 					}
@@ -1542,9 +1547,9 @@ class Channel extends Chat {
 		});
 		sync.onError((stanza) -> {
 			sync = null;
-			if (lastId != null) {
+			if (syncPoint != null) {
 				// Gap in sync, out newest message has expired from server
-				doSync(null);
+				doSync(null, syncPoint.sortId);
 			} else {
 				trace("SYNC failed", chatId, stanza);
 			}
@@ -1621,6 +1626,11 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		return !inSync || !livePresence();
 	}
 
+	override private function setLastMessage(message:Null<ChatMessage>) {
+		super.setLastMessage(message);
+		if (message != null && message.type == MessageChannel && (sortId == null || sortId < message.sortId)) sortId = message.sortId;
+	}
+
 	override public function canAudioCall():Bool {
 		return disco?.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false;
 	}
@@ -1676,12 +1686,12 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		if (before != null && before.chatId() != chatId) throw "Cannot look before from a different chat";
 
 		return persistence.getMessagesBefore(client.accountId(), chatId, before).then((messages) ->
-			if (messages.length > 0) {
+			if (messages.length > 0 || (before != null && before.serverId == null)) {
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = {};
 				if (before?.serverId != null) filter.page = { before: before.serverId };
-				var sync = new MessageSync(this.client, this.stream, filter, chatId);
+				var sync = new MessageSync(this.client, this.stream, filter, null, before?.sortId, chatId);
 				sync.addContext((builder, stanza) -> {
 					builder = prepareIncomingMessage(builder, stanza);
 					builder.syncPoint = false;
@@ -1700,12 +1710,12 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		}
 
 		return persistence.getMessagesAfter(client.accountId(), chatId, after).then((messages) ->
-			if (messages.length > 0) {
+			if (messages.length > 0 || (after != null && after.serverId == null)) {
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = {};
 				if (after?.serverId != null) filter.page = { after: after.serverId };
-				var sync = new MessageSync(this.client, this.stream, filter, chatId);
+				var sync = new MessageSync(this.client, this.stream, filter, after?.sortId, null, chatId);
 				sync.addContext((builder, stanza) -> {
 					builder = prepareIncomingMessage(builder, stanza);
 					builder.syncPoint = false;
@@ -1728,6 +1738,13 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	private function prepareIncomingMessage(message:ChatMessageBuilder, stanza:Stanza) {
 		message.syncPoint = !syncing();
 		if (message.type == MessageChat) message.type = MessageChannelPrivate;
+		if (message.sortId == null) {
+			if (sortId != null && message.type == MessageChannel) {
+				sortId = message.sortId = FractionalIndexing.between(sortId, null, FractionalIndexing.BASE_95_DIGITS);
+			} else {
+				message.sortId = client.nextSortId();
+			}
+		}
 		message.senderId = stanza.attr.get("from"); // MUC always needs full JIDs
 		if (message.senderId == getFullJid().asString()) {
 			message.recipients = message.replyTo;
@@ -1746,6 +1763,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		message.to = JID.parse(chatId);
 		message.recipients = [message.to];
 		if (message.localId == null) message.localId = ID.unique();
+		if (sortId != null && message.sortId == null) sortId = message.sortId = FractionalIndexing.between(sortId, null, FractionalIndexing.BASE_95_DIGITS);
 		return message;
 	}
 
@@ -1756,13 +1774,13 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		message.versions = [message.build()]; // This is a correction
 		message.localId = correct.localId;
 		final outboxItem = outbox.newItem();
-		client.storeMessages([message.build()]).then((corrected) -> {
-			message.versions = corrected[0].versions[0]?.localId == correct.localId ? cast corrected[0].versions : [message.build()];
+		client.storeMessageBuilder(message).then((corrected) -> {
+			message.versions = corrected.versions[0]?.localId == correct.localId ? cast corrected.versions : [message.build()];
 			message.localId = toSendId;
 			sendMessageStanza(message.build().asStanza(), outboxItem);
-			client.notifyMessageHandlers(corrected[0], CorrectionEvent);
-			if (corrected[0].canReplace(lastMessage)) {
-				setLastMessage(corrected[0]);
+			client.notifyMessageHandlers(corrected, CorrectionEvent);
+			if (corrected.canReplace(lastMessage)) {
+				setLastMessage(corrected);
 				client.trigger("chats/update", [this]);
 			}
 		});
@@ -1787,10 +1805,10 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 					stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
 				}
 				final outboxItem = outbox.newItem();
-				client.storeMessages([message.build()]).then((stored) -> {
+				client.storeMessageBuilder(message).then((stored) -> {
 					sendMessageStanza(stanza, outboxItem);
-					setLastMessage(stored[0]);
-					client.notifyMessageHandlers(stored[0], stored[0].versions.length > 1 ? CorrectionEvent : DeliveryEvent);
+					setLastMessage(stored);
+					client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 					client.trigger("chats/update", [this]);
 				});
 			case ReactionUpdateStanza(update):

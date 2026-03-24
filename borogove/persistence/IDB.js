@@ -16,11 +16,67 @@ import {
 	borogove_ReactionUpdate,
 	borogove_SerializedChat,
 	borogove_Stanza,
+	FractionalIndexing_between,
+	FractionalIndexing_BASE_95_DIGITS
 } from "./borogove.js";
 import * as enums from "./borogove-enums.js";
 
 export default async (dbname, media, tokenize, stemmer) => {
-	if (!tokenize) tokenize = function(s) { return s.split(" "); }
+	const stopwords = [
+		"about",
+		"after",
+		"all",
+		"am",
+		"an",
+		"and",
+		"are",
+		"as",
+		"at",
+		"be",
+		"but",
+		"by",
+		"can",
+		"com",
+		"de",
+		"do",
+		"en",
+		"for",
+		"from",
+		"he",
+		"how",
+		"in",
+		"is",
+		"isn",
+		"it",
+		"la",
+		"ll",
+		"of",
+		"on",
+		"or",
+		"our",
+		"she",
+		"so",
+		"that",
+		"the",
+		"they",
+		"this",
+		"to",
+		"too",
+		"und",
+		"was",
+		"we",
+		"what",
+		"when",
+		"where",
+		"who",
+		"will",
+		"with",
+		"www",
+		"you"
+	];
+	if (!tokenize) tokenize = function(s) {
+		return s.toLowerCase().split(/\s*\b/).filter(w => w.length > 1 && w.match(/\w/) && !stopwords.includes(w));
+	}
 	if (!stemmer) stemmer = function(s) { return s; }
 
 	// Helper functions to convert binary data to storage-safe strings
@@ -40,17 +96,54 @@ export default async (dbname, media, tokenize, stemmer) => {
 		return bytes.buffer;
 	}
 
+	async function migrationAddSortIdAndTerms(db, accountIds) {
+		const start = new Date().getTime();
+		for (const account of accountIds) {
+			const tx = db.transaction(["messages"], "readwrite");
+			const store = tx.objectStore("messages");
+			const count = await promisifyRequest(store.count());
+			var index = FractionalIndexing_between("a ", null, FractionalIndexing_BASE_95_DIGITS);
+			const cursor = store.index("accounts").openCursor(
+				IDBKeyRange.bound([account], [account, []])
+			);
+			let i = 0;
+			let updates = [];
+			const flushUpdates = () => {
+				for (const update of updates) {
+					store.put(update);
+				}
+				updates = [];
+			};
+			while (true) {
+				const cresult = await promisifyRequest(cursor);
+				if (!cresult) {
+					flushUpdates();
+					break;
+				}
+				const sortId = index = FractionalIndexing_between(index, null, FractionalIndexing_BASE_95_DIGITS);
+				const terms = [...new Set(tokenize((cresult.value.text || "").replace(/^>.*/mg, "")).map(stemmer))].sort();
+				updates.push({ ...cresult.value, sortId, terms });
+				if (i++ % 1000 === 0) {
+					console.log("Migrating... " + i + " / " + count);
+				}
+				if (updates.length > 10000) flushUpdates();
+				if (cresult) cresult.continue();
+			}
+			await promisifyRequest(tx);
+		}
+		console.log("Migrating done", new Date().getTime() - start);
+	}
+
 	function openDb(version) {
 		return new Promise((resolve, reject) => {
 			var dbOpenReq = indexedDB.open(dbname, version);
 			dbOpenReq.onerror = console.error;
 			dbOpenReq.onupgradeneeded = (event) => {
 				const db = event.target.result;
+				const tx = event.target.transaction;
 				if (!db.objectStoreNames.contains("messages")) {
 					const messages = db.createObjectStore("messages", { keyPath: ["account", "serverId", "serverIdBy", "localId"] });
-					messages.createIndex("chats", ["account", "chatId", "timestamp"]);
 					messages.createIndex("localId", ["account", "localId", "chatId"]);
-					messages.createIndex("accounts", ["account", "timestamp"]);
 				}
 				if (!db.objectStoreNames.contains("keyvaluepairs")) {
 					db.createObjectStore("keyvaluepairs");
@@ -77,6 +170,23 @@ export default async (dbname, media, tokenize, stemmer) => {
 				if (!db.objectStoreNames.contains("omemo_sessions_meta")) {
 					db.createObjectStore("omemo_sessions_meta", { keyPath: ["account", "address"] });
 				}
+
+				const messagesIndexNames = tx.objectStore("messages").indexNames;
+				if (!messagesIndexNames.contains("chatsBySortId")) {
+					tx.objectStore("messages").createIndex("chatsBySortId", ["account", "chatId", "sortId"]);
+				}
+				if (!messagesIndexNames.contains("accountsBySortId")) {
+					tx.objectStore("messages").createIndex("accountsBySortId", ["account", "sortId"]);
+				}
+				if (!messagesIndexNames.contains("terms")) {
+					tx.objectStore("messages").createIndex("terms", "terms", { multiEntry: true });
+				}
+				if (messagesIndexNames.contains("accounts")) {
+					tx.objectStore("messages").deleteIndex("accounts");
+				}
+				if (messagesIndexNames.contains("chats")) {
+					tx.objectStore("messages").deleteIndex("chats");
+				}
 			};
 			dbOpenReq.onsuccess = (event) => {
 				const db = event.target.result;
@@ -90,18 +200,50 @@ export default async (dbname, media, tokenize, stemmer) => {
 					"omemo_sessions",
 					"omemo_sessions_meta"
 				];
-				for(let storeName of storeNames) {
+				for(const storeName of storeNames) {
 					if(!db.objectStoreNames.contains(storeName)) {
 						db.close();
 						openDb(db.version + 1).then(resolve, reject);
 						return;
 					}
 				}
-				resolve(db);
+				const tx = db.transaction(["messages", "keyvaluepairs"], "readonly");
+				const messagesIndexNames = tx.objectStore("messages").indexNames;
+				const wantIndexNames = ["chatsBySortId", "accountsBySortId", "terms"];
+				for(const indexName of wantIndexNames) {
+					if(!messagesIndexNames.contains(indexName)) {
+						db.close();
+						openDb(db.version + 1).then(resolve, reject);
+						return;
+					}
+				}
+
+				(async () => {
+					const kv = tx.objectStore("keyvaluepairs");
+					const ranMigrationAddSortIdAndTerms = await promisifyRequest(kv.get("__migrationAddSortIdAndTerms"));
+					if (!ranMigrationAddSortIdAndTerms && messagesIndexNames.contains("accounts")) {
+						const keys = await promisifyRequest(kv.getAllKeys(IDBKeyRange.bound("login:clientId:", "login:clientId:\uffff")));
+						const accountIds = keys.map(k => k.substring(15));
+						await migrationAddSortIdAndTerms(db, accountIds);
+
+						const writeKV = db.transaction(["keyvaluepairs"], "readwrite");
+						await promisifyRequest(writeKV.objectStore("keyvaluepairs").put(new Date(), "__migrationAddSortIdAndTerms"));
+					}
+
+					if (messagesIndexNames.contains("accounts") || messagesIndexNames.contains("chats")) {
+						db.close();
+						openDb(db.version + 1).then(resolve, reject);
+						return;
+					}
+
+					resolve(db);
+				})();
 			};
 		});
 	}
+
 	const db = await openDb();
+	const recentCorrections = {};
 
 	function promisifyRequest(request) {
 		return new Promise((resolve, reject) => {
@@ -151,6 +293,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 		message.serverId = value.serverId ? value.serverId : null;
 		message.serverIdBy = value.serverIdBy ? value.serverIdBy : null;
 		message.replyId = value.replyId ? value.replyId : null;
+		message.sortId = value.sortId ? value.sortId : null;
 		message.syncPoint = !!value.syncPoint;
 		message.direction = value.direction;
 		message.status = value.status;
@@ -207,6 +350,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			versions: message.versions.map((m) => serializeMessage(account, m)),
 			payloads: message.payloads.map((p) => p.toString()),
 			stanza: message.stanza?.toString(),
+			terms: [...new Set(tokenize((message.text || "").replace(/^>.*/mg, "")).map(stemmer))].sort()
 		}
 	}
 
@@ -222,7 +366,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 		head.serverId = result.value.serverId;
 		head.localId = result.value.localId;
 		head.replyId = result.value.replyId;
-		head.timestamp = result.value.timestamp; // Edited version is not newer
+		// Edited version is not newer
+		head.timestamp = result.value.timestamp;
+		head.sortId = result.value.sortId;
 		head.versions = versions;
 		head.reactions = result.value.reactions; // Preserve these, edit doesn't touch them
 		// Calls can "edit" from multiple senders, but the original direction and sender holds
@@ -235,6 +381,11 @@ export default async (dbname, media, tokenize, stemmer) => {
 			head.recipients = result.value.recipients;
 		}
 		result.update(head);
+		if (!message.isIncoming()) {
+			for (const version of newVersions) {
+				recentCorrections[version.localId] = head.localId;
+			}
+		}
 		return head;
 	}
 
@@ -254,17 +405,17 @@ export default async (dbname, media, tokenize, stemmer) => {
 	}
 
 	const obj = {
-		lastId: async function(account, chatId) {
+		syncPoint: async function(account, chatId) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 			var cursor = null;
 			if (chatId === null) {
-				cursor = store.index("accounts").openCursor(
+				cursor = store.index("accountsBySortId").openCursor(
 					IDBKeyRange.bound([account], [account, []]),
 					"prev"
 				);
 			} else {
-				cursor = store.index("chats").openCursor(
+				cursor = store.index("chatsBySortId").openCursor(
 					IDBKeyRange.bound([account, chatId], [account, chatId, []]),
 					"prev"
 				);
@@ -272,7 +423,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 			while (true) {
 				const result = await promisifyRequest(cursor);
 				if (!result || (result.value.syncPoint && result.value.serverId && ((chatId && result.value.serverIdBy == chatId) || result.value.serverIdBy === account))) {
-					return result ? result.value.serverId : null;
+					if (!result?.value) return null;
+
+					return await hydrateMessage(result.value);
 				} else {
 					result.continue();
 				}
@@ -338,47 +491,41 @@ export default async (dbname, media, tokenize, stemmer) => {
 			)));
 		},
 
-		getChatsUnreadDetails: async function(account, chatsArray) {
+		getChatUnreadDetails: async function(account, chat) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 
-			const cursor = store.index("accounts").openCursor(
-				IDBKeyRange.bound([account], [account, []]),
+			const cursor = store.index("chatsBySortId").openCursor(
+				IDBKeyRange.bound([account, chat.chatId], [account, chat.chatId, []]),
 				"prev"
 			);
-			const chats = {};
-			chatsArray.forEach((chat) => chats[chat.chatId] = chat);
-			const result = {};
-			var rowCount = 0;
+			let rowCount = 0;
+			let unreadCount = 0;
+			let lastMessage = null;
 			while (true) {
 				const cresult = await promisifyRequest(cursor);
-				if (cresult && rowCount < 40000) {
-					rowCount++;
-					const value = cresult.value;
-					if (chats[value.chatId]) {
-						if (result[value.chatId]) {
-							result[value.chatId] = result[value.chatId].then((details) => {
-								if (!details.foundAll) {
-									const readUpTo = chats[value.chatId]?.readUpToId;
-									if (readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.borogove_MessageDirection.MessageSent) {
-										details.foundAll = true;
-									} else {
-										details.unreadCount++;
-									}
-								}
-								return details;
-							});
-						} else {
-							const readUpTo = chats[value.chatId]?.readUpToId;
-							const haveRead = readUpTo === value.serverId || readUpTo === value.localId || value.direction == enums.borogove_MessageDirection.MessageSent;
-							result[value.chatId] = hydrateMessage(value).then((m) => ({ chatId: value.chatId, message: m, unreadCount: haveRead ? 0 : 1, foundAll: haveRead }));
-						}
-					}
-					cresult.continue();
+				if (!cresult || rowCount > 2000) break;
+
+				rowCount++;
+				const value = cresult.value;
+				if (!lastMessage) lastMessage = hydrateMessage(value);
+				if (chat.readUpToId === value.serverId || value.direction == enums.borogove_MessageDirection.MessageSent) {
+					break;
 				} else {
-					return await Promise.all(Object.values(result));
+					unreadCount++;
 				}
+				cresult.continue();
 			}
+
+			const message = await lastMessage;
+			return { message, unreadCount };
+		},
+
+		getChatsUnreadDetails: function(account, chatsArray) {
+			return Promise.all(chatsArray.map(async chat => {
+				const details = await this.getChatUnreadDetails(account, chat);
+				return { chatId: chat.chatId, ...details };
+			}));
 		},
 
 		getMessage: async function(account, chatId, serverId, localId) {
@@ -386,9 +533,18 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
-			let result;
+			let result = null;
 			if (serverId) {
-				result = await promisifyRequest(store.openCursor(IDBKeyRange.bound([account, serverId], [account, serverId, []])));
+				const cursor = store.openCursor(IDBKeyRange.bound([account, serverId], [account, serverId, []]));
+				while (true) {
+					const cresult = await promisifyRequest(cursor);
+					if (!cresult) break;
+					if (cresult.value.chatId === chatId) {
+						result = cresult;
+						break;
+					}
+					cresult.continue();
+				}
 			} else {
 				result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, localId, chatId])));
 			}
@@ -429,6 +585,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 		storeMessage: function(account, message, callback) {
 			if (!message.chatId()) throw "Cannot store a message with no chatId";
+			if (!message.sortId) throw "Cannot store a message with no sortId";
 			if (!message.serverId && !message.localId) throw "Cannot store a message with no id";
 			if (!message.serverId && message.isIncoming()) throw "Cannot store an incoming message with no server id";
 			if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";
@@ -502,81 +659,67 @@ export default async (dbname, media, tokenize, stemmer) => {
 		},
 
 		updateMessageStatus: async function(account, localId, status, statusText) {
+			const idToLookup = recentCorrections[localId] ?? localId;
 			const tx = db.transaction(["messages"], "readwrite");
 			const store = tx.objectStore("messages");
-			const result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.bound([account, localId], [account, localId, []])));
-			if (result?.value && result.value.direction === enums.borogove_MessageDirection.MessageSent && ![enums.borogove_MessageStatus.MessageDeliveredToDevice, enums.borogove_MessageStatus.MessageFailedToSend].includes(result.value.status)) {
-				const newStatus = { ...result.value, status, statusText };
+			const result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.bound([account, idToLookup], [account, idToLookup, []])));
+			const value = result?.value;
+			if (value && value.direction === enums.borogove_MessageDirection.MessageSent && ![enums.borogove_MessageStatus.MessageDeliveredToDevice, enums.borogove_MessageStatus.MessageFailedToSend].includes(value.status)) {
+				const newStatus = (value.versions?.length || 0) > 0 ?
+					{ ...result.value, versions: [{ ...value.versions[0], status, statusText }, ...value.versions.slice(1)], status, statusText } :
+					{ ...value, status, statusText };
 				result.update(newStatus);
 				return await hydrateMessage(newStatus);
-			}
-
-			// Maybe a correction? Check recent messages
-			const cursor = store.index("accounts").openCursor(
-				IDBKeyRange.bound([account], [account, []]),
-				"prev"
-			);
-			let count = 0;
-			for (let count = 0; count < 1000; count++) {
-				const cresult = await promisifyRequest(cursor);
-				if (!cresult) break;
-
-				const value = cresult.value;
-				if (value?.versions?.[0]?.localId === localId && value?.direction === enums.borogove_MessageDirection.MessageSent && ![enums.borogove_MessageStatus.MessageDeliveredToDevice, enums.borogove_MessageStatus.MessageFailedToSend].includes(result.value.status)) {
-					const newStatus = { ...value, versions: [{ ...value.versions[0], status, statusText }, ...value.versions.slice(1)], status, statusText };
-					cresult.update(newStatus);
-					return await hydrateMessage(newStatus);
-				}
-				cresult.continue();
 			}
 
 			throw "Message not found: " + localId;
 		},
 
 		getMessagesBefore: async function(account, chatId, before) {
-			const bound = before ? new Date(before.timestamp) : [];
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
-			const cursor = store.index("chats").openCursor(
-				IDBKeyRange.bound([account, chatId], [account, chatId, bound]),
+			const cursor = store.index("chatsBySortId").openCursor(
+				IDBKeyRange.bound([account, chatId], [account, chatId, before?.sortId || []]),
 				"prev"
 			);
-			const messages = await this.getMessagesFromCursor(cursor, before?.serverId || before?.localId, bound);
+			const messages = await this.getMessagesFromCursor(cursor, before);
 			return messages.reverse();
 		},
 
 		getMessagesAfter: async function(account, chatId, after) {
-			const bound = after ? [new Date(after.timestamp)] : [];
+			const bound = after?.sortId ? [after.sortId] : [];
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
-			const cursor = store.index("chats").openCursor(
+			const cursor = store.index("chatsBySortId").openCursor(
 				IDBKeyRange.bound([account, chatId, ...bound], [account, chatId, []]),
 				"next"
 			);
-			return this.getMessagesFromCursor(cursor, after?.serverId || after?.localId, bound[0]);
+			return this.getMessagesFromCursor(cursor, after);
 		},
 
 		getMessagesAround: async function(account, around) {
+			if (!around) throw "Cannot look around nothing";
+
 			const chatId = around.chatId();
 			const before = this.getMessagesBefore(account, chatId, around);
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
-			const cursor = store.index("chats").openCursor(
-				IDBKeyRange.bound([account, chatId, new Date(around.timestamp)], [account, chatId, []]),
+			const cursor = store.index("chatsBySortId").openCursor(
+				IDBKeyRange.bound([account, chatId, around.sortId], [account, chatId, []]),
 				"next"
 			);
-			const aroundAndAfter = this.getMessagesFromCursor(cursor, null, null);
+			const aroundAndAfter = this.getMessagesFromCursor(cursor, null);
 
 			return Promise.all([before, aroundAndAfter]).then(result => result.flat());
 		},
 
-		getMessagesFromCursor: async function(cursor, id, bound) {
+		getMessagesFromCursor: async function(cursor, notIncluding) {
 			const result = [];
 			while (true) {
 				const cresult = await promisifyRequest(cursor);
 				if (cresult && result.length < 50) {
 					const value = cresult.value;
-					if (value.serverId === id || value.localId === id || (value.timestamp && value.timestamp.getTime() === (bound instanceof Date && bound.getTime()))) {
+					if ((notIncluding?.serverId && notIncluding?.serverId === value?.serverId) || (notIncluding?.localId && !value?.serverId && notIncluding?.localId === value?.localId)) {
 						cresult.continue();
 						continue;
 					}
@@ -589,39 +732,38 @@ export default async (dbname, media, tokenize, stemmer) => {
 			}
 		},
 
-		searchMessages: function(account, chatId, q, callback) {
+		searchMessages: async function(account, chatId, q) {
+			const qTerms = new Set(tokenize(q).map(stemmer));
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
-			var cursor;
-			if (chatId) {
-				cursor = store.index("chats").openCursor(
-					IDBKeyRange.bound([account, chatId], [account, chatId, []]),
-					"prev"
-				);
-			} else if (account) {
-				cursor = store.index("accounts").openCursor(
-					IDBKeyRange.bound([account], [account, []]),
-					"prev"
-				);
-			} else {
-				cursor = store.openCursor(undefined, "prev");
-			}
-			const qTok = new Set(tokenize(q).map(stemmer));
-			cursor.onsuccess = (event) => {
-				if (event.target.result) {
-					const value = event.target.result.value;
-					if (value.text && new Set(tokenize(value.text).map(stemmer)).isSupersetOf(qTok)) {
-						if (!callback(q, hydrateMessageSync(value))) return;
-					}
-					event.target.result.continue();
-				} else {
-					callback(null);
+			const index = store.index("terms");
+
+			// Figure out which search term matches the fewest messages
+			let probeTerm = null;
+			let probeScore = null;
+			for (const term of qTerms) {
+				const score = await promisifyRequest(index.count(IDBKeyRange.only(term)));
+				if (!probeTerm || score < probeScore) {
+					probeTerm = term;
+					probeScore = score;
 				}
 			}
-			cursor.onerror = (event) => {
-				console.error(event);
-				callback(null);
+
+			// Using the smallest list of messages that match one term
+			// Find the ones that match every term
+			const result = [];
+			const cursor = index.openCursor(IDBKeyRange.only(probeTerm));
+			while (true) {
+				const cresult = await promisifyRequest(cursor);
+				if (!cresult?.value) break;
+
+				if (cresult.value.account === account && (!chatId || cresult.value.chatId === chatId) && new Set(cresult.value.terms || []).isSupersetOf(qTerms)) {
+					result.push(hydrateMessageSync(cresult.value));
+				}
+				cresult.continue();
 			}
+
+			return result.sort((a, b) => a.timestamp < b.timstamp ? -1 : (a.timestamp > b.timestamp ? 1 : 0));
 		},
 
 		hasMedia: function(hashAlgorithm, hash) {

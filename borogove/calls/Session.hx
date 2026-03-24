@@ -51,12 +51,12 @@ interface Session {
 	public function dtmf():Null<borogove.calls.PeerConnection.DTMFSender>;
 }
 
-private function mkCallMessage(to: JID, from: JID, event: Stanza) {
+private function mkCallMessage(to: JID, client: Client, event: Stanza) {
 	final m = new ChatMessageBuilder();
 	m.type = MessageCall;
 	m.to = to;
 	m.recipients = [to.asBare()];
-	m.from = from;
+	m.from = client.jid;
 	m.sender = m.from.asBare();
 	m.replyTo = [m.sender];
 	m.direction = MessageSent;
@@ -68,6 +68,7 @@ private function mkCallMessage(to: JID, from: JID, event: Stanza) {
 		m.versions = [m.build()];
 	}
 	m.localId = event.attr.get("id");
+	m.sortId = client.nextSortId();
 	return m.build();
 }
 
@@ -89,7 +90,7 @@ class IncomingProposedSession implements Session {
 		// XEP-0353 says to send <ringing/> but that leaks presence if not careful
 		// Store it for ourselves at least
 		final event = new Stanza("ringing", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
-		final msg = mkCallMessage(from, client.jid, event);
+		final msg = mkCallMessage(from, client, event);
 		client.storeMessages([msg]).then((stored) -> {
 			client.notifyMessageHandlers(stored[0], CorrectionEvent);
 		});
@@ -101,7 +102,7 @@ class IncomingProposedSession implements Session {
 		// It also tells all other devices to stop ringing, which you may or may not want
 		// Store it for ourselves at least
 		final event = new Stanza("reject", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
-		final msg = mkCallMessage(from, client.jid, event);
+		final msg = mkCallMessage(from, client, event);
 		client.storeMessages([msg]).then((stored) -> {
 			client.notifyMessageHandlers(stored[0], CorrectionEvent);
 		});
@@ -136,7 +137,7 @@ class IncomingProposedSession implements Session {
 		accepted = true;
 		client.sendPresence(from.asString());
 		final event = new Stanza("proceed", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
-		final msg = mkCallMessage(from, client.jid, event);
+		final msg = mkCallMessage(from, client, event);
 		client.storeMessages([msg]).then((stored) -> {
 			client.notifyMessageHandlers(stored[0], CorrectionEvent);
 			client.sendStanza(
@@ -219,7 +220,7 @@ class OutgoingProposedSession implements Session {
 		if (video) {
 			event.tag("description", { xmlns: "urn:xmpp:jingle:apps:rtp:1", media: "video" }).up();
 		}
-		final msg = mkCallMessage(to, client.jid, event);
+		final msg = mkCallMessage(to, client, event);
 		client.storeMessages([msg]).then((stored) -> {
 			final stanza = new Stanza("message", { to: to.asString(), type: "chat", id: msg.localId })
 				.addChild(event)
@@ -232,7 +233,7 @@ class OutgoingProposedSession implements Session {
 
 	public function hangup() {
 		final event = new Stanza("retract", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
-		final msg = mkCallMessage(to, client.jid, event);
+		final msg = mkCallMessage(to, client, event);
 		client.storeMessages([msg]).then((stored) -> {
 			client.sendStanza(
 				new Stanza("message", { to: to.asString(), type: "chat", id: msg.versions[0].localId })
@@ -427,7 +428,7 @@ class InitiatedSession implements Session {
 		}
 
 		final event = new Stanza("finish", { xmlns: "urn:xmpp:jingle-message:0", id: sid });
-		final msg = mkCallMessage(counterpart, client.jid, event);
+		final msg = mkCallMessage(counterpart, client, event);
 		client.storeMessages([msg]).then((stored) -> {
 			client.notifyMessageHandlers(stored[0], CorrectionEvent);
 			client.sendStanza(
