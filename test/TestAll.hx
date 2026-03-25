@@ -12,6 +12,7 @@ class TestAll {
 			new TestCaps(),
 			new TestClient(),
 			new TestXEP0393(),
+			new TestEmojiUtil(),
 		]);
 	}
 }

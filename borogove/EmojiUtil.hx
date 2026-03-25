@@ -46,10 +46,18 @@ class EmojiUtil {
 	public static final TAGS = new UnicodeRange(0xE0020, 0xE007F);
 	public static final CYK_SYMBOLS_AND_PUNCTUATION = new UnicodeList(0x3030, 0x303D);
 	public static final LETTERLIKE_SYMBOLS = new UnicodeList(0x2122, 0x2139);
+	public static final GENERAL_PUNCTUATION = new UnicodeList(0x203C, 0x2049);
+	public static final ARROWS = new UnicodeRange(0x2190, 0x21FF);
+	public static final ENCLOSED_ALPHANUMERICS = new UnicodeRange(0x2460, 0x24FF);
+	public static final MISC_SYMBOLS_AND_ARROWS = new UnicodeRange(0x2B00, 0x2BFF);
 
 	public static final KEYCAP_COMBINEABLE = new UnicodeBlocks(new UnicodeList(0x23), new UnicodeList(0x2A), new UnicodeRange(0x30, 0x39));
 
 	public static final SYMBOLIZE = new UnicodeBlocks(
+			GENERAL_PUNCTUATION,
+			ARROWS,
+			ENCLOSED_ALPHANUMERICS,
+			MISC_SYMBOLS_AND_ARROWS,
 			GEOMETRIC_SHAPES,
 			LATIN_SUPPLEMENT,
 			CYK_SYMBOLS_AND_PUNCTUATION,
