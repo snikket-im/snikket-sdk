@@ -13,6 +13,10 @@ class TestAll {
 			new TestClient(),
 			new TestXEP0393(),
 			new TestEmojiUtil(),
+			new TestJID(),
+			new TestStringUtil(),
+			new TestUtil(),
+			new TestReaction(),
 		]);
 	}
 }

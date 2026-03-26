@@ -5,7 +5,10 @@ import utest.Async;
 
 import borogove.Client;
 import borogove.Stanza;
+import borogove.Chat;
 import borogove.persistence.Dummy;
+
+using Lambda;
 
 @:access(borogove)
 class TestClient extends utest.Test {
@@ -190,5 +193,73 @@ class TestClient extends utest.Test {
 		});
 
 		client.stream.onStanza(new Stanza("message", { xmlns: "jabber:client", from: "test2@example.com", id: "localid"}).textTag("body", "hi"));
+	}
+
+	public function testEmptyAccountId() {
+		final persistence = new Dummy();
+		Assert.raises(() -> new Client("", persistence), String);
+		Assert.raises(() -> new Client(null, persistence), String);
+	}
+
+	public function testGetChatsFilter() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat1 = client.getDirectChat("test1@example.com");
+		final chat2 = client.getDirectChat("test2@example.com");
+
+		Assert.equals(2, client.getChats().length);
+
+		chat1.close();
+		Assert.equals(1, client.getChats().length);
+		Assert.equals("test2@example.com", client.getChats()[0].chatId);
+	}
+
+	public function testChatsUpdateEvent(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.on("chats/update", (chats: Array<Chat>) -> {
+			final friendChat = chats.find(c -> c.chatId == "friend@example.com");
+			if (friendChat != null) {
+				Assert.equals("friend@example.com", friendChat.chatId);
+				async.done();
+			}
+			return EventHandled;
+		});
+
+		client.getDirectChat("friend@example.com");
+	}
+
+	public function testPresenceSubscription(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.inSync = true;
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.findChild("{http://jabber.org/protocol/disco#info}query") != null) {
+				client.stream.onStanza(
+					new Stanza("iq", { type: "result", to: "test@example.com", id: stanza.attr.get("id"), from: "stranger@example.com", xmlns: "jabber:client" })
+						.tag("query", { xmlns: "http://jabber.org/protocol/disco#info" })
+							.tag("identity", { category: "client", type: "pc", name: "Stranger" }).up()
+						.up()
+				);
+			}
+			return EventHandled;
+		});
+
+		client.on("chats/update", (chats: Array<Chat>) -> {
+			final strangerChat = chats.find(c -> c.chatId == "stranger@example.com");
+			if (strangerChat != null && strangerChat.uiState == Invited) {
+				Assert.equals("stranger@example.com", strangerChat.chatId);
+				Assert.equals("Stranger (stranger@example.com)", strangerChat.getDisplayName());
+				Assert.equals(Invited, strangerChat.uiState);
+				async.done();
+			}
+			return EventHandled;
+		});
+
+		client.stream.onStanza(
+			new Stanza("presence", { from: "stranger@example.com", type: "subscribe", xmlns: "jabber:client" })
+				.textTag("nick", "Stranger", { xmlns: "http://jabber.org/protocol/nick" })
+		);
 	}
 }
