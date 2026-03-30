@@ -649,6 +649,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 		updateMessage: function(account, message) {
 			if (!message.chatId()) throw "Cannot store a message with no chatId";
+			if (!message.sortId) throw "Cannot store a message with no sortId";
 			if (!message.serverId && !message.localId) throw "Cannot store a message with no id";
 			if (!message.serverId && message.isIncoming()) throw "Cannot store an incoming message with no server id";
 			if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";

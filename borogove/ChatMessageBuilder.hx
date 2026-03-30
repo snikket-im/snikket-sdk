@@ -209,6 +209,7 @@ class ChatMessageBuilder {
 		builder.localId = m.localId;
 		builder.serverId = m.serverId;
 		builder.serverIdBy = m.serverIdBy;
+		builder.sortId = m.sortId;
 		builder.type = m.type;
 		builder.syncPoint = m.syncPoint;
 		builder.replyId = m.replyId;

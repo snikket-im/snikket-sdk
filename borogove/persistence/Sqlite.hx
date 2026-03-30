@@ -208,7 +208,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 							var toInsert = [];
 							var sortId = "a ";
 							for (row in rows) {
-								sortId = FractionalIndexing.between(sortId, null);
+								sortId = FractionalIndexing.between(sortId, null, FractionalIndexing.BASE_95_DIGITS);
 								toInsert.push("UPDATE messages SET sort_id='" + StringTools.replace(sortId, "'", "''") + "' WHERE ROWID=" + row.rowid);
 								if (toInsert.length >= 10000) {
 									promise = promise.then(_ -> exec(toInsert));

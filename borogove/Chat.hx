@@ -1453,6 +1453,13 @@ class Channel extends Chat {
 		}
 		if (sync != null) return;
 
+		// Sort into a window so live messages arriving concurrently can come after
+		final sortFrom = sortA ?? syncPoint?.sortId;
+		final sortNext = FractionalIndexing.between(sortFrom, null, FractionalIndexing.BASE_95_DIGITS);
+		final sortIdNext = FractionalIndexing.between(sortId ?? sortNext, null, FractionalIndexing.BASE_95_DIGITS);
+		final sortTo = sortNext < sortIdNext ? sortNext : sortIdNext;
+		if (sortId == null || sortId <= sortTo) sortId = FractionalIndexing.between(sortTo, null, FractionalIndexing.BASE_95_DIGITS);
+
 		var threeDaysAgo = Date.format(
 			DateTools.delta(std.Date.now(), DateTools.days(-3))
 		);
@@ -1460,8 +1467,8 @@ class Channel extends Chat {
 			client,
 			stream,
 			syncPoint == null ? { startTime: threeDaysAgo } : { page: { after: syncPoint.serverId } },
-			sortA ?? syncPoint?.sortId,
-			null,
+			sortFrom,
+			sortTo,
 			chatId
 		);
 		sync.addContext((builder, stanza) -> {
