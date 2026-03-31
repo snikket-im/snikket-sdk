@@ -240,7 +240,7 @@ class HaxeCBridge {
 									lambdaargs.push(macro $i{"xl" + i});
 									final x = "x" + i;
 									final xl = "xl" + i;
-									[macro final $x : $t = $i{"a" + i}].concat([macro final $xl = $i{"a" + i}.length]);
+									[macro final $x : $t = $i{"a" + i}].concat([macro final $xl = $i{"a" + i}?.length ?? -1]);
 								} else if (a.retainType == "String") {
 									lambdaargs.push(macro $i{"x" + i});
 									final name = "x" + i;
@@ -277,12 +277,17 @@ class HaxeCBridge {
 							default: false;
 							}
 							if (isString) {
-								passArgs.push(macro $i{arg.name} == null ? null : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).map(cpp.NativeString.fromPointer).copy());
+								passArgs.push(macro $i{arg.name} == null ? ($i{arg.name + "__len"} < 0 ? null : []) : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).map(cpp.NativeString.fromPointer).copy());
 							} else {
-								passArgs.push(macro $i{arg.name} == null ? null : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).copy());
+								passArgs.push(macro $i{arg.name} == null ? ($i{arg.name + "__len"} < 0 ? null : []) : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).copy());
 							}
 							args.push({ name: arg.name, type: TPath({name: "ConstPointer", pack: ["cpp"], params: path.params.map(tp -> convertSecondaryTP(tp))}) });
-							args.push({ name: arg.name + "__len", type: TPath({name: "SizeT", pack: ["cpp"]}) });
+							switch (arg.type) {
+							case TPath(path) if (path.name == "Null" || path.sub == "Null"): true;
+								args.push({ name: arg.name + "__len", type: TPath({name: "PtrDiffT", pack: []}) });
+							default:
+								args.push({ name: arg.name + "__len", type: TPath({name: "SizeT", pack: ["cpp"]}) });
+							}
 						default:
 							passArgs.push(macro $i{arg.name});
 							args.push(arg);
@@ -292,7 +297,7 @@ class HaxeCBridge {
 					case TPath(path) if (path.name == "Array"):
 						wrap = true;
 						outPtr = true;
-						args.push({name: "outPtr", type: TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(convertSecondaryType(fun.ret).args[0])]})});
+						args.push({name: "outPtr", type: TPath({name: "RawPointer", pack: ["cpp"], params: [TPType(convertSecondaryType(wrapper.ret).args[0])]})});
 						wrapper.ret = TPath({name: "SizeT", pack: ["cpp"]});
 					case TPath(path) if (path.name == "Promise"):
 						wrap = true;
@@ -509,6 +514,11 @@ class HaxeCBridge {
 	}
 
 	static function convertSecondaryType(t: ComplexType): {retainType: String, args: Array<haxe.macro.ComplexType>} {
+		final nullable = switch (t) {
+		case TPath(path) if (path.name == "Null" || path.sub == "Null"): true;
+		default: false;
+		}
+
 		return switch TypeTools.followWithAbstracts(Context.resolveType(t, Context.currentPos()), false) {
 		case TInst(_.get().name => "Array", [tp]):
 			final newTP = convertSecondaryTP(TPType(Context.toComplexType(tp)));
@@ -524,7 +534,7 @@ class HaxeCBridge {
 			}
 			{retainType: "Array", args: [
 				TPath({name: arrTyp, pack: [], params: [newTP]}),
-				TPath({name: "SizeT", pack: ["cpp"]})
+				TPath(nullable ? {name: "PtrDiffT", pack: []} : {name: "SizeT", pack: ["cpp"]})
 			]};
 		case TInst(_.get().name => "String", _):
 			{retainType: "String", args: [TPath({name: "ConstCharStar", pack: ["cpp"], params: []})]};
@@ -1666,6 +1676,7 @@ class CConverterContext {
 
 				case {t: {pack: ["cpp"], name: "Void"}}: Ident('void');
 				case {t: {pack: ["cpp"], name: "SizeT"}}: requireHeader('stddef.h'); Ident("size_t");
+				case {t: {name: "PtrDiffT"}}: requireHeader('stddef.h'); Ident("ptrdiff_t");
 				case {t: {pack: ["cpp"], name: "Char"}}: Ident("char");
 				case {t: {pack: ["cpp"], name: "Float32"}}: Ident("float");
 				case {t: {pack: ["cpp"], name: "Float64"}}: Ident("double");
@@ -2094,6 +2105,13 @@ abstract HaxeStringArray<T>(cpp.RawPointer<cpp.ConstCharStar>) from cpp.RawPoint
 	}
 
 	@:from
+	public static function fromNullableArrayString(x: Null<Array<String>>): Null<HaxeStringArray<cpp.ConstCharStar>> {
+		if (x == null) return null;
+
+		return fromArrayString(cast x);
+	}
+
+	@:from
 	public static inline function fromArrayString(x: Array<String>): HaxeStringArray<cpp.ConstCharStar> {
 		final arr: Array<cpp.SizeT> = cpp.NativeArray.create(x.length);
 		for (i => el in x) {
@@ -2111,6 +2129,13 @@ abstract HaxeArray<T>(cpp.RawPointer<cpp.RawPointer<cpp.Void>>) from cpp.RawPoin
 	}
 
 	@:from
+	public static function fromNullableArrayT<T>(x: Null<Array<T>>): Null<HaxeArray<HaxeObject<T>>> {
+		if (x == null) return null;
+
+		return fromArrayT(cast x);
+	}
+
+	@:from
 	public static inline function fromArrayT<T>(x: Array<T>): HaxeArray<HaxeObject<T>> {
 		for (el in x) {
 			HaxeCBridge.retainHaxeObject(el);
@@ -2118,6 +2143,10 @@ abstract HaxeArray<T>(cpp.RawPointer<cpp.RawPointer<cpp.Void>>) from cpp.RawPoin
 		return HaxeCBridge.retainHaxeArray(x);
 	}
 }
+
+@:native("ptrdiff_t")
+@:scalar @:coreType @:notNull
+extern abstract PtrDiffT from(Int) to(Int) {}
 
 @:nativeGen
 @:keep
