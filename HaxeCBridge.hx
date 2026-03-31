@@ -209,6 +209,14 @@ class HaxeCBridge {
 			if (field.access.contains(APublic) && !field.access.contains(AOverride) && !field.meta.exists((m) -> m.name == "HaxeCBridge.noemit")) {
 				switch field.kind {
 				case FFun(fun):
+					final funParams = fun.params ?? [];
+					final funArgs = fun.args.map(arg -> ({
+						name: arg.name,
+						opt: arg.opt,
+						type: eraseTypeParams(arg.type, funParams),
+						value: arg.value,
+						meta: arg.meta
+					}));
 					var wrapper = {
 						name: field.name + "__fromC",
 						doc: field.doc,
@@ -216,15 +224,15 @@ class HaxeCBridge {
 						access: field.access.filter(a -> a != AAbstract),
 						kind: null,
 						pos: field.pos,
-						ret: fun.ret
+						ret: eraseTypeParams(fun.ret, funParams)
 					};
-					var wrap = field.access.contains(AAbstract);
+					var wrap = field.access.contains(AAbstract) || funParams.length > 0;
 					var args = [];
 					var passArgs = [];
 					var outPtr = false;
 					var promisify = [];
 					var promisifyE = [];
-					for (arg in fun.args) {
+					for (arg in funArgs) {
 						switch Context.toComplexType(TypeTools.followWithAbstracts(Context.resolveType(arg.type, Context.currentPos()), false)) {
 						case TFunction(taargs, aret):
 							wrap = true;
@@ -265,11 +273,13 @@ class HaxeCBridge {
 							if (gcFree.contains(arg.name)) lambdabody.push(macro cpp.NativeGc.exitGCFreeZone());
 							switch (aret) {
 								case TPath(_.sub => "Void"):
+								case TPath(p) if (p.sub == "Opaque"):
+									lambdabody.push(macro return ret.toDynamic());
 								default:
-								lambdabody.push(macro return ret);
+									lambdabody.push(macro return ret);
 							}
 							final lambdafargs = aargs.mapi((i, a) ->  {name: "a" + i, meta: null, opt: false, type: null, value: null});
-							passArgs.push({expr: EFunction(null, { args: lambdafargs, expr: macro $b{lambdabody} }), pos: field.pos});
+							passArgs.push({expr: EFunction(FArrow, { args: lambdafargs, expr: macro $b{lambdabody} }), pos: field.pos});
 						case TPath(path) if (path.name == "Array"):
 							wrap = true;
 							final isString = switch path.params[0] {
@@ -336,14 +346,22 @@ class HaxeCBridge {
 						} else {
 							[field.name];
 						}
+						var retExpr = macro $p{pth}($a{passArgs});
+						if (wrapper.ret != null) {
+							switch (wrapper.ret) {
+								case TPath(p) if (p.sub == "Opaque"):
+									retExpr = macro cast Opaque.fromDynamic(($retExpr : Any));
+								default:
+							}
+						}
 						final expr = if (outPtr) {
 							macro { final out = $p{pth}($a{passArgs}); if (outPtr != null) { cpp.Pointer.fromRaw(outPtr).set_ref(out); } return out.length; };
 						} else if (promisify.length > 0) {
 							macro if (handler == null) $p{pth}($a{passArgs}); else $p{pth}($a{passArgs}).then(v->handler($a{promisify}), e->handler($a{promisifyE}));
 						} else {
-							macro return $p{pth}($a{passArgs});
+							macro return $retExpr;
 						}
-						wrapper.kind = FFun({ret: wrapper.ret, params: fun.params, expr: expr, args: args});
+						wrapper.kind = FFun({ret: wrapper.ret, params: [], expr: expr, args: args});
 						fields.insert(insertTo, wrapper);
 						insertTo++;
 						field.meta.push({name: "HaxeCBridge.noemit", params: [{ pos: field.pos, expr: EConst(CString("wrapped")) }], pos: field.pos});
@@ -527,6 +545,11 @@ class HaxeCBridge {
 				switch (pth.name) {
 				case "Int16": "HaxeShortArray";
 				case "ConstCharStar": "HaxeStringArray";
+				case "HaxeCBridge" if (pth.sub == "Opaque"):
+					return {retainType: "Array", args: [
+						TPath({name: "HaxeOpaqueArray", pack: [], params: []}),
+						TPath(nullable ? {name: "PtrDiffT", pack: []} : {name: "SizeT", pack: ["cpp"]})
+					]};
 				default: "HaxeArray";
 				}
 			default:
@@ -681,6 +704,39 @@ class HaxeCBridge {
 		for (f in cls.fields.get()) {
 			convertFunction(f, Member);
 		}
+	}
+
+	static function eraseTypeParams(ct: ComplexType, params: Array<TypeParamDecl>): ComplexType {
+		if (params == null || params.length == 0 || ct == null) return ct;
+		final names = params.map(p -> p.name);
+		function loop(ct: ComplexType): ComplexType {
+			return switch (ct) {
+				case TPath({pack: [], name: name}) if (names.contains(name)):
+					macro :HaxeCBridge.Opaque;
+				case TPath(p):
+					TPath({
+						pack: p.pack,
+						name: p.name,
+						sub: p.sub,
+						params: p.params == null ? null : p.params.map(param -> switch (param) {
+							case TPType(t): TPType(loop(t));
+							case TPExpr(_): param;
+						})
+					});
+				case TFunction(args, ret):
+					TFunction(args.map(loop), loop(ret));
+				case TParent(t):
+					TParent(loop(t));
+				case TIntersection(tl):
+					TIntersection(tl.map(loop));
+				case TOptional(t):
+					TOptional(loop(t));
+				case TNamed(n, t):
+					TNamed(n, loop(t));
+				default: ct;
+			}
+		}
+		return loop(ct);
 	}
 
 	static macro function runUserMain() {
@@ -1597,7 +1653,7 @@ class CConverterContext {
 						}
 					}
 				}
-			
+
 			case TType(_.get() => t, params):
 				var keyCType = tryConvertKeyType(type, allowNonTrivial, allowBareFnTypes, pos);
 				if (keyCType != null) {
@@ -1626,7 +1682,7 @@ class CConverterContext {
 				} else {
 					Context.error('Any and Dynamic are not supported as secondary type for C export, use HaxeCBridge.HaxeObject<Any> instead', pos);
 				}
-			
+
 			case TMono(t):
 				Context.error("Explicit type is required when exposing to C", pos);
 
@@ -1652,6 +1708,11 @@ class CConverterContext {
 		Return CType if Type was a key type and null otherwise
 	**/
 	public function tryConvertKeyType(type: Type, allowNonTrivial:Bool, allowBareFnTypes: Bool, pos: Position): Null<CType> {
+		switch (Context.follow(type)) {
+			case TInst(_.get() => {kind: KTypeParameter(_)}, _):
+				return getHaxeObjectCType(type);
+			default:
+		}
 		var base = asBaseType(type);
 		return if (base != null) {
 			switch base {
@@ -2072,6 +2133,18 @@ import sys.thread.Lock;
 import sys.thread.Mutex;
 import sys.thread.Thread;
 
+abstract Opaque(cpp.RawPointer<cpp.Void>) from cpp.RawPointer<cpp.Void> to cpp.RawPointer<cpp.Void> {
+	@:to
+	public inline function toDynamic(): Dynamic {
+		return cpp.Pointer.fromRaw(this);
+	}
+
+	@:from
+	public static inline function fromDynamic(x: Dynamic): Opaque {
+		return (x : cpp.Pointer<cpp.Void>).raw;
+	}
+}
+
 abstract HaxeObject<T>(cpp.RawPointer<cpp.Void>) from cpp.RawPointer<cpp.Void> to cpp.RawPointer<cpp.Void> {
 	public var value(get, never): T;
 
@@ -2117,6 +2190,24 @@ abstract HaxeStringArray<T>(cpp.RawPointer<cpp.ConstCharStar>) from cpp.RawPoint
 		for (i => el in x) {
 			final ptr = HaxeCBridge.retainHaxeString(el);
 			arr[i] = untyped __cpp__('reinterpret_cast<size_t>({0})', ptr);
+		}
+		return cast HaxeCBridge.retainHaxeArray(arr);
+	}
+}
+
+abstract HaxeOpaqueArray(cpp.RawPointer<cpp.RawPointer<cpp.Void>>) from cpp.RawPointer<cpp.RawPointer<cpp.Void>> to cpp.RawPointer<cpp.RawPointer<cpp.Void>> {
+	@:from
+	public static function fromNullableArrayT<T>(x: Null<Array<T>>): Null<HaxeOpaqueArray> {
+		if (x == null) return null;
+
+		return fromArrayT(cast x);
+	}
+
+	@:from
+	public static inline function fromArrayT<T>(x: Array<T>): HaxeOpaqueArray {
+		final arr: Array<cpp.SizeT> = cpp.NativeArray.create(x.length);
+		for (i => el in x) {
+			arr[i] = untyped __cpp__('reinterpret_cast<size_t>({0})', Opaque.fromDynamic(el));
 		}
 		return cast HaxeCBridge.retainHaxeArray(arr);
 	}

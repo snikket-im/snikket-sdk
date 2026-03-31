@@ -18,6 +18,7 @@ class TestAll {
 			new TestUtil(),
 			new TestReaction(),
 			new TestSortId(),
+			new TestHtml(),
 		]);
 	}
 }

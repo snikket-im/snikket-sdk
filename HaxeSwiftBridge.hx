@@ -232,7 +232,12 @@ class HaxeSwiftBridge {
 					"}()";
 			}
 		case TInst(_.get() => t, params):
-			final wrapper = t.isInterface ? 'Any${t.name}' : t.name;
+			final wrapper = switch (Context.follow(type)) {
+				case TInst(_.get() => {kind: KTypeParameter(_)}, _):
+					"";
+				default:
+					t.isInterface ? 'Any${t.name}' : t.name;
+			};
 			if (canNull) {
 				return "(" + item + ").map({ " + wrapper + "($0) })";
 			} else {
@@ -363,6 +368,15 @@ class HaxeSwiftBridge {
 		if (genAccess) builder.add("public ");
 		builder.add("func ");
 		builder.add(funcName);
+		switch (fld?.kind) {
+		case FFun(func):
+			if (func.params.length > 0) {
+				builder.add("<");
+				builder.add(func.params.map(p -> p.name).join(","));
+				builder.add(">");
+			}
+		default:
+		}
 		builder.add("(");
 		convertArgs(builder, targs, fld?.kind);
 		builder.add(") ");
@@ -402,7 +416,7 @@ class HaxeSwiftBridge {
 				case TAbstract(_.get().name => "Null", [param]): true;
 				default: false;
 				};
-				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
+				switch TypeTools.followWithAbstracts(arg.t, false) {
 				case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
 				builder.add("with" + (allowNull ? "Optional" : "") + "ArrayOfCStrings(" + arg.name + ") { __" + arg.name + " in ");
 				default:
@@ -419,7 +433,7 @@ class HaxeSwiftBridge {
 				case TAbstract(_.get().name => "Null", [param]): true;
 				default: false;
 				};
-				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
+				switch TypeTools.followWithAbstracts(arg.t, false) {
 				case TFun(fargs, fret):
 					ibuilder.add("{ (");
 					for (i => farg in fargs) {
@@ -474,7 +488,7 @@ class HaxeSwiftBridge {
 			builder.add("let __result = ");
 			builder.add(castToSwift(ibuilder.toString(), finalTret, false, true));
 			for (arg in targs) {
-				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
+				switch TypeTools.followWithAbstracts(arg.t, false) {
 				case TFun(fargs, fret):
 					final contextLifetime = fld.meta.filter(meta -> meta.name == ":HaxeSwiftBridge.contextLifetime").map(meta -> meta.params.map(identToStr)).find(params -> params[0] == arg.name);
 					if (contextLifetime != null) {
@@ -493,7 +507,7 @@ class HaxeSwiftBridge {
 			}
 			builder.add("\n\t\treturn __result");
 			for (arg in targs) {
-				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(arg.t), Context.currentPos()), false) {
+				switch TypeTools.followWithAbstracts(arg.t, false) {
 				case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
 				builder.add("}");
 				default:

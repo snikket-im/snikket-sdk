@@ -15,6 +15,7 @@ borogove.Push
 borogove.persistence.Dummy
 borogove.persistence.Sqlite
 borogove.persistence.MediaStoreFS
+borogove.Html
 
 --cpp cpp
 -D analyzer-optimize

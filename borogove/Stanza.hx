@@ -383,6 +383,13 @@ class Stanza {
 		return this;
 	}
 
+	public function reduce<T>(stanza: (Stanza, Array<T>)->T, text: String->T):T {
+		return stanza(this, children.map(c -> switch (c) {
+			case Element(st): st.reduce(stanza, text);
+			case CData(txt): text(txt.content);
+		}));
+	}
+
 	public function getError():Null<StanzaError> {
 		final errorTag = this.getChild("error");
 		if(errorTag == null) {

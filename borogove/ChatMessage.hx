@@ -373,46 +373,12 @@ class ChatMessage {
 		return result;
 	}
 
-	/**
-		Get HTML version of the message body
-
-		WARNING: this is possibly untrusted HTML. You must parse or sanitize appropriately!
-
-		@param sender optionally specify the full details of the sender
-	**/
-	public function html(sender: Null<Participant> = null):String {
+	private function htmlBody(): Array<Node> {
 		final htmlBody = payloads.find((p) -> p.attr.get("xmlns") == "http://jabber.org/protocol/xhtml-im" && p.name == "html")?.getChild("body", "http://www.w3.org/1999/xhtml");
-		var htmlSource = "";
-		var isAction = false;
 		if (htmlBody != null) {
-			htmlSource = htmlBody.children.map((el: NodeInterface) -> el.traverse(child -> {
-				if (child.name == "img") {
-					final src = child.attr.get("src");
-					if (src != null) {
-						final hash = Hash.fromUri(src);
-						if (hash != null) {
-							child.attr.set("src", hash.toUri());
-						}
-					}
-					return true;
-				}
-				final senderP = sender;
-				if (senderP != null && child.getFirstChild() == null) {
-					final txt = child.getText();
-					if (txt.startsWith("/me")) {
-						isAction = true;
-						child.removeChildren();
-						child.text(senderP.displayName + txt.substr(3));
-					}
-				}
-				return false;
-			}).serialize()).join("");
+			return htmlBody.children;
 		} else {
 			var bodyText = text ?? "";
-			if (sender != null && bodyText.startsWith("/me")) {
-				isAction = true;
-				bodyText = sender.displayName + bodyText.substr(3);
-			}
 			final codepoints = StringUtil.codepointArray(bodyText);
 			// TODO: not every app will implement every feature. How should the app tell us what fallbacks to handle?
 			final fallbacks: Array<{start: Int, end: Int}> = cast payloads.filter(
@@ -426,9 +392,60 @@ class ChatMessage {
 				codepoints.splice(fallback.start, (fallback.end - fallback.start));
 			}
 			final body = codepoints.join("");
-			htmlSource = payloads.find((p) -> p.attr.get("xmlns") == "urn:xmpp:styling:0" && p.name == "unstyled") == null ? XEP0393.parse(body).map((s) -> s.toString()).join("") : StringTools.htmlEscape(body);
+			return payloads.find((p) -> p.attr.get("xmlns") == "urn:xmpp:styling:0" && p.name == "unstyled") == null ? XEP0393.parse(body).map(s -> Element(s)) : [CData(new TextNode(body))];
 		}
-		return isAction ? '<div class="action">${htmlSource}</div>' : htmlSource;
+	}
+
+	/**
+		Walk the HTML version of the message body
+
+		WARNING: this is possibly untrusted HTML. You must parse or sanitize appropriately!
+
+		@param f callback taking tag or text, attribute names, attribute values, and transformed children, and returning the transformation of this element or text
+		@param sender optionally specify the full details of the sender
+	**/
+	public function html<T>(f: (String, Null<Array<String>>, Null<Array<String>>, Null<Array<T>>)->T, sender: Null<Participant> = null):Array<T> {
+		var isAction = false;
+
+		function mkTxt(txt: String) {
+			final senderP = sender;
+			return if (!isAction && txt.startsWith("/me ") && senderP != null) {
+				isAction = true;
+				f(senderP.displayName + txt.substr(3), null, null, null);
+			} else {
+				f(txt, null, null, null);
+			};
+		}
+
+		final fragment = htmlBody().map(item -> switch (item) {
+			case Element(el):
+				el.reduce(
+					(st, kids) -> {
+						// We don't deeply sanitize but we can remove some obvious dumb stuff
+						if (st.name == "style" || st.name == "script") return mkTxt("");
+
+						final keys = st.attr.keys().filter(k -> !k.startsWith("on"));
+						return f(
+							st.name,
+							keys,
+							keys.map(k -> {
+								final v = st.attr.get(k) ?? "";
+								if (st.name == "img" && k == "src" && v != "") {
+									final hash = Hash.fromUri(v);
+									hash == null ? v : hash.toUri();
+								} else {
+									v;
+								}
+							}),
+							kids
+						);
+					},
+					txt -> mkTxt(txt)
+				);
+			case CData(txt):
+				mkTxt(txt.content);
+		});
+		return isAction ? [f("div", ["class"], ["action"], fragment)] : fragment;
 	}
 
 	/**
