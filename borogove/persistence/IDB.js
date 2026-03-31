@@ -764,7 +764,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				cresult.continue();
 			}
 
-			return result.sort((a, b) => a.timestamp < b.timstamp ? -1 : (a.timestamp > b.timestamp ? 1 : 0));
+			return result.sort((a, b) => a.timestamp < b.timestamp ? -1 : (a.timestamp > b.timestamp ? 1 : 0));
 		},
 
 		hasMedia: function(hashAlgorithm, hash) {
