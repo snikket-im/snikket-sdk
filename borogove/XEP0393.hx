@@ -137,7 +137,25 @@ class XEP0393 {
 				}
 			}
 		}
-		return spans;
+		return mergeSpans(spans);
+	}
+
+	private static function mergeSpans(spans: Array<Node>) {
+		final mergedSpans = [];
+		for (span in spans) {
+			if (mergedSpans.length > 0) {
+				final last = mergedSpans[mergedSpans.length - 1];
+				switch [last, span] {
+					case [CData(l), CData(s)]:
+						mergedSpans[mergedSpans.length - 1] = CData(new TextNode(l.content + s.content));
+					case _:
+						mergedSpans.push(span);
+				}
+			} else {
+				mergedSpans.push(span);
+			}
+		}
+		return mergedSpans;
 	}
 
 	public static function parseSpan(tagName: String, marker: String, styled: UnicodeString, start: Int) {

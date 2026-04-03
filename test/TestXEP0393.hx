@@ -2,6 +2,8 @@ package test;
 
 import utest.Assert;
 import utest.Async;
+
+import borogove.Stanza;
 import borogove.XEP0393;
 
 class TestXEP0393 extends utest.Test {
@@ -76,6 +78,33 @@ Who?")
 			"<div>plain span</div>",
 			toHtml("plain span")
 		);
+	}
+
+	public function testPlainSpanOneCdata() {
+		final node = XEP0393.parse("plain span")[0].children[0];
+		switch (node) {
+			case CData(t):
+				Assert.equals("plain span", t.content);
+			case _:
+				Assert.fail("Expected CData, but got " + node);
+		}
+	}
+
+	public function testMergedWithElement() {
+		final children = XEP0393.parse("plain *bold* plain")[0].children;
+		Assert.equals(3, children.length);
+		switch (children[0]) {
+			case CData(t): Assert.equals("plain ", t.content);
+			case _: Assert.fail("Expected CData");
+		}
+		switch (children[1]) {
+			case Element(s): Assert.equals("strong", s.name);
+			case _: Assert.fail("Expected Element");
+		}
+		switch (children[2]) {
+			case CData(t): Assert.equals(" plain", t.content);
+			case _: Assert.fail("Expected CData");
+		}
 	}
 
 	public function testStrongSpan() {
