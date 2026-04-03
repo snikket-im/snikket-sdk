@@ -59,34 +59,34 @@ cpp:
 	$(RM) cpp/*.dso
 	$(RM) cpp/src/__main__.cpp
 	$(RM) cpp/src/__files__.cpp
-	cp "$(shell haxelib libpath hxcpp)"/include/*.h cpp/include/
-	cp -r "$(shell haxelib libpath hxcpp)"/include/hx cpp/include/
-	cp -r "$(shell haxelib libpath hxcpp)"/include/cpp cpp/include/
+	cp -p "$(shell haxelib libpath hxcpp)"/include/*.h cpp/include/
+	cp -pr "$(shell haxelib libpath hxcpp)"/include/hx cpp/include/
+	cp -pr "$(shell haxelib libpath hxcpp)"/include/cpp cpp/include/
 	mkdir -p cpp/src/hx/libs/ssl
-	cp cpp/alt/SSL-mbedtls3.cpp cpp/src/hx/libs/ssl/SSL.cpp
-	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/std cpp/src/hx/libs/
-	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/regexp cpp/src/hx/libs/
-	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/libs/sqlite cpp/src/hx/libs/
-	cp -r "$(shell haxelib libpath hxcpp)"/src/hx/gc cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/StdLibs.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/Lib.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/Hash.h cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/Hash.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/Date.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/Thread.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/CFFI.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/Unicase.h cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/Debug.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/Anon.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/Class.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/Object.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/Boot.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/hx/NoFiles.cpp cpp/src/hx/
-	cp "$(shell haxelib libpath hxcpp)"/src/String.cpp cpp/src/
-	cp "$(shell haxelib libpath hxcpp)"/src/Enum.cpp cpp/src/
-	cp "$(shell haxelib libpath hxcpp)"/src/Array.cpp cpp/src/
-	cp "$(shell haxelib libpath hxcpp)"/src/Dynamic.cpp cpp/src/
-	cp "$(shell haxelib libpath hxcpp)"/src/Math.cpp cpp/src/
+	cp -p cpp/alt/SSL-mbedtls3.cpp cpp/src/hx/libs/ssl/SSL.cpp
+	cp -pr "$(shell haxelib libpath hxcpp)"/src/hx/libs/std cpp/src/hx/libs/
+	cp -pr "$(shell haxelib libpath hxcpp)"/src/hx/libs/regexp cpp/src/hx/libs/
+	cp -pr "$(shell haxelib libpath hxcpp)"/src/hx/libs/sqlite cpp/src/hx/libs/
+	cp -pr "$(shell haxelib libpath hxcpp)"/src/hx/gc cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/StdLibs.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Lib.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Hash.h cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Hash.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Date.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Thread.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/CFFI.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Unicase.h cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Debug.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Anon.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Class.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Object.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Boot.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/NoFiles.cpp cpp/src/hx/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/String.cpp cpp/src/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/Enum.cpp cpp/src/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/Array.cpp cpp/src/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/Dynamic.cpp cpp/src/
+	cp -p "$(shell haxelib libpath hxcpp)"/src/Math.cpp cpp/src/
 	cd cpp && ./configure.simple
 
 libborogove.batteriesincluded.so: cpp/libborogove.dso
