@@ -506,7 +506,13 @@ abstract class Chat {
 	public function readUpTo(): Promise<Null<ChatMessage>> {
 		if (readUpToId == null) return Promise.resolve(null);
 
-		return persistence.getMessage(client.accountId(), chatId, readUpToId, null);
+		return persistence.getMessage(client.accountId(), chatId, readUpToId, null).then(m -> {
+			// A PM is not actually part of the chat
+			// So it cannot really be the read up to point
+			if (m.type == MessageChannelPrivate) return null;
+
+			return m;
+		});
 	}
 
 	/**
@@ -1175,6 +1181,10 @@ class DirectChat extends Chat {
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function markReadUpTo(message: ChatMessage) {
+		// A PM is not actually part of the chat
+		// So it cannot really be the read up to point
+		if (message.type == MessageChannelPrivate) return;
+
 		markReadUpToMessage(message).then(_ -> {
 			// Only send markers for others messages,
 			// it's obvious we've read our own
