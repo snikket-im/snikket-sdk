@@ -54,8 +54,6 @@ enum abstract EncryptionMode(Int) {
 	var EncryptedOMEMO; // Use OMEMO
 }
 
-final UUIDv7_PATTERN = ~/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
-
 @:expose
 #if cpp
 @:build(HaxeCBridge.expose())
@@ -889,7 +887,7 @@ abstract class Chat {
 	@:allow(borogove)
 	private function markReadUpToId(upTo: String, upToBy: String): Promise<Any> {
 		if (upTo == null) return Promise.reject(null);
-		if (readUpToId == upTo || (UUIDv7_PATTERN.match(readUpToId) && UUIDv7_PATTERN.match(upTo) && upTo < readUpToId)) {
+		if (readUpToId == upTo) {
 			return Promise.reject(null);
 		}
 
@@ -906,7 +904,7 @@ abstract class Chat {
 			return Promise.reject(null);
 		}
 
-		if (readUpToId == null || (UUIDv7_PATTERN.match(readUpToId) && UUIDv7_PATTERN.match(message.serverId))) {
+		if (readUpToId == null) {
 			return markReadUpToId(message.serverId, message.serverIdBy);
 		}
 
