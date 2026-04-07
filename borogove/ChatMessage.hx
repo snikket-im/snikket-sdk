@@ -397,55 +397,14 @@ class ChatMessage {
 	}
 
 	/**
-		Walk the HTML version of the message body
+		The HTML version of the message body
 
 		WARNING: this is possibly untrusted HTML. You must parse or sanitize appropriately!
 
-		@param f callback taking tag or text, attribute names, attribute values, and transformed children, and returning the transformation of this element or text
 		@param sender optionally specify the full details of the sender
 	**/
-	public function html<T>(f: (String, Null<Array<String>>, Null<Array<String>>, Null<Array<T>>)->T, sender: Null<Participant> = null):Array<T> {
-		var isAction = false;
-
-		function mkTxt(txt: String) {
-			final senderP = sender;
-			return if (!isAction && txt.startsWith("/me ") && senderP != null) {
-				isAction = true;
-				f(senderP.displayName + txt.substr(3), null, null, null);
-			} else {
-				f(txt, null, null, null);
-			};
-		}
-
-		final fragment = htmlBody().map(item -> switch (item) {
-			case Element(el):
-				el.reduce(
-					(st, kids) -> {
-						// We don't deeply sanitize but we can remove some obvious dumb stuff
-						if (st.name == "style" || st.name == "script") return mkTxt("");
-
-						final keys = st.attr.keys().filter(k -> !k.startsWith("on"));
-						return f(
-							st.name,
-							keys,
-							keys.map(k -> {
-								final v = st.attr.get(k) ?? "";
-								if (st.name == "img" && k == "src" && v != "") {
-									final hash = Hash.fromUri(v);
-									hash == null ? v : hash.toUri();
-								} else {
-									v;
-								}
-							}),
-							kids
-						);
-					},
-					txt -> mkTxt(txt)
-				);
-			case CData(txt):
-				mkTxt(txt.content);
-		});
-		return isAction ? [f("div", ["class"], ["action"], fragment)] : fragment;
+	public function html(sender: Null<Participant> = null):Html {
+		return new Html(htmlBody(), sender);
 	}
 
 	/**

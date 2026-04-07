@@ -177,7 +177,7 @@ class ChatMessageBuilder {
 		?versions: Array<ChatMessage>,
 		?payloads: Array<Stanza>,
 		?encryption: Null<EncryptionInfo>,
-		?html: Null<String>,
+		?html: Null<Html>,
 	}) {
 		this.localId = params?.localId;
 		this.serverId = params?.serverId;
@@ -261,47 +261,18 @@ class ChatMessageBuilder {
 	}
 
 	/**
-		Set rich text using an HTML string
+		Set rich text using HTML
 		Also sets the plain text body appropriately
 	**/
-	public function setHtml(html: String) {
+	public function setHtml(html: Html) {
 		final htmlEl = new Stanza("html", { xmlns: "http://jabber.org/protocol/xhtml-im" });
 		final body = new Stanza("body", { xmlns: "http://www.w3.org/1999/xhtml" });
 		htmlEl.addChild(body);
-		final nodes = htmlparser.HtmlParser.run(html, true);
-		for (node in nodes) {
-			final el = Util.downcast(node, htmlparser.HtmlNodeElement);
-			if (el != null && (el.name == "html" || el.name == "body")) {
-				for (inner in el.nodes) {
-					body.addDirectChild(htmlToNode(inner));
-				}
-			} else {
-				body.addDirectChild(htmlToNode(node));
-			}
-		}
+		body.addChildNodes(html.xml);
 		final htmlIdx = payloads.findIndex((p) -> p.attr.get("xmlns") == "http://jabber.org/protocol/xhtml-im" && p.name == "html");
 		if (htmlIdx >= 0) payloads.splice(htmlIdx, 1);
 		payloads.push(htmlEl);
 		text = ~/\n$/.replace(XEP0393.render(body), "");
-	}
-
-	private function htmlToNode(node: htmlparser.HtmlNode) {
-		final txt = Util.downcast(node, htmlparser.HtmlNodeText);
-		if (txt != null) {
-			return CData(new TextNode(txt.toText()));
-		}
-		final el = Util.downcast(node, htmlparser.HtmlNodeElement);
-		if (el != null) {
-			final s = new Stanza(el.name, {});
-			for (attr in el.attributes) {
-				s.attr.set(attr.name, attr.value);
-			}
-			for (child in el.nodes) {
-				s.addDirectChild(htmlToNode(child));
-			}
-			return Element(s);
-		}
-		throw "node was neither text nor element?";
 	}
 
 	/**

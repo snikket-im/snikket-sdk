@@ -286,16 +286,21 @@ class HaxeCBridge {
 							case TPType(TPath(_.name => "String")): true;
 							default: false;
 							}
-							if (isString) {
-								passArgs.push(macro $i{arg.name} == null ? ($i{arg.name + "__len"} < 0 ? null : []) : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).map(cpp.NativeString.fromPointer).copy());
-							} else {
-								passArgs.push(macro $i{arg.name} == null ? ($i{arg.name + "__len"} < 0 ? null : []) : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).copy());
-							}
 							args.push({ name: arg.name, type: TPath({name: "ConstPointer", pack: ["cpp"], params: path.params.map(tp -> convertSecondaryTP(tp))}) });
 							switch (arg.type) {
 							case TPath(path) if (path.name == "Null" || path.sub == "Null"): true;
+								if (isString) {
+									passArgs.push(macro $i{arg.name} == null ? ($i{arg.name + "__len"} < 0 ? null : []) : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).map(cpp.NativeString.fromPointer).copy());
+								} else {
+									passArgs.push(macro $i{arg.name} == null ? ($i{arg.name + "__len"} < 0 ? null : []) : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).copy());
+								}
 								args.push({ name: arg.name + "__len", type: TPath({name: "PtrDiffT", pack: []}) });
 							default:
+								if (isString) {
+									passArgs.push(macro $i{arg.name} == null ? [] : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).map(cpp.NativeString.fromPointer).copy());
+								} else {
+									passArgs.push(macro $i{arg.name} == null ? [] : $i{arg.name}.reinterpret().toUnmanagedArray($i{arg.name + "__len"}).copy());
+								}
 								args.push({ name: arg.name + "__len", type: TPath({name: "SizeT", pack: ["cpp"]}) });
 							}
 						default:

@@ -256,7 +256,9 @@ abstract class Chat {
 			},
 			(text, uri) -> {
 				final hash = Hash.fromUri(uri);
-				toSend.setHtml('<img alt="' + Util.xmlEscape(text) + '" src="' + Util.xmlEscape(hash == null ? uri : hash.bobUri()) + '" />');
+				toSend.setHtml(
+					new Html([Element(new Stanza("img", { alt: text, src: hash == null ? uri : hash.bobUri() }))], null)
+				);
 				return "";
 			}
 		);
@@ -1113,7 +1115,7 @@ class DirectChat extends Chat {
 			if (reaction.envelopeId == null) throw "Cannot remove custom emoji reaction without envelopeId";
 			final correct = m.reply();
 			correct.localId = ID.unique();
-			correct.setHtml("");
+			correct.setHtml(new Html([], null));
 			correct.text = null;
 
 			final fakeEnvelope = new ChatMessageBuilder();
@@ -1843,7 +1845,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 			if (reaction.envelopeId == null) throw "Cannot remove custom emoji reaction without envelopeId";
 			final correct = m.reply();
 			correct.localId = ID.unique();
-			correct.setHtml("");
+			correct.setHtml(new Html([], null));
 			correct.text = null;
 
 

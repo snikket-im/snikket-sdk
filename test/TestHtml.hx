@@ -3,6 +3,7 @@ package test;
 import utest.Assert;
 import utest.Async;
 
+import borogove.Html;
 import borogove.ChatMessageBuilder;
 import borogove.JID;
 import borogove.Participant;
@@ -15,10 +16,10 @@ class TestHtml extends utest.Test {
 		msg.to = JID.parse("alice@example.com");
 		msg.from = JID.parse("hatter@example.com");
 		msg.sender = msg.from;
-		msg.setHtml("Hello <div class='sup&amp;2'><img src='hai'><br><p></p>");
+		msg.setHtml(Html.fromString("Hello <div class='sup&amp;2'><img src='hai'><br><p></p>"));
 		Assert.equals(
 			"Hello <div class=\"sup&amp;2\"><img src=\"hai\" /><br /><p></p></div>",
-			msg.build().html(borogove.Html.asString).join("")
+			msg.build().html().toString()
 		);
 	}
 
@@ -28,10 +29,10 @@ class TestHtml extends utest.Test {
 		msg.to = JID.parse("alice@example.com");
 		msg.from = JID.parse("hatter@example.com");
 		msg.sender = msg.from;
-		msg.setHtml("<img src='cid:sha1+472e2207519f825c2affc636550a23cbcf1ef5ac@bob.xmpp.org'/>");
+		msg.setHtml(Html.fromString("<img src='cid:sha1+472e2207519f825c2affc636550a23cbcf1ef5ac@bob.xmpp.org'/>"));
 		Assert.equals(
 			"<img src=\"ni:///sha-1;Ry4iB1Gfglwq_8Y2VQojy88e9aw\" />",
-			msg.build().html(borogove.Html.asString).join("")
+			msg.build().html().toString()
 		);
 	}
 
@@ -47,7 +48,7 @@ class TestHtml extends utest.Test {
 
 		Assert.equals(
 			"<div class=\"action\"><div>hatter says hello</div></div>",
-			msg.build().html(borogove.Html.asString, participant).join("")
+			msg.build().html(participant).toString()
 		);
 	}
 
@@ -57,13 +58,13 @@ class TestHtml extends utest.Test {
 		msg.to = JID.parse("alice@example.com");
 		msg.from = JID.parse("hatter@example.com");
 		msg.sender = msg.from;
-		msg.setHtml("/me says <div class='sup&amp;2'><img src='hai'><br><p></p>");
+		msg.setHtml(Html.fromString("/me says <div class='sup&amp;2'><img src='hai'><br><p></p>"));
 
 		final participant = new Participant("hatter", null, "", false, msg.from, null);
 
 		Assert.equals(
 			"<div class=\"action\">hatter says <div class=\"sup&amp;2\"><img src=\"hai\" /><br /><p></p></div></div>",
-			msg.build().html(borogove.Html.asString, participant).join("")
+			msg.build().html(participant).toString()
 		);
 	}
 
@@ -73,10 +74,10 @@ class TestHtml extends utest.Test {
 		msg.to = JID.parse("alice@example.com");
 		msg.from = JID.parse("hatter@example.com");
 		msg.sender = msg.from;
-		msg.setHtml("<a onclick='alert();'>hello</a>");
+		msg.setHtml(Html.fromString("<a onclick='alert();'>hello</a>"));
 		Assert.equals(
 			"<a>hello</a>",
-			msg.build().html(borogove.Html.asString).join("")
+			msg.build().html().toString()
 		);
 	}
 
@@ -86,10 +87,10 @@ class TestHtml extends utest.Test {
 		msg.to = JID.parse("alice@example.com");
 		msg.from = JID.parse("hatter@example.com");
 		msg.sender = msg.from;
-		msg.setHtml("<style>hai</style><script>hai</script>hai");
+		msg.setHtml(Html.fromString("<style>hai</style><script>hai</script>hai"));
 		Assert.equals(
 			"hai",
-			msg.build().html(borogove.Html.asString).join("")
+			msg.build().html().toString()
 		);
 	}
 }
