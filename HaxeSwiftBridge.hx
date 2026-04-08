@@ -260,6 +260,8 @@ class HaxeSwiftBridge {
 		return switch type {
 		case TInst(_.get().name => "String", params):
 			return item;
+		case TInst(_.get().name => "Array", [param = TInst(_.get().name => "String", _)]):
+			return "__" + item;
 		case TInst(_.get().name => "Array", [param = TInst(_)]):
 			return item + ".map { " + castToC("$0", param, canNull) + " }";
 		case TInst(_.get().name => "Array", [param]):
@@ -322,7 +324,17 @@ class HaxeSwiftBridge {
 		if (write == AccNormal || write == AccCall) {
 			builder.add("\t\tset");
 			if (genBody) {
-				builder.add(" {\n\t\t\tc_");
+				builder.add(" {\n\t\t\t");
+				final allowNull = switch f.type {
+				case TAbstract(_.get().name => "Null", [param]): true;
+				default: false;
+				};
+				switch TypeTools.followWithAbstracts(f.type, false) {
+				case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+					builder.add("with" + (allowNull ? "Optional" : "") + "ArrayOfCStrings(newValue) { __newValue in\n\t\t\t");
+				default:
+				}
+				builder.add("c_");
 				builder.add(libName);
 				builder.add(".");
 				builder.add(cFuncNameSet);
@@ -331,10 +343,16 @@ class HaxeSwiftBridge {
 				switch TypeTools.followWithAbstracts(Context.resolveType(Context.toComplexType(f.type), Context.currentPos()), false) {
 				case TInst(_.get().name => "Array", [param]):
 					builder.add(", ");
-					builder.add("newValue.count");
+					builder.add("newValue" + (allowNull ? "?" : "") + ".count" + (allowNull ? " ?? 0" : ""));
 				default:
 				}
-				builder.add(")\n\t\t}");
+				builder.add(")\n");
+				switch TypeTools.followWithAbstracts(f.type, false) {
+				case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+					builder.add("\t\t\t}\n");
+				default:
+				}
+				builder.add("\t\t}");
 			}
 			builder.add("\n");
 		}
@@ -464,11 +482,6 @@ class HaxeSwiftBridge {
 					ibuilder.add("\n\t\t\t},\n\t\t\t__");
 					ibuilder.add(arg.name);
 					ibuilder.add("_ptr");
-				case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
-					ibuilder.add("__");
-					ibuilder.add(arg.name);
-					ibuilder.add(", ");
-					ibuilder.add(arg.name + (allowNull ? "?" : "") + ".count" + (allowNull ? " ?? 0" : ""));
 				case TInst(_.get().name => "Array", [param]):
 					ibuilder.add(castToC(arg.name, arg.t));
 					ibuilder.add(", ");
@@ -651,6 +664,17 @@ class HaxeSwiftBridge {
 							builder.add("\tpublic init(");
 							convertArgs(builder, targs);
 							builder.add(") {\n\t\t");
+							for (arg in targs) {
+								final allowNull = switch arg.t {
+								case TAbstract(_.get().name => "Null", [param]): true;
+								default: false;
+								};
+								switch TypeTools.followWithAbstracts(arg.t, false) {
+								case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+								builder.add("with" + (allowNull ? "Optional" : "") + "ArrayOfCStrings(" + arg.name + ") { __" + arg.name + " in ");
+								default:
+								}
+							}
 							if (superClass == null) {
 								builder.add("o = (");
 							} else {
@@ -664,8 +688,26 @@ class HaxeSwiftBridge {
 							for (i => arg in targs) {
 								if (i > 0) builder.add(", ");
 								builder.add(castToC(arg.name, arg.t));
+								final allowNull = switch arg.t {
+								case TAbstract(_.get().name => "Null", [param]): true;
+								default: false;
+								};
+								switch TypeTools.followWithAbstracts(arg.t, false) {
+								case TInst(_.get().name => "Array", [param]):
+									builder.add(", ");
+									builder.add(arg.name + (allowNull ? "?" : "") + ".count" + (allowNull ? " ?? 0" : ""));
+								default:
+								}
 							}
-							builder.add("))\n\t}\n\n");
+							builder.add("))\n");
+							for (arg in targs) {
+								switch TypeTools.followWithAbstracts(arg.t, false) {
+								case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+								builder.add("}");
+								default:
+								}
+							}
+							builder.add("\t}\n\n");
 						case Member:
 							buildMember(funcName, cFuncName, fld, targs, tret, builder, !cls.isInterface, !cls.isInterface);
 							if (cls.isInterface) buildMember(funcName, cFuncName, fld, targs, tret, extensionBuilder, true, false);
@@ -688,6 +730,17 @@ class HaxeSwiftBridge {
 								default:
 								}
 							}
+							for (arg in targs) {
+								final allowNull = switch arg.t {
+								case TAbstract(_.get().name => "Null", [param]): true;
+								default: false;
+								};
+								switch TypeTools.followWithAbstracts(arg.t, false) {
+								case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+								builder.add("with" + (allowNull ? "Optional" : "") + "ArrayOfCStrings(" + arg.name + ") { __" + arg.name + " in ");
+								default:
+								}
+							}
 							final ibuilder = new hx.strings.StringBuilder("c_");
 							ibuilder.add(libName);
 							ibuilder.add(".");
@@ -698,6 +751,10 @@ class HaxeSwiftBridge {
 								if (!isFirst) ibuilder.add(",");
 								isFirst = false;
 								ibuilder.add("\n\t\t\t");
+								final allowNull = switch arg.t {
+								case TAbstract(_.get().name => "Null", [param]): true;
+								default: false;
+								};
 								switch (arg.t) {
 								case TFun(fargs, fret):
 									ibuilder.add("{ (");
@@ -732,13 +789,20 @@ class HaxeSwiftBridge {
 								case TInst(_.get().name => "Array", [param]):
 									ibuilder.add(castToC(arg.name, arg.t));
 									ibuilder.add(", ");
-									ibuilder.add(arg.name + ".count");
+									ibuilder.add(arg.name + (allowNull ? "?" : "") + ".count" + (allowNull ? " ?? 0" : ""));
 								default:
 									ibuilder.add(castToC(arg.name, arg.t));
 								}
 							}
 							ibuilder.add("\n\t\t)");
 							builder.add(castToSwift(ibuilder.toString(), tret, false, true));
+							for (arg in targs) {
+								switch TypeTools.followWithAbstracts(arg.t, false) {
+								case TInst(_.get().name => "Array", [TInst(_.get().name => "String", _)]):
+								builder.add("}");
+								default:
+								}
+							}
 							builder.add("\n\t}\n\n");
 
 					}
