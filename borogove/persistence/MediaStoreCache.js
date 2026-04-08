@@ -1,9 +1,8 @@
 // This example MediaStore is written in JavaScript
 // so that SDK users can easily see how to write their own
 
-export default (cacheName) => {
-	var cache = null;
-	caches.open(cacheName).then((c) => cache = c);
+export default async (cacheName) => {
+	const cache = await caches.open(cacheName);
 
 	function mkNiUrl(hashAlgorithm, hashBytes) {
 		const b64url = btoa(Array.from(new Uint8Array(hashBytes), (x) => String.fromCodePoint(x)).join("")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");

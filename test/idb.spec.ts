@@ -9,7 +9,7 @@ test("1:1 come back ordered by sortId", async ({ page }) => {
 		const blob = new Blob([code], { type: 'text/javascript' });
 		const borogove = await import(URL.createObjectURL(blob));
 
-		const mediaStore = borogove.persistence.MediaStoreCache("snikket");
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
 		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
 
 		const builder = new borogove.ChatMessageBuilder({
@@ -55,7 +55,7 @@ test("getMessagesBefore the end: MUC come back ordered by sortId, PM by timestam
 		const blob = new Blob([code], { type: 'text/javascript' });
 		const borogove = await import(URL.createObjectURL(blob));
 
-		const mediaStore = borogove.persistence.MediaStoreCache("snikket");
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
 		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
 
 		const builder = new borogove.ChatMessageBuilder({
@@ -120,7 +120,7 @@ test("getMessagesBefore some point: MUC come back ordered by sortId, PM by times
 		const blob = new Blob([code], { type: 'text/javascript' });
 		const borogove = await import(URL.createObjectURL(blob));
 
-		const mediaStore = borogove.persistence.MediaStoreCache("snikket");
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
 		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
 
 		const builder = new borogove.ChatMessageBuilder({
@@ -199,7 +199,7 @@ test("getMessagesBefore a PM", async ({ page }) => {
 		const blob = new Blob([code], { type: 'text/javascript' });
 		const borogove = await import(URL.createObjectURL(blob));
 
-		const mediaStore = borogove.persistence.MediaStoreCache("snikket");
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
 		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
 
 		const builder = new borogove.ChatMessageBuilder({
@@ -277,7 +277,7 @@ test("getMessagesAfter the start: MUC come back ordered by sortId, PM by timesta
 		const blob = new Blob([code], { type: 'text/javascript' });
 		const borogove = await import(URL.createObjectURL(blob));
 
-		const mediaStore = borogove.persistence.MediaStoreCache("snikket");
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
 		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
 
 		const builder = new borogove.ChatMessageBuilder({
@@ -342,7 +342,7 @@ test("getMessagesAfter some point: MUC come back ordered by sortId, PM by timest
 		const blob = new Blob([code], { type: 'text/javascript' });
 		const borogove = await import(URL.createObjectURL(blob));
 
-		const mediaStore = borogove.persistence.MediaStoreCache("snikket");
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
 		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
 
 		const builder = new borogove.ChatMessageBuilder({
@@ -421,7 +421,7 @@ test("getMessagesAfter a PM", async ({ page }) => {
 		const blob = new Blob([code], { type: 'text/javascript' });
 		const borogove = await import(URL.createObjectURL(blob));
 
-		const mediaStore = borogove.persistence.MediaStoreCache("snikket");
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
 		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
 
 		const builder = new borogove.ChatMessageBuilder({
@@ -488,4 +488,289 @@ test("getMessagesAfter a PM", async ({ page }) => {
 
 	expect(result.length).toBe(1);
 	expect(result[0].serverId).toBe("4");
+});
+
+test("storeChats and getChats", async ({ page }) => {
+	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: 'text/javascript' });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+
+		const chat = Object.create(borogove.DirectChat.prototype);
+		chat.chatId = "hatter@example.com";
+		chat.displayName = "The Mad Hatter";
+		chat.trusted = true;
+		chat.presence = new Map();
+
+		await persistence.storeChats("alice@example.com", [chat]);
+		return await persistence.getChats("alice@example.com");
+	}, code);
+
+	expect(result.length).toBe(1);
+	expect(result[0].chatId).toBe("hatter@example.com");
+	expect(result[0].displayName).toBe("The Mad Hatter");
+	expect(result[0].trusted).toBe(true);
+	expect(result[0].klass).toBe("DirectChat");
+});
+
+test("getMessage by serverId and localId", async ({ page }) => {
+	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: 'text/javascript' });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+
+		const builder = new borogove.ChatMessageBuilder({
+			serverId: "srv1",
+			serverIdBy: "hatter@example.com",
+			localId: "loc1",
+			senderId: "hatter@example.com",
+			direction: 0,
+		});
+		builder.sortId = "a0";
+		builder.to = borogove.JID.parse("alice@example.com");
+		builder.from = borogove.JID.parse("hatter@example.com");
+		builder.recipients = [builder.to];
+		builder.replyTo = [builder.from];
+		const msg = builder.build();
+
+		await persistence.storeMessages("alice@example.com", [msg]);
+
+		const byServerId = await persistence.getMessage("alice@example.com", "hatter@example.com", "srv1", null);
+		const byLocalId = await persistence.getMessage("alice@example.com", "hatter@example.com", null, "loc1");
+
+		return {
+			byServerId: byServerId ? { serverId: byServerId.serverId, localId: byServerId.localId } : null,
+			byLocalId: byLocalId ? { serverId: byLocalId.serverId, localId: byLocalId.localId } : null
+		};
+	}, code);
+
+	expect(result.byServerId).not.toBeNull();
+	expect(result.byServerId.serverId).toBe("srv1");
+	expect(result.byLocalId).not.toBeNull();
+	expect(result.byLocalId.localId).toBe("loc1");
+});
+
+test("storeReaction", async ({ page }) => {
+	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: 'text/javascript' });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+
+		const builder = new borogove.ChatMessageBuilder({
+			serverId: "srv1",
+			serverIdBy: "hatter@example.com",
+			senderId: "hatter@example.com",
+			direction: 0,
+		});
+		builder.sortId = "a0";
+		builder.to = borogove.JID.parse("alice@example.com");
+		builder.from = borogove.JID.parse("hatter@example.com");
+		builder.recipients = [builder.to];
+		builder.replyTo = [builder.from];
+		await persistence.storeMessages("alice@example.com", [builder.build()]);
+
+		const reaction = new borogove.Reaction("alice@example.com", "2020-01-01T00:00:01Z", "👍");
+		const update = new borogove.ReactionUpdate("up1", "srv1", "hatter@example.com", null, "hatter@example.com", "alice@example.com", "2020-01-01T00:00:01Z", [reaction], borogove.ReactionUpdateKind.EmojiReactions);
+
+		const msg = await persistence.storeReaction("alice@example.com", update);
+		return { reactions: [...msg.reactions.entries()].map(([k, v]) => ({ key: k, count: v.length })) };
+	}, code);
+
+	expect(result.reactions.length).toBe(1);
+	expect(result.reactions[0].key).toBe("👍");
+	expect(result.reactions[0].count).toBe(1);
+});
+
+test("updateMessageStatus", async ({ page }) => {
+	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: 'text/javascript' });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+
+		const builder = new borogove.ChatMessageBuilder({
+			localId: "loc1",
+			senderId: "alice@example.com",
+			direction: 1, // MessageSent
+		});
+		builder.sortId = "a0";
+		builder.to = borogove.JID.parse("hatter@example.com");
+		builder.from = borogove.JID.parse("alice@example.com");
+		builder.recipients = [builder.to];
+		builder.replyTo = [builder.from];
+		await persistence.storeMessages("alice@example.com", [builder.build()]);
+
+		const updated = await persistence.updateMessageStatus("alice@example.com", "loc1", 1, "Delivered"); // MessageDelivered
+		return { status: updated.status, statusText: updated.statusText };
+	}, code);
+
+	expect(result.status).toBe(1);
+	expect(result.statusText).toBe("Delivered");
+});
+
+test("searchMessages", async ({ page }) => {
+	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: 'text/javascript' });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+
+		const builder = new borogove.ChatMessageBuilder({
+			serverId: "srv1",
+			serverIdBy: "hatter@example.com",
+			senderId: "hatter@example.com",
+			direction: 0,
+		});
+		builder.sortId = "a0";
+		builder.text = "Hello world";
+		builder.to = borogove.JID.parse("alice@example.com");
+		builder.from = borogove.JID.parse("hatter@example.com");
+		builder.recipients = [builder.to];
+		builder.replyTo = [builder.from];
+
+		const builder2 = new borogove.ChatMessageBuilder({
+			serverId: "srv2",
+			serverIdBy: "hatter@example.com",
+			senderId: "hatter@example.com",
+			direction: 0,
+		});
+		builder2.sortId = "a1";
+		builder2.text = "Goodbye world";
+		builder2.to = borogove.JID.parse("alice@example.com");
+		builder2.from = borogove.JID.parse("hatter@example.com");
+		builder2.recipients = [builder2.to];
+		builder2.replyTo = [builder2.from];
+
+		await persistence.storeMessages("alice@example.com", [builder.build(), builder2.build()]);
+
+		const results = await persistence.searchMessages("alice@example.com", "hatter@example.com", "hello");
+		return results.map(m => m.text);
+	}, code);
+
+	expect(result.length).toBe(1);
+	expect(result[0]).toBe("Hello world");
+});
+
+test("removeAccount and listAccounts", async ({ page }) => {
+	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: 'text/javascript' });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+
+		await persistence.storeLogin("alice@example.com", "client1", "Alice", null);
+		await persistence.storeLogin("bob@example.com", "client2", "Bob", null);
+
+		const accountsBefore = await persistence.listAccounts();
+		await persistence.removeAccount("alice@example.com", true);
+		const accountsAfter = await persistence.listAccounts();
+
+		return { accountsBefore, accountsAfter };
+	}, code);
+
+	expect(result.accountsBefore).toContain("alice@example.com");
+	expect(result.accountsBefore).toContain("bob@example.com");
+	expect(result.accountsAfter).not.toContain("alice@example.com");
+	expect(result.accountsAfter).toContain("bob@example.com");
+});
+
+test("getChatUnreadDetails", async ({ page }) => {
+	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: 'text/javascript' });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+
+		const chat = Object.create(borogove.DirectChat.prototype);
+		chat.chatId = "hatter@example.com";
+		chat.readUpToId = "srv1";
+		chat.notificationsFiltered = () => false;
+
+		const builder = new borogove.ChatMessageBuilder({
+			serverId: "srv1",
+			serverIdBy: "hatter@example.com",
+			senderId: "hatter@example.com",
+			direction: 0,
+		});
+		builder.sortId = "a0";
+		builder.to = borogove.JID.parse("alice@example.com");
+		builder.from = borogove.JID.parse("hatter@example.com");
+		builder.recipients = [builder.to];
+		builder.replyTo = [builder.from];
+
+		const builder2 = new borogove.ChatMessageBuilder({
+			serverId: "srv2",
+			serverIdBy: "hatter@example.com",
+			senderId: "hatter@example.com",
+			direction: 0,
+		});
+		builder2.sortId = "a1";
+		builder2.to = borogove.JID.parse("alice@example.com");
+		builder2.from = borogove.JID.parse("hatter@example.com");
+		builder2.recipients = [builder2.to];
+		builder2.replyTo = [builder2.from];
+
+		await persistence.storeMessages("alice@example.com", [builder.build(), builder2.build()]);
+
+		return await persistence.getChatUnreadDetails("alice@example.com", chat);
+	}, code);
+
+	expect(result.unreadCount).toBe(1);
+	expect(result.message.serverId).toBe("srv2");
+});
+
+test("media storage functions", async ({ page }) => {
+	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: 'text/javascript' });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+
+		const buffer = new Uint8Array([1, 2, 3]).buffer;
+		await persistence.storeMedia("image/png", buffer);
+		const sha256 = await crypto.subtle.digest("SHA-256", buffer);
+		const hasBefore = await persistence.hasMedia("sha-256", sha256);
+		await persistence.removeMedia("sha-256", sha256);
+		const hasAfter = await persistence.hasMedia("sha-256", sha256);
+
+		return { hasBefore, hasAfter };
+	}, code);
+
+	expect(result.hasBefore).toBe(true);
+	expect(result.hasAfter).toBe(false);
 });
