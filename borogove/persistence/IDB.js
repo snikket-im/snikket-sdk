@@ -184,8 +184,8 @@ export default async (dbname, media, tokenize, stemmer) => {
 				if (messagesIndexNames.contains("accounts")) {
 					tx.objectStore("messages").deleteIndex("accounts");
 				}
-				if (messagesIndexNames.contains("chats")) {
-					tx.objectStore("messages").deleteIndex("chats");
+				if (!messagesIndexNames.contains("chats")) {
+					tx.objectStore("messages").createIndex("chats", ["account", "chatId", "timestamp"]);
 				}
 			};
 			dbOpenReq.onsuccess = (event) => {
@@ -209,7 +209,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				}
 				const tx = db.transaction(["messages", "keyvaluepairs"], "readonly");
 				const messagesIndexNames = tx.objectStore("messages").indexNames;
-				const wantIndexNames = ["chatsBySortId", "accountsBySortId", "terms"];
+				const wantIndexNames = ["chatsBySortId", "accountsBySortId", "terms", "chats"];
 				for(const indexName of wantIndexNames) {
 					if(!messagesIndexNames.contains(indexName)) {
 						db.close();
@@ -230,7 +230,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 						await promisifyRequest(writeKV.objectStore("keyvaluepairs").put(new Date(), "__migrationAddSortIdAndTerms"));
 					}
 
-					if (messagesIndexNames.contains("accounts") || messagesIndexNames.contains("chats")) {
+					if (messagesIndexNames.contains("accounts")) {
 						db.close();
 						openDb(db.version + 1).then(resolve, reject);
 						return;
@@ -679,27 +679,92 @@ export default async (dbname, media, tokenize, stemmer) => {
 		getMessagesBefore: async function(account, chatId, before) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
-			const cursor = store.index("chatsBySortId").openCursor(
-				IDBKeyRange.bound([account, chatId], [account, chatId, before?.sortId || []]),
-				"prev"
-			);
-			const messages = await this.getMessagesFromCursor(cursor, before);
+			const cursor = before?.type === enums.borogove_MessageType.MessageChannelPrivate ?
+				store.index("chats").openCursor(
+					IDBKeyRange.bound([account, chatId], [account, chatId, new Date(before.timestamp)]),
+					"prev"
+				) : store.index("chatsBySortId").openCursor(
+					IDBKeyRange.bound([account, chatId], [account, chatId, before?.sortId || []]),
+					"prev"
+				);
+			const messages = await this.getMessagesFromCursor(cursor, before, m => m.type === enums.borogove_MessageType.MessageChannelPrivate);
+
+			if (messages.length > 0 && messages[0].serverIdBy === chatId) {
+				const earliest = new Date(messages[messages.length - 1].timestamp);
+				const tx = db.transaction(["messages"], "readonly");
+				const store = tx.objectStore("messages");
+				const pmCursor = store.index("chats").openCursor(
+					IDBKeyRange.bound([account, chatId], [account, chatId, before ? new Date(before.timestamp) : []]),
+					"prev"
+				);
+				const promisePMs = [];
+				while (true) {
+					const cresult = await promisifyRequest(pmCursor);
+					if (!cresult?.value || cresult.value.timestamp < earliest) break;
+
+					if (cresult.value.type === enums.borogove_MessageType.MessageChannelPrivate && (!before || before.serverId !== cresult.value.serverId)) {
+						promisePMs.push(hydrateMessage(cresult.value));
+					}
+
+					cresult.continue();
+				}
+
+				const pms = await Promise.all(promisePMs);
+				for (const pm of pms) {
+					const idx = messages.findIndex(m => m.timestamp <= pm.timestamp);
+					if (idx >= 0) messages.splice(idx, 0, pm);
+				}
+			}
+
 			return messages.reverse();
 		},
 
 		getMessagesAfter: async function(account, chatId, after) {
-			const bound = after?.sortId ? [after.sortId] : [];
+			const index = after?.type === enums.borogove_MessageType.MessageChannelPrivate ? "chats" : "chatsBySortId";
+			const bound = after ? [after?.type === enums.borogove_MessageType.MessageChannelPrivate ? new Date(after.timestamp) : after.sortId] : [];
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
-			const cursor = store.index("chatsBySortId").openCursor(
+			const cursor = store.index(index).openCursor(
 				IDBKeyRange.bound([account, chatId, ...bound], [account, chatId, []]),
 				"next"
 			);
-			return this.getMessagesFromCursor(cursor, after);
+			const messages = await this.getMessagesFromCursor(cursor, after, m => m.type === enums.borogove_MessageType.MessageChannelPrivate);
+
+			if (messages.length > 0 && messages[0].serverIdBy === chatId) {
+				const latest = new Date(messages[messages.length - 1].timestamp);
+				const tx = db.transaction(["messages"], "readonly");
+				const store = tx.objectStore("messages");
+				const pmCursor = store.index("chats").openCursor(
+					IDBKeyRange.bound([account, chatId, ...(after ? [new Date(after.timestamp)] : [])], [account, chatId, []]),
+					"next"
+				);
+				const promisePMs = [];
+				while (true) {
+					const cresult = await promisifyRequest(pmCursor);
+					if (!cresult?.value) break;
+
+					if (cresult.value.type === enums.borogove_MessageType.MessageChannelPrivate && (!after || after.serverId !== cresult.value.serverId)) {
+						promisePMs.push(hydrateMessage(cresult.value));
+					}
+
+					if (cresult.value.timestamp > latest) break;
+
+					cresult.continue();
+				}
+
+				const pms = await Promise.all(promisePMs);
+				for (const pm of pms) {
+					const idx = messages.findLastIndex(m => m.timestamp < pm.timestamp);
+					if (idx >= 0) messages.splice(idx+1, 0, pm);
+				}
+			}
+
+			return messages;
 		},
 
 		getMessagesAround: async function(account, around) {
 			if (!around) throw "Cannot look around nothing";
+			if (around.type == enums.borogove_MessageType.MessageChannelPrivate) throw "Cannot look around PM";
 
 			const chatId = around.chatId();
 			const before = this.getMessagesBefore(account, chatId, around);
@@ -714,13 +779,13 @@ export default async (dbname, media, tokenize, stemmer) => {
 			return Promise.all([before, aroundAndAfter]).then(result => result.flat());
 		},
 
-		getMessagesFromCursor: async function(cursor, notIncluding) {
+		getMessagesFromCursor: async function(cursor, notIncluding, filter) {
 			const result = [];
 			while (true) {
 				const cresult = await promisifyRequest(cursor);
 				if (cresult && result.length < 50) {
 					const value = cresult.value;
-					if ((notIncluding?.serverId && notIncluding?.serverId === value?.serverId) || (notIncluding?.localId && !value?.serverId && notIncluding?.localId === value?.localId)) {
+					if ((notIncluding?.serverId && notIncluding?.serverId === value?.serverId) || (notIncluding?.localId && !value?.serverId && notIncluding?.localId === value?.localId) || (filter && filter(value))) {
 						cresult.continue();
 						continue;
 					}

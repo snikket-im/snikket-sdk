@@ -1,6 +1,6 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 
-.PHONY: all test doc hx-build-dep cpp/libborogove.dso npm/borogove-browser.js npm/borogove.js cpp
+.PHONY: all test doc hx-build-dep cpp/libborogove.dso npm/borogove-browser.js npm/borogove.js cpp playwright
 
 all: npm libborogove.batteriesincluded.so libborogove.so libborogove.a
 
@@ -48,6 +48,12 @@ npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogov
 	cp borogove/persistence/sqlite-worker1.mjs npm
 	-cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts > /dev/null
 	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts
+
+playwright/.cache/borogove.js: npm
+	esbuild npm/index.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" "--footer:js=export { borogove_JID as JID }" --outfile=$@
+
+playwright: playwright/.cache/borogove.js
+	npx playwright test
 
 cpp/libborogove.dso:
 	haxe cpp.hxml

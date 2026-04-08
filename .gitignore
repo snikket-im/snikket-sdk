@@ -13,3 +13,10 @@ haxedoc.xml
 cpp
 venv
 docs/js/borogove*.md
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
