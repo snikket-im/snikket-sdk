@@ -256,9 +256,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			q += " AND mam_by=?";
 			params.push(chatId);
 		}
-		if (chatId != null) {
-			q += " ORDER BY sort_id DESC LIMIT 1";
-		}
+		q += " ORDER BY sort_id DESC LIMIT 1";
 		return db.exec(q, params).then(result -> hydrateMessages(accountId, result)[0]);
 	}
 
@@ -539,7 +537,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	private function getChatUnreadDetails(accountId: String, chat: Chat): Promise<{ chatId: String, message: ChatMessage, unreadCount: Int }> {
 		return db.exec(
-			"WITH subq as (SELECT ROWID as row, COALESCE(MAX(sort_id, 'a ') as sort_id FROM messages where account_id=? AND chat_id=? AND (mam_id=? OR direction=?)) SELECT chat_id AS chatId, stanza, direction, type, status, status_text, sender_id, mam_id, mam_by, MAX(sort_id), sync_point, CASE WHEN (SELECT row FROM subq) IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp FROM messages WHERE account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND (messages.sort_id >= (SELECT sort_id FROM subq) AND (messages.sort_id <> (SELECT sort_id FROM subq) OR messages.ROWID = (SELECT row FROM subq)))",
+			"WITH subq AS (SELECT ROWID AS row, COALESCE(MAX(sort_id), 'a ') AS sort_id FROM messages where account_id=? AND chat_id=? AND (mam_id=? OR direction=?)) SELECT chat_id AS chatId, stanza, direction, type, status, status_text, sender_id, mam_id, mam_by, MAX(sort_id), sync_point, CASE WHEN (SELECT row FROM subq) IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp FROM messages WHERE account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND (messages.sort_id >= (SELECT sort_id FROM subq) AND (messages.sort_id <> (SELECT sort_id FROM subq) OR messages.ROWID = (SELECT row FROM subq)))",
 			[accountId, chat.chatId, chat.readUpToId, MessageSent, accountId, chat.chatId]
 		).then(result -> {
 			final row: Dynamic = result.next();
