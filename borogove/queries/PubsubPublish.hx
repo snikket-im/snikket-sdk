@@ -62,7 +62,7 @@ class PubsubPublish extends GenericQuery {
 
 	public function new(to: Null<String>, node: String, ?itemId_: String, ?payload: Stanza, ?config: PubsubConfig) {
 		/* Build basic query */
-		queryId = ID.short();
+		queryId = ID.unique();
 		itemId = itemId_;
 		queryStanza = new Stanza("iq", { to: to, type: "set", id: queryId });
 		final items = queryStanza
