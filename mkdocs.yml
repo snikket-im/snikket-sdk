@@ -32,6 +32,7 @@ nav:
     - js/index.md
     - API Reference: js/borogove.md
   - Swift:
-    - SwiftPM: ../src/r/swiftpm/
+    - swift/index.md
+    - API Reference: swift/borogove.md
   - Haxe:
     - API Reference: haxe/
