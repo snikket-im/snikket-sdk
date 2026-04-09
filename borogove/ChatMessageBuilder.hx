@@ -151,12 +151,20 @@ class ChatMessageBuilder {
 	@:allow(borogove)
 	private var stanza: Null<Stanza> = null;
 
+	#if cpp
 	/**
+		Create a new message builder
+
 		@returns a new blank ChatMessageBuilder
 	**/
-	#if cpp
 	public function new() { }
 	#else
+	/**
+		Create a new message builder from a parameter object
+
+		@param params initial values for the message builder
+		@returns a new ChatMessageBuilder
+	**/
 	public function new(?params: {
 		?localId: Null<String>,
 		?serverId: Null<String>,
@@ -262,7 +270,10 @@ class ChatMessageBuilder {
 
 	/**
 		Set rich text using HTML
+
 		Also sets the plain text body appropriately
+
+		@param html rich text body to attach to the message
 	**/
 	public function setHtml(html: Html) {
 		final htmlEl = new Stanza("html", { xmlns: "http://jabber.org/protocol/xhtml-im" });
@@ -277,6 +288,8 @@ class ChatMessageBuilder {
 
 	/**
 		The ID of the Chat this message is associated with
+
+		@returns Chat ID for this message
 	**/
 	public function chatId():String {
 		if (isIncoming()) {
@@ -288,6 +301,8 @@ class ChatMessageBuilder {
 
 	/**
 		The ID of the sender of this message
+
+		@returns sender ID for this message
 	**/
 	public function get_senderId():String {
 		return senderId ?? sender?.asString() ?? throw "sender is null";

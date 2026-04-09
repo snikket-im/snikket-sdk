@@ -75,6 +75,9 @@ class Reaction {
 @:build(HaxeSwiftBridge.expose())
 #end
 class CustomEmojiReaction extends Reaction {
+	/**
+		URI of the custom emoji image
+	**/
 	public final uri: String;
 
 	@:allow(borogove)
@@ -98,6 +101,13 @@ class CustomEmojiReaction extends Reaction {
 	@:allow(borogove)
 	override private function render(forText: (String) -> String, forImage: (String, String) -> String) {
 	#else
+	/**
+		Render this reaction using either a text or image callback
+
+		@param forText called for plain unicode reactions
+		@param forImage called for custom emoji reactions with name and image URI
+		@returns the value returned by the chosen callback
+	**/
 	override public function render<T>(forText: (String) -> T, forImage: (String, String) -> T) {
 	#end
 		final hash = Hash.fromUri(uri);

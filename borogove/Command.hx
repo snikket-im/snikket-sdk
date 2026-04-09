@@ -17,6 +17,9 @@ import HaxeCBridge;
 @:build(HaxeSwiftBridge.expose())
 #end
 class Command {
+	/**
+		Human-readable name for this command
+	**/
 	public final name: String;
 	private final jid: JID;
 	private final node: String;
@@ -44,9 +47,21 @@ class Command {
 @:build(HaxeSwiftBridge.expose())
 #end
 class CommandSession {
+	/**
+		Human-readable title for the current command session
+	**/
 	public final name: String;
+	/**
+		Current command execution status
+	**/
 	public final status: String;
+	/**
+		Actions the server currently allows for this session
+	**/
 	public final actions: Array<FormOption>;
+	/**
+		Forms to display for the current session step
+	**/
 	public final forms: Array<Form>;
 	private final sessionid: String;
 	private final command: Command;
@@ -61,6 +76,14 @@ class CommandSession {
 		this.command = command;
 	}
 
+	/**
+		Continue this command session, optionally submitting form data
+
+		@param action requested action, or null for the default action
+		@param data form values to submit for the selected form
+		@param formIdx index of the form in `forms` to submit
+		@returns Promise resolving to the next command session state
+	**/
 	#if js
 	public function execute(
 		action: Null<String> = null,

@@ -57,7 +57,7 @@ enum abstract ChatMessageEvent(Int) {
 #end
 class Client extends EventEmitter {
 	/**
-		Set to false to suppress sending available presence
+		Set to false to suppress sending available presence after connect
 	**/
 	@:allow(borogove)
 	public var sendAvailable(null, default): Bool = true;
@@ -1050,6 +1050,14 @@ class Client extends EventEmitter {
 	}
 
 	#if js
+	/**
+		Create a browser push subscription and register it with the server
+
+		@param reg service worker registration that owns the PushManager
+		@param push_service address of the push proxy
+		@param vapid_key VAPID key pair used for push registration
+		@param grace optional push suppression grace period, in seconds
+	**/
 	public function subscribePush(reg: js.html.ServiceWorkerRegistration, push_service: String, vapid_key: { publicKey: js.html.CryptoKey, privateKey: js.html.CryptoKey }, ?grace: Int) {
 		js.Browser.window.crypto.subtle.exportKey("raw", vapid_key.publicKey).then((vapid_public_raw) -> {
 			reg.pushManager.subscribe(untyped {
@@ -1199,6 +1207,12 @@ class Client extends EventEmitter {
 	// TODO: haxe cpp erases enum into int, so using it as a callback arg is hard
 	// could just use int in C bindings, or need to come up with a good strategy
 	// for the wrapper
+	/**
+		Event fired when another participant changes state (such as typing/not typing)
+
+		@param handler takes sender ID, Chat ID, thread ID, and the new user state
+		@returns token for use with removeEventListener
+	**/
 	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addUserStateListener(handler: (String,String,Null<String>,UserState)->Void):EventHandlerToken {
 		return this.on("chat-state/update", (data) -> {
@@ -1378,7 +1392,7 @@ class Client extends EventEmitter {
 	}
 
 	/**
-		Let the SDK know the UI is in the foreground
+		Let the SDK know the UI is not in the foreground
 	**/
 	public function setNotInForeground() {
 		if (!stream.csi) return;

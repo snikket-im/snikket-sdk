@@ -16,10 +16,25 @@ import HaxeCBridge;
 @:build(HaxeSwiftBridge.expose())
 #end
 class Participant {
+	/**
+		Display name to show for this participant
+	**/
 	public final displayName: String;
+	/**
+		Avatar URI for this participant, or null when none is known
+	**/
 	public final photoUri: Null<String>;
+	/**
+		Fallback avatar URI to use when no photo is available
+	**/
 	public final placeholderUri: String;
+	/**
+		True when this participant is the connected account
+	**/
 	public final isSelf: Bool;
+	/**
+		Chat metadata for this participant when it is available as a direct Chat
+	**/
 	public final chat: Null<AvailableChat>;
 	private final jid: JID;
 
@@ -34,6 +49,12 @@ class Participant {
 	}
 
 #if !test
+	/**
+		Load the participant's profile
+
+		@param client connected client used to send the profile query
+		@returns Promise resolving to the participant profile
+	**/
 	public function profile(client: Client): Promise<Profile> {
 		return new Promise((resolve, reject) -> {
 			final get = new PubsubGet(jid.asString(), "urn:xmpp:vcard4");

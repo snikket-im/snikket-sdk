@@ -12,7 +12,13 @@ import HaxeCBridge;
 @:build(HaxeSwiftBridge.expose())
 #end
 interface FormSection {
+	/**
+		Title to show for this section, or null when it is untitled
+	**/
 	public function title(): Null<String>;
+	/**
+		Renderable items contained in this section
+	**/
 	public function items(): Array<FormItem>;
 }
 
@@ -22,12 +28,30 @@ interface FormSection {
 @:build(HaxeSwiftBridge.expose())
 #end
 class FormItem {
+	/**
+		Plain text content for this item, or null when the item is not text-only
+	**/
 	public final text: Null<String>;
+	/**
+		Form field for this item, or null when the item is not a field
+	**/
 	public final field: Null<FormField>;
+	/**
+		Nested section for this item, or null when the item is not a section
+	**/
 	public final section: Null<FormSection>;
+	/**
+		Optional status type associated with instructional text
+	**/
 	public final status: Null<String>;
+	/**
+		Column definitions when this item represents a result table
+	**/
 	public final tableHeader: Null<Array<FormField>>;
 	@HaxeCBridge.noemit
+	/**
+		Rows when this item represents a result table
+	**/
 	public final tableRows: Null<Array<Array<FormField>>>;
 
 	@:allow(borogove)
@@ -49,8 +73,17 @@ class FormSubmitBuilder {
 	@:allow(borogove.Form)
 	private final data: Map<String, Array<String>> = [];
 
+	/**
+		Create a new empty form submission
+	**/
 	public function new() { }
 
+	/**
+		Add a submitted value for a field.
+
+		@param k field name
+		@param v value to submit for that field
+	**/
 	public function add(k: String, v: String) {
 		if (data.get(k) != null) {
 			data.set(k, data.get(k).concat([v]));
