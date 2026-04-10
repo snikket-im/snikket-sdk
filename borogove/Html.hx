@@ -214,6 +214,16 @@ class Html {
 		}).join("");
 	}
 
+	/**
+		Get plain text suitable for showing to a user
+	**/
+	public function toPlainText(): String {
+		// Could use reduce, but we already have XEP0393.render around
+		final body = new Stanza("body");
+		body.addChildNodes(xml);
+		return ~/\n$/.replace(XEP0393.render(body), "");
+	}
+
 	#if js
 	/**
 		Get HTML as a DocumentFragment

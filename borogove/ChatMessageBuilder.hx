@@ -16,7 +16,6 @@ import borogove.Hash;
 import borogove.JID;
 import borogove.Identicon;
 import borogove.StringUtil;
-import borogove.XEP0393;
 import borogove.EmojiUtil;
 import borogove.Message;
 import borogove.Stanza;
@@ -283,7 +282,7 @@ class ChatMessageBuilder {
 		final htmlIdx = payloads.findIndex((p) -> p.attr.get("xmlns") == "http://jabber.org/protocol/xhtml-im" && p.name == "html");
 		if (htmlIdx >= 0) payloads.splice(htmlIdx, 1);
 		payloads.push(htmlEl);
-		text = ~/\n$/.replace(XEP0393.render(body), "");
+		text = html.toPlainText();
 	}
 
 	/**
