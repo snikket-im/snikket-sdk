@@ -73,7 +73,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		Create a basic persistence layer based on sqlite
 
 		@param dbfile path to sqlite database
-		@params media a MediaStore to use for media
+		@param media a MediaStore to use for media
 		@returns new persistence layer
 	**/
 	public function new(dbfile: String, media: MediaStore) {
