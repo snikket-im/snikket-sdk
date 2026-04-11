@@ -88,7 +88,7 @@ class Notification {
 		}
 		return new Notification(
 			m.type == MessageCall ? "Incoming Call" : "New Message",
-			m.text,
+			m.body().toPlainText(),
 			m.account(),
 			m.chatId(),
 			m.senderId,

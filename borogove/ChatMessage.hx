@@ -201,12 +201,12 @@ class ChatMessage {
 	#end
 
 	/**
-		Body text of this message or NULL
+		Raw body text of this message or NULL
 	**/
-	public final text: Null<String>;
+	private final text: Null<String>;
 
 	/**
-		Language code for the body text
+		Language code for the body
 	**/
 	public final lang: Null<String>;
 
@@ -397,13 +397,13 @@ class ChatMessage {
 	}
 
 	/**
-		The HTML version of the message body
+		HTML representation of the message body
 
 		WARNING: this is possibly untrusted HTML. You must parse or sanitize appropriately!
 
 		@param sender optionally specify the full details of the sender
 	**/
-	public function html(sender: Null<Participant> = null):Html {
+	public function body(sender: Null<Participant> = null):Html {
 		return new Html(htmlBody(), sender);
 	}
 

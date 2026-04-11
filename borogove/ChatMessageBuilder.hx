@@ -103,10 +103,11 @@ class ChatMessageBuilder {
 	/**
 		Body text of this message or NULL
 	**/
-	public var text: Null<String> = null;
+	@:allow(borogove.Message)
+	private var text: Null<String> = null;
 
 	/**
-		Language code for the body text
+		Language code for the body
 	**/
 	public var lang: Null<String> = null;
 
@@ -198,15 +199,16 @@ class ChatMessageBuilder {
 		this.threadId = params?.threadId;
 		this.attachments = params?.attachments ?? [];
 		this.reactions = params?.reactions ?? ([] : Map<String, Array<Reaction>>);
-		this.text = params?.text;
 		this.lang = params?.lang;
 		this.direction = params?.direction ?? MessageSent;
 		this.status = params?.status ?? MessagePending;
 		this.versions = params?.versions ?? [];
 		this.payloads = params?.payloads ?? [];
 		this.encryption = params?.encryption;
+		final text = params?.text;
+		if (text != null) setBody(Html.text(text));
 		final html = params?.html;
-		if (html != null) setHtml(html);
+		if (html != null) setBody(html);
 	}
 	#end
 
@@ -268,21 +270,31 @@ class ChatMessageBuilder {
 	}
 
 	/**
-		Set rich text using HTML
-
-		Also sets the plain text body appropriately
+		Set body from Html
 
 		@param html rich text body to attach to the message
 	**/
-	public function setHtml(html: Html) {
-		final htmlEl = new Stanza("html", { xmlns: "http://jabber.org/protocol/xhtml-im" });
-		final body = new Stanza("body", { xmlns: "http://www.w3.org/1999/xhtml" });
-		htmlEl.addChild(body);
-		body.addChildNodes(html.xml);
+	public function setBody(html: Null<Html>) {
 		final htmlIdx = payloads.findIndex((p) -> p.attr.get("xmlns") == "http://jabber.org/protocol/xhtml-im" && p.name == "html");
 		if (htmlIdx >= 0) payloads.splice(htmlIdx, 1);
-		payloads.push(htmlEl);
-		text = html.toPlainText();
+
+		final unstyledIdx = payloads.findIndex((p) -> p.attr.get("xmlns") == "urn:xmpp:styling:0" && p.name == "unstyled");
+		if (unstyledIdx >= 0) payloads.splice(unstyledIdx, 1);
+
+		if (html == null) {
+			text = null;
+		} else {
+			if (html.isPlainText()) {
+				payloads.push(new Stanza("unstyled", { xmlns: "urn:xmpp:styling:0" }));
+			} else {
+				final htmlEl = new Stanza("html", { xmlns: "http://jabber.org/protocol/xhtml-im" });
+				final body = new Stanza("body", { xmlns: "http://www.w3.org/1999/xhtml" });
+				htmlEl.addChild(body);
+				body.addChildNodes(html.xml);
+				payloads.push(htmlEl);
+			}
+			text = html.toPlainText();
+		}
 	}
 
 	/**

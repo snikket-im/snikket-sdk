@@ -3,6 +3,7 @@ package borogove;
 import haxe.DynamicAccess;
 import haxe.ds.ReadOnlyArray;
 using StringTools;
+using Lambda;
 
 import borogove.Stanza;
 
@@ -126,6 +127,27 @@ class Html {
 			return Element(s);
 		}
 		throw "node was neither text nor element?";
+	}
+
+	@:allow(borogove)
+	private function isPlainText() {
+		// Don't use our own reduce because we want to check the raw nodes
+		return !xml.map(item -> switch (item) {
+			case Element(el):
+				el.reduce(
+					(st, kids) -> {
+						final attrs = st.attr.keys();
+
+						if (["div", "span", "p", "br"].contains(st.name)) {
+							return attrs.length < 1 && !kids.exists(plain -> !plain);
+						}
+
+						return false;
+					},
+					txt -> true
+				);
+			case CData(txt): true;
+		}).exists(plain -> !plain);
 	}
 
 	/**

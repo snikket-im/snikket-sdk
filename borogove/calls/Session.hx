@@ -60,7 +60,7 @@ private function mkCallMessage(to: JID, client: Client, event: Stanza) {
 	m.sender = m.from.asBare();
 	m.replyTo = [m.sender];
 	m.direction = MessageSent;
-	m.text = "call " + event.name;
+	m.setBody(Html.text("call " + event.name));
 	m.timestamp = Date.format(std.Date.now());
 	m.payloads.push(event);
 	m.localId = ID.unique();

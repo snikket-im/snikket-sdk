@@ -251,12 +251,12 @@ abstract class Chat {
 		toSend.localId = ID.unique();
 		reaction.render(
 			(text) -> {
-				toSend.text = text.replace("\u{fe0f}", "");
+				toSend.setBody(Html.text(text.replace("\u{fe0f}", "")));
 				return "";
 			},
 			(text, uri) -> {
 				final hash = Hash.fromUri(uri);
-				toSend.setHtml(
+				toSend.setBody(
 					new Html([Element(new Stanza("img", { alt: text, src: hash == null ? uri : hash.bobUri() }))], null)
 				);
 				return "";
@@ -539,7 +539,8 @@ abstract class Chat {
 			case MessageCall:
 				lastMessage.isIncoming() ? "Incoming Call" : "Outgoing Call";
 			default:
-				lastMessage.text.split("\n").find(line -> !~/(^[ \n]*$)|(^>)/.match(line)) ?? lastMessage.text ?? "";
+				final txt = lastMessage.body().toPlainText() ?? "";
+				txt.split("\n").find(line -> !~/(^[ \n]*$)|(^>)/.match(line)) ?? txt;
 		}
 	}
 
@@ -1115,8 +1116,7 @@ class DirectChat extends Chat {
 			if (reaction.envelopeId == null) throw "Cannot remove custom emoji reaction without envelopeId";
 			final correct = m.reply();
 			correct.localId = ID.unique();
-			correct.setHtml(new Html([], null));
-			correct.text = null;
+			correct.setBody(null);
 
 			final fakeEnvelope = new ChatMessageBuilder();
 			fakeEnvelope.localId = reaction.envelopeId;
@@ -1845,9 +1845,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 			if (reaction.envelopeId == null) throw "Cannot remove custom emoji reaction without envelopeId";
 			final correct = m.reply();
 			correct.localId = ID.unique();
-			correct.setHtml(new Html([], null));
-			correct.text = null;
-
+			correct.setBody(null);
 
 			final fakeEnvelope = new ChatMessageBuilder();
 			fakeEnvelope.localId = reaction.envelopeId;

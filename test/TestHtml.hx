@@ -16,10 +16,10 @@ class TestHtml extends utest.Test {
 		msg.to = JID.parse("alice@example.com");
 		msg.from = JID.parse("hatter@example.com");
 		msg.sender = msg.from;
-		msg.setHtml(Html.fromString("Hello <div class='sup&amp;2'><img src='hai'><br><p></p>"));
+		msg.setBody(Html.fromString("Hello <div class='sup&amp;2'><img src='hai'><br><p></p>"));
 		Assert.equals(
 			"Hello <div class=\"sup&amp;2\"><img src=\"hai\" /><br /><p></p></div>",
-			msg.build().html().toString()
+			msg.build().body().toString()
 		);
 	}
 
@@ -29,10 +29,10 @@ class TestHtml extends utest.Test {
 		msg.to = JID.parse("alice@example.com");
 		msg.from = JID.parse("hatter@example.com");
 		msg.sender = msg.from;
-		msg.setHtml(Html.fromString("<img src='cid:sha1+472e2207519f825c2affc636550a23cbcf1ef5ac@bob.xmpp.org'/>"));
+		msg.setBody(Html.fromString("<img src='cid:sha1+472e2207519f825c2affc636550a23cbcf1ef5ac@bob.xmpp.org'/>"));
 		Assert.equals(
 			"<img src=\"ni:///sha-1;Ry4iB1Gfglwq_8Y2VQojy88e9aw\" />",
-			msg.build().html().toString()
+			msg.build().body().toString()
 		);
 	}
 
@@ -48,7 +48,7 @@ class TestHtml extends utest.Test {
 
 		Assert.equals(
 			"<div class=\"action\"><div>hatter says hello</div></div>",
-			msg.build().html(participant).toString()
+			msg.build().body(participant).toString()
 		);
 	}
 
@@ -58,13 +58,13 @@ class TestHtml extends utest.Test {
 		msg.to = JID.parse("alice@example.com");
 		msg.from = JID.parse("hatter@example.com");
 		msg.sender = msg.from;
-		msg.setHtml(Html.fromString("/me says <div class='sup&amp;2'><img src='hai'><br><p></p>"));
+		msg.setBody(Html.fromString("/me says <div class='sup&amp;2'><img src='hai'><br><p></p>"));
 
 		final participant = new Participant("hatter", null, "", false, msg.from, null);
 
 		Assert.equals(
 			"<div class=\"action\">hatter says <div class=\"sup&amp;2\"><img src=\"hai\" /><br /><p></p></div></div>",
-			msg.build().html(participant).toString()
+			msg.build().body(participant).toString()
 		);
 	}
 
@@ -74,10 +74,10 @@ class TestHtml extends utest.Test {
 		msg.to = JID.parse("alice@example.com");
 		msg.from = JID.parse("hatter@example.com");
 		msg.sender = msg.from;
-		msg.setHtml(Html.fromString("<a onclick='alert();'>hello</a>"));
+		msg.setBody(Html.fromString("<a onclick='alert();'>hello</a>"));
 		Assert.equals(
 			"<a>hello</a>",
-			msg.build().html().toString()
+			msg.build().body().toString()
 		);
 	}
 
@@ -87,10 +87,18 @@ class TestHtml extends utest.Test {
 		msg.to = JID.parse("alice@example.com");
 		msg.from = JID.parse("hatter@example.com");
 		msg.sender = msg.from;
-		msg.setHtml(Html.fromString("<style>hai</style><script>hai</script>hai"));
+		msg.setBody(Html.fromString("<style>hai</style><script>hai</script>hai"));
 		Assert.equals(
 			"hai",
-			msg.build().html().toString()
+			msg.build().body().toString()
 		);
+	}
+
+	public function testIsPlainText() {
+		Assert.isTrue(Html.text("hello").isPlainText());
+		Assert.isTrue(Html.fromString("<div>hello</div>").isPlainText());
+		Assert.isTrue(Html.fromString("<p>hello</p><p>world</p>").isPlainText());
+		Assert.isTrue(Html.fromString("hello<br>world").isPlainText());
+		Assert.isFalse(Html.fromString("hello <b>world</b>").isPlainText());
 	}
 }
