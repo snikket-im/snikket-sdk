@@ -186,8 +186,9 @@ class XEP0393 {
 			var end = 0;
 			final styledLength = styled.length;
 			while (end < styledLength && styled.charAt(end) != "\n") end++;
+			final lineEnd = end;
 			if (end < styledLength && styled.charAt(end) == "\n") end++;
-			return { block: new Stanza("div").addChildNodes(parseSpans(styled.substr(0, end))), rest: styled.substr(end) };
+			return { block: new Stanza("div").addChildNodes(parseSpans(styled.substr(0, lineEnd))), rest: styled.substr(end) };
 		}
 	}
 

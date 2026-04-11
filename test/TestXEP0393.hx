@@ -13,9 +13,7 @@ class TestXEP0393 extends utest.Test {
 
 	public function testSpansDoNotEscapeBlocks() {
 		Assert.equals(
-			"<div>There are three blocks in this body, one per line,
-</div><div>but there is no *formatting
-</div><div>as spans* may not escape blocks.</div>",
+			"<div>There are three blocks in this body, one per line,</div><div>but there is no *formatting</div><div>as spans* may not escape blocks.</div>",
 			toHtml("There are three blocks in this body, one per line,
 but there is no *formatting
 as spans* may not escape blocks.")
@@ -25,8 +23,7 @@ as spans* may not escape blocks.")
 	public function testPreformattedBlock() {
 		Assert.equals(
 			"<pre>(println \"Hello, world!\")
-</pre><div>
-</div><div>This should show up as monospace, preformatted text ⤴</div>",
+</pre><div/><div>This should show up as monospace, preformatted text ⤴</div>",
 			toHtml("```ignored
 (println \"Hello, world!\")
 ```
@@ -38,9 +35,7 @@ This should show up as monospace, preformatted text ⤴")
 	public function testPreformattedBlockUnterminated() {
 		Assert.equals(
 			"<blockquote><pre>(println \"Hello, world!\")
-</pre></blockquote><div>
-</div><div>The entire blockquote is a preformatted text block, but this line
-</div><div>is plaintext!</div>",
+</pre></blockquote><div/><div>The entire blockquote is a preformatted text block, but this line</div><div>is plaintext!</div>",
 			toHtml("> ```ignored
 > (println \"Hello, world!\")
 
@@ -51,9 +46,7 @@ is plaintext!")
 
 	public function testQuotation() {
 		Assert.equals(
-			"<blockquote><div>That that is, is.
-</div></blockquote><div>
-</div><div>Said the old hermit of Prague.</div>",
+			"<blockquote><div>That that is, is.</div></blockquote><div/><div>Said the old hermit of Prague.</div>",
 			toHtml("> That that is, is.
 
 Said the old hermit of Prague.")
@@ -62,10 +55,7 @@ Said the old hermit of Prague.")
 
 	public function testNestedQuotation() {
 		Assert.equals(
-			"<blockquote><blockquote><div>That that is, is.
-</div></blockquote><div>Said the old hermit of Prague.
-</div></blockquote><div>
-</div><div>Who?</div>",
+			"<blockquote><blockquote><div>That that is, is.</div></blockquote><div>Said the old hermit of Prague.</div></blockquote><div/><div>Who?</div>",
 			toHtml(">> That that is, is.
 > Said the old hermit of Prague.
 
@@ -158,7 +148,7 @@ Who?")
 
 	public function testNotStrong3() {
 		Assert.equals(
-			"<div>*not \n</div><div> strong</div>",
+			"<div>*not </div><div> strong</div>",
 			toHtml("*not \n strong")
 		);
 	}
@@ -210,8 +200,7 @@ Who?")
 
 	public function testAutolink() {
 		Assert.equals(
-			"<blockquote><div><a href=\"https://example.com\">example.com</a>
-</div></blockquote>",
+			"<blockquote><div><a href=\"https://example.com\">example.com</a></div></blockquote>",
 			toHtml("> example.com")
 		);
 	}

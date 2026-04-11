@@ -392,7 +392,11 @@ class ChatMessage {
 				codepoints.splice(fallback.start, (fallback.end - fallback.start));
 			}
 			final body = codepoints.join("");
-			return payloads.find((p) -> p.attr.get("xmlns") == "urn:xmpp:styling:0" && p.name == "unstyled") == null ? XEP0393.parse(body).map(s -> Element(s)) : [CData(new TextNode(body))];
+			if (payloads.find((p) -> p.attr.get("xmlns") == "urn:xmpp:styling:0" && p.name == "unstyled") == null) {
+				return XEP0393.parse(body).map(s -> Element(s));
+			} else {
+				return body.split("\n").map(line -> Element(new Stanza("div").text(line)));
+			}
 		}
 	}
 
