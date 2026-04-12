@@ -66,6 +66,21 @@ class XEP0393 {
 			endsWithNewline = false;
 		}
 
+		if (xhtml.name == "a") {
+			final href = xhtml.attr.get("href") ?? "";
+			final textBuf = new StringBuf();
+			for (child in xhtml.children) {
+				final rendered = renderNode(child, inPre, endsWithNewline);
+				textBuf.add(rendered);
+				endsWithNewline = rendered.endsWith("\n");
+			}
+			final text = textBuf.toString();
+			if (text == href || href.endsWith(text)) {
+				return '<$href>';
+			}
+			return '$text <$href>';
+		}
+
 		for (child in xhtml.children) {
 			final rendered = renderNode(child, xhtml.name == "pre", endsWithNewline);
 			s.add(rendered);

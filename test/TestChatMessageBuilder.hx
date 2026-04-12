@@ -26,6 +26,33 @@ class TestChatMessageBuilder extends utest.Test {
 		);
 	}
 
+	public function testConvertHtmlToTextWithLink() {
+		final msg = new ChatMessageBuilder();
+		msg.setBody(Html.fromString("hello <a href='https://www.example.com/test'>there</a>"));
+		Assert.equals(
+			"hello there <https://www.example.com/test>",
+			msg.text
+		);
+	}
+
+	public function testConvertHtmlToTextWithLinkTextIsUrl() {
+		final msg = new ChatMessageBuilder();
+		msg.setBody(Html.fromString("hello <a href='https://www.example.com/test'>https://www.example.com/test</a>"));
+		Assert.equals(
+			"hello <https://www.example.com/test>",
+			msg.text
+		);
+	}
+
+	public function testConvertHtmlToTextWithLinkTextIsRedundant() {
+		final msg = new ChatMessageBuilder();
+		msg.setBody(Html.fromString("hello <a href='https://www.example.com/test'>example.com/test</a>"));
+		Assert.equals(
+			"hello <https://www.example.com/test>",
+			msg.text
+		);
+	}
+
 	public function testConvertHtmlToTextWithParas() {
 		final msg = new ChatMessageBuilder();
 		msg.setBody(Html.fromString("<blockquote>Hello<br>you</blockquote><img alt=':boop:'><br><b>hi</b> <em>hi</em> <s>hey</s> <tt>up</tt><p>a</p><p>b</p><pre>hello<br>you"));
