@@ -72,7 +72,7 @@ Now that we have the chat set up, let's send our first message:
 
 ```swift
 let outgoing = ChatMessageBuilder()
-outgoing.text = "I would like some tea."
+outgoing.setBody(Html.text("I would like some tea."))
 chat.sendMessage(message: outgoing)
 ```
 
@@ -86,7 +86,7 @@ and send a reply to one of those:
 
 ```swift
 let reply = messages[0].reply()
-reply.text = "Is that so?"
+reply.setBody(Html.text("Is that so?"))
 chat.sendMessage(message: reply)
 ```
 
@@ -108,7 +108,7 @@ let onlineEventToken = client.addStatusOnlineListener {
 }
 
 let messageEventToken = client.addChatMessageListener { message, eventType in
-	print("Message \(message.text ?? "") received or updated: \(eventType)")
+	print("Message \(message.body().toPlainText()) received or updated: \(eventType)")
 }
 ```
 

@@ -98,7 +98,7 @@ and send a reply to one of those:
 
 ```typescript
 const reply = messages[0].reply();
-reply.text = "Is that so?";
+reply.setBody(borogove.Html.text("Is that so?"));
 chat.sendMessage(reply);
 ```
 
@@ -118,7 +118,7 @@ const onlineEventToken = client.addStatusOnlineListener(() => {
 });
 
 const messageEventToken = client.addMessageListener((message, eventType) => {
-	console.log(`Message ${mesage.text} received or updated`, eventType);
+	console.log(`Message ${message.body().toPlainText()} received or updated`, eventType);
 });
 
 ```

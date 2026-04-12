@@ -85,9 +85,11 @@ Now that we have the chat set up, let's send our first message.
 ```c
 // Add to available_chats handler
 
-coid *builder = borogove_chat_message_builder_new();
-borogove_chat_message_builder_set_text(builder, "I would like some tea.");
+void *builder = borogove_chat_message_builder_new();
+void *body = borogove_html_text("I would like some tea.");
+borogove_chat_message_builder_set_body(builder, body);
 borogove_chat_send_message(chat, builder);
+borogove_release(body);
 borogove_release(builder);
 ```
 
@@ -96,7 +98,9 @@ We can also load the most recent messages from a chat's history:
 ```c
 static void history_handler(void **msgs, size_t count, void *ctx) {
 	for (size_t i = 0; i < count; i++) {
-		printf("%s\n", borogove_chat_message_text(msgs[i]));
+		void *body = borogove_chat_message_body(msgs[i]);
+		printf("%s\n", borogove_html_to_plain_text(body));
+		borogove_release(body);
 		borogove_release(msgs[i]);
 	}
 
@@ -112,8 +116,10 @@ and send a reply to one of those:
 
 ```c
 void *builder = borogove_chat_message_reply(msgs[0]);
-borogove_chat_message_builder_set_text(builder, "I would like some tea.");
+void *body = borogove_html_text("I would like some tea.");
+borogove_chat_message_builder_set_body(builder, body);
 borogove_chat_send_message(chat, builder);
+borogove_release(body);
 borogove_release(builder);
 ```
 
