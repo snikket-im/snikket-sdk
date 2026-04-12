@@ -44,4 +44,40 @@ class TestChatMessage extends utest.Test {
 				Assert.fail("Expected ChatMessageStanza");
 		}
 	}
+
+	public function testStyledBodyWithCodeBlock() {
+		final stanza = new Stanza("message");
+		stanza.attr.set("id", "test-id-1");
+		stanza.attr.set("from", "alice@example.com");
+		stanza.attr.set("to", "bob@example.com");
+		stanza.attr.set("type", "chat");
+		stanza.addChild(new Stanza("body").text("```javascript\nlet hello;\n```"));
+
+		final msg = Message.fromStanza(stanza, JID.parse("bob@example.com"));
+		switch (msg.parsed) {
+			case ChatMessageStanza(m):
+				Assert.equals("<pre><code class=\"language-javascript\">let hello;\n</code></pre>", m.body().toString());
+				Assert.equals("```javascript\nlet hello;\n```", m.body().toPlainText());
+			default:
+				Assert.fail("Expected ChatMessageStanza");
+		}
+	}
+
+	public function testStyledBodyWithPreBlock() {
+		final stanza = new Stanza("message");
+		stanza.attr.set("id", "test-id-1");
+		stanza.attr.set("from", "alice@example.com");
+		stanza.attr.set("to", "bob@example.com");
+		stanza.attr.set("type", "chat");
+		stanza.addChild(new Stanza("body").text("```\nlet hello;"));
+
+		final msg = Message.fromStanza(stanza, JID.parse("bob@example.com"));
+		switch (msg.parsed) {
+			case ChatMessageStanza(m):
+				Assert.equals("<pre>let hello;\n</pre>", m.body().toString());
+				Assert.equals("```\nlet hello;\n```", m.body().toPlainText());
+			default:
+				Assert.fail("Expected ChatMessageStanza");
+		}
+	}
 }

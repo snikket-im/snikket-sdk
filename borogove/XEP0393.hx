@@ -16,7 +16,7 @@ class XEP0393 {
 		return blocks;
 	}
 
-	public static function render(xhtml: Stanza, inPre = false) {
+	public static function render(xhtml: Stanza, inPre = false, followNewline = true) {
 		if (xhtml.name == "br") {
 			return "\n";
 		}
@@ -26,61 +26,80 @@ class XEP0393 {
 		}
 
 		final s = new StringBuf();
+		var endsWithNewline = true;
+
+		if (!followNewline && ["blockquote", "pre", "div", "p"].contains(xhtml.name)) {
+			s.add("\n");
+			endsWithNewline = true;
+		}
 
 		if (xhtml.name == "pre") {
 			final code = xhtml.getChild("code");
 			var lang = "";
-			if (code != null) {
+			if (code != null && xhtml.children.length == 1) {
 				final className = code.attr.get("class") ?? "";
 				if (className.startsWith("language-")) {
 					lang = className.substr(9);
 				}
 			}
-			s.add("\n```" + lang + "\n");
+			s.add("```" + lang + "\n");
+			endsWithNewline = true;
 		}
 
 		if (xhtml.name == "b" || xhtml.name == "strong") {
 			s.add("*");
+			endsWithNewline = false;
 		}
 
 		if (xhtml.name == "i" || xhtml.name == "em") {
 			s.add("_");
+			endsWithNewline = false;
 		}
 
 		if (xhtml.name == "s" || xhtml.name == "del") {
 			s.add("~");
+			endsWithNewline = false;
 		}
 
 		if (!inPre && (xhtml.name == "tt" || xhtml.name == "code")) {
 			s.add("`");
+			endsWithNewline = false;
 		}
 
 		for (child in xhtml.children) {
-			s.add(renderNode(child, xhtml.name == "pre"));
+			final rendered = renderNode(child, xhtml.name == "pre", endsWithNewline);
+			s.add(rendered);
+			endsWithNewline = rendered.endsWith("\n");
 		}
 
 		if (xhtml.name == "b" || xhtml.name == "strong") {
 			s.add("*");
+			endsWithNewline = false;
 		}
 
 		if (xhtml.name == "i" || xhtml.name == "em") {
 			s.add("_");
+			endsWithNewline = false;
 		}
 
 		if (xhtml.name == "s" || xhtml.name == "del") {
 			s.add("~");
+			endsWithNewline = false;
 		}
 
 		if (!inPre && (xhtml.name == "tt" || xhtml.name == "code")) {
 			s.add("`");
+			endsWithNewline = false;
 		}
 
-		if (xhtml.name == "blockquote" || xhtml.name == "p" || xhtml.name == "div" || xhtml.name == "pre") {
+		if (!endsWithNewline && ["blockquote", "pre", "div", "p"].contains(xhtml.name)) {
 			s.add("\n");
+			endsWithNewline = true;
 		}
 
 		if (xhtml.name == "pre") {
 			s.add("```\n");
+			endsWithNewline = true;
 		}
 
 		if (xhtml.name == "blockquote") {
@@ -90,9 +109,9 @@ class XEP0393 {
 		return s.toString();
 	}
 
-	public static function renderNode(xhtml: Node, inPre = false) {
+	public static function renderNode(xhtml: Node, inPre = false, followNewline = true) {
 		return switch (xhtml) {
-			case Element(c): render(c, inPre);
+			case Element(c): render(c, inPre, followNewline);
 			case CData(c): c.content;
 		};
 	}

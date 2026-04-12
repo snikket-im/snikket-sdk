@@ -26,6 +26,15 @@ class TestChatMessageBuilder extends utest.Test {
 		);
 	}
 
+	public function testConvertHtmlToTextWithParas() {
+		final msg = new ChatMessageBuilder();
+		msg.setBody(Html.fromString("<blockquote>Hello<br>you</blockquote><img alt=':boop:'><br><b>hi</b> <em>hi</em> <s>hey</s> <tt>up</tt><p>a</p><p>b</p><pre>hello<br>you"));
+		Assert.equals(
+			"> Hello\n> you\n:boop:\n*hi* _hi_ ~hey~ `up`\na\nb\n```\nhello\nyou\n```",
+			msg.text
+		);
+	}
+
 	public function testConvertHtmlToXHTMLIgnoresBody() {
 		final msg = new ChatMessageBuilder();
 		msg.setBody(Html.fromString("<body>Hello <div><img src='hai'><br></body>"));
