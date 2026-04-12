@@ -93,6 +93,13 @@ class Html {
 	}
 
 	/**
+		HTML builder, make a fragment
+	**/
+	public static function fragment(nodes: Array<Html>) {
+		return new Html(nodes.map(n -> n.xml).flatten(), null);
+	}
+
+	/**
 		Build HTML payload from source
 	**/
 	public static function fromString(html: String): Html {
