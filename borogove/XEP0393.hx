@@ -75,9 +75,8 @@ class XEP0393 {
 				endsWithNewline = rendered.endsWith("\n");
 			}
 			final text = textBuf.toString();
-			if (text == href || href.endsWith(text)) {
-				return hasOpenBracket ? href : '<$href>';
-			}
+			if (text == href) return hasOpenBracket ? href : '<$href>';
+			if (href.endsWith(text)) return text;
 			return '$text <$href>';
 		}
 

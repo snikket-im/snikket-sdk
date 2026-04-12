@@ -245,6 +245,13 @@ Who?")
 		);
 	}
 
+	public function testAutolinkBareDomain() {
+		Assert.equals(
+			"<div><a href=\"https://example.com\">example.com</a></div>",
+			toHtml("example.com")
+		);
+	}
+
 	public function testAutolinkNoTrailingHash() {
 		Assert.equals(
 			"<div><a href=\"https://example.com/test#\">https://example.com/test#</a> a</div>",

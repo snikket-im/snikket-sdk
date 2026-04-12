@@ -82,7 +82,7 @@ class TestChatMessage extends utest.Test {
 	}
 
 
-	public function testStyledBodyWithLink() {
+	public function testStyledBodyWithLinkBeaks() {
 		final stanza = new Stanza("message");
 		stanza.attr.set("id", "test-id-1");
 		stanza.attr.set("from", "alice@example.com");
@@ -95,6 +95,24 @@ class TestChatMessage extends utest.Test {
 			case ChatMessageStanza(m):
 				Assert.equals("<div>Hey &lt;<a href=\"https://example.com\">https://example.com</a>&gt;</div>", m.body().toString());
 				Assert.equals("Hey <https://example.com>", m.body().toPlainText());
+			default:
+				Assert.fail("Expected ChatMessageStanza");
+		}
+	}
+
+	public function testStyledBodyWithLink() {
+		final stanza = new Stanza("message");
+		stanza.attr.set("id", "test-id-1");
+		stanza.attr.set("from", "alice@example.com");
+		stanza.attr.set("to", "bob@example.com");
+		stanza.attr.set("type", "chat");
+		stanza.addChild(new Stanza("body").text("Hey example.com"));
+
+		final msg = Message.fromStanza(stanza, JID.parse("bob@example.com"));
+		switch (msg.parsed) {
+			case ChatMessageStanza(m):
+				Assert.equals("<div>Hey <a href=\"https://example.com\">example.com</a></div>", m.body().toString());
+				Assert.equals("Hey example.com", m.body().toPlainText());
 			default:
 				Assert.fail("Expected ChatMessageStanza");
 		}

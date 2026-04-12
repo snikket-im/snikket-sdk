@@ -48,7 +48,7 @@ class TestChatMessageBuilder extends utest.Test {
 		final msg = new ChatMessageBuilder();
 		msg.setBody(Html.fromString("hello <a href='https://www.example.com/test'>example.com/test</a>"));
 		Assert.equals(
-			"hello <https://www.example.com/test>",
+			"hello example.com/test",
 			msg.text
 		);
 	}
