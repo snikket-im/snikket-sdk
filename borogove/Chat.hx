@@ -511,7 +511,7 @@ abstract class Chat {
 		return persistence.getMessage(client.accountId(), chatId, readUpToId, null).then(m -> {
 			// A PM is not actually part of the chat
 			// So it cannot really be the read up to point
-			if (m.type == MessageChannelPrivate) return null;
+			if (m?.type == MessageChannelPrivate) return null;
 
 			return m;
 		});
