@@ -21,6 +21,7 @@ class SqliteDriver {
 		writePool.run(() -> {
 			final db = sys.db.Sqlite.open(dbfile);
 			db.request("PRAGMA journal_mode=WAL");
+			db.request("PRAGMA synchronous=NORMAL");
 			db.request("PRAGMA temp_store=2");
 			if (Config.constrainedMemoryMode) db.request("PRAGMA cache_size=0");
 			dbs.push(db);
