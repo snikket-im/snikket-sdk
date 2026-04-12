@@ -2,6 +2,7 @@ package borogove;
 
 import borogove.Autolink;
 import borogove.Stanza;
+using StringTools;
 using borogove.Util;
 
 class XEP0393 {
@@ -27,7 +28,15 @@ class XEP0393 {
 		final s = new StringBuf();
 
 		if (xhtml.name == "pre") {
-			s.add("\n```\n");
+			final code = xhtml.getChild("code");
+			var lang = "";
+			if (code != null) {
+				final className = code.attr.get("class") ?? "";
+				if (className.startsWith("language-")) {
+					lang = className.substr(9);
+				}
+			}
+			s.add("\n```" + lang + "\n");
 		}
 
 		if (xhtml.name == "b" || xhtml.name == "strong") {
@@ -221,30 +230,44 @@ class XEP0393 {
 
 	public static function parsePreformatted(styled: UnicodeString) {
 		final lines = [];
-		var line = null;
+		var line = "";
+		var lang = null;
 		var end = 0;
 		final styledLength = styled.length;
 		while (end < styledLength) {
 			while (end < styledLength && styled.charAt(end) != "\n") {
-				if (line != null) line += styled.charAt(end);
+				line += styled.charAt(end);
 				end++;
 			}
 			if (end < styledLength && styled.charAt(end) == "\n") {
 				end++;
 			}
-			if (line != null) lines.push(line+"\n");
+
+			if (lang == null) {
+				lang = line.substr(3).trim();
+			} else {
+				lines.push(line + "\n");
+			}
 			line = "";
+
 			if (styled.substr(end, 4) == "```\n" || styled.substr(end) == "```") {
 				end += 4;
 				break;
 			}
 		}
 
-		return { block: new Stanza("pre").text(lines.join("")), rest: styled.substr(end) };
+		final block = new Stanza("pre");
+		if (lang != "") {
+			block.tag("code", {"class": 'language-$lang'}).text(lines.join(""));
+		} else {
+			block.text(lines.join(""));
+		}
+
+		return { block: block, rest: styled.substr(end) };
 	}
 
 	private static function isSpace(s: UnicodeString, pos: Int) {
 		// The version in StringTools won't use UnicodeString-aware indices
-		return StringTools.isSpace(s.charAt(pos), 0);
+		return s.charAt(pos).isSpace(0);
 	}
 }

@@ -20,10 +20,22 @@ as spans* may not escape blocks.")
 		);
 	}
 
-	public function testPreformattedBlock() {
+	public function testPreformattedBlockSimple() {
 		Assert.equals(
 			"<pre>(println \"Hello, world!\")
 </pre><div/><div>This should show up as monospace, preformatted text ⤴</div>",
+			toHtml("```
+(println \"Hello, world!\")
+```
+
+This should show up as monospace, preformatted text ⤴")
+		);
+	}
+
+	public function testPreformattedBlock() {
+		Assert.equals(
+			"<pre><code class=\"language-ignored\">(println \"Hello, world!\")
+</code></pre><div/><div>This should show up as monospace, preformatted text ⤴</div>",
 			toHtml("```ignored
 (println \"Hello, world!\")
 ```
@@ -34,8 +46,8 @@ This should show up as monospace, preformatted text ⤴")
 
 	public function testPreformattedBlockUnterminated() {
 		Assert.equals(
-			"<blockquote><pre>(println \"Hello, world!\")
-</pre></blockquote><div/><div>The entire blockquote is a preformatted text block, but this line</div><div>is plaintext!</div>",
+			"<blockquote><pre><code class=\"language-ignored\">(println \"Hello, world!\")
+</code></pre></blockquote><div/><div>The entire blockquote is a preformatted text block, but this line</div><div>is plaintext!</div>",
 			toHtml("> ```ignored
 > (println \"Hello, world!\")
 
