@@ -355,13 +355,22 @@ class Autolink {
 		//final pattern = new EReg(pattern, "u");
 		if (pattern.matchSub(s, start)) {
 			final pos = pattern.matchedPos();
-			final link = pattern.matched(0);
+			var len = pos.len;
+			if (addHttps) {
+				while (pos.pos + len < s.length && ["/", "#"].contains(s.charAt(pos.pos + len))) {
+					len++;
+				}
+				while (len > 0 && [".", ",", ";", ":", "!", "?", ")", "]", ">"].contains(s.charAt(pos.pos + len - 1))) {
+					len--;
+				}
+			}
+			final link = s.substr(pos.pos, len);
 			final uri = !addHttps || StringTools.contains(link, "://") ? link : "https://" + link;
 			var text = link.startsWith("xmpp:") ? ~/omemo-sid[^;]+;?/.replace(link, "") : link;
 			text = link.startsWith("xmpp:") && text.endsWith(";") ? text.substr(0, text.length - 1) : text;
 			text = text.endsWith("?") ? text.substr(0, text.length - 1) : text;
 
-			return { span: Element(new Stanza("a", { href: uri }).text(text)), start: pos.pos, end: pos.pos + pos.len };
+			return { span: Element(new Stanza("a", { href: uri }).text(text)), start: pos.pos, end: pos.pos + len };
 		} else {
 			return { span: null, start: s.length, end: s.length };
 		}

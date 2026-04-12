@@ -237,4 +237,39 @@ Who?")
 			toHtml("📞 icon example.com")
 		);
 	}
+
+	public function testAutolinkNoTrailingSlash() {
+		Assert.equals(
+			"<div><a href=\"https://example.com/test/\">https://example.com/test/</a> a</div>",
+			toHtml("https://example.com/test/ a")
+		);
+	}
+
+	public function testAutolinkNoTrailingHash() {
+		Assert.equals(
+			"<div><a href=\"https://example.com/test#\">https://example.com/test#</a> a</div>",
+			toHtml("https://example.com/test# a")
+		);
+	}
+
+	public function testAutolinkTrailingDot() {
+		Assert.equals(
+			"<div><a href=\"https://example.com/test\">https://example.com/test</a>.</div>",
+			toHtml("https://example.com/test.")
+		);
+	}
+
+	public function testAutolinkTrailingParen() {
+		Assert.equals(
+			"<div><a href=\"https://example.com/test\">https://example.com/test</a>)</div>",
+			toHtml("https://example.com/test)")
+		);
+	}
+
+	public function testAutolinkBeaks() {
+		Assert.equals(
+			"<div>&lt;<a href=\"https://example.com/test\">https://example.com/test</a>&gt;</div>",
+			toHtml("<https://example.com/test>")
+		);
+	}
 }

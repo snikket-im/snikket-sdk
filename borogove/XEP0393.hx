@@ -16,7 +16,7 @@ class XEP0393 {
 		return blocks;
 	}
 
-	public static function render(xhtml: Stanza, inPre = false, followNewline = true) {
+	public static function render(xhtml: Stanza, inPre = false, followNewline = true, hasOpenBracket = false) {
 		if (xhtml.name == "br") {
 			return "\n";
 		}
@@ -76,14 +76,16 @@ class XEP0393 {
 			}
 			final text = textBuf.toString();
 			if (text == href || href.endsWith(text)) {
-				return '<$href>';
+				return hasOpenBracket ? href : '<$href>';
 			}
 			return '$text <$href>';
 		}
 
+		var lastRendered = "";
 		for (child in xhtml.children) {
-			final rendered = renderNode(child, xhtml.name == "pre", endsWithNewline);
+			final rendered = renderNode(child, xhtml.name == "pre", endsWithNewline, lastRendered.endsWith("<"));
 			s.add(rendered);
+			lastRendered = rendered;
 			endsWithNewline = rendered.endsWith("\n");
 		}
 
@@ -124,9 +126,9 @@ class XEP0393 {
 		return s.toString();
 	}
 
-	public static function renderNode(xhtml: Node, inPre = false, followNewline = true) {
+	public static function renderNode(xhtml: Node, inPre = false, followNewline = true, hasOpenBracket = false) {
 		return switch (xhtml) {
-			case Element(c): render(c, inPre, followNewline);
+			case Element(c): render(c, inPre, followNewline, hasOpenBracket);
 			case CData(c): c.content;
 		};
 	}
@@ -137,8 +139,19 @@ class XEP0393 {
 		var nextLink: Null<{ span: Null<Node>, start: Int, end: Int }> = null;
 		final styledLength = styled.length;
 		while (start < styledLength) {
+			if (nextLink == null || start > nextLink.start) {
+				nextLink = Autolink.one(styled, start);
+				if (nextLink != null) {
+					nextLink.start = styled.convertIndex(nextLink.start);
+					nextLink.end = styled.convertIndex(nextLink.end);
+				}
+			}
+
 			final char = styled.charAt(start);
-			if (isSpace(styled, start + 1)) {
+			if (nextLink != null && nextLink.start == start && nextLink.span != null) {
+				spans.push(nextLink.span);
+				start = nextLink.end;
+			} else if (isSpace(styled, start + 1)) {
 				// The opening styling directive MUST NOT be followed by a whitespace character
 				spans.push(CData(new TextNode(styled.substr(start, 2))));
 				start += 2;
@@ -164,20 +177,8 @@ class XEP0393 {
 				spans.push(parsed.span);
 				start = parsed.end;
 			} else {
-				if (nextLink == null || start > nextLink.start) {
-					nextLink = Autolink.one(styled, start);
-					if (nextLink != null) {
-						nextLink.start = styled.convertIndex(nextLink.start);
-						nextLink.end = styled.convertIndex(nextLink.end);
-					}
-				}
-				if (nextLink != null && nextLink.start == start && nextLink.span != null) {
-					spans.push(nextLink.span);
-					start = nextLink.end;
-				} else {
-					spans.push(CData(new TextNode(char)));
-					start++;
-				}
+				spans.push(CData(new TextNode(char)));
+				start++;
 			}
 		}
 		return mergeSpans(spans);
