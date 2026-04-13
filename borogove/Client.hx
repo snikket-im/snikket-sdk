@@ -514,6 +514,8 @@ class Client extends EventEmitter {
 				if (newChat != null) this.trigger("chats/update", [newChat]);
 		}
 
+		if (stanza.attr.get("type") == "error") return;
+
 #if !NO_JINGLE
 		final jmiP = stanza.getChild("propose", "urn:xmpp:jingle-message:0");
 		if (jmiP != null && jmiP.attr.get("id") != null) {
@@ -571,21 +573,19 @@ class Client extends EventEmitter {
 		}
 #end
 
-		if (stanza.attr.get("type") != "error") {
-			final chatState = stanza.getChild(null, "http://jabber.org/protocol/chatstates");
-			final userState = switch (chatState?.name) {
-				case "active": UserState.Active;
-				case "inactive": UserState.Inactive;
-				case "gone": UserState.Gone;
-				case "composing": UserState.Composing;
-				case "paused": UserState.Paused;
-				default: null;
-			};
-			if (userState != null) {
-				final chat = getChat(from.asBare().asString());
-				if (chat == null || !chat.getParticipantDetails(message.senderId).isSelf) {
-					this.trigger("chat-state/update", { message: message, userState: userState });
-				}
+		final chatState = stanza.getChild(null, "http://jabber.org/protocol/chatstates");
+		final userState = switch (chatState?.name) {
+			case "active": UserState.Active;
+			case "inactive": UserState.Inactive;
+			case "gone": UserState.Gone;
+			case "composing": UserState.Composing;
+			case "paused": UserState.Paused;
+			default: null;
+		};
+		if (userState != null) {
+			final chat = getChat(from.asBare().asString());
+			if (chat == null || !chat.getParticipantDetails(message.senderId).isSelf) {
+				this.trigger("chat-state/update", { message: message, userState: userState });
 			}
 		}
 
