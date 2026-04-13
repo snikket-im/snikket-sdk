@@ -3,8 +3,9 @@ package test;
 import utest.Assert;
 import utest.Async;
 
-import borogove.Html;
 import borogove.ChatMessageBuilder;
+import borogove.Html;
+import borogove.JID;
 
 @:access(borogove)
 class TestChatMessageBuilder extends utest.Test {
@@ -95,5 +96,31 @@ class TestChatMessageBuilder extends utest.Test {
 		final msgHtml = new ChatMessageBuilder({ html: Html.fromString("<b>hello</b>") });
 		Assert.equals("*hello*", msgHtml.text);
 		Assert.equals("<html xmlns=\"http://jabber.org/protocol/xhtml-im\"><body xmlns=\"http://www.w3.org/1999/xhtml\"><b>hello</b></body></html>", msgHtml.payloads[0].toString());
+	}
+
+	public function testReceiptRequest() {
+		final builder = new ChatMessageBuilder();
+		builder.localId = "test-id";
+		builder.from = JID.parse("alice@example.com");
+		builder.to = JID.parse("bob@example.com");
+		builder.senderId = "alice@example.com";
+		builder.type = MessageChat;
+		builder.setBody(Html.text("Hello"));
+		final msg = builder.build();
+		final stanza = msg.asStanza();
+		Assert.notNull(stanza.getChild("request", "urn:xmpp:receipts"));
+	}
+
+	public function testNoReceiptRequestForGroupchat() {
+		final builder = new ChatMessageBuilder();
+		builder.localId = "test-id";
+		builder.from = JID.parse("alice@example.com");
+		builder.to = JID.parse("room@example.com");
+		builder.senderId = "alice@example.com";
+		builder.type = MessageChannel;
+		builder.setBody(Html.text("Hello"));
+		final msg = builder.build();
+		final stanza = msg.asStanza();
+		Assert.isNull(stanza.getChild("request", "urn:xmpp:receipts"));
 	}
 }

@@ -1,11 +1,16 @@
 package test;
 
+import thenshim.Promise;
 import utest.Assert;
 import utest.Async;
 
-import borogove.Client;
-import borogove.Stanza;
 import borogove.Chat;
+import borogove.ChatMessage;
+import borogove.ChatMessageBuilder;
+import borogove.Client;
+import borogove.JID;
+import borogove.Message;
+import borogove.Stanza;
 import borogove.persistence.Dummy;
 
 using Lambda;
@@ -261,5 +266,40 @@ class TestClient extends utest.Test {
 			new Stanza("presence", { from: "stranger@example.com", type: "subscribe", xmlns: "jabber:client" })
 				.textTag("nick", "Stranger", { xmlns: "http://jabber.org/protocol/nick" })
 		);
+	}
+
+	public function testHandleReceipt(async: Async) {
+		final persistence = new MockPersistence();
+		final client = new Client("test@example.com", persistence);
+
+		client.on("message/new", (data: { message: ChatMessage, event: ChatMessageEvent }) -> {
+			if (data.event == StatusEvent) {
+				Assert.equals("msg-id", data.message.localId);
+				Assert.equals(MessageDeliveredToDevice, data.message.status);
+				async.done();
+			}
+			return EventHandled;
+		});
+
+		final receiptStanza = new Stanza("message", { xmlns: "jabber:client", from: "bob@example.com", to: "test@example.com" })
+			.tag("received", { xmlns: "urn:xmpp:receipts", id: "msg-id" }).up();
+
+		client.stream.onStanza(receiptStanza);
+	}
+}
+
+@:access(borogove)
+class MockPersistence extends Dummy {
+	public function new() { super(); }
+
+	override public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus, statusText: Null<String>): Promise<ChatMessage> {
+		final builder = new ChatMessageBuilder();
+		builder.localId = localId;
+		builder.status = status;
+		builder.from = JID.parse("bob@example.com");
+		builder.to = JID.parse(accountId);
+		builder.senderId = "bob@example.com";
+		builder.replyTo = [JID.parse("bob@example.com")];
+		return Promise.resolve(builder.build());
 	}
 }

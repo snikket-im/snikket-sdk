@@ -589,6 +589,18 @@ class Client extends EventEmitter {
 			}
 		}
 
+		for (receipt in stanza.allTags("received", "urn:xmpp:receipts")) {
+			final id = receipt.attr.get("id");
+			if (id != null) {
+				persistence.updateMessageStatus(
+					this.accountId(),
+					id,
+					MessageDeliveredToDevice,
+					null
+				).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
+			}
+		}
+
 		final pubsubEvent = PubsubEvent.fromStanza(stanza);
 		if (pubsubEvent != null && pubsubEvent.getFrom() != null && pubsubEvent.getNode() == "urn:xmpp:avatar:metadata" && pubsubEvent.getItems().length > 0) {
 			final item = pubsubEvent.getItems()[0];

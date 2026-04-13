@@ -599,6 +599,9 @@ class ChatMessage {
 		for (payload in payloads) {
 			stanza.addDirectChild(Element(payload));
 		}
+		if (type == MessageChat) {
+			stanza.tag("request", { xmlns: "urn:xmpp:receipts" }).up();
+		}
 		return stanza;
 	}
 }
