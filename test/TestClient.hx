@@ -332,6 +332,68 @@ class TestClient extends utest.Test {
 			async.done();
 		}, null);
 	}
+
+	public function testSendReceipt(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.getDirectChat("bob@example.com").setTrusted(true);
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "message" && stanza.getChild("received", "urn:xmpp:receipts") != null) {
+				Assert.equals("bob@example.com", stanza.attr.get("to"));
+				Assert.equals("msg123", stanza.getChild("received", "urn:xmpp:receipts").attr.get("id"));
+				async.done();
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		client.stream.onStanza(new Stanza("message", { xmlns: "jabber:client", from: "bob@example.com", id: "msg123" }).textTag("body", "hello"));
+	}
+
+	public function testSendReceiptSync(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.getDirectChat("bob@example.com").setTrusted(true);
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "message" && stanza.getChild("received", "urn:xmpp:receipts") != null) {
+				Assert.equals("bob@example.com", stanza.attr.get("to"));
+				Assert.equals("sync123", stanza.getChild("received", "urn:xmpp:receipts").attr.get("id"));
+				async.done();
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.findChild("{urn:xmpp:mam:2}query") != null) {
+				final queryId = stanza.findChild("{urn:xmpp:mam:2}query").attr.get("queryid");
+				final mamResult = new Stanza("message", { xmlns: "jabber:client", to: "test@example.com", from: "test@example.com" })
+					.tag("result", { xmlns: "urn:xmpp:mam:2", queryid: queryId, id: "mam-id-1" })
+						.tag("forwarded", { xmlns: "urn:xmpp:forward:0" })
+							.tag("delay", { xmlns: "urn:xmpp:delay", stamp: "2023-01-01T00:00:00Z" }).up()
+							.tag("message", { xmlns: "jabber:client", from: "bob@example.com", id: "sync123" })
+								.textTag("body", "sync message")
+							.up()
+						.up()
+					.up();
+
+				client.stream.onStanza(mamResult);
+
+				final finishedIq = new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id"), from: "test@example.com" })
+					.tag("fin", { xmlns: "urn:xmpp:mam:2", complete: "true" })
+						.tag("set", { xmlns: "http://jabber.org/protocol/rsm" })
+						.up()
+					.up();
+				client.stream.onStanza(finishedIq);
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		client.doSync((_) -> {}, null);
+	}
 }
 
 @:access(borogove)

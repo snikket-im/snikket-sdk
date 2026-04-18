@@ -74,6 +74,7 @@ class Client extends EventEmitter {
 			"http://jabber.org/protocol/disco#info",
 			"http://jabber.org/protocol/caps",
 			"urn:xmpp:caps",
+			"urn:xmpp:receipts",
 			"urn:xmpp:avatar:metadata+notify",
 			"http://jabber.org/protocol/nick+notify",
 			"urn:xmpp:bookmarks:1+notify",
@@ -1593,6 +1594,14 @@ class Client extends EventEmitter {
 	private function notifyMessageHandlers(message: ChatMessage, event: ChatMessageEvent) {
 		final chat = getChat(message.chatId());
 		if (chat != null && chat.isBlocked) return; // Don't notify blocked chats
+
+		if (event == DeliveryEvent && message.type == MessageChat && message.localId != null && chat != null && chat.isTrusted()) {
+			sendStanza(
+				new Stanza("message", { to: message.from.asString(), type: "chat" })
+					.tag("received", { xmlns: "urn:xmpp:receipts", id: message.localId })
+			);
+		}
+
 		this.trigger("message/new", { message: message, event: event });
 	}
 
@@ -1601,6 +1610,14 @@ class Client extends EventEmitter {
 		if (message == null || message.versions.length > 1) return;
 		final chat = getChat(message.chatId());
 		if (chat != null && chat.isBlocked) return; // Don't notify blocked chats
+
+		if (message.type == MessageChat && message.localId != null && chat != null && chat.isTrusted()) {
+			sendStanza(
+				new Stanza("message", { to: message.from.asString(), type: "chat" })
+					.tag("received", { xmlns: "urn:xmpp:receipts", id: message.localId })
+			);
+		}
+
 		this.trigger("message/sync", message);
 	}
 
@@ -1839,7 +1856,7 @@ class Client extends EventEmitter {
 				for (messages in results) {
 					if (messages != null) {
 						for (message in messages) {
-							this.trigger("message/sync", message);
+							notifySyncMessageHandlers(message);
 							sortId = message.sortId;
 						}
 					}
