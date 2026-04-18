@@ -286,13 +286,61 @@ class TestClient extends utest.Test {
 
 		client.stream.onStanza(receiptStanza);
 	}
+
+	public function testHandleReceiptInSync(async: Async) {
+		final persistence = new MockPersistence();
+		final client = new Client("test@example.com", persistence);
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			final query = stanza.findChild("{urn:xmpp:mam:2}query");
+			if (stanza.name == "iq" && query != null) {
+				final queryId = query.attr.get("queryid");
+
+				final receiptStanza = new Stanza("message", { xmlns: "jabber:client", from: "bob@example.com", to: "test@example.com" })
+					.tag("received", { xmlns: "urn:xmpp:receipts", id: "msg-id" }).up();
+
+				final mamResult = new Stanza("message", { xmlns: "jabber:client", to: "test@example.com", from: "test@example.com" })
+					.tag("result", { xmlns: "urn:xmpp:mam:2", queryid: queryId, id: "mam-id-1" })
+						.tag("forwarded", { xmlns: "urn:xmpp:forward:0" })
+							.tag("delay", { xmlns: "urn:xmpp:delay", stamp: "2023-01-01T00:00:00Z" }).up()
+							.addChild(receiptStanza)
+						.up()
+					.up();
+
+				client.stream.onStanza(mamResult);
+
+				final finishedIq = new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id"), from: "test@example.com" })
+					.tag("fin", { xmlns: "urn:xmpp:mam:2", complete: "true" })
+						.tag("set", { xmlns: "http://jabber.org/protocol/rsm" })
+						.up()
+					.up();
+				client.stream.onStanza(finishedIq);
+			}
+			return EventHandled;
+		});
+
+		client.on("message/new", (data: { message: ChatMessage, event: ChatMessageEvent }) -> {
+			if (data.event == StatusEvent) {
+				Assert.equals("msg-id", data.message.localId);
+				Assert.equals(MessageDeliveredToDevice, data.message.status);
+			}
+			return EventHandled;
+		});
+
+		client.doSync((_) -> {
+			Assert.equals(MessageDeliveredToDevice, persistence.statusUpdates.get("msg-id"));
+			async.done();
+		}, null);
+	}
 }
 
 @:access(borogove)
 class MockPersistence extends Dummy {
+	public var statusUpdates: Map<String, MessageStatus> = [];
 	public function new() { super(); }
 
 	override public function updateMessageStatus(accountId: String, localId: String, status:MessageStatus, statusText: Null<String>): Promise<ChatMessage> {
+		statusUpdates.set(localId, status);
 		final builder = new ChatMessageBuilder();
 		builder.localId = localId;
 		builder.status = status;

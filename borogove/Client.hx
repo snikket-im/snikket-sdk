@@ -589,17 +589,7 @@ class Client extends EventEmitter {
 			}
 		}
 
-		for (receipt in stanza.allTags("received", "urn:xmpp:receipts")) {
-			final id = receipt.attr.get("id");
-			if (id != null) {
-				persistence.updateMessageStatus(
-					this.accountId(),
-					id,
-					MessageDeliveredToDevice,
-					null
-				).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
-			}
-		}
+		checkForReceipts(stanza);
 
 		final pubsubEvent = PubsubEvent.fromStanza(stanza);
 		if (pubsubEvent != null && pubsubEvent.getFrom() != null && pubsubEvent.getNode() == "urn:xmpp:avatar:metadata" && pubsubEvent.getItems().length > 0) {
@@ -1759,6 +1749,20 @@ class Client extends EventEmitter {
 		sendQuery(pubsubGet);
 	}
 
+	private function checkForReceipts(stanza: Stanza) {
+		for (receipt in stanza.allTags("received", "urn:xmpp:receipts")) {
+			final id = receipt.attr.get("id");
+			if (id != null) {
+				persistence.updateMessageStatus(
+					this.accountId(),
+					id,
+					MessageDeliveredToDevice,
+					null
+				).then((m) -> notifyMessageHandlers(m, StatusEvent), _ -> null);
+			}
+		}
+	}
+
 	private function sync(?callback: (Bool)->Void) {
 		if (Std.isOfType(persistence, borogove.persistence.Dummy)) {
 			callback(true); // No reason to sync if we're not storing anyway
@@ -1823,6 +1827,8 @@ class Client extends EventEmitter {
 						).then(m -> [m], _ -> []));
 					case MucInviteStanza(serverId, serverIdBy, reason, password):
 						mucInvite(m.chatId, getChat(m.chatId), m.senderId, m.threadId, serverId, serverIdBy, reason, password);
+					case UnknownMessageStanza(stanza):
+						checkForReceipts(stanza);
 					default:
 						// ignore
 				}
