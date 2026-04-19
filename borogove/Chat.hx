@@ -251,7 +251,7 @@ abstract class Chat {
 		toSend.localId = ID.unique();
 		reaction.render(
 			(text) -> {
-				toSend.setBody(Html.text(text.replace("\u{fe0f}", "")));
+				toSend.setBody(Html.text(text));
 				return "";
 			},
 			(text, uri) -> {

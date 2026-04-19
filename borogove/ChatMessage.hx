@@ -531,7 +531,7 @@ class ChatMessage {
 					}
 				}
 				if (quoteText != "") quoteText += "\n";
-				final reaction = EmojiUtil.isEmoji(StringTools.trim(body)) ? StringTools.trim(body) : null;
+				final reaction = EmojiUtil.isEmoji(StringTools.trim(body)) ? StringTools.trim(body.replace("\u{fe0f}", "")) : null;
 				body = quoteText + body;
 				if (replyId != null) {
 					final codepoints = StringUtil.codepointArray(quoteText);
