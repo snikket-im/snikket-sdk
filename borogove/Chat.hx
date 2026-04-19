@@ -1001,7 +1001,7 @@ class DirectChat extends Chat {
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = { with: this.chatId };
-				if (before?.serverId != null) filter.page = { before: before.serverId };
+				filter.page = { before: before?.serverId ?? "" };
 				var sync = new MessageSync(this.client, this.stream, filter, null, before?.sortId);
 				fetchFromSync(sync);
 			}
@@ -1707,7 +1707,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 				Promise.resolve(messages);
 			} else {
 				var filter:MAMQueryParams = {};
-				if (before?.serverId != null) filter.page = { before: before.serverId };
+				filter.page = { before: before?.serverId ?? "" };
 				var sync = new MessageSync(this.client, this.stream, filter, null, before?.sortId, chatId);
 				sync.addContext((builder, stanza) -> {
 					builder = prepareIncomingMessage(builder, stanza);

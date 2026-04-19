@@ -20,6 +20,7 @@ class TestAll {
 			new TestReaction(),
 			new TestSortId(),
 			new TestHtml(),
+			new TestChat(),
 		]);
 	}
 }
