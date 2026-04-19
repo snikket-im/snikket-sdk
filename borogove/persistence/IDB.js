@@ -589,7 +589,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 			(
 				// Hydrate reply stubs
-				message.replyToMessage && !message.replyToMessage.serverIdBy ? this.getMessage(account, message.chatId(), message.replyToMessage.serverId, message.replyToMessage.localId) : Promise.resolve(message.replyToMessage)
+				message.replyToMessage && !message.replyToMessage.stanza ?
+					this.getMessage(account, message.chatId(), message.replyToMessage.serverId, message.replyToMessage.localId) :
+					Promise.resolve(message.replyToMessage)
 			).then((replyToMessage) => {
 				message.replyToMessage = replyToMessage;
 				const tx = db.transaction(["messages", "reactions"], "readwrite");

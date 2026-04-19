@@ -324,6 +324,7 @@ class Message {
 				replyToMessage.replyId = replyToID;
 				if ((msg.serverIdBy != null && msg.serverIdBy != localJid.asBare().asString()) || isGroupchat) {
 					replyToMessage.serverId = replyToID;
+					replyToMessage.serverIdBy = msg.serverIdBy;
 				} else {
 					replyToMessage.localId = replyToID;
 				}
