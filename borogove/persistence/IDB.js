@@ -285,9 +285,6 @@ export default async (dbname, media, tokenize, stemmer) => {
 	function hydrateMessageSync(value) {
 		if (!value) return null;
 
-		const tx = db.transaction(["messages"], "readonly");
-		const store = tx.objectStore("messages");
-
 		const message = new borogove_ChatMessageBuilder();
 		message.localId = value.localId ? value.localId : null;
 		message.serverId = value.serverId ? value.serverId : null;
