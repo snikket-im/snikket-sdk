@@ -321,7 +321,11 @@ export default async (dbname, media, tokenize, stemmer) => {
 		const message = hydrateMessageSync(value);
 		const tx = db.transaction(["messages"], "readonly");
 		const store = tx.objectStore("messages");
-		const replyToMessage = value.replyToMessage && value.replyToMessage[1] !== message.serverId && value.replyToMessage[3] !== message.localId && await hydrateMessage((await promisifyRequest(store.openCursor(IDBKeyRange.only(value.replyToMessage))))?.value);
+		if (value.replyToMessage && !value.replyToMessage[2]) value.replyToMessage[2] = value.serverIdBy ?? value.chatId;
+		const range = value.replyToMessage && value.replyToMessage[1] !== message.serverId && value.replyToMessage[3] !== message.localId && (!value.replyToMessage[3] ?
+			IDBKeyRange.bound(value.replyToMessage.slice(0, 3), [...value.replyToMessage.slice(0, 3), []])
+			: IDBKeyRange.only(value.replyToMessage));
+		const replyToMessage = range && await hydrateMessage((await promisifyRequest(store.openCursor(range)))?.value);
 
 		message.replyToMessage = replyToMessage;
 		message.versions = await Promise.all((value.versions || []).map(hydrateMessage));
