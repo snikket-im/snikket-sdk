@@ -10,6 +10,7 @@ import borogove.ChatMessageBuilder;
 import borogove.Client;
 import borogove.JID;
 import borogove.Message;
+import borogove.ModerationAction;
 import borogove.Stanza;
 import borogove.persistence.Dummy;
 
@@ -21,6 +22,58 @@ class TestClient extends utest.Test {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
 		Assert.equals("test@example.com", client.accountId());
+	}
+
+	public function testModerateMessage(async: Async) {
+		final persistence = new MessageMockPersistence();
+		final client = new Client("test@example.com", persistence);
+		final chatId = "chat@example.com";
+		final serverId = "msg123";
+
+		// Pre-populate persistence with a message
+		final builder = new ChatMessageBuilder();
+		builder.serverId = serverId;
+		builder.from = JID.parse("other@example.com");
+		builder.to = JID.parse("test@example.com");
+		builder.senderId = "other@example.com";
+		builder.text = "to be moderated";
+		final originalMessage = builder.build();
+
+		persistence.storeMessages(client.accountId(), [originalMessage]).then((_) -> {
+			final action = new ModerationAction(chatId, serverId, "2023-01-01T00:00:00Z", "mod@example.com", "Spam");
+
+			client.moderateMessage(action).then((moderatedMessage) -> {
+				Assert.notNull(moderatedMessage);
+				Assert.equals("Spam", moderatedMessage.moderationReason());
+				async.done();
+			});
+		});
+	}
+
+	public function testModerateMessageNoReason(async: Async) {
+		final persistence = new MessageMockPersistence();
+		final client = new Client("test@example.com", persistence);
+		final chatId = "chat@example.com";
+		final serverId = "msg124";
+
+		// Pre-populate persistence with a message
+		final builder = new ChatMessageBuilder();
+		builder.serverId = serverId;
+		builder.from = JID.parse("other@example.com");
+		builder.to = JID.parse("test@example.com");
+		builder.senderId = "other@example.com";
+		builder.text = "to be moderated";
+		final originalMessage = builder.build();
+
+		persistence.storeMessages(client.accountId(), [originalMessage]).then((_) -> {
+			final action = new ModerationAction(chatId, serverId, "2023-01-01T00:00:00Z", "mod@example.com", null);
+
+			client.moderateMessage(action).then((moderatedMessage) -> {
+				Assert.notNull(moderatedMessage);
+				Assert.equals("moderated", moderatedMessage.moderationReason());
+				async.done();
+			});
+		});
 	}
 
 	public function testDefaultDisplayName() {
@@ -411,5 +464,26 @@ class MockPersistence extends Dummy {
 		builder.senderId = "bob@example.com";
 		builder.replyTo = [JID.parse("bob@example.com")];
 		return Promise.resolve(builder.build());
+	}
+}
+
+@:access(borogove)
+class MessageMockPersistence extends Dummy {
+	public var messages: Map<String, ChatMessage> = [];
+	public function new() { super(); }
+
+	override public function storeMessages(accountId: String, messages: Array<ChatMessage>): Promise<Array<ChatMessage>> {
+		for (m in messages) {
+			if (m.serverId != null) this.messages.set(m.serverId, m);
+		}
+		return Promise.resolve(messages);
+	}
+
+	override public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>): Promise<Null<ChatMessage>> {
+		return Promise.resolve(serverId != null ? messages.get(serverId) : null);
+	}
+
+	override public function updateMessage(accountId: String, message: ChatMessage) {
+		if (message.serverId != null) this.messages.set(message.serverId, message);
 	}
 }

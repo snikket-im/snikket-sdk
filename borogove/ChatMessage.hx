@@ -454,6 +454,14 @@ class ChatMessage {
 	}
 
 	/**
+		If message is moderated, the reason
+	**/
+	public function moderationReason(): Null<String> {
+		final retracted = payloads.find((el) -> el.attr.get("xmlns") == "urn:xmpp:message-retract:1");
+		return retracted == null ? null : retracted.getChildText("reason") ?? "moderated";
+	}
+
+	/**
 		The last status of the call if this message is related to a call
 	**/
 	public function callStatus() {
