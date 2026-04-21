@@ -211,4 +211,69 @@ class TestChat extends utest.Test {
 
 		chat.getMessagesAfter(message);
 	}
+
+	public function testModerate(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "channel@example.com");
+		final builder = new ChatMessageBuilder();
+		builder.serverId = "msg123";
+		builder.serverIdBy = "channel@example.com";
+		builder.to = JID.parse("test@example.com");
+		builder.from = JID.parse("channel@example.com/spammer");
+		builder.senderId = "friend@example.com";
+		final message = builder.build();
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
+				Assert.notNull(stanza.attr.get("id"));
+				Assert.equals("channel@example.com", stanza.attr.get("to"));
+				final moderate = stanza.getChild("moderate", "urn:xmpp:message-moderate:1");
+				if (moderate != null) {
+					Assert.equals("msg123", moderate.attr.get("id"));
+					Assert.notNull(moderate.getChild("retract", "urn:xmpp:message-retract:1"));
+					Assert.equals("Spam", moderate.getChild("reason").getText());
+					async.done();
+					return EventHandled;
+				}
+			}
+			return EventUnhandled;
+		});
+
+		chat.moderate(message, "Spam");
+	}
+
+	public function testCanModerateDirectChat() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("friend@example.com");
+		Assert.isFalse(chat.canModerate());
+	}
+
+	public function testCanModerateChannel() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "channel@example.com");
+
+		// Default
+		Assert.isFalse(chat.canModerate());
+
+		// Feature present but not moderator
+		chat.disco = new borogove.Caps("", [], ["urn:xmpp:message-moderate:1", "http://jabber.org/protocol/muc"], []);
+		Assert.isFalse(chat.canModerate());
+
+		// Nick in use set
+		chat._nickInUse = "mynick";
+		Assert.isFalse(chat.canModerate());
+
+		// Presence set but not moderator
+		final p = new borogove.Presence(null, new Stanza("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("item", { role: "participant" }).up(), null);
+		chat.presence.set("mynick", p);
+		Assert.isFalse(chat.canModerate());
+
+		// Is moderator
+		final p2 = new borogove.Presence(null, new Stanza("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("item", { role: "moderator" }).up(), null);
+		chat.presence.set("mynick", p2);
+		Assert.isTrue(chat.canModerate());
+	}
 }

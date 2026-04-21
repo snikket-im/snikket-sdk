@@ -241,6 +241,22 @@ abstract class Chat {
 	abstract public function correctMessage(correct:ChatMessage, message:ChatMessageBuilder):Void;
 
 	/**
+		Moderate a message by replacing it with a tombstone (if permitted)
+
+		@param message the message to moderate
+		@param reason the reason for moderating this message
+	**/
+	public function moderate(message: ChatMessage, reason: String) {
+		if (message.serverId == null || message.serverIdBy != chatId) return;
+
+		final iq = new Stanza("iq", { type: "set", to: chatId })
+			.tag("moderate", { xmlns: "urn:xmpp:message-moderate:1", id: message.serverId })
+			.textTag("retract", "", { xmlns: "urn:xmpp:message-retract:1" })
+			.textTag("reason", reason);
+		stream.sendIq(iq, (response) -> {});
+	}
+
+	/**
 		Add new reaction to a message in this Chat
 
 		@param m ChatMessage to react to
@@ -767,6 +783,13 @@ abstract class Chat {
 	**/
 	public function canSend() {
 		return Caps.withFeature(getCaps(), "urn:xmpp:noreply:0").length < 1;
+	}
+
+	/**
+		Can the user send messages to this chat?
+	**/
+	public function canModerate() {
+		return false;
 	}
 
 	/**
@@ -1423,6 +1446,15 @@ class Channel extends Chat {
 		if (p == null) return true;
 
 		return p.mucUser.role != "visitor";
+	}
+
+	override public function canModerate() {
+		if (_nickInUse == null) return false;
+
+		final p = presence[_nickInUse];
+		if (p == null) return false;
+
+		return disco.features.contains("urn:xmpp:message-moderate:1") && p.mucUser.role == "moderator";
 	}
 
 	@:allow(borogove)
