@@ -235,8 +235,8 @@ abstract class Chat {
 	/**
 		Correct an already-send message by replacing it with a new one
 
-		@param localId the ChatMessage to correct
-		@param message the new ChatMessage to replace it with
+		@param correct the ChatMessage to correct
+		@param message the new ChatMessageBuilder to replace it with
 	**/
 	abstract public function correctMessage(correct:ChatMessage, message:ChatMessageBuilder):Void;
 
