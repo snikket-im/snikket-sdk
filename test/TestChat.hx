@@ -7,6 +7,9 @@ import borogove.ChatMessageBuilder;
 import borogove.Stanza;
 import borogove.JID;
 import borogove.persistence.Dummy;
+import borogove.Chat.Channel;
+import borogove.Chat.AvailableChat;
+import borogove.Caps.Identity;
 
 @:access(borogove)
 class TestChat extends utest.Test {
@@ -275,5 +278,77 @@ class TestChat extends utest.Test {
 		final p2 = new borogove.Presence(null, new Stanza("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("item", { role: "moderator" }).up(), null);
 		chat.presence.set("mynick", p2);
 		Assert.isTrue(chat.canModerate());
+	}
+
+	public function testJoinFailure() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final caps = new borogove.Caps("", [new Identity("conference", "text", "Channel")], ["http://jabber.org/protocol/muc"], []);
+		final availableChat = new AvailableChat("channel@example.com", "Channel", "", caps);
+		final channel = cast(client.startChat(availableChat), Channel);
+
+		Assert.isTrue(channel.syncing(), "Should be syncing initially");
+
+		final errorStanza = new Stanza("presence", { xmlns: "jabber:client", from: "channel@example.com/test", to: "test@example.com", type: "error" })
+			.tag("error", { type: "auth" })
+				.tag("forbidden", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" }).up()
+			.up();
+
+		client.stream.onStanza(errorStanza);
+
+		Assert.equals(channel.joinFailed, errorStanza, "joinFailed should be set");
+		Assert.isFalse(channel.syncing(), "Should NOT be syncing after join failure");
+	}
+
+	public function testSyncFailure(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final caps = new borogove.Caps("", [new Identity("conference", "text", "Channel")], ["http://jabber.org/protocol/muc", "urn:xmpp:mam:2"], []);
+		final availableChat = new AvailableChat("channel@example.com", "Channel", "", caps);
+		final channel = cast(client.startChat(availableChat), Channel);
+
+		Assert.isTrue(channel.syncing(), "Should be syncing initially");
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq") {
+				// Delay of 0 to force async like in real life
+				haxe.Timer.delay(() -> {
+					final errorStanza = new Stanza("iq", { xmlns: "jabber:client", type: "error", id: stanza.attr.get("id") })
+						.tag("error", { type: "cancel" })
+							.tag("feature-not-implemented", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" }).up()
+						.up();
+
+					client.stream.onStanza(errorStanza);
+
+					Assert.isNull(channel.sync, "sync should be cleared after failure");
+					Assert.isFalse(channel.inSync, "Should not be inSync");
+					Assert.isFalse(channel.syncing(), "Should NOT be syncing after sync failure");
+					async.done();
+				}, 0);
+			}
+
+			return EventHandled;
+		});
+
+		channel.doSync(null);
+		Assert.notNull(channel.sync, "sync should be set during sync");
+		Assert.isTrue(channel.syncing(), "Should be syncing during sync");
+	}
+
+	public function testSyncPointWhenNotInSync() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final channel = new Channel(client, client.stream, persistence, "channel@example.com");
+
+		channel.inSync = false;
+		final builder = new ChatMessageBuilder();
+		final stanza = new Stanza("message", { from: "channel@example.com/someone" });
+		channel.prepareIncomingMessage(builder, stanza);
+
+		Assert.isFalse(builder.syncPoint, "Message should NOT have syncPoint if NOT inSync");
+
+		channel.inSync = true;
+		channel.prepareIncomingMessage(builder, stanza);
+		Assert.isTrue(builder.syncPoint, "Message SHOULD have syncPoint if inSync");
 	}
 }

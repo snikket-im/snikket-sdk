@@ -442,6 +442,17 @@ class Client extends EventEmitter {
 				}
 			}
 
+			if (stanza.attr.get("from") != null && stanza.attr.get("type") == "error") {
+				final from = JID.parse(stanza.attr.get("from"));
+				final chat = getChat(from.asBare().asString());
+				final channel = Std.downcast(chat, Channel);
+				if (channel != null && from.asString() == channel.getFullJid().asString()) {
+					trace("Join failed", channel.chatId, stanza);
+					channel.joinFailed = stanza;
+					this.trigger("chats/update", [channel]);
+				}
+			}
+
 			return EventUnhandled;
 		});
 	}

@@ -1299,6 +1299,8 @@ class Channel extends Chat {
 	private var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"], []);
 	@:allow(borogove)
 	private var inSync = false;
+	@:allow(borogove)
+	private var joinFailed = null;
 	private var sync = null;
 	private var forceLive = false;
 	private var _nickInUse = null;
@@ -1601,6 +1603,8 @@ class Channel extends Chat {
 				doSync(null, syncPoint.sortId);
 			} else {
 				trace("SYNC failed", chatId, stanza);
+				joinFailed = stanza;
+				client.trigger("chats/update", [this]);
 			}
 		});
 		sync.fetchNext();
@@ -1672,7 +1676,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	}
 
 	override public function syncing() {
-		return !inSync || !livePresence();
+		return sync != null || (!livePresence() && joinFailed == null);
 	}
 
 	override private function setLastMessage(message:Null<ChatMessage>) {
@@ -1692,6 +1696,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		return _nickInUse ?? client.displayName();
 	}
 
+	@:allow(borogove)
 	private function getFullJid() {
 		return JID.parse(chatId).withResource(nickInUse());
 	}
@@ -1754,7 +1759,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMessagesAfter(after: Null<ChatMessage>):Promise<Array<ChatMessage>> {
 		if (after != null && after.chatId() != chatId) throw "Cannot look after from a different chat";
-		if (after != null && lastMessage != null && lastMessage.canReplace(after) && !syncing()) {
+		if (after != null && lastMessage != null && lastMessage.canReplace(after) && inSync) {
 			return Promise.resolve([]);
 		}
 
@@ -1785,7 +1790,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 
 	@:allow(borogove)
 	private function prepareIncomingMessage(message:ChatMessageBuilder, stanza:Stanza) {
-		message.syncPoint = !syncing();
+		message.syncPoint = inSync;
 		if (message.type == MessageChat) message.type = MessageChannelPrivate;
 		if (message.sortId == null) {
 			if (sortId != null && message.type == MessageChannel) {
