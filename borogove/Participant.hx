@@ -1,6 +1,7 @@
 package borogove;
 
 import thenshim.Promise;
+import haxe.ds.ReadOnlyArray;
 
 import borogove.Chat;
 import borogove.queries.PubsubGet;
@@ -20,30 +21,41 @@ class Participant {
 		Display name to show for this participant
 	**/
 	public final displayName: String;
+
 	/**
 		Avatar URI for this participant, or null when none is known
 	**/
 	public final photoUri: Null<String>;
+
 	/**
 		Fallback avatar URI to use when no photo is available
 	**/
 	public final placeholderUri: String;
+
 	/**
 		True when this participant is the connected account
 	**/
 	public final isSelf: Bool;
+
 	/**
 		Chat metadata for this participant when it is available as a direct Chat
 	**/
 	public final chat: Null<AvailableChat>;
+
+	/**
+		Roles this participant has in the Chat
+	**/
+	public final roles: ReadOnlyArray<Role>;
+
 	private final jid: JID;
 
 	@:allow(borogove)
-	private function new(displayName: String, photoUri: Null<String>, placeholderUri: String, isSelf: Bool, jid: JID, chat: Null<AvailableChat>) {
+	private function new(displayName: String, photoUri: Null<String>, placeholderUri: String, isSelf: Bool, roles: Array<Role>, jid: JID, chat: Null<AvailableChat>) {
 		this.displayName = displayName;
 		this.photoUri = photoUri;
 		this.placeholderUri = placeholderUri;
 		this.isSelf = isSelf;
+		this.roles = roles;
 		this.chat = chat;
 		this.jid = jid;
 	}

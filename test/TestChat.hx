@@ -351,4 +351,105 @@ class TestChat extends utest.Test {
 		channel.prepareIncomingMessage(builder, stanza);
 		Assert.isTrue(builder.syncPoint, "Message SHOULD have syncPoint if inSync");
 	}
+
+	public function testGetParticipantDetailsWithRoles() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new Channel(client, client.stream, persistence, "channel@example.com");
+
+		final stanza = Stanza.parse('<presence from="channel@example.com/other">
+			<x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="admin" role="participant"/></x>
+			<hats xmlns="urn:xmpp:hats:0">
+				<hat uri="http://example.com/custom" title="Custom Role"/>
+			</hats>
+		</presence>');
+		chat.presence.set("other", stanza);
+
+		final details = chat.getParticipantDetails("channel@example.com/other");
+		Assert.equals(2, details.roles.length);
+		Assert.equals("admin", details.roles[0].id);
+		Assert.equals("Admin", details.roles[0].title);
+		Assert.equals("http://example.com/custom", details.roles[1].id);
+		Assert.equals("Custom Role", details.roles[1].title);
+	}
+
+	public function testAvailableRoles() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new Channel(client, client.stream, persistence, "channel@example.com");
+		chat._nickInUse = "me";
+
+		// I am owner
+		final myPresence = Stanza.parse('<presence from="channel@example.com/me">
+			<x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="owner" role="moderator"/></x>
+		</presence>');
+		chat.presence.set("me", myPresence);
+
+		// Other is member
+		final otherPresence = Stanza.parse('<presence from="channel@example.com/other">
+			<x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="member" role="participant" jid="other@example.com"/></x>
+		</presence>');
+		chat.presence.set("other", otherPresence);
+
+		final roles = chat.availableRoles("channel@example.com/other");
+		final ids = roles.map(r -> r.id);
+		Assert.contains("owner", ids);
+		Assert.contains("admin", ids);
+		Assert.contains("outcast", ids);
+		Assert.isFalse(ids.contains("member"), "Should not include current role");
+	}
+
+	public function testAddRole(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new Channel(client, client.stream, persistence, "channel@example.com");
+
+		final otherPresence = Stanza.parse('<presence from="channel@example.com/other">
+			<x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="member" role="participant" jid="other@example.com"/></x>
+		</presence>');
+		chat.presence.set("other", otherPresence);
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
+				final query = stanza.getChild("query", "http://jabber.org/protocol/muc#admin");
+				if (query != null) {
+					final item = query.getChild("item");
+					Assert.equals("admin", item.attr.get("affiliation"));
+					Assert.equals("other@example.com", item.attr.get("jid"));
+					async.done();
+					return EventHandled;
+				}
+			}
+			return EventUnhandled;
+		});
+
+		chat.addRole("channel@example.com/other", borogove.Role.forAffiliation("admin"));
+	}
+
+	public function testRemoveRole(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new Channel(client, client.stream, persistence, "channel@example.com");
+
+		final otherPresence = Stanza.parse('<presence from="channel@example.com/other">
+			<x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="member" role="participant" jid="other@example.com"/></x>
+		</presence>');
+		chat.presence.set("other", otherPresence);
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
+				final query = stanza.getChild("query", "http://jabber.org/protocol/muc#admin");
+				if (query != null) {
+					final item = query.getChild("item");
+					Assert.equals("none", item.attr.get("affiliation"));
+					Assert.equals("other@example.com", item.attr.get("jid"));
+					async.done();
+					return EventHandled;
+				}
+			}
+			return EventUnhandled;
+		});
+
+		chat.removeRole("channel@example.com/other", borogove.Role.forAffiliation("member"));
+	}
 }

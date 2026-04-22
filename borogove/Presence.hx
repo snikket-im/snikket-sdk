@@ -1,7 +1,8 @@
 package borogove;
 
-import borogove.MucUser;
 import borogove.Hash;
+import borogove.MucUser;
+import borogove.Role;
 
 @:nullSafety(StrictThreaded)
 @:forward(toString)
@@ -10,6 +11,7 @@ abstract Presence(Stanza) from Stanza to Stanza {
 	public var capsNode(get, never): Null<String>;
 	public var ver(get, never): Null<String>;
 	public var mucUser(get, never): Null<MucUser>;
+	public var hats(get, never): Null<Array<Role>>;
 	public var avatarHash(get, never): Null<Hash>;
 
 	public function new(caps: Null<Caps>, mucUser: Null<MucUser>, avatarHash: Null<Hash>): Presence {
@@ -35,6 +37,10 @@ abstract Presence(Stanza) from Stanza to Stanza {
 
 	private inline function get_mucUser() {
 		return this.getChild("x", "http://jabber.org/protocol/muc#user");
+	}
+
+	private inline function get_hats() {
+		return (this.getChild("hats", "urn:xmpp:hats:0")?.allTags("hat") ?? []).map(hat -> new Role(hat.attr.get("uri") ?? "", hat.attr.get("title") ?? ""));
 	}
 
 	private inline function get_avatarHash() {

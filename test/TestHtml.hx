@@ -44,7 +44,7 @@ class TestHtml extends utest.Test {
 		msg.sender = msg.from;
 		msg.text = "/me says hello";
 
-		final participant = new Participant("hatter", null, "", false, msg.from, null);
+		final participant = new Participant("hatter", null, "", false, [], msg.from, null);
 
 		Assert.equals(
 			"<div class=\"action\"><div>hatter says hello</div></div>",
@@ -60,7 +60,7 @@ class TestHtml extends utest.Test {
 		msg.sender = msg.from;
 		msg.setBody(Html.fromString("/me says <div class='sup&amp;2'><img src='hai'><br><p></p>"));
 
-		final participant = new Participant("hatter", null, "", false, msg.from, null);
+		final participant = new Participant("hatter", null, "", false, [], msg.from, null);
 
 		Assert.equals(
 			"<div class=\"action\">hatter says <div class=\"sup&amp;2\"><img src=\"hai\" /><br /><p></p></div></div>",

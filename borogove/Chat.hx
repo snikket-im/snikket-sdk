@@ -226,6 +226,23 @@ abstract class Chat {
 	abstract public function getParticipants():Array<String>;
 
 	/**
+		Roles the current user can assign to the target participant
+	**/
+	public function availableRoles(participantId: String):Array<Role> {
+		return [];
+	}
+
+	/**
+		Add a role to a participant
+	**/
+	public function addRole(participantId: String, role: Role) { }
+
+	/**
+		Remove a role from a participant
+	**/
+	public function removeRole(participantId: String, role: Role) { }
+
+	/**
 		Get the details for one participant in this Chat
 
 		@param participantId the ID of the participant to look up
@@ -999,6 +1016,7 @@ class DirectChat extends Chat {
 			chat.getPhoto(),
 			chat.getPlaceholder(),
 			chat.chatId == client.accountId(),
+			[], // No roles in direct chat
 			JID.parse(participantId),
 			new AvailableChat(participantId, chat.getDisplayName(), "", new Caps("", [], [], []))
 		);
@@ -1698,6 +1716,14 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getParticipantDetails(participantId:String): Participant {
+		final jid = JID.parse(participantId);
+		final nick = jid.resource;
+		final ppresence = presence[nick];
+		final roles = ppresence?.hats ?? [];
+		if (ppresence?.mucUser != null) {
+			final affRole = Role.forAffiliation(ppresence.mucUser.affiliation);
+			if (affRole != null) roles.unshift(affRole);
+		}
 		if (participantId == getFullJid().asString()) {
 			final chat = client.getDirectChat(client.accountId(), false);
 			return new Participant(
@@ -1705,23 +1731,67 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 				chat.getPhoto(),
 				chat.getPlaceholder(),
 				true,
+				roles,
 				JID.parse(chat.chatId),
 				new AvailableChat(chat.chatId, chat.getDisplayName(), "", new Caps("", [], [], []))
 			);
 		} else {
-			final jid = JID.parse(participantId);
-			final nick = jid.resource;
 			final placeholderUri = Color.defaultPhoto(participantId, nick == null ? " " : nick.charAt(0));
-			final ppresence = presence[nick];
 			return new Participant(
 				nick ?? "",
 				ppresence?.avatarHash?.toUri(),
 				placeholderUri,
 				false,
+				roles,
 				jid,
 				ppresence?.mucUser?.jid == null ? null : new AvailableChat(ppresence.mucUser.jid.asBare().asString(), nick ?? "", "", new Caps("", [], [], []))
 			);
 		}
+	}
+
+	override public function availableRoles(participantId: String):Array<Role> {
+		if (_nickInUse == null) return [];
+
+		final p = presence[_nickInUse];
+		if (p?.mucUser == null) return [];
+
+		// TODO: this should get their affiliation from the list not using presence
+		// once we are fetching the affiliation list
+		// That's probably true everywhere we use affiliation
+		final pjid = JID.parse(participantId);
+		final pnick = pjid.resource;
+		final ppresence = presence[pnick];
+		if (ppresence?.mucUser == null) return [];
+		if (ppresence?.mucUser?.jid == null) return [];
+
+		if (p.mucUser.affiliation == "owner") {
+			return ["owner", "admin", "member", "outcast"].filter(aff -> aff != ppresence.mucUser.affiliation).map(aff -> Role.forAffiliation(aff));
+		}
+
+		if (p.mucUser.affiliation == "admin") {
+			if (ppresence.mucUser.affiliation == "owner") return [];
+
+			return ["member", "outcast"].filter(aff -> aff != ppresence.mucUser.affiliation).map(aff -> Role.forAffiliation(aff));
+		}
+
+		return [];
+	}
+
+	override public function addRole(participantId: String, role: Role) {
+		final pjid = JID.parse(participantId);
+		final pnick = pjid.resource;
+		final ppresence = presence[pnick];
+		if (ppresence?.mucUser?.jid == null) return;
+
+		final iq = new Stanza("iq", { type: "set", to: chatId })
+			.tag("query", { xmlns: "http://jabber.org/protocol/muc#admin" })
+			.textTag("item", "", { affiliation: role.id, jid: ppresence.mucUser.jid.asBare().asString() });
+		stream.sendIq(iq, (response) -> {});
+	}
+
+	override public function removeRole(participantId: String, role: Role) {
+		// For affiliation-backed roles we remove them by adding affiliation of none
+		addRole(participantId, new Role("none", ""));
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
