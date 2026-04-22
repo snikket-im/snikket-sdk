@@ -233,6 +233,13 @@ abstract class Chat {
 	}
 
 	/**
+		Can the current user remove this role from the participant?
+	**/
+	public function canRemoveRole(participantId: String, role: Role):Bool {
+		return false;
+	}
+
+	/**
 		Add a role to a participant
 	**/
 	public function addRole(participantId: String, role: Role) { }
@@ -1775,6 +1782,31 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		}
 
 		return [];
+	}
+
+	override public function canRemoveRole(participantId: String, role: Role):Bool {
+		if (_nickInUse == null) return false;
+
+		final p = presence[_nickInUse];
+		if (p?.mucUser == null) return false;
+
+		final pjid = JID.parse(participantId);
+		final pnick = pjid.resource;
+		final ppresence = presence[pnick];
+		if (ppresence?.mucUser == null) return false;
+		if (ppresence?.mucUser?.jid == null) return false;
+
+		if (p.mucUser.affiliation == "owner") {
+			return ["owner", "admin", "member", "outcast"].contains(role.id);
+		}
+
+		if (p.mucUser.affiliation == "admin") {
+			if (ppresence.mucUser.affiliation == "owner") return false;
+
+			return ["admin", "member", "outcast"].contains(role.id);
+		}
+
+		return false;
 	}
 
 	override public function addRole(participantId: String, role: Role) {
