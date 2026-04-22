@@ -9,7 +9,7 @@ class Color {
 	private static var cache: Map<String, String> = [];
 	private static var cacheSize = 0;
 
-	public static function forString(s:String) {
+	public static function forString(s:String): String {
 		final fromCache = cache[s];
 		if (fromCache != null) return fromCache;
 

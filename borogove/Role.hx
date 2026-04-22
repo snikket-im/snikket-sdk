@@ -43,7 +43,7 @@ class Role {
 	/**
 		Suggested color to use when displaying this Role
 	**/
-	public function color() {
+	public function color(): String {
 		return Color.forString(id);
 	}
 }
