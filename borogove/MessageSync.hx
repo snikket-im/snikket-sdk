@@ -58,7 +58,11 @@ class MessageSync {
 		final promisedMessages:Array<Promise<Message>> = [];
 		if (lastPage != null) {
 			if (filter.page == null) filter.page = {};
-			filter.page.after = lastPage.last;
+			if (filter.page.before == null) {
+				filter.page.after = lastPage.last;
+			} else {
+				filter.page.before = lastPage.first;
+			}
 		}
 		var query = new MAMQuery(filter, serviceJID);
 		var previousMessageTime = "";

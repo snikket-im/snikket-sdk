@@ -178,6 +178,59 @@ class TestSortId extends utest.Test {
 		);
 	}
 
+	public function testSyncBeforePagingStaysBefore(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final stream = client.stream;
+
+		var sendCount = 0;
+		var firstIqId = null;
+		var secondIqId = null;
+
+		stream.on("sendStanza", (stanza: Stanza) -> {
+			final query = stanza.findChild("{urn:xmpp:mam:2}query");
+			if (stanza.name != "iq" || query == null) return EventUnhandled;
+
+			sendCount++;
+			final rsm = stanza.findChild("{urn:xmpp:mam:2}query/{http://jabber.org/protocol/rsm}set");
+			Assert.notNull(rsm, "RSM set should be present");
+
+			final before = rsm.getChild("before");
+			final after = rsm.getChild("after");
+
+			if (sendCount == 1) {
+				firstIqId = stanza.attr.get("id");
+				Assert.notNull(before, "first page should use before");
+				Assert.equals("", before.getText());
+				Assert.isNull(after, "first page should not use after");
+			} else if (sendCount == 2) {
+				secondIqId = stanza.attr.get("id");
+				Assert.notNull(before, "second page should still use before");
+				Assert.equals("mam-first", before.getText());
+				Assert.isNull(after, "second page should not switch to after");
+				async.done();
+			}
+
+			return EventHandled;
+		});
+
+		final sync = new MessageSync(client, stream, { with: "sync@example.com", page: { before: "" } }, null, null);
+		sync.onMessages((list) -> {});
+
+		sync.fetchNext();
+
+		stream.onStanza(new Stanza("iq", { type: "result", id: firstIqId, from: "test@example.com", xmlns: "jabber:client" })
+			.tag("fin", { xmlns: "urn:xmpp:mam:2" })
+				.tag("set", { xmlns: "http://jabber.org/protocol/rsm" })
+					.textTag("first", "mam-first")
+					.textTag("last", "mam-last")
+				.up()
+			.up()
+		);
+
+		sync.fetchNext();
+	}
+
 	public function testMessageChannelPrivateSequence() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
