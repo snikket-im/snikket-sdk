@@ -602,17 +602,6 @@ abstract class Chat {
 	}
 
 	@:allow(borogove)
-	private function setCaps(resource:String, caps:Caps) {
-		final presence = presence.get(resource);
-		if (presence != null) {
-			presence.caps = caps;
-			setPresence(resource, presence);
-		} else {
-			setPresence(resource, new Presence(caps, null, null));
-		}
-	}
-
-	@:allow(borogove)
 	private function removePresence(resource:String) {
 		presence.remove(resource);
 	}
@@ -624,14 +613,14 @@ abstract class Chat {
 			hasNext: iter.hasNext,
 			next: () -> {
 				final n = iter.next();
-				return { key: n.key, value: n.value.caps };
+				return { key: n.key, value: client.capsRepo.get(n.value) };
 			}
 		};
 	}
 
 	@:allow(borogove)
 	private function getResourceCaps(resource:String):Caps {
-		return presence[resource]?.caps ?? new Caps("", [], [], []);
+		return client.capsRepo.get(presence[resource]);
 	}
 
 	@:allow(borogove)
@@ -676,8 +665,8 @@ abstract class Chat {
 	**/
 	public function canAudioCall():Bool {
 #if !NO_JINGLE
-		for (resource => p in presence) {
-			if (p.caps?.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false) return true;
+		for (resource => caps in getCaps()) {
+			if (caps.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false) return true;
 		}
 #end
 		return false;
@@ -688,8 +677,8 @@ abstract class Chat {
 	**/
 	public function canVideoCall():Bool {
 #if !NO_JINGLE
-		for (resource => p in presence) {
-			if (p.caps?.features?.contains("urn:xmpp:jingle:apps:rtp:video") ?? false) return true;
+		for (resource => caps in getCaps()) {
+			if (caps.features?.contains("urn:xmpp:jingle:apps:rtp:video") ?? false) return true;
 		}
 #end
 		return false;
@@ -1635,7 +1624,7 @@ class Channel extends Chat {
 		discoGet.onFinished(() -> {
 			if (discoGet.getResult() != null) {
 				disco = discoGet.getResult();
-				persistence.storeCaps(discoGet.getResult());
+				client.capsRepo.add(discoGet.getResult());
 				persistence.storeChats(client.accountId(), [this]);
 			}
 			if (callback != null) callback();
@@ -2111,6 +2100,11 @@ class SerializedChat {
 		final extensionsStanza = Stanza.parse(extensions);
 		var filterN = notificationsFiltered ?? false;
 		var mention = notifyMention;
+
+		// Init capsRepo with all caps for this chat
+		for (resource => p in presence) {
+			if (p != null) client.capsRepo.getAsync(p);
+		}
 
 		final chat = if (klass == "DirectChat") {
 			new DirectChat(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensionsStanza, readUpToId, readUpToBy, omemoContactDeviceIDs);

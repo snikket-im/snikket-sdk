@@ -2,6 +2,7 @@ package test;
 
 import utest.Assert;
 import utest.Async;
+
 import borogove.Caps;
 import borogove.Hash;
 import borogove.Stanza;
@@ -106,6 +107,16 @@ class TestCaps extends utest.Test {
 		caps().addC(s);
 		Assert.equals(
 			'<presence><c xmlns="http://jabber.org/protocol/caps" ver="cePxJUNNZuDoNDbCMqs2VNEcJeY=" node="somenode" hash="sha-1"/><c xmlns="urn:xmpp:caps"><hash xmlns="urn:xmpp:hashes:2" algo="sha-256">u79ZroNJbdSWhdSp311mddz44oHHPsEBntQ5b1jqBSY=</hash></c></presence>',
+			s.toString()
+		);
+	}
+
+	public function testAddCEmpty() {
+		final s = new Stanza("presence");
+		final emptyCaps = new Caps("node1", [], [], []);
+		emptyCaps.addC(s);
+		Assert.equals(
+			'<presence><c xmlns="http://jabber.org/protocol/caps" ver="2jmj7l5rSw0yVb/vlWAYkK/YBwk=" node="node1" hash="sha-1"/></presence>',
 			s.toString()
 		);
 	}

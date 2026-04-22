@@ -66,7 +66,9 @@ class Client extends EventEmitter {
 	private var jid(default,null):JID;
 	@:allow(borogove)
 	private var chats: Array<Chat> = [];
-	private var persistence: Persistence;
+	private final persistence: Persistence;
+	@:allow(borogove)
+	private final capsRepo: CapsRepo;
 	private final caps = new Caps(
 		"https://borogove.dev",
 		[],
@@ -134,6 +136,7 @@ class Client extends EventEmitter {
 		promiseFactory.scheduler.addNext = mainLoop.run;
 		#end
 		super();
+		capsRepo = new CapsRepo(persistence);
 		this.jid = JID.parse(accountId);
 		this._displayName = this.jid.node ?? this.jid.asString();
 		this.persistence = persistence;
@@ -337,8 +340,9 @@ class Client extends EventEmitter {
 		});
 
 		stream.on("presence", function(event) {
-			final stanza:Stanza = event.stanza;
-			final c = stanza.getChild("c", "http://jabber.org/protocol/caps");
+			final stanza: Stanza = event.stanza;
+			final presence: Presence = stanza;
+
 			if (stanza.attr.get("from") != null && stanza.attr.get("type") == null) {
 				final from = JID.parse(stanza.attr.get("from"));
 				final chat = getChat(from.asBare().asString());
@@ -347,32 +351,29 @@ class Client extends EventEmitter {
 					return EventUnhandled;
 				}
 
-				final mucUser = stanza.getChild("x", "http://jabber.org/protocol/muc#user");
-				final avatarSha1Hex = stanza.findText("{vcard-temp:x:update}x/photo#");
-				final avatarSha1 = avatarSha1Hex == null || avatarSha1Hex == "" ? null : Hash.fromHex("sha-1", avatarSha1Hex);
-
-				if (c == null) {
-					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(null, mucUser, avatarSha1));
+				if (presence.ver == null) {
+					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza);
 					persistence.storeChats(this.accountId(), [chat]);
 					if (chat.livePresence()) this.trigger("chats/update", [chat]);
 				} else {
 					final handleCaps = (caps) -> {
-						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, new Presence(caps, mucUser, avatarSha1));
-						if (mucUser == null || chat.livePresence()) persistence.storeChats(this.accountId(), [chat]);
+						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza);
+						if (presence.mucUser == null || chat.livePresence()) persistence.storeChats(this.accountId(), [chat]);
 						return chat;
 					};
 
-					persistence.getCaps(c.attr.get("ver")).then((caps) -> {
+					capsRepo.getAsync(presence).then((caps) -> {
 						if (caps == null) {
-							final pending = pendingCaps.get(c.attr.get("ver"));
+							final ver = presence.ver;
+							final pending = pendingCaps.get(ver);
 							if (pending == null) {
-								pendingCaps.set(c.attr.get("ver"), [handleCaps]);
-								final discoGet = new DiscoInfoGet(stanza.attr.get("from"), c.attr.get("node") + "#" + c.attr.get("ver"));
+								pendingCaps.set(ver, [handleCaps]);
+								final discoGet = new DiscoInfoGet(stanza.attr.get("from"), presence.capsNode + "#" + ver);
 								discoGet.onFinished(() -> {
 									final chatsToUpdate: Map<String, Chat> = [];
-									final handlers = pendingCaps.get(c.attr.get("ver")) ?? [];
-									pendingCaps.remove(c.attr.get("ver"));
-									if (discoGet.getResult() != null) persistence.storeCaps(discoGet.getResult());
+									final handlers = pendingCaps.get(ver) ?? [];
+									pendingCaps.remove(ver);
+									if (discoGet.getResult() != null) capsRepo.add(discoGet.getResult());
 									for (handler in handlers) {
 										final c = handler(discoGet.getResult());
 										if (c.livePresence()) chatsToUpdate.set(c.chatId, c);
@@ -389,7 +390,8 @@ class Client extends EventEmitter {
 					});
 				}
 				final channel = Std.downcast(chat, Channel);
-				if (channel != null && avatarSha1 != null && brokenAvatars[avatarSha1Hex] == null) {
+				final avatarSha1 = presence.avatarHash;
+				if (channel != null && avatarSha1 != null && brokenAvatars[avatarSha1.toHex()] == null) {
 					if (from.isBare()) {
 						chat.setAvatarSha1(avatarSha1.hash);
 						persistence.storeChats(this.accountId(), [chat]);
@@ -402,7 +404,7 @@ class Client extends EventEmitter {
 							vcardGet.onFinished(() -> {
 								final vcard = vcardGet.getResult();
 								if (vcard.photo == null) {
-									brokenAvatars[avatarSha1Hex] = from;
+									brokenAvatars[avatarSha1.toHex()] = from;
 									return;
 								}
 								persistence.storeMedia(vcard.photo.mime, vcard.photo.data.getData()).then(_ -> {
@@ -1662,7 +1664,7 @@ class Client extends EventEmitter {
 					this.trigger("chats/update", [chat]);
 				}
 			} else {
-				persistence.storeCaps(resultCaps);
+				capsRepo.add(resultCaps);
 				if (resultCaps.isChannel(jid)) {
 					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, false, false, null, resultCaps);
 					chat.setupNotifications();

@@ -6,6 +6,8 @@ import utest.ui.Report;
 class TestAll {
 	public static function main() {
 		utest.UTest.run([
+			new TestPresence(),
+			new TestCapsRepo(),
 			new TestChatMessage(),
 			new TestSessionDescription(),
 			new TestChatMessageBuilder(),

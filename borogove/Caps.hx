@@ -91,13 +91,15 @@ class Caps {
 			node: node,
 			ver: ver()
 		}).up();
-		stanza.tag("c", {
-			xmlns: "urn:xmpp:caps",
-		}).textTag(
-			"hash",
-			Hash.sha256(hashInput()).toBase64(),
-			{ xmlns: "urn:xmpp:hashes:2", algo: "sha-256" }
-		).up();
+		if (identities.length > 0 || features.length > 0 || data.length > 0) {
+			stanza.tag("c", {
+				xmlns: "urn:xmpp:caps",
+			}).textTag(
+				"hash",
+				Hash.sha256(hashInput()).toBase64(),
+				{ xmlns: "urn:xmpp:hashes:2", algo: "sha-256" }
+			).up();
+		}
 		return stanza;
 	}
 

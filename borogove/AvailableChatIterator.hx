@@ -137,7 +137,7 @@ class AvailableChatIterator {
 						resolve(null);
 					}
 				} else {
-					persistence.storeCaps(resultCaps);
+					client.capsRepo.add(resultCaps);
 					final identity = resultCaps.identities[0];
 					final displayName = identity?.name ?? query;
 					final note = jid.asString() + (identity == null ? "" : " (" + identity.type + ")");

@@ -444,7 +444,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					trusted: chat.trusted,
 					isBookmarked: chat.isBookmarked,
 					avatarSha1: chat.avatarSha1,
-					presence: new Map([...chat.presence.entries()].map(([k, p]) => [k, { caps: p.caps?.ver(), mucUser: p.mucUser?.toString(), avatarHash: p.avatarHash?.serializeUri() }])),
+					presence: new Map([...chat.presence.entries()].map(([k, p]) => [k, p.toString()])),
 					displayName: chat.displayName,
 					uiState: chat.uiState,
 					isBlocked: chat.isBlocked,
@@ -470,7 +470,10 @@ export default async (dbname, media, tokenize, stemmer) => {
 				r.isBookmarked,
 				r.avatarSha1,
 				new Map(await Promise.all((r.presence instanceof Map ? [...r.presence.entries()] : Object.entries(r.presence)).map(
-					async ([k, p]) => [k, new borogove_Presence(p.caps && await this.getCaps(p.caps), p.mucUser && borogove_Stanza.parse(p.mucUser), p.avatarHash && borogove_Hash.fromUri(p.avatarHash))]
+					async ([k, p]) => [k,
+						typeof(p) === "string" ? borogove_Stanza.parse(p) :
+						borogove_Presence._new(p.caps && await this.getCaps(p.caps), p.mucUser && borogove_Stanza.parse(p.mucUser), p.avatarHash && borogove_Hash.fromUri(p.avatarHash))
+					]
 				))),
 				r.displayName,
 				r.uiState,

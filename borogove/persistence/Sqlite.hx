@@ -275,22 +275,10 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 		storeChatTimer = haxe.Timer.delay(() -> {
 			final mapPresence = (chat: Chat) -> {
-				final storePresence: DynamicAccess<{ ?caps: String, ?mucUser: String, ?avatarHash: String }> = {};
-				final caps: Map<BytesData, Caps> = [];
+				final storePresence: DynamicAccess<String> = {};
 				for (resource => presence in chat.presence) {
-					if (storePresence[resource ?? ""] == null) storePresence[resource ?? ""] = {};
-					if (presence.caps != null) {
-						caps[presence.caps.verRaw().hash] = presence.caps;
-						storePresence[resource ?? ""].caps = presence.caps.ver();
-					}
-					if (presence.mucUser != null) {
-						storePresence[resource ?? ""].mucUser = presence.mucUser.toString();
-					}
-					if (presence.avatarHash != null) {
-						storePresence[resource ?? ""].avatarHash = presence.avatarHash.serializeUri();
-					}
+					if (storePresence[resource ?? ""] == null) storePresence[resource ?? ""] = presence.toString();
 				}
-				storeCapsSet(caps);
 				return storePresence;
 			};
 			final q = new StringBuf();
@@ -329,44 +317,24 @@ class Sqlite implements Persistence implements KeyValueStore {
 			"SELECT chat_id, trusted, bookmarked, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, notifications_filtered, notify_mention, notify_reply, json(caps) AS caps, caps_ver, json(presence) AS presence, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
 			[accountId]
 		).then(result -> {
-			final fetchCaps: Map<BytesData, Bool> = [];
-			final chats: Array<Dynamic> = [];
+			final chats: Array<SerializedChat> = [];
 			for (row in result) {
 				final capsJson = row.caps == null ? null : Json.parse(row.caps);
 				row.capsObj = capsJson == null ? null : hydrateCaps(capsJson, row.caps_ver);
 				final presenceJson: DynamicAccess<Dynamic> = Json.parse(row.presence);
-				row.presenceJson = presenceJson;
-				for (resource => presence in presenceJson) {
-					if (presence.caps != null) fetchCaps[Base64.decode(presence.caps).getData()] = true;
-				}
-				chats.push(row);
-			}
-			final fetchCapsSha1s = { iterator: () -> fetchCaps.keys() }.array();
-			return db.exec(
-				"SELECT sha1, json(caps) AS caps FROM caps WHERE sha1 IN (" + fetchCapsSha1s.map(_ -> "?").join(",") + ")",
-				fetchCapsSha1s
-			).then(capsResult -> { chats: chats, caps: capsResult });
-		}).then(result -> {
-			final capsMap: Map<String, Caps> = [];
-			for (row in result.caps) {
-				final json = Json.parse(row.caps);
-				capsMap[Base64.encode(Bytes.ofData(row.sha1))] = hydrateCaps(json, row.sha1);
-			}
-			result.caps = null;
-			final chats = [];
-			var row = null;
-			while ((row = result.chats.pop()) != null) {
 				final presenceMap: Map<String, Presence> = [];
-				final presenceJson: DynamicAccess<Dynamic> = row.presenceJson;
-				for (resource in presenceJson.keys()) {
-					final presence = presenceJson.get(resource);
-					presenceJson.remove(resource);
-					presenceMap[resource] = new Presence(
-						presence.caps == null ? null : capsMap[presence.caps],
-						presence.mucUser == null || Config.constrainedMemoryMode ? null : Stanza.parse(presence.mucUser),
-						presence.avatarHash == null ? null : Hash.fromUri(presence.avatarHash)
-					);
+				for (resource => presence in presenceJson) {
+					if (Std.isOfType(presence, String)) {
+						presenceMap[resource] = Stanza.parse(presence);
+					} else {
+						presenceMap[resource] = new Presence(
+							presence.caps == null ? null : new Caps("", [], [], [], Base64.decode(presence.caps).getData()),
+							presence.mucUser == null ? null : Stanza.parse(presence.mucUser),
+							presence.avatarHash == null ? null : Hash.fromUri(presence.avatarHash)
+						);
+					}
 				}
+
 				// FIXME: Empty OMEMO contact device ids hardcoded in next line
 				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.bookmarked != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, row.capsObj, [], Reflect.field(row, "class")));
 			}
