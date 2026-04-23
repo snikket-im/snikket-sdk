@@ -398,7 +398,7 @@ class XmppJsStream extends GenericStream {
 		var attrs: haxe.DynamicAccess<String> = {};
 		for (attr => val in el.attrs ?? attrs) {
 			final parts = attr.split(":");
-			if (parts.length == 1) {
+			if (parts.length == 1 || parts[0] == "xml") {
 				attrs.set(attr, val);
 			}
 			if (parts.length == 2 && parts[0] != "xmlns") {
