@@ -8,6 +8,10 @@ using Lambda;
 // Use ES6 maps instead of Haxe maps
 @:forward
 abstract Map<K,V>(NativeMap<K,V>) {
+	public inline function new() {
+		this = new NativeMap();
+	}
+
 	public inline function set(k:K, v:V):Void {
 		this.set(k, v);
 	}

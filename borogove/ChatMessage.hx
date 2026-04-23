@@ -412,6 +412,13 @@ class ChatMessage {
 	}
 
 	/**
+		Subject if present
+	**/
+	public function subject(): Null<String> {
+		return payloads.find(el -> el.name == "subject")?.getText();
+	}
+
+	/**
 		The ID of the Chat this message is associated with
 	**/
 	public function chatId():String {

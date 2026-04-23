@@ -452,6 +452,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					readUpToId: chat.readUpToId,
 					readUpToBy: chat.readUpToBy,
 					notificationSettings: chat.notificationsFiltered() ? { mention: chat.notifyMention(), reply: chat.notifyReply() } : null,
+					threads: chat.threads,
 					disco: { ...chat.disco, data: chat.disco?.data?.map(d => d.toString()) },
 					omemoDevices: chat.omemoContactDeviceIDs,
 					class: chat instanceof borogove_DirectChat ? "DirectChat" : (chat instanceof borogove_Channel ? "Channel" : "Chat")
@@ -484,6 +485,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				r.notificationSettings === undefined ? null : r.notificationSettings != null,
 				r.notificationSettings?.mention,
 				r.notificationSettings?.reply,
+				r.threads || new Map(),
 				r.disco ? new borogove_Caps(
 					r.disco.node,
 					(r.disco.identities || []).map((identity) => new borogove_Identity(identity.category, identity.type, identity.name)),

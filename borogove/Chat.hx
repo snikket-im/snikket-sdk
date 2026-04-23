@@ -29,6 +29,12 @@ using borogove.Util;
 import HaxeCBridge;
 #end
 
+#if js
+typedef StringMapNullableKey = Map<Null<String>, String>;
+#else
+typedef StringMapNullableKey = haxe.ds.ObjectMap<Null<String>, String>;
+#end
+
 enum abstract UiState(Int) {
 	var Pinned;
 	var Open; // or Unspecified
@@ -102,6 +108,8 @@ abstract class Chat {
 	private var readUpToId: Null<String>;
 	@:allow(borogove)
 	private var readUpToBy: Null<String>;
+	@:allow(borogove.persistence)
+	private final threads: StringMapNullableKey = new StringMapNullableKey();
 	private var isTyping = false;
 	private var typingThread: Null<String> = null;
 	private var typingTimer: haxe.Timer = null;
@@ -618,6 +626,11 @@ abstract class Chat {
 		}
 
 		return displayName;
+	}
+
+	@:allow(borogove)
+	private function setThreadSubject(threadId: String, subject: String) {
+		this.threads.set(threadId, subject);
 	}
 
 	@:allow(borogove)
@@ -1420,6 +1433,16 @@ class Channel extends Chat {
 		return super.getDisplayName();
 	}
 
+	/**
+		Subject of this Channel
+	**/
+	public function subject() {
+		return threads.get(null) ?? "";
+	}
+
+	/**
+		Description of this Channel
+	**/
 	public function description() {
 		return (info()?.field("muc#roominfo_description")?.value ?? []).join("\n");
 	}
@@ -1427,7 +1450,6 @@ class Channel extends Chat {
 	private function info() {
 		return disco?.data?.find(d -> d.field("FORM_TYPE")?.value?.at(0) == "http://jabber.org/protocol/muc#roominfo");
 	}
-
 
 	override public function invite(chat: Chat, threadId: Null<String> = null) {
 		if (isPrivate()) {
@@ -2171,6 +2193,7 @@ class SerializedChat {
 	public final extensions:String;
 	public final readUpToId:Null<String>;
 	public final readUpToBy:Null<String>;
+	public final threads: StringMapNullableKey = new StringMapNullableKey();
 	public final disco:Null<Caps>;
 	public final omemoContactDeviceIDs: Array<Int>;
 	public final klass:String;
@@ -2178,7 +2201,7 @@ class SerializedChat {
 	public final notifyMention: Bool;
 	public final notifyReply: Bool;
 
-	public function new(chatId: String, trusted: Bool, isBookmarked: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, disco: Null<Caps>, omemoContactDeviceIDs: Array<Int>, klass: String) {
+	public function new(chatId: String, trusted: Bool, isBookmarked: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, threads: StringMapNullableKey, disco: Null<Caps>, omemoContactDeviceIDs: Array<Int>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.isBookmarked = isBookmarked;
@@ -2193,6 +2216,7 @@ class SerializedChat {
 		this.notificationsFiltered = notificationsFiltered;
 		this.notifyMention = notifyMention;
 		this.notifyReply = notifyReply;
+		this.threads = threads;
 		this.disco = disco;
 		this.omemoContactDeviceIDs = omemoContactDeviceIDs;
 		this.klass = klass;
@@ -2226,6 +2250,9 @@ class SerializedChat {
 		chat.setTrusted(trusted);
 		for (resource => p in presence) {
 			chat.setPresence(resource, p);
+		}
+		for (threadId => subject in threads) {
+			chat.setThreadSubject(threadId, subject);
 		}
 		return chat;
 	}

@@ -506,16 +506,31 @@ test("storeChats and getChats", async ({ page }) => {
 		chat.displayName = "The Mad Hatter";
 		chat.trusted = true;
 		chat.presence = new Map();
+		chat.threads = new Map([
+			[null, "Tea Time"],
+			["thread-1", "Introductions"],
+		]);
 
 		await persistence.storeChats("alice@example.com", [chat]);
-		return await persistence.getChats("alice@example.com");
+		const chats = await persistence.getChats("alice@example.com");
+		return {
+			length: chats.length,
+			chatId: chats[0]?.chatId,
+			displayName: chats[0]?.displayName,
+			trusted: chats[0]?.trusted,
+			klass: chats[0]?.klass,
+			channelSubject: chats[0]?.threads?.get(null),
+			threadSubject: chats[0]?.threads?.get("thread-1"),
+		};
 	}, code);
 
 	expect(result.length).toBe(1);
-	expect(result[0].chatId).toBe("hatter@example.com");
-	expect(result[0].displayName).toBe("The Mad Hatter");
-	expect(result[0].trusted).toBe(true);
-	expect(result[0].klass).toBe("DirectChat");
+	expect(result.chatId).toBe("hatter@example.com");
+	expect(result.displayName).toBe("The Mad Hatter");
+	expect(result.trusted).toBe(true);
+	expect(result.klass).toBe("DirectChat");
+	expect(result.channelSubject).toBe("Tea Time");
+	expect(result.threadSubject).toBe("Introductions");
 });
 
 test("getMessage by serverId and localId", async ({ page }) => {

@@ -117,4 +117,23 @@ class TestChatMessage extends utest.Test {
 				Assert.fail("Expected ChatMessageStanza");
 		}
 	}
+
+	public function testSubjectOnlyMessage() {
+		final stanza = new Stanza("message");
+		stanza.attr.set("id", "test-id-1");
+		stanza.attr.set("from", "tea@example.com/hatter");
+		stanza.attr.set("to", "bob@example.com");
+		stanza.attr.set("type", "groupchat");
+		stanza.addChild(new Stanza("thread").text("thread-1"));
+		stanza.addChild(new Stanza("subject").text("Tea Time"));
+
+		final msg = Message.fromStanza(stanza, JID.parse("bob@example.com"));
+		Assert.equals("thread-1", msg.threadId);
+		switch (msg.parsed) {
+			case SubjectStanza(subject):
+				Assert.equals("Tea Time", subject);
+			default:
+				Assert.fail("Expected SubjectStanza");
+		}
+	}
 }

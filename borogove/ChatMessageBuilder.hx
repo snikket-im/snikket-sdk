@@ -114,7 +114,7 @@ class ChatMessageBuilder {
 	/**
 		Direction of this message
 	**/
-	public var direction: MessageDirection = MessageReceived;
+	public var direction: MessageDirection = MessageSent;
 
 	/**
 		Status of this message
@@ -179,6 +179,7 @@ class ChatMessageBuilder {
 		?attachments: Array<ChatAttachment>,
 		?reactions: Map<String, Array<Reaction>>,
 		?text: Null<String>,
+		?subject: Null<String>,
 		?lang: Null<String>,
 		?direction: MessageDirection,
 		?status: MessageStatus,
@@ -209,6 +210,7 @@ class ChatMessageBuilder {
 		if (text != null) setBody(Html.text(text));
 		final html = params?.html;
 		if (html != null) setBody(html);
+		setSubject(params?.subject);
 	}
 	#end
 
@@ -298,6 +300,18 @@ class ChatMessageBuilder {
 	}
 
 	/**
+		Set subject of this message
+	**/
+	public function setSubject(subject: Null<String>) {
+		final subjectIdx = payloads.findIndex((p) -> p.name == "subject");
+		if (subjectIdx >= 0) payloads.splice(subjectIdx, 1);
+
+		if (subject == null) return;
+
+		payloads.push(new Stanza("subject").text(subject));
+	}
+
+	/**
 		The ID of the Chat this message is associated with
 
 		@returns Chat ID for this message
@@ -331,9 +345,9 @@ class ChatMessageBuilder {
 	**/
 	public function build() {
 		if (serverId == null && localId == null) throw "Cannot build a ChatMessage with no id";
-		final to = this.to;
+		final to = this.to ?? (isIncoming() ? new JID(null, "inbound.to.me.example.com") : null);
 		if (to == null) throw "Cannot build a ChatMessage with no to";
-		final from = this.from;
+		final from = this.from ?? (senderId == null ? null : JID.parse(senderId));
 		if (from == null) throw "Cannot build a ChatMessage with no from";
 		final sender = this.sender ?? from.asBare();
 		return new ChatMessage({

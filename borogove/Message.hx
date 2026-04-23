@@ -27,6 +27,7 @@ enum abstract MessageType(Int) {
 enum MessageStanza {
 	ErrorMessageStanza(localId: Null<String>, stanza: Stanza);
 	ChatMessageStanza(message: ChatMessage);
+	SubjectStanza(subject: String);
 	ModerateMessageStanza(action: ModerationAction);
 	ReactionUpdateStanza(update: ReactionUpdate);
 	MucInviteStanza(serverId: Null<String>, serverIdBy: Null<String>, reason: Null<String>, password: Null<String>);
@@ -70,6 +71,8 @@ class Message {
 		if (msg.text != null && (msg.lang == null || msg.lang == "")) {
 			msg.lang = stanza.getChild("body")?.attr.get("xml:lang");
 		}
+		final subject = stanza.getChild("subject");
+		if (subject != null) msg.payloads.push(subject);
 		msg.from = JID.parse(from);
 		final isGroupchat = stanza.attr.get("type") == "groupchat";
 		msg.type = isGroupchat ? MessageChannel : MessageChat;
@@ -256,7 +259,13 @@ class Message {
 		final replace = stanza.getChild("replace", "urn:xmpp:message-correct:0");
 		final replaceId  = replace?.attr?.get("id");
 
-		if (msg.text == null && msg.attachments.length < 1 && replaceId == null) return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza), encryptionInfo);
+		if (msg.text == null && msg.attachments.length < 1 && replaceId == null) {
+			if (msg.payloads.length == 1 && msg.payloads[0].name == "subject") {
+				return new Message(msg.chatId(), msg.senderId, msg.threadId, SubjectStanza(msg.payloads[0].getText()), encryptionInfo);
+			}
+
+			return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza), encryptionInfo);
+		}
 
 		for (fallback in stanza.allTags("fallback", "urn:xmpp:fallback:0")) {
 			msg.payloads.push(fallback);
