@@ -407,7 +407,7 @@ class Client extends EventEmitter {
 									brokenAvatars[avatarSha1.toHex()] = from;
 									return;
 								}
-								persistence.storeMedia(vcard.photo.mime, vcard.photo.data.getData()).then(_ -> {
+								persistence.storeMedia(vcard.photo.mime ?? "image/png", vcard.photo.data.getData()).then(_ -> {
 									this.trigger("chats/update", [chat]);
 								});
 							});
