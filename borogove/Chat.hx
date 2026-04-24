@@ -2171,6 +2171,26 @@ class AvailableChat {
 		return caps.isChannel(chatId);
 	}
 
+	/**
+		Can audio calls be started after starting this Chat?
+	**/
+	public function canAudioCall():Bool {
+#if !NO_JINGLE
+		if (caps.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false) return true;
+#end
+		return false;
+	}
+
+	/**
+		Can video calls be started after starting Chat?
+	**/
+	public function canVideoCall():Bool {
+#if !NO_JINGLE
+		if (caps.features?.contains("urn:xmpp:jingle:apps:rtp:video") ?? false) return true;
+#end
+		return false;
+	}
+
 	@:allow(borogove)
 	private function new(chatId: String, displayName: Null<String>, note: String, caps: Caps) {
 		this.chatId = chatId;
