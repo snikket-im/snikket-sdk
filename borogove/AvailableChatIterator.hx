@@ -75,6 +75,13 @@ class AvailableChatIterator {
 					final channel = Util.downcast(chat, Channel);
 					results.push(Promise.resolve(new AvailableChat(chat.chatId, chat.getDisplayName(), chat.chatId, channel == null || channel.disco == null ? new Caps("", [], [], []) : channel.disco)));
 				}
+
+				for (p in chat.getParticipants()) {
+					final details = chat.getParticipantDetails(p);
+					if (details.chat != null && (details.chat.chatId.contains(query.toLowerCase()) || (details.chat.displayName ?? "").toLowerCase().contains(query.toLowerCase()))) {
+						results.push(Promise.resolve(details.chat));
+					}
+				}
 			}
 			if (chat.isTrusted()) {
 				final resources:Map<String, Bool> = [];

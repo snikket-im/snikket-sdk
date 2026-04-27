@@ -1038,7 +1038,7 @@ class DirectChat extends Chat {
 			chat.chatId == client.accountId(),
 			[], // No roles in direct chat
 			JID.parse(participantId),
-			new AvailableChat(participantId, chat.getDisplayName(), "", new Caps("", [], [], []))
+			new AvailableChat(participantId, chat.getDisplayName(), '${participantId} (via ${displayName})', new Caps("", [], [], []))
 		);
 	}
 
@@ -1762,10 +1762,11 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 				true,
 				roles,
 				JID.parse(chat.chatId),
-				new AvailableChat(chat.chatId, chat.getDisplayName(), "", new Caps("", [], [], []))
+				new AvailableChat(chat.chatId, chat.getDisplayName(), chat.chatId, new Caps("", [], [], []))
 			);
 		} else {
 			final placeholderUri = Color.defaultPhoto(participantId, nick == null ? " " : nick.charAt(0));
+			final trueJid = ppresence?.mucUser?.jid?.asBare()?.asString();
 			return new Participant(
 				nick ?? "",
 				ppresence?.avatarHash?.toUri(),
@@ -1773,7 +1774,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 				false,
 				roles,
 				jid,
-				ppresence?.mucUser?.jid == null ? null : new AvailableChat(ppresence.mucUser.jid.asBare().asString(), nick ?? "", "", new Caps("", [], [], []))
+				trueJid == null ? null : new AvailableChat(trueJid, nick ?? "", '$trueJid (via ${displayName})', new Caps("", [], [], []))
 			);
 		}
 	}
