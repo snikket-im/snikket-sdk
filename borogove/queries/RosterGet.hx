@@ -14,7 +14,7 @@ class RosterGet extends GenericQuery {
 	public var queryId:String = null;
 	public var ver:String = null;
 	private var responseStanza:Stanza;
-	private var result: Array<{ jid: String, fn: String, subscription: String }>;
+	private var result: Array<{ jid: String, fn: String, subscription: String, groups: Array<String> }>;
 
 	public function new(?ver: String) {
 		var attr: DynamicAccess<String> = { xmlns: xmlns };
@@ -45,7 +45,8 @@ class RosterGet extends GenericQuery {
 			result = q.allTags("item").map((item) -> {
 				jid: item.attr.get("jid"),
 				fn: item.attr.get("name"),
-				subscription: item.attr.get("subscription")
+				subscription: item.attr.get("subscription"),
+				groups: item.allTags("group").map(g -> g.getText())
 			});
 		}
 		return result;

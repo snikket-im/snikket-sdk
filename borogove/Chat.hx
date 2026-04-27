@@ -528,11 +528,15 @@ abstract class Chat {
 	}
 
 	@:allow(borogove)
-	private function updateFromRoster(item: { fn: Null<String>, subscription: String }) {
+	private function updateFromRoster(item: { fn: Null<String>, subscription: String, groups: Array<String> }) {
 		isBookmarked = true;
 		setTrusted(item.subscription == "both" || item.subscription == "from");
 		if (item.fn != null && item.fn != "") displayName = item.fn;
 		if (uiState == Invited) uiState = Open;
+		extensions.removeChildren("group", "jabber:iq:roster");
+		for (group in item.groups) {
+			extensions.textTag("group", group, { xmlns: "jabber:iq:roster" });
+		}
 	}
 
 	/**
@@ -626,6 +630,13 @@ abstract class Chat {
 		}
 
 		return displayName;
+	}
+
+	/**
+		Tags on this Chat
+	**/
+	public function getTags() {
+		return extensions.allTags("group", "jabber:iq:roster").map(g -> g.getText());
 	}
 
 	@:allow(borogove)
