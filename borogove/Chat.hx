@@ -657,7 +657,8 @@ abstract class Chat {
 
 	@:allow(borogove)
 	private function getResourceCaps(resource:String):Caps {
-		return client.capsRepo.get(presence[resource]);
+		final p = presence[resource];
+		return p == null ? new Caps("", [], [], []) : client.capsRepo.get(p);
 	}
 
 	@:allow(borogove)
