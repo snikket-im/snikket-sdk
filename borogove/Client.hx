@@ -31,6 +31,7 @@ import borogove.queries.DiscoItemsGet;
 import borogove.queries.ExtDiscoGet;
 import borogove.queries.GenericQuery;
 import borogove.queries.HttpUploadSlot;
+import borogove.queries.JabberIqGatewayGet;
 import borogove.queries.PubsubGet;
 import borogove.queries.Push2Disable;
 import borogove.queries.Push2Enable;
@@ -992,6 +993,67 @@ class Client extends EventEmitter {
 	**/
 	public function findAvailableChats(q:String): AvailableChatIterator {
 		return new AvailableChatIterator(q, this, persistence);
+	}
+
+	/**
+		List of human-readable strings of things supports by findAvailableChats
+	**/
+	public function availableChatSources(): Promise<Array<String>> {
+		final sources = [Promise.resolve("Name")];
+
+		for (chat in chats) {
+			if (chat.isTrusted()) {
+				final resources:Map<String, Bool> = new Map();
+				for (resource in Caps.withIdentity(chat.getCaps(), "gateway", null)) {
+					// Sometimes gateway items also have id "gateway" for whatever reason
+					final identities = chat.getResourceCaps(resource)?.identities ?? [];
+					if (
+						(chat.chatId.indexOf("@") < 0 || identities.find(i -> i.category == "conference") == null) &&
+						identities.find(i -> i.category == "client") == null
+					) {
+						resources[resource] = true;
+					}
+				}
+				if (!sendAvailable && JID.parse(chat.chatId).isDomain()) {
+					resources[null] = true;
+				}
+				for (resource in resources.keys()) {
+					final bareJid = JID.parse(chat.chatId);
+					final fullJid = new JID(bareJid.node, bareJid.domain, bareJid.isDomain() && resource == "" ? null : resource);
+					final jigGet = new JabberIqGatewayGet(fullJid.asString());
+					sources.push(new Promise((resolve, reject) -> {
+						jigGet.onFinished(() -> {
+							final result = jigGet.getResult();
+							if (result == null) {
+								final identity = chat.getResourceCaps(resource).identities[0];
+								if (identity == null) {
+									resolve("");
+								} else {
+									resolve(identity.type);
+								}
+							} else {
+								switch (result) {
+									case Left(error): resolve("");
+									case Right(result): resolve(result);
+								}
+							}
+						});
+						sendQuery(jigGet);
+					}));
+				}
+			}
+		}
+
+		sources.push(Promise.resolve("ID")); // Jabber ID
+		sources.push(Promise.resolve("URI"));
+		return thenshim.PromiseTools.all(sources).then(ss -> {
+			final found: Map<String, Bool> = new Map();
+			return ss.filter(s -> {
+				final didFind = found[s] ?? false;
+				found[s] = true;
+				return s != "" && !didFind;
+			});
+		});
 	}
 
 	/**
