@@ -60,7 +60,6 @@ class Participant {
 		this.jid = jid;
 	}
 
-#if !test
 	/**
 		Load the participant's profile
 
@@ -82,5 +81,4 @@ class Participant {
 			client.sendQuery(get);
 		});
 	}
-#end
 }
