@@ -635,7 +635,7 @@ abstract class Chat {
 	/**
 		Tags on this Chat
 	**/
-	public function getTags() {
+	public function getTags(): Array<String> {
 		return extensions.allTags("group", "jabber:iq:roster").map(g -> g.getText());
 	}
 
