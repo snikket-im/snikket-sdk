@@ -12,12 +12,78 @@ import borogove.JID;
 import borogove.Message;
 import borogove.ModerationAction;
 import borogove.Stanza;
+import borogove.Status;
 import borogove.persistence.Dummy;
 
 using Lambda;
 
 @:access(borogove)
 class TestClient extends utest.Test {
+	public function testSetStatus(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			final s = stanza.toString();
+			if (stanza.name == "iq" && s.indexOf("http://jabber.org/protocol/activity") != -1) {
+				Assert.isTrue(s.indexOf("😊") != -1);
+				Assert.isTrue(s.indexOf("feeling good") != -1);
+				async.done();
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		client.setStatus(new Status("😊", "feeling good"));
+	}
+
+	public function testReceiveStatusUpdate(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final friendJid = "friend@example.com";
+		client.getDirectChat(friendJid);
+
+		client.addChatsUpdatedListener(chats -> {
+			final friendChat = chats.find(c -> c.chatId == friendJid);
+			if (friendChat != null && friendChat.status.text == "working hard") {
+				Assert.equals("💻", friendChat.status.emoji);
+				Assert.equals("working hard", friendChat.status.text);
+				async.done();
+			}
+		});
+
+		client.stream.onStanza(
+			new Stanza("message", { xmlns: "jabber:client", from: friendJid })
+				.tag("event", { xmlns: "http://jabber.org/protocol/pubsub#event" })
+				.tag("items", { node: "http://jabber.org/protocol/activity" })
+				.tag("item")
+				.tag("activity", { xmlns: "http://jabber.org/protocol/activity" })
+					.textTag("text", "working hard")
+					.tag("undefined")
+						.textTag("emoji", "💻", { xmlns: "https://ns.borogove.dev/" })
+		);
+	}
+
+	public function testPresenceIncludesStatus() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("test@example.com");
+		chat.status = new Status("🚀", "zooming");
+
+		var presenceSent = false;
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "presence" && stanza.attr.get("to") == null) {
+				Assert.equals("🚀 zooming", stanza.getChildText("status"));
+				presenceSent = true;
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		client.sendPresence();
+		Assert.isTrue(presenceSent);
+	}
+
 	public function testAccountId() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);

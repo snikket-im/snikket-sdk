@@ -80,6 +80,7 @@ class Client extends EventEmitter {
 			"urn:xmpp:receipts",
 			"urn:xmpp:avatar:metadata+notify",
 			"http://jabber.org/protocol/nick+notify",
+			"http://jabber.org/protocol/activity+notify",
 			"urn:xmpp:bookmarks:1+notify",
 			"urn:xmpp:mds:displayed:0+notify",
 #if !NO_JINGLE
@@ -650,9 +651,20 @@ class Client extends EventEmitter {
 			final fromBare = JID.parse(pubsubEvent.getFrom()).asBare();
 			final isOwnAccount = fromBare.asString() == accountId();
 			final pubsubNode = pubsubEvent.getNode();
+			final chat = getChat(fromBare.asString());
 
 			if (isOwnAccount && pubsubNode == "http://jabber.org/protocol/nick" && pubsubEvent.getItems().length > 0) {
 				updateDisplayName(pubsubEvent.getItems()[0].getChildText("nick", "http://jabber.org/protocol/nick"));
+			}
+
+			if (chat != null && pubsubNode == "http://jabber.org/protocol/activity" && pubsubEvent.getItems().length > 0) {
+				final activity = pubsubEvent.getItems()[0].getChild("activity", "http://jabber.org/protocol/activity");
+				if (activity != null) {
+					chat.status = new Status(activity.getChild("undefined")?.getChildText("emoji", "https://ns.borogove.dev/") ?? "", activity.getChildText("text") ?? "");
+					persistence.storeChats(accountId(), [chat]);
+					this.trigger("chats/update", [chat]);
+					if (isOwnAccount) sendPresence();
+				}
 			}
 
 			if (isOwnAccount && pubsubNode == "urn:xmpp:mds:displayed:0" && pubsubEvent.getItems().length > 0) {
@@ -840,6 +852,24 @@ class Client extends EventEmitter {
 				.tag("field", { "var": "pubsub#deliver_payloads" }).textTag("value", "false").up()
 				.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
 				.tag("field", { "var": "pubsub#max_items" }).textTag("value", "1").up()
+				.tag("field", { "var": "pubsub#access_model" }).textTag("value", publicAccess ? "open" : "presence").up(),
+		);
+	}
+
+	public function setStatus(status: Status, expires: Int = 86400, publicAccess: Bool = false) {
+		publishWithOptions(
+			new Stanza("iq", { type: "set" })
+				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
+				.tag("publish", { node: "http://jabber.org/protocol/activity" })
+				.tag("item", { id: ID.unique() })
+				.addChild(status.toStanza()),
+			new Stanza("x", { xmlns: "jabber:x:data", type: "submit" })
+				.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
+				.tag("field", { "var": "pubsub#type" }).textTag("value", "http://jabber.org/protocol/activity").up()
+				.tag("field", { "var": "pubsub#deliver_payloads" }).textTag("value", "true").up()
+				.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
+				.tag("field", { "var": "pubsub#max_items" }).textTag("value", "1").up()
+				.tag("field", { "var": "pubsub#item_expire" }).textTag("value", Std.string(expires)).up()
 				.tag("field", { "var": "pubsub#access_model" }).textTag("value", publicAccess ? "open" : "presence").up(),
 		);
 	}
@@ -1615,12 +1645,14 @@ class Client extends EventEmitter {
 
 	@:allow(borogove)
 	private function sendPresence(?to: String, ?augment: (Stanza)->Stanza) {
-		sendStanza(
-			(augment ?? (s)->s)(
-				caps.addC(new Stanza("presence", to == null ? {} : { to: to }))
-					.textTag("nick", displayName(), { xmlns: "http://jabber.org/protocol/nick" })
-			)
-		);
+		final stanza = caps.addC(new Stanza("presence", to == null ? {} : { to: to }))
+			.textTag("nick", displayName(), { xmlns: "http://jabber.org/protocol/nick" });
+
+		final status = getChat(accountId())?.status;
+		final statusText = status?.toString() ?? "";
+		if (statusText != "") stanza.textTag("status", statusText);
+
+		sendStanza((augment ?? (s)->s)(stanza));
 	}
 
 #if !NO_JINGLE

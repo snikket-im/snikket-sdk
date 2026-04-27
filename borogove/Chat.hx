@@ -74,6 +74,8 @@ abstract class Chat {
 	@:allow(borogove)
 	private var presence:Map<String, Presence> = [];
 	private var trusted:Bool = false;
+	@:allow(borogove)
+	public var status(default, null):Status = new Status("", "");
 	/**
 		ID of this Chat
 	**/
@@ -1785,7 +1787,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 				placeholderUri,
 				false,
 				roles,
-				jid,
+				trueJid == null ? jid : JID.parse(trueJid),
 				trueJid == null ? null : new AvailableChat(trueJid, nick ?? "", '$trueJid (via ${displayName})', new Caps("", [], [], []))
 			);
 		}
@@ -2223,6 +2225,7 @@ class SerializedChat {
 	public final displayName:Null<String>;
 	public final uiState:UiState;
 	public final isBlocked:Bool;
+	public final status:Status;
 	public final extensions:String;
 	public final readUpToId:Null<String>;
 	public final readUpToBy:Null<String>;
@@ -2234,7 +2237,7 @@ class SerializedChat {
 	public final notifyMention: Bool;
 	public final notifyReply: Bool;
 
-	public function new(chatId: String, trusted: Bool, isBookmarked: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, threads: StringMapNullableKey, disco: Null<Caps>, omemoContactDeviceIDs: Array<Int>, klass: String) {
+	public function new(chatId: String, trusted: Bool, isBookmarked: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, status: Status, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, threads: StringMapNullableKey, disco: Null<Caps>, omemoContactDeviceIDs: Array<Int>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.isBookmarked = isBookmarked;
@@ -2243,6 +2246,7 @@ class SerializedChat {
 		this.displayName = displayName;
 		this.uiState = uiState ?? Open;
 		this.isBlocked = isBlocked ?? false;
+		this.status = status;
 		this.extensions = extensions ?? "<extensions xmlns='urn:app:bookmarks:1' />";
 		this.readUpToId = readUpToId;
 		this.readUpToBy = readUpToBy;
@@ -2280,6 +2284,7 @@ class SerializedChat {
 		chat.setNotificationsInternal(filterN, mention, notifyReply);
 		if (displayName != null && displayName != "") chat.displayName = displayName;
 		if (avatarSha1 != null) chat.setAvatarSha1(avatarSha1);
+		chat.status = status;
 		chat.setTrusted(trusted);
 		for (resource => p in presence) {
 			chat.setPresence(resource, p);

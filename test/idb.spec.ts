@@ -865,3 +865,38 @@ test("hydrate message with incomplete replyToMessage", async ({ page }) => {
 	expect(result.hasReply).toBe(true);
 	expect(result.replyServerId).toBe("parent");
 });
+
+test("storeChats and getChats with status", async ({ page }) => {
+	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: 'text/javascript' });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket_status");
+		const persistence = await borogove.persistence.IDB("snikket_status", mediaStore);
+
+		const chat = Object.create(borogove.DirectChat.prototype);
+		chat.chatId = "hatter@example.com";
+		chat.displayName = "The Mad Hatter";
+		chat.trusted = true;
+		chat.presence = new Map();
+		chat.threads = new Map();
+		chat.status = new borogove.Status("🎩", "Time for tea!");
+
+		await persistence.storeChats("alice@example.com", [chat]);
+		const chats = await persistence.getChats("alice@example.com");
+		return {
+			length: chats.length,
+			chatId: chats[0]?.chatId,
+			statusEmoji: chats[0]?.status?.emoji,
+			statusText: chats[0]?.status?.text,
+		};
+	}, code);
+
+	expect(result.length).toBe(1);
+	expect(result.chatId).toBe("hatter@example.com");
+	expect(result.statusEmoji).toBe("🎩");
+	expect(result.statusText).toBe("Time for tea!");
+});

@@ -308,6 +308,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 						Type.getClassName(Type.getClass(chat)).split(".").pop(),
 						chat.notificationsFiltered(), chat.notifyMention(), chat.notifyReply(),
 						chat.isBookmarked, Json.stringify({
+							status: { emoji: chat.status.emoji, text: chat.status.text },
 							threads: {
 								final t: DynamicAccess<String> = {};
 								for (id => s in chat.threads) t.set(id ?? "", s);
@@ -347,14 +348,14 @@ class Sqlite implements Persistence implements KeyValueStore {
 					}
 				}
 
-				final metaJson: { ?threads: Null<DynamicAccess<String>> } = Json.parse(row.meta);
+				final metaJson: { ?threads: Null<DynamicAccess<String>>, ?status: Null<{ emoji: String, text: String }> } = Json.parse(row.meta);
 				final threadsMap: StringMapNullableKey = new StringMapNullableKey();
 				for (thread => subject in metaJson.threads ?? {}) {
 					threadsMap.set(thread == "" ? null : thread, subject);
 				}
 
 				// FIXME: Empty OMEMO contact device ids hardcoded in next line
-				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.bookmarked != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, threadsMap, row.capsObj, [], Reflect.field(row, "class")));
+				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.bookmarked != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, new Status(metaJson.status?.emoji ?? "", metaJson.status?.text ?? ""), row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, threadsMap, row.capsObj, [], Reflect.field(row, "class")));
 			}
 			return chats;
 		});

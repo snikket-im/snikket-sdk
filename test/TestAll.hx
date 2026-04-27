@@ -23,6 +23,8 @@ class TestAll {
 			new TestSortId(),
 			new TestHtml(),
 			new TestChat(),
+			new TestStatus(),
+			new TestParticipant(),
 		]);
 	}
 }

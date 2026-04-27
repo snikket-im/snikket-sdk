@@ -16,6 +16,7 @@ import {
 	borogove_ReactionUpdate,
 	borogove_SerializedChat,
 	borogove_Stanza,
+	borogove_Status,
 	FractionalIndexing_between,
 	FractionalIndexing_BASE_95_DIGITS
 } from "./borogove.js";
@@ -445,6 +446,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					isBookmarked: chat.isBookmarked,
 					avatarSha1: chat.avatarSha1,
 					presence: new Map([...chat.presence.entries()].map(([k, p]) => [k, p.toString()])),
+					status: chat.status,
 					displayName: chat.displayName,
 					uiState: chat.uiState,
 					isBlocked: chat.isBlocked,
@@ -479,6 +481,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				r.displayName,
 				r.uiState,
 				r.isBlocked,
+				new borogove_Status(r.status?.emoji ?? "", r.status?.text ?? ""),
 				r.extensions,
 				r.readUpToId,
 				r.readUpToBy,

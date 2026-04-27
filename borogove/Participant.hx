@@ -81,4 +81,23 @@ class Participant {
 			client.sendQuery(get);
 		});
 	}
+
+	/**
+		Load the participant's status
+
+		@param client connected client used to send the profile query
+		@returns Promise resolving to the participant status
+	**/
+	public function status(client: Client): Promise<Status> {
+		return new Promise((resolve, reject) -> {
+			final get = new PubsubGet(jid.asString(), "http://jabber.org/protocol/activity");
+			get.onFinished(() -> {
+				final item = get.getResult()[0];
+
+				final activity = item?.getChild("activity", "http://jabber.org/protocol/activity");
+				resolve(new Status(activity?.getChild("undefined")?.getChildText("emoji", "https://ns.borogove.dev/") ?? "", activity?.getChildText("text") ?? ""));
+			});
+			client.sendQuery(get);
+		});
+	}
 }

@@ -39,6 +39,7 @@ export {
     borogove_Reaction as Reaction,
     borogove_Register as Register,
     borogove_SerializedChat as SerializedChat,
+    borogove_Status as Status,
 } from "./borogove.js";
 export type {
     borogove_FormSection as FormSection,
