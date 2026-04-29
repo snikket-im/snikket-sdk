@@ -54,7 +54,7 @@ npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogov
 	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts
 
 playwright/.cache/borogove.js: npm
-	esbuild npm/index.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" "--footer:js=export { borogove_JID as JID, borogove_ReactionUpdate as ReactionUpdate }" --outfile=$@
+	esbuild npm/index.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" "--footer:js=export { borogove_JID as JID, borogove_Stanza as Stanza, borogove_ReactionUpdate as ReactionUpdate }" --outfile=$@
 
 playwright/.cache/sqlite-wasm.js: npm
 	esbuild npm/sqlite-wasm.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" --outfile=$@

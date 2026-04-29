@@ -460,17 +460,22 @@ class Sqlite implements Persistence implements KeyValueStore {
 		);
 	}
 
-	private function getMessages(accountId: String, chatId: String, sortId: Null<String>, op: String): Promise<Array<ChatMessage>> {
-		var q = "WITH page AS (SELECT stanza_id, mam_id FROM messages where account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id)";
-		final params: Array<Dynamic> = [accountId, chatId];
-		if (sortId != null) {
+	private function getMessages(accountId: String, chatId: String, sortId: Null<String>, op: String, useTimestamp: Bool = false, timestamp: Null<String> = null): Promise<Array<ChatMessage>> {
+		if (useTimestamp && timestamp == null) throw "Cannot use timestamp without specifying one";
+
+		var q = "WITH page AS (SELECT stanza_id, mam_id FROM messages where account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND type<>?";
+		final params: Array<Dynamic> = [accountId, chatId, MessageChannelPrivate];
+		if (useTimestamp) {
+			q += " AND messages.created_at " + op + " unixepoch(?, 'subsec') * 1000";
+			params.push(timestamp);
+			q += " ORDER BY messages.created_at";
+		} else if (sortId != null) {
 			q += " AND messages.sort_id " + op + " ?";
 			params.push(sortId);
+			q += " ORDER BY messages.sort_id";
+		} else {
+			q += " ORDER BY messages.sort_id";
 		}
-		q += " ORDER BY messages.created_at";
-		if (op == "<" || op == "<=") q += " DESC";
-		// Should not need this, but just in case?
-		q += ", messages.created_at";
 		if (op == "<" || op == "<=") q += " DESC";
 		q += " LIMIT 50) ";
 		q += "SELECT
@@ -499,38 +504,82 @@ class Sqlite implements Persistence implements KeyValueStore {
 		params.push(chatId);
 		params.push(MessageCall);
 
-		return db.exec(q, params).then(result -> hydrateMessages(accountId, result)).then(iter -> {
-			final arr = [];
+		return db.exec(q, params).then(result -> {
+			final messages = hydrateMessages(accountId, result);
+			if (messages.length > 0 && messages[0].serverIdBy == chatId) {
+				final boundary = messages[messages.length - 1].timestamp;
+				var pmQ = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sort_id, sync_point FROM messages WHERE account_id=? AND chat_id=? AND type=?";
+				final pmParams: Array<Dynamic> = [accountId, chatId, MessageChannelPrivate];
+
+				if (timestamp != null) {
+					pmQ += " AND messages.created_at " + op + " unixepoch(?, 'subsec') * 1000";
+					pmParams.push(timestamp);
+				}
+
+				if (op == "<" || op == "<=") {
+					pmQ += " AND messages.created_at > unixepoch(?, 'subsec') * 1000";
+					pmParams.push(boundary);
+				} else {
+					// We don't want to limit by timestamp in SQL because we want any PMs coming after the end but before the next message
+				}
+
+				pmQ += " ORDER BY messages.created_at";
+				if (op == "<" || op == "<=") q += " DESC";
+				pmQ += " LIMIT 50";
+
+				return db.exec(pmQ, pmParams).then(pmResult -> {
+					final pms = hydrateMessages(accountId, pmResult);
+					for (pm in pms) {
+						if (op == "<" || op == "<=") {
+							final idx = messages.findIndex(m -> m.timestamp <= pm.timestamp);
+							if (idx >= 0) messages.insert(idx, pm);
+						} else {
+							var idx = messages.length - 1;
+							while (idx >= 0) {
+								if (messages[idx].timestamp < pm.timestamp) {
+									break;
+								}
+								idx--;
+							}
+							if (idx >= 0) messages.insert(idx + 1, pm);
+
+							if (pm.timestamp > boundary) break;
+						}
+					}
+					return messages;
+				});
+			}
+			return Promise.resolve(messages);
+		}).then(messages -> {
+			if (op == "<" || op == "<=") {
+				messages.reverse();
+			}
 			final replyTos = [];
-			for (message in iter) {
-				arr.push(message);
+			for (message in messages) {
 				if (message.replyToMessage != null && message.replyToMessage.serverIdBy == null) {
 					replyTos.push({ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId });
 				}
 			}
-			if (op == "<" || op == "<=") {
-				arr.reverse();
-			}
-			return hydrateReplyTo(accountId, arr, replyTos);
+			return hydrateReplyTo(accountId, messages, replyTos);
 		}).then(messages -> hydrateReactions(accountId, messages));
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesBefore(accountId: String, chatId: String, before: Null<ChatMessage>): Promise<Array<ChatMessage>> {
-		return getMessages(accountId, chatId, before?.sortId, "<");
+		return getMessages(accountId, chatId, before?.sortId, "<", before?.type == MessageChannelPrivate, before?.timestamp);
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesAfter(accountId: String, chatId: String, after: Null<ChatMessage>): Promise<Array<ChatMessage>> {
-		return getMessages(accountId, chatId, after?.sortId, ">");
+		return getMessages(accountId, chatId, after?.sortId, ">", after?.type == MessageChannelPrivate, after?.timestamp);
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesAround(accountId: String, around: ChatMessage): Promise<Array<ChatMessage>> {
 		final chatId = around.chatId();
 		return thenshim.PromiseTools.all([
-			getMessages(accountId, chatId, around.sortId, "<"),
-			getMessages(accountId, chatId, around.sortId, ">=")
+			getMessages(accountId, chatId, around.sortId, "<", around?.type == MessageChannelPrivate, around?.timestamp),
+			getMessages(accountId, chatId, around.sortId, ">=", around?.type == MessageChannelPrivate, around?.timestamp)
 		]).then(results -> results.flatten());
 	}
 
