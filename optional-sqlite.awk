@@ -20,7 +20,7 @@ BEGIN {
 }
 
 /borogove_persistence_SqliteDriver.__name__ = "borogove\.persistence\.SqliteDriver";/ {
-	if (skipping) extra = 6
+	if (skipping) extra = 8
 }
 
 /^export \{ borogove_persistence_Sqlite \};/ {
