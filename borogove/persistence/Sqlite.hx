@@ -326,6 +326,17 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
+	public function searchMessages(accountId: String, chatId: Null<String>, q: String): Promise<Array<ChatMessage>> {
+		var sql = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sort_id, sync_point FROM messages WHERE account_id=? AND stanza LIKE ?";
+		final params = [accountId, "%" + q + "%"];
+		if (chatId != null) {
+			sql += " AND chat_id=?";
+			params.push(chatId);
+		}
+		return db.exec(sql, params).then(result -> hydrateMessages(accountId, result));
+	}
+
+	@HaxeCBridge.noemit
 	public function getChats(accountId: String): Promise<Array<SerializedChat>> {
 		return db.exec(
 			"SELECT chat_id, trusted, bookmarked, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, notifications_filtered, notify_mention, notify_reply, json(caps) AS caps, caps_ver, json(presence) AS presence, json(meta) AS meta, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
