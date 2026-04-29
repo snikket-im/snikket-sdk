@@ -215,7 +215,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 									toInsert = [];
 								}
 							}
-							return promise.then(_ -> exec(toInsert));
+							return promise.then(_ -> toInsert.length < 1 ? null : exec(toInsert));
 						}).then(_ ->
 							exec(["PRAGMA user_version = 8"])
 						);
