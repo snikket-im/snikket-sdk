@@ -309,7 +309,7 @@ class ChatMessage {
 
 	@:allow(borogove)
 	private static function fromStanza(stanza:Stanza, localJid:JID, ?addContext: (ChatMessageBuilder, Stanza)->ChatMessageBuilder):Null<ChatMessage> {
-		switch Message.fromStanza(stanza, localJid, addContext).parsed {
+		switch Message.fromStanza(stanza, localJid, addContext, null, true).parsed {
 			case ChatMessageStanza(message):
 				return message;
 			default:

@@ -50,7 +50,7 @@ class Message {
 		this.encryption = encryption;
 	}
 
-	public static function fromStanza(stanza:Stanza, localJid:JID, ?addContext: (ChatMessageBuilder, Stanza)->ChatMessageBuilder, ?encryptionInfo:EncryptionInfo):Message {
+	public static function fromStanza(stanza:Stanza, localJid:JID, ?addContext: (ChatMessageBuilder, Stanza)->ChatMessageBuilder, ?encryptionInfo:EncryptionInfo, preferChatMessage = false):Message {
 		final fromAttr = stanza.attr.get("from");
 		final from = fromAttr == null ? localJid.domain : fromAttr;
 		final localId = stanza.attr.get("id");
@@ -265,7 +265,7 @@ class Message {
 		final replace = stanza.getChild("replace", "urn:xmpp:message-correct:0");
 		final replaceId  = replace?.attr?.get("id");
 
-		if (msg.text == null && msg.attachments.length < 1 && replaceId == null && retracted == null) {
+		if (!preferChatMessage && msg.text == null && msg.attachments.length < 1 && replaceId == null && retracted == null) {
 			if (msg.payloads.length == 1 && msg.payloads[0].name == "subject") {
 				return new Message(msg.chatId(), msg.senderId, msg.threadId, SubjectStanza(msg.payloads[0].getText()), encryptionInfo);
 			}
