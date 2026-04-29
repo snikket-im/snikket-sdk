@@ -18,6 +18,7 @@ class SqliteDriver {
 #else
 @:js.import("@sqlite.org/sqlite-wasm", "sqlite3Worker1Promiser")
 extern class Worker1 {
+	@:selfCall
 	static var v2: ({ worker: () -> js.html.Worker }) -> Promise<Promiser>;
 }
 
