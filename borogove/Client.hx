@@ -1209,6 +1209,7 @@ class Client extends EventEmitter {
 		@param claims Optional additional JWT claims as key then value
 	**/
 	public function enablePush(push_service: String, endpoint: String, p256dh: BytesData, auth: BytesData, grace: Int, ?vapid_private_pkcs8: BytesData, ?claims: Array<String>) {
+		if (vapid_private_pkcs8 != null && Bytes.ofData(vapid_private_pkcs8).length == 0) vapid_private_pkcs8 = null;
 		enabledPushData = { push_service: push_service, vapid_private_pkcs8: vapid_private_pkcs8, endpoint: endpoint, p256dh: p256dh, auth: auth, grace: grace, claims: claims ?? [] };
 
 		final filters = [];
