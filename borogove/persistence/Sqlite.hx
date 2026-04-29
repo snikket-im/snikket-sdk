@@ -223,7 +223,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 					return Promise.resolve(null);
 				}).then(_ -> {
 					if (version < 9) {
-						return exec(["ALTER TABLE chats ADD COLUMN meta BLOB NOT NULL DEFAULT jsonb('{}')",
+						// 0C is jsonb empty object, since the jsonb function isn't allowed here
+						return exec(["ALTER TABLE chats ADD COLUMN meta BLOB NOT NULL DEFAULT X'0C'",
 						"PRAGMA user_version = 9"]);
 					}
 					return Promise.resolve(null);
