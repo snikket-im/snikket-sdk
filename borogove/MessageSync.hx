@@ -26,7 +26,6 @@ typedef MessageFilter = MAMQueryParams;
 class MessageSync {
 	private var client:Client;
 	private var stream:GenericStream;
-	private var chatId:String;
 	private var filter:MessageFilter;
 	private var serviceJID:String;
 	private var handler:MessageListHandler;
