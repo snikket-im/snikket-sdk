@@ -56,7 +56,18 @@ npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogov
 playwright/.cache/borogove.js: npm
 	esbuild npm/index.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" "--footer:js=export { borogove_JID as JID, borogove_ReactionUpdate as ReactionUpdate }" --outfile=$@
 
-playwright: playwright/.cache/borogove.js
+playwright/.cache/sqlite-wasm.js: npm
+	esbuild npm/sqlite-wasm.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" --outfile=$@
+	sed -i 's/new URL("sqlite-worker1.mjs", import.meta.url)/window.sqliteWorker1Url/g' $@
+
+playwright/.cache/sqlite-worker1.js: npm
+	esbuild npm/sqlite-worker1.mjs --bundle --format=esm --outfile=$@.mjs
+	sed -i '1iimport importedWasm from "@sqlite.org\\/sqlite-wasm/sqlite3.wasm";' $@.mjs
+	sed -i 's/new URL("sqlite3.wasm", import.meta.url).href/importedWasm/' $@.mjs
+	esbuild $@.mjs --bundle --format=esm --loader:.wasm=dataurl --outfile=$@
+	$(RM) $@.mjs
+
+playwright: playwright/.cache/borogove.js playwright/.cache/sqlite-wasm.js
 	npx playwright test
 
 cpp/libborogove.dso:
