@@ -239,7 +239,7 @@ class Message {
 			msg.localId = jmi.attr.get("id");
 		}
 
-		final retract = stanza.getChild("replace", "urn:xmpp:message-retract:1");
+		final retract = stanza.getChild("retract", "urn:xmpp:message-retract:1");
 		final fasten = stanza.getChild("apply-to", "urn:xmpp:fasten:0");
 		final moderated = retract?.getChild("moderated", "urn:xmpp:message-retract:1") ?? fasten?.getChild("moderated", "urn:xmpp:message-moderate:0");
 		final moderateServerId = retract?.attr?.get("id") ?? fasten?.attr?.get("id");
