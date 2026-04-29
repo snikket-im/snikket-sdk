@@ -256,10 +256,16 @@ class Message {
 			);
 		}
 
+		final retracted = stanza.getChild("retracted", "urn:xmpp:message-retract:1");
+		if (retracted != null) {
+			// Store tombstone
+			msg.payloads.push(retracted);
+		}
+
 		final replace = stanza.getChild("replace", "urn:xmpp:message-correct:0");
 		final replaceId  = replace?.attr?.get("id");
 
-		if (msg.text == null && msg.attachments.length < 1 && replaceId == null) {
+		if (msg.text == null && msg.attachments.length < 1 && replaceId == null && retracted == null) {
 			if (msg.payloads.length == 1 && msg.payloads[0].name == "subject") {
 				return new Message(msg.chatId(), msg.senderId, msg.threadId, SubjectStanza(msg.payloads[0].getText()), encryptionInfo);
 			}
