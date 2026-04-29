@@ -23,7 +23,8 @@ class Status {
 		return emoji + (emoji == "" || text == "" ? "" : " ") + text;
 	}
 
-	public function toStanza() {
+	@:allow(borogove)
+	private function toStanza() {
 		final s = new Stanza("activity", { xmlns: "http://jabber.org/protocol/activity" });
 		if (text != "") s.textTag("text", text);
 		if (emoji == "") {

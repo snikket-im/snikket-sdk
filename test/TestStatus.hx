@@ -4,6 +4,7 @@ import utest.Assert;
 import borogove.Status;
 import borogove.Stanza;
 
+@:access(borogove)
 class TestStatus extends utest.Test {
 	public function testToString() {
 		Assert.equals("", new Status("", "").toString());
