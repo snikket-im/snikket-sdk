@@ -316,13 +316,15 @@ class XmppStropheStream extends GenericStream {
 				stream.ready = false;
 				stream.trigger("status/offline", {});
 				// Reconnect
-				StropheConn.connect_client(
-					conn,
-					null,
-					0,
-					cpp.Callable.fromStaticFunction(strophe_connect),
-					userdata
-				);
+				haxe.Timer.delay(() -> {
+					StropheConn.connect_client(
+						conn,
+						null,
+						0,
+						cpp.Callable.fromStaticFunction(strophe_connect),
+						userdata
+					);
+				}, 100);
 			}
 		}
 		if (event == untyped __cpp__("XMPP_CONN_FAIL")) {
