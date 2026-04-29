@@ -1129,7 +1129,7 @@ class DirectChat extends Chat {
 			message.versions = corrected.versions[corrected.versions.length - 1]?.localId == correct.localId ? cast corrected.versions : [message.build()];
 			message.localId = toSendId;
 			sendMessageStanza(message.build().asStanza(), outboxItem);
-			if (corrected.canReplace(lastMessage)) {
+			if (lastMessage == null || corrected.canReplace(lastMessage)) {
 				setLastMessage(corrected);
 				client.trigger("chats/update", [this]);
 			}
@@ -1961,7 +1961,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 			message.localId = toSendId;
 			sendMessageStanza(message.build().asStanza(), outboxItem);
 			client.notifyMessageHandlers(corrected, CorrectionEvent);
-			if (corrected.canReplace(lastMessage)) {
+			if (lastMessage == null || corrected.canReplace(lastMessage)) {
 				setLastMessage(corrected);
 				client.trigger("chats/update", [this]);
 			}
