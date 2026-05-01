@@ -586,7 +586,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			return await hydrateMessage(message);
 		},
 
-		storeMessages(account, messages) {
+		async storeMessages(account, messages) {
 			return Promise.all(messages.map(m =>
 				new Promise(resolve => this.storeMessage(account, m, resolve))
 			));
@@ -605,7 +605,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					this.getMessage(account, message.chatId(), message.replyToMessage.serverId, message.replyToMessage.localId) :
 					Promise.resolve(message.replyToMessage)
 			).then((replyToMessage) => {
-				message.replyToMessage = replyToMessage;
+				message.replyToMessage = replyToMessage ?? message.replyToMessage;
 				const tx = db.transaction(["messages", "reactions"], "readwrite");
 				const store = tx.objectStore("messages");
 				return Promise.all([
@@ -647,9 +647,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 								event.target.result.continue();
 							} else {
 								message.reactions = reactions;
-								const req = store.put(serializeMessage(account, message));
-								req.onerror = () => { window.mylog.push("MSG STORE ERROR: " + req.error.name + " " + req.error.message); }
-								callback(message);
+								promisifyRequest(store.put(serializeMessage(account, message))).then(() => callback(message));
 							}
 						};
 						cursor.onerror = console.error;

@@ -394,7 +394,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				chatIds.push(message.chatId());
 				localIds.push(message.localId);
 			}
-			if (message.replyToMessage != null && message.replyToMessage.serverIdBy == null) {
+			if (message.replyToMessage != null) {
 				replyTos.push({ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId });
 			}
 		}

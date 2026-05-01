@@ -1463,43 +1463,27 @@ test.describe("not webkit", () => {
 					localId: "loc2",
 					senderId: "hatter@example.com",
 					direction: 0,
-					type: borogove.MessageType.MessageChannel,
 				});
 				builder2.sortId = "a1";
 				builder2.to = borogove.JID.parse("alice@example.com");
 				builder2.from = borogove.JID.parse("hatter@example.com");
 				builder2.recipients = [builder2.to];
 				builder2.replyTo = [builder2.from];
-				builder2.replyToMessage = parentMsg;
+				builder2.replyToMessage = parentStub;
 				const childMsg = builder2.build();
 
-				try {
-					await persistence.storeMessages("alice@example.com", [
-						parentMsg,
-						childMsg,
-					]);
-					const retrievedChild = await persistence.getMessage(
-						"alice@example.com",
-						"hatter@example.com",
-						"child",
-						"loc2",
-					);
-					return {
-						hasReply: !!retrievedChild.replyToMessage,
-						replyServerId: retrievedChild.replyToMessage
-							? retrievedChild.replyToMessage.serverId
-							: null,
-					};
-				} catch (e) {
-					console.error(e, e.result);
-					throw e.result ? JSON.stringify(e.result) : e.message;
-				}
+				await persistence.storeMessages("alice@example.com", [parentMsg]);
+				const [childStored] = await persistence.storeMessages(
+					"alice@example.com",
+					[childMsg],
+				);
+
+				return childStored.replyToMessage.body().toPlainText();
 			},
 			[code, sqlite, worker1],
 		);
 
-		expect(result.hasReply).toBe(true);
-		expect(result.replyServerId).toBe("parent");
+		expect(result).toBe("Hello");
 	});
 
 	test("storeChats and getChats with status", async ({ page }) => {
