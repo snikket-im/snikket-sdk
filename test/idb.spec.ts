@@ -2,11 +2,13 @@ import { test, expect } from "@playwright/test";
 import fs from "fs";
 
 test("1:1 come back ordered by sortId", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -39,7 +41,10 @@ test("1:1 come back ordered by sortId", async ({ page }) => {
 			builder.build(),
 		]);
 
-		return await persistence.getMessagesBefore("alice@example.com", "hatter@example.com");
+		return await persistence.getMessagesBefore(
+			"alice@example.com",
+			"hatter@example.com",
+		);
 	}, code);
 
 	expect(result.length).toBe(2);
@@ -47,12 +52,16 @@ test("1:1 come back ordered by sortId", async ({ page }) => {
 	expect(result[1].serverId).toBe("2");
 });
 
-test("getMessagesBefore the end: MUC come back ordered by sortId, PM by timestamp", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+test("getMessagesBefore the end: MUC come back ordered by sortId, PM by timestamp", async ({
+	page,
+}) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -103,7 +112,10 @@ test("getMessagesBefore the end: MUC come back ordered by sortId, PM by timestam
 			builder.build(),
 		]);
 
-		return await persistence.getMessagesBefore("alice@example.com", "teaparty@example.com");
+		return await persistence.getMessagesBefore(
+			"alice@example.com",
+			"teaparty@example.com",
+		);
 	}, code);
 
 	expect(result.length).toBe(3);
@@ -112,12 +124,16 @@ test("getMessagesBefore the end: MUC come back ordered by sortId, PM by timestam
 	expect(result[2].serverId).toBe("3");
 });
 
-test("getMessagesBefore some point: MUC come back ordered by sortId, PM by timestamp", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+test("getMessagesBefore some point: MUC come back ordered by sortId, PM by timestamp", async ({
+	page,
+}) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -182,7 +198,11 @@ test("getMessagesBefore some point: MUC come back ordered by sortId, PM by times
 			builder.build(),
 		]);
 
-		return await persistence.getMessagesBefore("alice@example.com", "teaparty@example.com", builder4.build());
+		return await persistence.getMessagesBefore(
+			"alice@example.com",
+			"teaparty@example.com",
+			builder4.build(),
+		);
 	}, code);
 
 	expect(result.length).toBe(3);
@@ -192,11 +212,13 @@ test("getMessagesBefore some point: MUC come back ordered by sortId, PM by times
 });
 
 test("getMessagesBefore a PM", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -261,7 +283,11 @@ test("getMessagesBefore a PM", async ({ page }) => {
 			builder.build(),
 		]);
 
-		return await persistence.getMessagesBefore("alice@example.com", "teaparty@example.com", builder3.build());
+		return await persistence.getMessagesBefore(
+			"alice@example.com",
+			"teaparty@example.com",
+			builder3.build(),
+		);
 	}, code);
 
 	expect(result.length).toBe(2);
@@ -269,12 +295,16 @@ test("getMessagesBefore a PM", async ({ page }) => {
 	expect(result[1].serverId).toBe("2");
 });
 
-test("getMessagesAfter the start: MUC come back ordered by sortId, PM by timestamp", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+test("getMessagesAfter the start: MUC come back ordered by sortId, PM by timestamp", async ({
+	page,
+}) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -325,7 +355,10 @@ test("getMessagesAfter the start: MUC come back ordered by sortId, PM by timesta
 			builder.build(),
 		]);
 
-		return await persistence.getMessagesAfter("alice@example.com", "teaparty@example.com");
+		return await persistence.getMessagesAfter(
+			"alice@example.com",
+			"teaparty@example.com",
+		);
 	}, code);
 
 	expect(result.length).toBe(3);
@@ -334,12 +367,16 @@ test("getMessagesAfter the start: MUC come back ordered by sortId, PM by timesta
 	expect(result[2].serverId).toBe("3");
 });
 
-test("getMessagesAfter some point: MUC come back ordered by sortId, PM by timestamp", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+test("getMessagesAfter some point: MUC come back ordered by sortId, PM by timestamp", async ({
+	page,
+}) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -404,7 +441,11 @@ test("getMessagesAfter some point: MUC come back ordered by sortId, PM by timest
 			builder.build(),
 		]);
 
-		return await persistence.getMessagesAfter("alice@example.com", "teaparty@example.com", builder.build());
+		return await persistence.getMessagesAfter(
+			"alice@example.com",
+			"teaparty@example.com",
+			builder.build(),
+		);
 	}, code);
 
 	expect(result.length).toBe(3);
@@ -414,11 +455,13 @@ test("getMessagesAfter some point: MUC come back ordered by sortId, PM by timest
 });
 
 test("getMessagesAfter a PM", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -483,7 +526,11 @@ test("getMessagesAfter a PM", async ({ page }) => {
 			builder.build(),
 		]);
 
-		return await persistence.getMessagesAfter("alice@example.com", "teaparty@example.com", builder3.build());
+		return await persistence.getMessagesAfter(
+			"alice@example.com",
+			"teaparty@example.com",
+			builder3.build(),
+		);
 	}, code);
 
 	expect(result.length).toBe(1);
@@ -491,11 +538,13 @@ test("getMessagesAfter a PM", async ({ page }) => {
 });
 
 test("storeChats and getChats", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -534,11 +583,13 @@ test("storeChats and getChats", async ({ page }) => {
 });
 
 test("getMessage by serverId and localId", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -560,12 +611,26 @@ test("getMessage by serverId and localId", async ({ page }) => {
 
 		await persistence.storeMessages("alice@example.com", [msg]);
 
-		const byServerId = await persistence.getMessage("alice@example.com", "hatter@example.com", "srv1", null);
-		const byLocalId = await persistence.getMessage("alice@example.com", "hatter@example.com", null, "loc1");
+		const byServerId = await persistence.getMessage(
+			"alice@example.com",
+			"hatter@example.com",
+			"srv1",
+			null,
+		);
+		const byLocalId = await persistence.getMessage(
+			"alice@example.com",
+			"hatter@example.com",
+			null,
+			"loc1",
+		);
 
 		return {
-			byServerId: byServerId ? { serverId: byServerId.serverId, localId: byServerId.localId } : null,
-			byLocalId: byLocalId ? { serverId: byLocalId.serverId, localId: byLocalId.localId } : null
+			byServerId: byServerId
+				? { serverId: byServerId.serverId, localId: byServerId.localId }
+				: null,
+			byLocalId: byLocalId
+				? { serverId: byLocalId.serverId, localId: byLocalId.localId }
+				: null,
 		};
 	}, code);
 
@@ -576,11 +641,13 @@ test("getMessage by serverId and localId", async ({ page }) => {
 });
 
 test("storeReaction", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -599,11 +666,30 @@ test("storeReaction", async ({ page }) => {
 		builder.replyTo = [builder.from];
 		await persistence.storeMessages("alice@example.com", [builder.build()]);
 
-		const reaction = new borogove.Reaction("alice@example.com", "2020-01-01T00:00:01Z", "👍");
-		const update = new borogove.ReactionUpdate("up1", "srv1", "hatter@example.com", null, "hatter@example.com", "alice@example.com", "2020-01-01T00:00:01Z", [reaction], borogove.ReactionUpdateKind.EmojiReactions);
+		const reaction = new borogove.Reaction(
+			"alice@example.com",
+			"2020-01-01T00:00:01Z",
+			"👍",
+		);
+		const update = new borogove.ReactionUpdate(
+			"up1",
+			"srv1",
+			"hatter@example.com",
+			null,
+			"hatter@example.com",
+			"alice@example.com",
+			"2020-01-01T00:00:01Z",
+			[reaction],
+			borogove.ReactionUpdateKind.EmojiReactions,
+		);
 
 		const msg = await persistence.storeReaction("alice@example.com", update);
-		return { reactions: [...msg.reactions.entries()].map(([k, v]) => ({ key: k, count: v.length })) };
+		return {
+			reactions: [...msg.reactions.entries()].map(([k, v]) => ({
+				key: k,
+				count: v.length,
+			})),
+		};
 	}, code);
 
 	expect(result.reactions.length).toBe(1);
@@ -612,11 +698,13 @@ test("storeReaction", async ({ page }) => {
 });
 
 test("updateMessageStatus", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -634,7 +722,12 @@ test("updateMessageStatus", async ({ page }) => {
 		builder.replyTo = [builder.from];
 		await persistence.storeMessages("alice@example.com", [builder.build()]);
 
-		const updated = await persistence.updateMessageStatus("alice@example.com", "loc1", 1, "Delivered"); // MessageDelivered
+		const updated = await persistence.updateMessageStatus(
+			"alice@example.com",
+			"loc1",
+			1,
+			"Delivered",
+		); // MessageDelivered
 		return { status: updated.status, statusText: updated.statusText };
 	}, code);
 
@@ -643,11 +736,13 @@ test("updateMessageStatus", async ({ page }) => {
 });
 
 test("searchMessages", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -679,10 +774,17 @@ test("searchMessages", async ({ page }) => {
 		builder2.recipients = [builder2.to];
 		builder2.replyTo = [builder2.from];
 
-		await persistence.storeMessages("alice@example.com", [builder.build(), builder2.build()]);
+		await persistence.storeMessages("alice@example.com", [
+			builder.build(),
+			builder2.build(),
+		]);
 
-		const results = await persistence.searchMessages("alice@example.com", "hatter@example.com", "hello");
-		return results.map(m => m.text);
+		const results = await persistence.searchMessages(
+			"alice@example.com",
+			"hatter@example.com",
+			"hello",
+		);
+		return results.map((m) => m.text);
 	}, code);
 
 	expect(result.length).toBe(1);
@@ -690,11 +792,13 @@ test("searchMessages", async ({ page }) => {
 });
 
 test("removeAccount and listAccounts", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -717,11 +821,13 @@ test("removeAccount and listAccounts", async ({ page }) => {
 });
 
 test("getChatUnreadDetails", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -756,7 +862,10 @@ test("getChatUnreadDetails", async ({ page }) => {
 		builder2.recipients = [builder2.to];
 		builder2.replyTo = [builder2.from];
 
-		await persistence.storeMessages("alice@example.com", [builder.build(), builder2.build()]);
+		await persistence.storeMessages("alice@example.com", [
+			builder.build(),
+			builder2.build(),
+		]);
 
 		return await persistence.getChatUnreadDetails("alice@example.com", chat);
 	}, code);
@@ -766,11 +875,13 @@ test("getChatUnreadDetails", async ({ page }) => {
 });
 
 test("media storage functions", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -790,12 +901,16 @@ test("media storage functions", async ({ page }) => {
 	expect(result.hasAfter).toBe(false);
 });
 
-test("hydrate message with incomplete replyToMessage", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+test("hydrate message with incomplete replyToMessage keys", async ({
+	page,
+}) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
@@ -855,10 +970,17 @@ test("hydrate message with incomplete replyToMessage", async ({ page }) => {
 			tx.oncomplete = () => resolve();
 		});
 
-		const retrievedChild = await persistence.getMessage("alice@example.com", "hatter@example.com", "child", "loc2");
+		const retrievedChild = await persistence.getMessage(
+			"alice@example.com",
+			"hatter@example.com",
+			"child",
+			"loc2",
+		);
 		return {
 			hasReply: !!retrievedChild.replyToMessage,
-			replyServerId: retrievedChild.replyToMessage ? retrievedChild.replyToMessage.serverId : null
+			replyServerId: retrievedChild.replyToMessage
+				? retrievedChild.replyToMessage.serverId
+				: null,
 		};
 	}, code);
 
@@ -923,15 +1045,21 @@ test("hydrate message with incomplete replyToMessage", async ({ page }) => {
 });
 
 test("storeChats and getChats with status", async ({ page }) => {
-	page.route("https://localhost/", route => route.fulfill({ body: "<html></html>" }));
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
 	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
 	await page.goto("https://localhost/");
 	const result = await page.evaluate(async (code) => {
-		const blob = new Blob([code], { type: 'text/javascript' });
+		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
-		const mediaStore = await borogove.persistence.MediaStoreCache("snikket_status");
-		const persistence = await borogove.persistence.IDB("snikket_status", mediaStore);
+		const mediaStore =
+			await borogove.persistence.MediaStoreCache("snikket_status");
+		const persistence = await borogove.persistence.IDB(
+			"snikket_status",
+			mediaStore,
+		);
 
 		const chat = Object.create(borogove.DirectChat.prototype);
 		chat.chatId = "hatter@example.com";

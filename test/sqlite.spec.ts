@@ -1448,13 +1448,15 @@ test.describe("not webkit", () => {
 					localId: "loc1",
 					senderId: "hatter@example.com",
 					direction: 0,
-					type: borogove.MessageType.MessageChannel,
 				});
 				builder.sortId = "a0";
 				builder.to = borogove.JID.parse("alice@example.com");
 				builder.from = borogove.JID.parse("hatter@example.com");
 				builder.recipients = [builder.to];
 				builder.replyTo = [builder.from];
+				const parentStub = builder.build();
+
+				builder.setBody(borogove.Html.text("Hello"));
 				const parentMsg = builder.build();
 
 				const builder2 = new borogove.ChatMessageBuilder({
