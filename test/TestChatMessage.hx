@@ -57,7 +57,7 @@ class TestChatMessage extends utest.Test {
 		final msg = Message.fromStanza(stanza, JID.parse("bob@example.com"));
 		switch (msg.parsed) {
 			case ChatMessageStanza(m):
-				Assert.equals("<div>line 1</div><div><strong>line 2</strong></div>", m.body().toString());
+				Assert.equals("<p>line 1<br /><strong>line 2</strong></p>", m.body().toString());
 				Assert.equals("line 1\n*line 2*", m.body().toPlainText());
 			default:
 				Assert.fail("Expected ChatMessageStanza");
@@ -100,6 +100,23 @@ class TestChatMessage extends utest.Test {
 		}
 	}
 
+	public function testStyledBodyWithPreTightAfterPlain() {
+		final stanza = new Stanza("message");
+		stanza.attr.set("id", "test-id-1");
+		stanza.attr.set("from", "alice@example.com");
+		stanza.attr.set("to", "bob@example.com");
+		stanza.attr.set("type", "chat");
+		stanza.addChild(new Stanza("body").text("hello\n```\nlet hello;"));
+
+		final msg = Message.fromStanza(stanza, JID.parse("bob@example.com"));
+		switch (msg.parsed) {
+			case ChatMessageStanza(m):
+				Assert.equals("<p class=\"tight\">hello</p><pre>let hello;\n</pre>", m.body().toString());
+				Assert.equals("hello\n```\nlet hello;\n```", m.body().toPlainText());
+			default:
+				Assert.fail("Expected ChatMessageStanza");
+		}
+	}
 
 	public function testStyledBodyWithLinkBeaks() {
 		final stanza = new Stanza("message");
@@ -112,7 +129,7 @@ class TestChatMessage extends utest.Test {
 		final msg = Message.fromStanza(stanza, JID.parse("bob@example.com"));
 		switch (msg.parsed) {
 			case ChatMessageStanza(m):
-				Assert.equals("<div>Hey &lt;<a href=\"https://example.com\">https://example.com</a>&gt;</div>", m.body().toString());
+				Assert.equals("<p>Hey &lt;<a href=\"https://example.com\">https://example.com</a>&gt;</p>", m.body().toString());
 				Assert.equals("Hey <https://example.com>", m.body().toPlainText());
 			default:
 				Assert.fail("Expected ChatMessageStanza");
@@ -130,7 +147,7 @@ class TestChatMessage extends utest.Test {
 		final msg = Message.fromStanza(stanza, JID.parse("bob@example.com"));
 		switch (msg.parsed) {
 			case ChatMessageStanza(m):
-				Assert.equals("<div>Hey <a href=\"https://example.com\">example.com</a></div>", m.body().toString());
+				Assert.equals("<p>Hey <a href=\"https://example.com\">example.com</a></p>", m.body().toString());
 				Assert.equals("Hey example.com", m.body().toPlainText());
 			default:
 				Assert.fail("Expected ChatMessageStanza");

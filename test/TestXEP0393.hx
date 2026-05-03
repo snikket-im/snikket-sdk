@@ -13,7 +13,7 @@ class TestXEP0393 extends utest.Test {
 
 	public function testSpansDoNotEscapeBlocks() {
 		Assert.equals(
-			"<div>There are three blocks in this body, one per line,</div><div>but there is no *formatting</div><div>as spans* may not escape blocks.</div>",
+			"<p>There are three blocks in this body, one per line,<br/>but there is no *formatting<br/>as spans* may not escape blocks.</p>",
 			toHtml("There are three blocks in this body, one per line,
 but there is no *formatting
 as spans* may not escape blocks.")
@@ -23,7 +23,7 @@ as spans* may not escape blocks.")
 	public function testPreformattedBlockSimple() {
 		Assert.equals(
 			"<pre>(println \"Hello, world!\")
-</pre><div/><div>This should show up as monospace, preformatted text ⤴</div>",
+</pre><p>This should show up as monospace, preformatted text ⤴</p>",
 			toHtml("```
 (println \"Hello, world!\")
 ```
@@ -35,7 +35,7 @@ This should show up as monospace, preformatted text ⤴")
 	public function testPreformattedBlock() {
 		Assert.equals(
 			"<pre><code class=\"language-ignored\">(println \"Hello, world!\")
-</code></pre><div/><div>This should show up as monospace, preformatted text ⤴</div>",
+</code></pre><p>This should show up as monospace, preformatted text ⤴</p>",
 			toHtml("```ignored
 (println \"Hello, world!\")
 ```
@@ -47,7 +47,7 @@ This should show up as monospace, preformatted text ⤴")
 	public function testPreformattedBlockUnterminated() {
 		Assert.equals(
 			"<blockquote><pre><code class=\"language-ignored\">(println \"Hello, world!\")
-</code></pre></blockquote><div/><div>The entire blockquote is a preformatted text block, but this line</div><div>is plaintext!</div>",
+</code></pre></blockquote><p>The entire blockquote is a preformatted text block, but this line<br/>is plaintext!</p>",
 			toHtml("> ```ignored
 > (println \"Hello, world!\")
 
@@ -58,7 +58,7 @@ is plaintext!")
 
 	public function testQuotation() {
 		Assert.equals(
-			"<blockquote><div>That that is, is.</div></blockquote><div/><div>Said the old hermit of Prague.</div>",
+			"<blockquote><p>That that is, is.</p></blockquote><p>Said the old hermit of Prague.</p>",
 			toHtml("> That that is, is.
 
 Said the old hermit of Prague.")
@@ -67,7 +67,7 @@ Said the old hermit of Prague.")
 
 	public function testNestedQuotation() {
 		Assert.equals(
-			"<blockquote><blockquote><div>That that is, is.</div></blockquote><div>Said the old hermit of Prague.</div></blockquote><div/><div>Who?</div>",
+			"<blockquote><blockquote><p>That that is, is.</p></blockquote><p>Said the old hermit of Prague.</p></blockquote><p>Who?</p>",
 			toHtml(">> That that is, is.
 > Said the old hermit of Prague.
 
@@ -75,9 +75,36 @@ Who?")
 		);
 	}
 
+	public function testQuotationAfterPlain() {
+		Assert.equals(
+			"<p class=\"tight\">He said:</p><blockquote><p>What is up</p></blockquote>",
+			toHtml("He said:
+> What is up")
+		);
+	}
+
+	public function testCodeAfterPlain() {
+		Assert.equals(
+			"<p class=\"tight\">He said:</p><pre>some code
+</pre>",
+			toHtml("He said:
+```
+some code")
+		);
+	}
+
+	public function testQuotationAfterPlainPara() {
+		Assert.equals(
+			"<p>He said:</p><blockquote><p>What is up</p></blockquote>",
+			toHtml("He said:
+
+> What is up")
+		);
+	}
+
 	public function testPlainSpan() {
 		Assert.equals(
-			"<div>plain span</div>",
+			"<p>plain span</p>",
 			toHtml("plain span")
 		);
 	}
@@ -111,98 +138,98 @@ Who?")
 
 	public function testStrongSpan() {
 		Assert.equals(
-			"<div><strong>strong span</strong></div>",
+			"<p><strong>strong span</strong></p>",
 			toHtml("*strong span*")
 		);
 	}
 
 	public function testPlainEmphasisPlain() {
 		Assert.equals(
-			"<div>plain <em>emphasis</em> plain</div>",
+			"<p>plain <em>emphasis</em> plain</p>",
 			toHtml("plain _emphasis_ plain")
 		);
 	}
 
 	public function testPrePlainStrong() {
 		Assert.equals(
-			"<div><tt>pre</tt> plain <strong>strong</strong></div>",
+			"<p><tt>pre</tt> plain <strong>strong</strong></p>",
 			toHtml("`pre` plain *strong*")
 		);
 	}
 
 	public function testStrongPlain() {
 		Assert.equals(
-			"<div><strong>strong</strong>plain*</div>",
+			"<p><strong>strong</strong>plain*</p>",
 			toHtml("*strong*plain*")
 		);
 	}
 
 	public function testPlainStrong() {
 		Assert.equals(
-			"<div>* plain <strong>strong</strong></div>",
+			"<p>* plain <strong>strong</strong></p>",
 			toHtml("* plain *strong*")
 		);
 	}
 
 	public function testNotStrong1() {
 		Assert.equals(
-			"<div>not strong*</div>",
+			"<p>not strong*</p>",
 			toHtml("not strong*")
 		);
 	}
 
 	public function testNotStrong2() {
 		Assert.equals(
-			"<div>*not strong</div>",
+			"<p>*not strong</p>",
 			toHtml("*not strong")
 		);
 	}
 
 	public function testNotStrong3() {
 		Assert.equals(
-			"<div>*not </div><div> strong</div>",
+			"<p>*not <br/> strong</p>",
 			toHtml("*not \n strong")
 		);
 	}
 
 	public function testNotStrong4() {
 		Assert.equals(
-			"<div>**</div>",
+			"<p>**</p>",
 			toHtml("**")
 		);
 	}
 
 	public function testNotStrong5() {
 		Assert.equals(
-			"<div>***</div>",
+			"<p>***</p>",
 			toHtml("***")
 		);
 	}
 
 	public function testNotStrong6() {
 		Assert.equals(
-			"<div>****</div>",
+			"<p>****</p>",
 			toHtml("****")
 		);
 	}
 
 	public function testStrike() {
 		Assert.equals(
-			"<div>Everyone <s>dis</s>likes cake.</div>",
+			"<p>Everyone <s>dis</s>likes cake.</p>",
 			toHtml("Everyone ~dis~likes cake.")
 		);
 	}
 
 	public function testThisIsMonospace() {
 		Assert.equals(
-			"<div>This is <tt>*monospace*</tt></div>",
+			"<p>This is <tt>*monospace*</tt></p>",
 			toHtml("This is `*monospace*`")
 		);
 	}
 
 	public function testThisIsMonospaceAndBold() {
 		Assert.equals(
-			"<div>This is <strong><tt>monospace and bold</tt></strong></div>",
+			"<p>This is <strong><tt>monospace and bold</tt></strong></p>",
 			toHtml("This is *`monospace and bold`*")
 		);
 	}
@@ -212,70 +239,112 @@ Who?")
 
 	public function testAutolink() {
 		Assert.equals(
-			"<blockquote><div><a href=\"https://example.com\">example.com</a></div></blockquote>",
+			"<blockquote><p><a href=\"https://example.com\">example.com</a></p></blockquote>",
 			toHtml("> example.com")
 		);
 	}
 
 	public function testNoAutolink() {
 		Assert.equals(
-			"<div><tt>example.com</tt></div>",
+			"<p><tt>example.com</tt></p>",
 			toHtml("`example.com`")
 		);
 	}
 
 	public function testAutolinkXMPP() {
 		Assert.equals(
-			"<div>hello <a href=\"xmpp:alice@example.com\">xmpp:alice@example.com</a></div>",
+			"<p>hello <a href=\"xmpp:alice@example.com\">xmpp:alice@example.com</a></p>",
 			toHtml("hello xmpp:alice@example.com")
+		);
+	}
+
+	public function testAutolinkXMPPQueryString() {
+		Assert.equals(
+			"<p>hello <a href=\"xmpp:alice@example.com?;a=b\">xmpp:alice@example.com?;a=b</a></p>",
+			toHtml("hello xmpp:alice@example.com?;a=b")
+		);
+	}
+
+	public function testAutolinkTel() {
+		Assert.equals(
+			"<p>hello <a href=\"tel:+15551234567\">tel:+15551234567</a></p>",
+			toHtml("hello tel:+15551234567")
+		);
+	}
+
+	public function testAutolinkSms() {
+		Assert.equals(
+			"<p>hello <a href=\"sms:+15551234567\">sms:+15551234567</a></p>",
+			toHtml("hello sms:+15551234567")
+		);
+	}
+
+	public function testAutolinkMailto() {
+		Assert.equals(
+			"<p>hello <a href=\"mailto:alice@example.com\">mailto:alice@example.com</a></p>",
+			toHtml("hello mailto:alice@example.com")
+		);
+	}
+
+	public function testAutolinkMailtoQueryString() {
+		Assert.equals(
+			"<p>hello <a href=\"mailto:alice@example.com?subject=Hi\">mailto:alice@example.com?subject=Hi</a></p>",
+			toHtml("hello mailto:alice@example.com?subject=Hi")
+		);
+	}
+
+	public function testAutolinkEmail() {
+		Assert.equals(
+			"<p>hello <a href=\"mailto:alice@example.com\">alice@example.com</a></p>",
+			toHtml("hello alice@example.com")
 		);
 	}
 
 	public function testAutolinkAfterEmoji() {
 		Assert.equals(
-			"<div>📞 icon <a href=\"https://example.com\">example.com</a></div>",
+			"<p>📞 icon <a href=\"https://example.com\">example.com</a></p>",
 			toHtml("📞 icon example.com")
 		);
 	}
 
 	public function testAutolinkNoTrailingSlash() {
 		Assert.equals(
-			"<div><a href=\"https://example.com/test/\">https://example.com/test/</a> a</div>",
+			"<p><a href=\"https://example.com/test/\">https://example.com/test/</a> a</p>",
 			toHtml("https://example.com/test/ a")
 		);
 	}
 
 	public function testAutolinkBareDomain() {
 		Assert.equals(
-			"<div><a href=\"https://example.com\">example.com</a></div>",
+			"<p><a href=\"https://example.com\">example.com</a></p>",
 			toHtml("example.com")
 		);
 	}
 
 	public function testAutolinkNoTrailingHash() {
 		Assert.equals(
-			"<div><a href=\"https://example.com/test#\">https://example.com/test#</a> a</div>",
+			"<p><a href=\"https://example.com/test#\">https://example.com/test#</a> a</p>",
 			toHtml("https://example.com/test# a")
 		);
 	}
 
 	public function testAutolinkTrailingDot() {
 		Assert.equals(
-			"<div><a href=\"https://example.com/test\">https://example.com/test</a>.</div>",
+			"<p><a href=\"https://example.com/test\">https://example.com/test</a>.</p>",
 			toHtml("https://example.com/test.")
 		);
 	}
 
 	public function testAutolinkTrailingParen() {
 		Assert.equals(
-			"<div><a href=\"https://example.com/test\">https://example.com/test</a>)</div>",
+			"<p><a href=\"https://example.com/test\">https://example.com/test</a>)</p>",
 			toHtml("https://example.com/test)")
 		);
 	}
 
 	public function testAutolinkBeaks() {
 		Assert.equals(
-			"<div>&lt;<a href=\"https://example.com/test\">https://example.com/test</a>&gt;</div>",
+			"<p>&lt;<a href=\"https://example.com/test\">https://example.com/test</a>&gt;</p>",
 			toHtml("<https://example.com/test>")
 		);
 	}

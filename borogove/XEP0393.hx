@@ -113,7 +113,7 @@ class XEP0393 {
 			endsWithNewline = true;
 		}
 
-		if (xhtml.name == "p") {
+		if (xhtml.name == "p" && xhtml.attr.get("class") != "tight") {
 			s.add("\n");
 		}
 
@@ -231,11 +231,26 @@ class XEP0393 {
 			return parsePreformatted(styled);
 		} else {
 			var end = 0;
+			final nodes = [];
+			var tight = false;
 			final styledLength = styled.length;
-			while (end < styledLength && styled.charAt(end) != "\n") end++;
-			final lineEnd = end;
-			if (end < styledLength && styled.charAt(end) == "\n") end++;
-			return { block: new Stanza("div").addChildNodes(parseSpans(styled.substr(0, lineEnd))), rest: styled.substr(end) };
+			while (end < styledLength) {
+				var lineEnd = end;
+				while (lineEnd < styledLength && styled.charAt(lineEnd) != "\n") lineEnd++;
+				if (nodes.length > 0) nodes.push(Element(new Stanza("br")));
+				for (span in parseSpans(styled.substr(end, lineEnd - end))) nodes.push(span);
+				end = lineEnd + 1;
+				if (styled.charAt(end) == "\n") {
+					end++;
+					break;
+				}
+				if (styled.charAt(end) == ">" || styled.substr(end, 3) == "```") {
+					tight = true;
+					break;
+				}
+			}
+
+			return { block: new Stanza("p", tight ? { "class": "tight" } : {}).addChildNodes(nodes), rest: styled.substr(end) };
 		}
 	}
 
@@ -260,6 +275,10 @@ class XEP0393 {
 			} else {
 				break;
 			}
+		}
+
+		if (styled.charAt(end) == "\n") {
+			end++;
 		}
 
 		return { block: new Stanza("blockquote").addChildren(parse(lines.join(""))), rest: styled.substr(end) };
@@ -291,6 +310,10 @@ class XEP0393 {
 				end += 4;
 				break;
 			}
+		}
+
+		if (styled.charAt(end) == "\n") {
+			end++;
 		}
 
 		final block = new Stanza("pre");

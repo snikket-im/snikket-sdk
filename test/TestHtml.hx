@@ -47,7 +47,7 @@ class TestHtml extends utest.Test {
 		final participant = new Participant("hatter", null, "", false, [], msg.from, null);
 
 		Assert.equals(
-			"<div class=\"action\"><div>hatter says hello</div></div>",
+			"<div class=\"action\"><p>hatter says hello</p></div>",
 			msg.build().body(participant).toString()
 		);
 	}
