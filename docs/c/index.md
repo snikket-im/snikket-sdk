@@ -7,6 +7,7 @@ This guide quickly brings you up to speed on Borogove's C API. The API is flexib
 Let's get started by  initializing the client and setting the current user and persistence layer:
 
 ```c
+#include <stdio.h>
 #include <borogove.h>
 
 int main(void) {
@@ -55,7 +56,7 @@ bool available_chats(void *achat, void *client) {
 	// Allows running searches in parallel as a user types
 
 	if (achat) {
-		chat = borogove_client_start_chat(client, chat);
+		chat = borogove_client_start_chat(client, achat);
 
 		// Don't forget to release your memory
 		borogove_release(achat);
@@ -68,7 +69,7 @@ bool available_chats(void *achat, void *client) {
 
 // And in main...
 
-avilable_chats_iterator = borogove_client_find_available_chats(client, "hatter@example.com");
+available_chats_iterator = borogove_client_find_available_chats(client, "hatter@example.com");
 borogove_available_chat_iterator_next(available_chats_iterator, available_chats, client);
 ```
 
@@ -76,7 +77,7 @@ borogove_available_chat_iterator_next(available_chats_iterator, available_chats,
 
 You can always search by the full ID or URI of any chat on the network. Locally known chats will also be returned, as well as any chats from other services configured on the account.
 
-If you have already used a chat before, you can always get it from `borgove_client_get_chat` or list all known chats with `borogove_client_get_chats`.
+If you have already used a chat before, you can always get it from `borogove_client_get_chat` or list all known chats with `borogove_client_get_chats`.
 
 ## Messages
 
@@ -128,8 +129,8 @@ borogove_release(builder);
 This is how you can listen to events:
 
 ```c
-int otoken = client_add_status_online_listener(client, &online_handler, context_or_null);
-int mtoken = client_add_message_listener(client, &message_handler, context_or_null);
+borogove_event_handler_token otoken = borogove_client_add_status_online_listener(client, online_handler, context_or_null);
+borogove_event_handler_token mtoken = borogove_client_add_chat_message_listener(client, message_handler, context_or_null);
 ```
 
 Handlers run in a background thread separate from your UI or event loop.

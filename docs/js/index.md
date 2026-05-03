@@ -34,7 +34,7 @@ Let's get started by  initializing the client and setting the current user and p
 import * as borogove from "borogove";
 
 // Cache avatars and other media in browser cache
-const mediaStore = borogove.persistence.MediaStoreCache("myapp");
+const mediaStore = await borogove.persistence.MediaStoreCache("myapp");
 
 // Store chats and history in IndexedDB
 const persist = await borogove.persistence.IDB("snikket", mediaStore);
@@ -48,7 +48,7 @@ This example is for in the browser, but for other context only the persistence c
 Now we need to connect to the server, which must be a [Snikket](https://snikket.org)-compatible instance living at `example.com`, and authenticate the user:
 
 ```typescript
-client.addPasswordNeededListener() => {
+client.addPasswordNeededListener(() => {
 	client.usePassword("mycoolpassword");
 });
 
@@ -62,7 +62,7 @@ In real life you probably want to prompt the user when receiving the event. You 
 Let’s continue by starting your first chat. A chat contains messages, a list of people that are participating, and optionally a list of members. The example below shows how to start a chat with a new contact:
 
 ```typescript
-async function findOneChat(client: borogove.Client): borogove.Chat {
+async function findOneChat(client: borogove.Client): Promise<borogove.Chat | null> {
 	const iterator = client.findAvailableChats("hatter@example.com");
 	for await (const availableChat of iterator) {
 		return client.startChat(availableChat);
@@ -91,7 +91,7 @@ chat.sendMessage(new borogove.ChatMessageBuilder({
 We can also load the most recent messages from a chat's history:
 
 ```typescript
-const messages = await chat.getMessagesBefore(null, null);
+const messages = await chat.getMessagesBefore(null);
 ```
 
 and send a reply to one of those:
@@ -117,7 +117,7 @@ const onlineEventToken = client.addStatusOnlineListener(() => {
 	console.log(`${client.accountId()} is online and in sync`)
 });
 
-const messageEventToken = client.addMessageListener((message, eventType) => {
+const messageEventToken = client.addChatMessageListener((message, eventType) => {
 	console.log(`Message ${message.body().toPlainText()} received or updated`, eventType);
 });
 

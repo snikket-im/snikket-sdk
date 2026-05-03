@@ -72,7 +72,7 @@ Now that we have the chat set up, let's send our first message:
 
 ```swift
 let outgoing = ChatMessageBuilder()
-outgoing.setBody(Html.text("I would like some tea."))
+outgoing.setBody(html: Html.text(text: "I would like some tea."))
 chat.sendMessage(message: outgoing)
 ```
 
@@ -86,7 +86,7 @@ and send a reply to one of those:
 
 ```swift
 let reply = messages[0].reply()
-reply.setBody(Html.text("Is that so?"))
+reply.setBody(html: Html.text(text: "Is that so?"))
 chat.sendMessage(message: reply)
 ```
 
