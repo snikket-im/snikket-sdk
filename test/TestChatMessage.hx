@@ -14,13 +14,32 @@ class TestChatMessage extends utest.Test {
 		stanza.attr.set("from", "alice@example.com");
 		stanza.attr.set("to", "bob@example.com");
 		stanza.attr.set("type", "chat");
+		stanza.addChild(new Stanza("body").text("line 1\n\n*line 2*"));
+		stanza.addChild(new Stanza("unstyled", {xmlns: "urn:xmpp:styling:0"}));
+
+		final msg = Message.fromStanza(stanza, JID.parse("bob@example.com"));
+		switch (msg.parsed) {
+			case ChatMessageStanza(m):
+				Assert.equals("<p>line 1</p><p>*line 2*</p>", m.body().toString());
+				Assert.equals("line 1\n\n*line 2*", m.body().toPlainText());
+			default:
+				Assert.fail("Expected ChatMessageStanza");
+		}
+	}
+
+	public function testUnstyledBodyLineBreak() {
+		final stanza = new Stanza("message");
+		stanza.attr.set("id", "test-id-1");
+		stanza.attr.set("from", "alice@example.com");
+		stanza.attr.set("to", "bob@example.com");
+		stanza.attr.set("type", "chat");
 		stanza.addChild(new Stanza("body").text("line 1\n*line 2*"));
 		stanza.addChild(new Stanza("unstyled", {xmlns: "urn:xmpp:styling:0"}));
 
 		final msg = Message.fromStanza(stanza, JID.parse("bob@example.com"));
 		switch (msg.parsed) {
 			case ChatMessageStanza(m):
-				Assert.equals("<div>line 1</div><div>*line 2*</div>", m.body().toString());
+				Assert.equals("<p>line 1<br />*line 2*</p>", m.body().toString());
 				Assert.equals("line 1\n*line 2*", m.body().toPlainText());
 			default:
 				Assert.fail("Expected ChatMessageStanza");

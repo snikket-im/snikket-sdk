@@ -113,13 +113,17 @@ class XEP0393 {
 			endsWithNewline = true;
 		}
 
+		if (xhtml.name == "p") {
+			s.add("\n");
+		}
+
 		if (xhtml.name == "pre") {
 			s.add("```\n");
 			endsWithNewline = true;
 		}
 
 		if (xhtml.name == "blockquote") {
-			return ~/^/gm.replace(s.toString(), "> ");
+			return ~/^/gm.replace(s.toString(), "> ") + "\n";
 		}
 
 		return s.toString();
@@ -260,7 +264,6 @@ class XEP0393 {
 
 		return { block: new Stanza("blockquote").addChildren(parse(lines.join(""))), rest: styled.substr(end) };
 	}
-
 
 	public static function parsePreformatted(styled: UnicodeString) {
 		final lines = [];

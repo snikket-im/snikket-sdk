@@ -395,7 +395,11 @@ class ChatMessage {
 			if (payloads.find((p) -> p.attr.get("xmlns") == "urn:xmpp:styling:0" && p.name == "unstyled") == null) {
 				return XEP0393.parse(body).map(s -> Element(s));
 			} else {
-				return body.split("\n").map(line -> Element(new Stanza("div").text(line)));
+				return body.split("\n\n").map(para -> {
+					final lines = para.split("\n").flatMap(line -> [CData(new TextNode(line)), Element(new Stanza("br"))]);
+					lines.pop();
+					return Element(new Stanza("p").addChildNodes(lines));
+				});
 			}
 		}
 	}
