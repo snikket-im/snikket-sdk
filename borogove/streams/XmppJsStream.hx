@@ -351,13 +351,8 @@ class XmppJsStream extends GenericStream {
 
 		resumed = false;
 		xmpp.start().catchError(function (err) {
-			if (this.state.can("connection-error")) this.state.event("connection-error");
-			final xmppError = Std.downcast(err, XmppJsError);
-			if (xmppError?.name == "SASLError") {
-				this.trigger("auth/fail", xmppError);
-			} else {
-				trace(err);
-			}
+			trace(err);
+			if (this.state.can("connection-error")) this.state.event("connection-error", { error: err });
 		});
 	}
 
@@ -484,7 +479,7 @@ class XmppJsStream extends GenericStream {
 
 	/* State handlers */
 
-	private function onOnline(event) {
+	private function onOnline(event: FSMEvent) {
 		everConnected = true;
 		var item;
 		while ((item = pending.shift()) != null) {
@@ -494,13 +489,21 @@ class XmppJsStream extends GenericStream {
 		trigger("status/online", { jid: jid.toString(), resumed: resumed });
 	}
 
-	private function onOffline(event) {
-		trigger("status/offline", {});
+	private function onOffline(event: FSMEvent) {
+		if (event.toAttr?.error == null) {
+			trigger("status/offline", {});
+		}
 	}
 
-	private function onError(event) {
-		if (!everConnected) trigger("status/error", {});
-		// If everConnected then we are retrying so not fatal
+	private function onError(event: FSMEvent) {
+		final xmppError = Std.downcast(event.toAttr?.error, XmppJsError);
+		if (xmppError?.name == "SASLError") {
+			this.trigger("auth/fail", xmppError);
+		} else {
+			// If everConnected then we are retrying so not fatal
+			if (!everConnected) trigger("status/error", event.toAttr?.error);
+		}
+
 		return true;
 	}
 }
