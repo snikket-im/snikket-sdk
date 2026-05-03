@@ -339,33 +339,39 @@ class Autolink {
 					+ "\\;\\/\\?\\@\\&\\=\\#\\~\\-\\.\\+\\!\\*\\'\\(\\)\\,\\_])"
 		+ "|(?:\\%[a-fA-F0-9]{2}))+", "u");
 
+	public static final AUTOLINK_EMAIL = new EReg("(?:mailto\\:)?(?:(?:["
+					+ GOOD_IRI_CHAR
+					+ "\\;\\/\\?\\=\\~\\-\\.\\+\\!\\*\\'\\(\\)\\,\\_])"
+		+ "|(?:\\%[a-fA-F0-9]{2}))+@" + STRICT_HOST_NAME + "(?:\\?" + PATH_CHAR + "+)?", "u");
+
 	public static function one(s:String, start:Int) {
 		final matches = [
-			match(s, start, XMPP_URI, false),
-			match(s, start, TEL_URI, false),
-			match(s, start, SMS_URI, false),
-			match(s, start, AUTOLINK_WEB_URL, true)
+			match(s, start, XMPP_URI),
+			match(s, start, TEL_URI),
+			match(s, start, SMS_URI),
+			match(s, start, AUTOLINK_EMAIL, "mailto:"),
+			match(s, start, AUTOLINK_WEB_URL, "https://")
 		];
 		matches.sort((x, y) -> x.start - y.start); // Should use minimum...
 		return matches.find((match) -> match.span != null) ?? matches[0];
 	}
 
-	private static function match(s:String, start:Int, pattern:EReg, addHttps:Bool) {
+	private static function match(s:String, start:Int, pattern:EReg, add = null) {
 		//// Create a copy here for thread safety -- but we only call from main thread?? and parsing the web url regex is super slow
 		//final pattern = new EReg(pattern, "u");
 		if (pattern.matchSub(s, start)) {
 			final pos = pattern.matchedPos();
 			var len = pos.len;
-			if (addHttps) {
+			if (add == "https://") {
 				while (pos.pos + len < s.length && ["/", "#"].contains(s.charAt(pos.pos + len))) {
 					len++;
 				}
-				while (len > 0 && [".", ",", ";", ":", "!", "?", ")", "]", ">"].contains(s.charAt(pos.pos + len - 1))) {
-					len--;
-				}
+			}
+			while (len > 0 && [".", ",", ";", ":", "!", "?", ")", "]", ">"].contains(s.charAt(pos.pos + len - 1))) {
+				len--;
 			}
 			final link = s.substr(pos.pos, len);
-			final uri = !addHttps || StringTools.contains(link, "://") ? link : "https://" + link;
+			final uri = add == null || StringTools.contains(link, "://") || StringTools.startsWith(link, add) ? link : add + link;
 			var text = link.startsWith("xmpp:") ? ~/omemo-sid[^;]+;?/.replace(link, "") : link;
 			text = link.startsWith("xmpp:") && text.endsWith(";") ? text.substr(0, text.length - 1) : text;
 			text = text.endsWith("?") ? text.substr(0, text.length - 1) : text;
