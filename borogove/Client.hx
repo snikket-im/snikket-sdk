@@ -752,9 +752,7 @@ class Client extends EventEmitter {
 			fastCount = login.fastCount;
 			stream.clientId = login.clientId ?? ID.unique();
 			jid = jid.withResource(stream.clientId);
-			if (!updateDisplayName(login.displayName) && login.clientId == null) {
-				persistence.storeLogin(jid.asBare().asString(), stream.clientId, this.displayName(), null);
-			}
+			_displayName = login.displayName ?? _displayName;
 
 			return persistence.getChats(accountId());
 		}).then((protoChats) -> {
@@ -890,7 +888,7 @@ class Client extends EventEmitter {
 	private function onConnected(data) { // Fired on connect or reconnect
 		if (data != null && data.jid != null) {
 			jid = JID.parse(data.jid);
-			if (stream.clientId == null && !jid.isBare()) persistence.storeLogin(jid.asBare().asString(), jid.resource, displayName(), null);
+			if (stream.clientId == null && !jid.isBare()) persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, displayName(), null);
 		}
 
 		if (data.resumed) {
