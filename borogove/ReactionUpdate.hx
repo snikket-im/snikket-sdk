@@ -3,6 +3,9 @@ package borogove;
 import borogove.Reaction;
 using Lambda;
 
+/**
+	How a reaction update should be applied to the existing reaction set.
+**/
 enum abstract ReactionUpdateKind(Int) {
 	var EmojiReactions;
 	var AppendReactions;
@@ -22,6 +25,9 @@ class ReactionUpdate {
 	public final reactions: Array<Reaction>;
 	public final kind: ReactionUpdateKind;
 
+	/**
+		Create a reaction update for one message.
+	**/
 	public function new(updateId: String, serverId: Null<String>, serverIdBy: Null<String>, localId: Null<String>, chatId: String, senderId: String, timestamp: String, reactions: Array<Reaction>, kind: ReactionUpdateKind) {
 		if (serverId == null && localId == null) throw "ReactionUpdate serverId and localId cannot both be null";
 		if (serverId != null && serverIdBy == null) throw "serverId requires serverIdBy";
@@ -36,6 +42,12 @@ class ReactionUpdate {
 		this.kind = kind;
 	}
 
+	/**
+		Apply this update to an existing reaction list.
+
+		@param existingReactions reactions already known for the message
+		@returns the updated reaction list
+	**/
 	public function getReactions(existingReactions: Null<Array<Reaction>>): Array<Reaction> {
 		if (kind == AppendReactions) { // TODO: make sure a new non-custom react doesn't override any customs we've added
 			final set: Map<String, Bool> = [];

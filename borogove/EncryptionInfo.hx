@@ -4,6 +4,9 @@ package borogove;
 import HaxeCBridge;
 #end
 
+/**
+	Outcome of decrypting an incoming message.
+**/
 enum abstract EncryptionStatus(Int) {
 	var DecryptionSuccess; // Message was encrypted, and we decrypted it
 	var DecryptionFailure; // Message is encrypted, and we failed to decrypt it

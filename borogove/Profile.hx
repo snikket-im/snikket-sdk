@@ -53,41 +53,68 @@ class ProfileItem {
 		this.key = item.name;
 	}
 
+	/**
+		Get parameter items attached to this profile item.
+	**/
 	public function parameters(): Array<ProfileItem> {
 		final params = item.getChild("parameters")?.allTags() ?? [];
 		return params.map(param -> new ProfileItem(param, id + "/" + ID.unique()));
 	}
 
+	/**
+		Get text values for this profile item.
+	**/
 	public function text(): Array<String> {
 		return item.allTags("text").map(s -> s.getText());
 	}
 
+	/**
+		Get URI values for this profile item.
+	**/
 	public function uri(): Array<String> {
 		return item.allTags("uri").map(s -> s.getText());
 	}
 
+	/**
+		Get date values for this profile item.
+	**/
 	public function date(): Array<String> {
 		return item.allTags("date").map(s -> s.getText());
 	}
 
+	/**
+		Get time values for this profile item.
+	**/
 	public function time(): Array<String> {
 		return item.allTags("time").map(s -> s.getText());
 	}
 
+	/**
+		Get datetime values for this profile item.
+	**/
 	public function datetime(): Array<String> {
 		return item.allTags("datetime").map(s -> s.getText());
 	}
 
+	/**
+		Get boolean values for this profile item.
+	**/
 	@HaxeCBridge.noemit
 	public function boolean(): Array<Bool> {
 		return item.allTags("boolean").map(s -> s.getText() == "true");
 	}
 
+	/**
+		Get integer values for this profile item.
+	**/
 	@HaxeCBridge.noemit
 	public function integer(): Array<Int> {
 		return item.allTags("integer").map(s -> Std.parseInt(s.getText()) ?? 0);
 	}
 
+	/**
+		Get language-tag values for this profile item.
+	**/
 	public function languageTag(): Array<String> {
 		return item.allTags("language-tag").map(s -> s.getText());
 	}
@@ -138,6 +165,9 @@ class ProfileBuilder {
 	private final vcard: Stanza;
 	private var items: Array<ProfileItem> = [];
 
+	/**
+		Create a mutable builder from an existing profile.
+	**/
 	public function new(profile: Profile) {
 		vcard = profile.vcard.clone();
 		final els = vcard.allTags().filter(el ->
@@ -210,6 +240,9 @@ class ProfileBuilder {
 		vcard.removeChild(prop.item);
 	}
 
+	/**
+		Build an immutable Profile from the current builder state.
+	**/
 	public function build() {
 		return new Profile(vcard.clone(), items.array());
 	}

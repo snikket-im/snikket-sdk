@@ -16,6 +16,9 @@ import HaxeCBridge;
 @:build(HaxeSwiftBridge.expose())
 #end
 class Identicon {
+	/**
+		Generate a deterministic SVG identicon as a data URI.
+	**/
 	public static function svg(source: String) {
 		final sha = Sha1.make(bytesOfString(source));
 		final input = new BytesInput(sha);

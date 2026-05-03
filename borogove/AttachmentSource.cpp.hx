@@ -15,6 +15,12 @@ class AttachmentSource {
 	public final name: String;
 	public final size: Int;
 
+	/**
+		Create an attachment source from a local file path and MIME type.
+
+		@param path path to the local file
+		@param mime MIME type to advertise for the upload
+	**/
 	public function new(path: String, mime: String) {
 		this.name = haxe.io.Path.withoutDirectory(path);
 		this.path = sys.FileSystem.fullPath(path);

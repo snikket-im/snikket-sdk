@@ -34,6 +34,9 @@ abstract DataForm(Stanza) from Stanza to Stanza {
 		return this.allTags("item")?.map(row -> row.allTags("field"));
 	}
 
+	/**
+		Get the field with the given name, if present.
+	**/
 	public function field(name: String): Null<Field> {
 		final matches = fields.filter(f -> f.name == name);
 		if (matches.length > 1) {

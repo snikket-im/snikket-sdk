@@ -272,10 +272,16 @@ class FormLayoutSection implements FormSection {
 		this.section = section;
 	}
 
+	/**
+		Get the layout section label, if any.
+	**/
 	public function title() {
 		return section.attr.get("label");
 	}
 
+	/**
+		Get the renderable items contained in this layout section.
+	**/
 	public function items() {
 		final items = [];
 		for (child in section.allTags()) {

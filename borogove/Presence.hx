@@ -14,6 +14,9 @@ abstract Presence(Stanza) from Stanza to Stanza {
 	public var hats(get, never): Null<Array<Role>>;
 	public var avatarHash(get, never): Null<Hash>;
 
+	/**
+		Create a presence stanza wrapper from caps, MUC metadata, and avatar hash.
+	**/
 	public function new(caps: Null<Caps>, mucUser: Null<MucUser>, avatarHash: Null<Hash>): Presence {
 		final stanza = new Stanza("presence", { xmlns: "jabber:client" });
 		if (caps != null) caps.addC(stanza);

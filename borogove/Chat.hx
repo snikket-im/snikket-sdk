@@ -35,6 +35,9 @@ typedef StringMapNullableKey = Map<Null<String>, String>;
 typedef StringMapNullableKey = haxe.ds.ObjectMap<Null<String>, String>;
 #end
 
+/**
+	Persistent UI state for a chat in the local client.
+**/
 enum abstract UiState(Int) {
 	var Pinned;
 	var Open; // or Unspecified
@@ -42,6 +45,9 @@ enum abstract UiState(Int) {
 	var Invited;
 }
 
+/**
+	Chat state notifications received from another participant.
+**/
 enum abstract UserState(Int) {
 	var Gone;
 	var Inactive;
@@ -50,11 +56,14 @@ enum abstract UserState(Int) {
 	var Paused;
 }
 
-// Describes the current encryption mode of the conversation
-// This mode is a high-level representation of the user/app *intent*
-// for the current conversation - e.g. not a guarantee that incoming
-// messages will always match this expectation. It is used to determine
-// the logic for outgoing messages, though.
+/**
+	Describes the current encryption mode of the conversation.
+
+	This mode is a high-level representation of the user/app *intent*
+	for the current conversation - e.g. not a guarantee that incoming
+	messages will always match this expectation. It is used to determine
+	the logic for outgoing messages, though.
+**/
 enum abstract EncryptionMode(Int) {
 	var Unencrypted; // No end-to-end encryption
 	var EncryptedOMEMO; // Use OMEMO
@@ -750,6 +759,11 @@ abstract class Chat {
 		return session;
 	}
 
+	/**
+		Add additional media streams to the active call in this chat.
+
+		@param streams media streams to add to the current session
+	**/
 	@HaxeCBridge.noemit
 	public function addMedia(streams: Array<MediaStream>) {
 		if (callStatus() != Ongoing) throw "cannot add media when no call ongoing";
@@ -890,6 +904,9 @@ abstract class Chat {
 		return commandJids().length > 0;
 	}
 
+	/**
+		List commands exposed by this chat
+	**/
 	public function commands(): Promise<Array<Command>> {
 		return thenshim.PromiseTools.all(commandJids().map(jid -> new Promise((resolve, reject) -> {
 			final itemsGet = new DiscoItemsGet(jid.asString(), "http://jabber.org/protocol/commands");
@@ -1669,6 +1686,9 @@ class Channel extends Chat {
 		return uiState != Closed && uiState != Invited;
 	}
 
+	/**
+		Whether this channel is members-only/private.
+	**/
 	public function isPrivate() {
 		return disco.features.contains("muc_membersonly");
 	}
@@ -2237,6 +2257,9 @@ class SerializedChat {
 	public final notifyMention: Bool;
 	public final notifyReply: Bool;
 
+	/**
+		Create a serialized chat snapshot suitable for persistence.
+	**/
 	public function new(chatId: String, trusted: Bool, isBookmarked: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, status: Status, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, threads: StringMapNullableKey, disco: Null<Caps>, omemoContactDeviceIDs: Array<Int>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
@@ -2259,6 +2282,9 @@ class SerializedChat {
 		this.klass = klass;
 	}
 
+	/**
+		Recreate a live Chat object from this serialized representation.
+	**/
 	public function toChat(client: Client, stream: GenericStream, persistence: Persistence) {
 		final extensionsStanza = Stanza.parse(extensions);
 		var filterN = notificationsFiltered ?? false;

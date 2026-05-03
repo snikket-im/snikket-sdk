@@ -44,6 +44,9 @@ using StringTools;
 import HaxeCBridge;
 #end
 
+/**
+	Reason a chat-message listener was triggered.
+**/
 enum abstract ChatMessageEvent(Int) {
 	var DeliveryEvent;
 	var CorrectionEvent;
@@ -859,6 +862,13 @@ class Client extends EventEmitter {
 		);
 	}
 
+	/**
+		Publish an account status/activity item.
+
+		@param status status payload to publish
+		@param expires expiration in seconds for the published item
+		@param publicAccess when true, make the item world-readable
+	**/
 	public function setStatus(status: Status, expires: Int = 86400, publicAccess: Bool = false) {
 		publishWithOptions(
 			new Stanza("iq", { type: "set" })

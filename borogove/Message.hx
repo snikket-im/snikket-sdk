@@ -5,11 +5,17 @@ import borogove.Reaction;
 using Lambda;
 using StringTools;
 
+/**
+	Direction of a chat message relative to the local account.
+**/
 enum abstract MessageDirection(Int) {
 	var MessageReceived;
 	var MessageSent;
 }
 
+/**
+	Delivery state for an outgoing or incoming message.
+**/
 enum abstract MessageStatus(Int) {
 	var MessagePending; // Message is waiting in client for sending
 	var MessageDeliveredToServer; // Server acknowledged receipt of the message
@@ -17,6 +23,9 @@ enum abstract MessageStatus(Int) {
 	var MessageFailedToSend; // There was an error sending this message
 }
 
+/**
+	High-level category of the message
+**/
 enum abstract MessageType(Int) {
 	var MessageChat;
 	var MessageCall;

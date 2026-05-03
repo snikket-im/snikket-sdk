@@ -165,12 +165,22 @@ class AvailableChatIterator {
 		return this;
 	}
 
+	/**
+		Get the next AvailableChat from this iterator for JavaScript async iteration.
+
+		@returns Promise resolving to the next iterator result
+	**/
 	public function next(): Promise<{ done: Bool, ?value: AvailableChat }> {
 		return internalNext().then(v -> {
 			return { done: v == null, value: v };
 		});
 	}
 	#else
+	/**
+		Get the next AvailableChat from this iterator.
+
+		@returns Promise resolving to the next result, or null when exhausted
+	**/
 	public function next(): Promise<Null<AvailableChat>> {
 		return internalNext();
 	}

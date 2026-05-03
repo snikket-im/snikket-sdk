@@ -50,6 +50,15 @@ class Caps {
 		return result;
 	}
 
+	/**
+		Create a capabilities description.
+
+		@param node capability node identifier
+		@param identities disco identities advertised by the entity
+		@param features disco feature namespaces advertised by the entity
+		@param data extended disco data forms
+		@param ver optional precomputed capability hash bytes
+	**/
 	public function new(node: String, identities: Array<Identity>, features: Array<String>, data: Array<DataForm>, ?ver: BytesData) {
 		if (ver == null) {
 			// If we won't need to generate ver we don't actually need to sort
@@ -67,11 +76,20 @@ class Caps {
 		}
 	}
 
+	/**
+		Check whether these capabilities describe a channel-like chat target.
+
+		@param chatId ID to evaluate against the capability set
+		@returns true when the target looks like a MUC/channel
+	**/
 	public function isChannel(chatId: String) {
 		if (chatId.indexOf("@") < 0) return false; // MUC must have a localpart
 		return features.contains("http://jabber.org/protocol/muc") && identities.find((identity) -> identity.category == "conference") != null;
 	}
 
+	/**
+		Build a disco#info query payload for this capability set.
+	**/
 	public function discoReply():Stanza {
 		final query = new Stanza("query", { xmlns: "http://jabber.org/protocol/disco#info" });
 		for (identity in identities) {
@@ -84,6 +102,12 @@ class Caps {
 		return query;
 	}
 
+	/**
+		Add capability advertisements to a stanza.
+
+		@param stanza stanza to mutate
+		@returns the same stanza for chaining
+	**/
 	public function addC(stanza: Stanza): Stanza {
 		stanza.tag("c", {
 			xmlns: "http://jabber.org/protocol/caps",
@@ -160,11 +184,17 @@ class Caps {
 		return Hash.sha1(bytesOfString(s));
 	}
 
+	/**
+		Get the raw XEP-0115 capability hash object for this capability set.
+	**/
 	public function verRaw(): Hash {
 		if (_ver == null) _ver = computeVer();
 		return _ver;
 	}
 
+	/**
+		Get the XEP-0115 capability hash encoded in base64.
+	**/
 	public function ver(): String {
 		return verRaw().toBase64();
 	}
@@ -177,6 +207,9 @@ class Identity {
 	public final name:String;
 	public final lang:String;
 
+	/**
+		Create a disco identity.
+	**/
 	public function new(category:String, type: String, name: String, lang: Null<String> = null) {
 		this.category = category;
 		this.type = type;
@@ -184,16 +217,25 @@ class Identity {
 		this.lang = lang ?? "";
 	}
 
+	/**
+		Add this identity to a disco#info payload.
+	**/
 	public function addToDisco(stanza: Stanza) {
 		var attrs: haxe.DynamicAccess<String> = { category: category, type: type, name: name };
 		if (lang != null && lang != "") attrs.set("xml:lang", lang);
 		stanza.tag("identity", attrs).up();
 	}
 
+	/**
+		Get the identity string used when computing capability hashes.
+	**/
 	public function ver(): String {
 		return category + "/" + type + "/" + (lang ?? "") + "/" + name;
 	}
 
+	/**
+		Write the identity in canonical capability-hash form.
+	**/
 	public function writeTo(out: haxe.io.Output) {
 		out.writeS(category);
 		out.writeByte(0x1f);

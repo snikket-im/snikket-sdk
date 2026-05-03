@@ -6,6 +6,14 @@ class JID {
 	public final domain : String;
 	public final resource : Null<String>;
 
+	/**
+		Create a JID from its parts.
+
+		@param node localpart, or null for a domain JID
+		@param domain domainpart
+		@param resource resourcepart, if any
+		@param raw when false, escape the node according to JID escaping rules
+	**/
 	public function new(?node:String, domain:String, ?resource:String, ?raw = false) {
 		this.node = node == null || raw == true ? node :
 			StringTools.replace(StringTools.replace(StringTools.replace(
@@ -38,6 +46,9 @@ class JID {
 		this.resource = resource;
 	}
 
+	/**
+		Parse a JID string into its components.
+	**/
 	public static function parse(jid:String):JID {
 		var resourceDelimiter = jid.indexOf("/");
 		var nodeDelimiter = jid.indexOf("@");
@@ -52,26 +63,44 @@ class JID {
 		);
 	}
 
+	/**
+		Get the bare JID without any resource.
+	**/
 	public function asBare():JID {
 		return new JID(this.node, this.domain, null, true);
 	}
 
+	/**
+		Return a copy of this JID with a different resource.
+	**/
 	public function withResource(resource: String): JID {
 		return new JID(this.node, this.domain, resource, true);
 	}
 
+	/**
+		Check whether this JID looks valid enough to use.
+	**/
 	public function isValid():Bool {
 		return domain.indexOf(".") >= 0;
 	}
 
+	/**
+		Check whether this JID has no localpart.
+	**/
 	public function isDomain():Bool {
 		return node == null;
 	}
 
+	/**
+		Check whether this JID has no resourcepart.
+	**/
 	public function isBare():Bool {
 		return resource == null;
 	}
 
+	/**
+		Compare two JIDs for exact equality.
+	**/
 	public function equals(rhs:JID):Bool {
 		return (
 			this.node == rhs.node &&
@@ -80,6 +109,9 @@ class JID {
 		);
 	}
 
+	/**
+		Render this JID back to its string form.
+	**/
 	public function asString():String {
 		return (
 			(this.node != null ? this.node + "@" : "") +

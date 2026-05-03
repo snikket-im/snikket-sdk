@@ -14,11 +14,17 @@ class Status {
 	public final emoji: String;
 	public final text: String;
 
+	/**
+		Create a status value with emoji and text.
+	**/
 	public function new(emoji: String, text: String) {
 		this.emoji = emoji;
 		this.text = text;
 	}
 
+	/**
+		Render this status as plain text.
+	**/
 	public function toString() {
 		return emoji + (emoji == "" || text == "" ? "" : " ") + text;
 	}
