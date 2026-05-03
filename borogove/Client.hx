@@ -489,11 +489,16 @@ class Client extends EventEmitter {
 				}
 				final chat = getChat(chatMessage.chatId());
 				if (chat != null) {
-					final updateChat = (chatMessage) -> {
-						notifyMessageHandlers(chatMessage, chatMessage.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
-						if (chatMessage.versions.length < 1 || chat.lastMessageId() == chatMessage.serverId || chat.lastMessageId() == chatMessage.localId) {
+					final updateChat = (chatMessage: ChatMessage) -> {
+						final eventType = chatMessage.versions.length > 1 ? CorrectionEvent : DeliveryEvent;
+						if (chat.lastMessage == null || eventType == DeliveryEvent || chatMessage.canReplace(chat.lastMessage)) {
 							chat.setLastMessage(chatMessage);
-							if (chatMessage.versions.length < 1) chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
+						}
+
+						notifyMessageHandlers(chatMessage, eventType);
+
+						if (eventType == DeliveryEvent) {
+							chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
 							chatActivity(chat);
 						} else if (newChat != null) {
 							this.trigger("chats/update", [newChat]);
