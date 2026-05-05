@@ -1,11 +1,15 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 
-.PHONY: all test doc hx-build-dep cpp/libborogove.dso npm/borogove-browser.js npm/borogove.js cpp playwright
+.PHONY: all test doc hx-build-dep cpp/libborogove.dso npm/borogove-browser.js npm/borogove.js cpp playwright ci
 
 all: npm libborogove.batteriesincluded.so libborogove.so libborogove.a
 
 test:
 	haxe test.hxml
+
+ci: test playwright
+	mkdir .cache
+	haxe testjs.hxml
 
 hx-build-dep:
 	haxelib --quiet git jsImport https://github.com/back2dos/jsImport

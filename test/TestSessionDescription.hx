@@ -87,7 +87,7 @@ class TestSessionDescription extends utest.Test {
 		"a=ssrc:691851057 cname:{df71a836-615d-4bab-bf3e-7f2ee9d2f0a1}\r\n";
 
 	public function testConvertStanzaToSDP() {
-		final session = SessionDescription.fromStanza(Stanza.fromXml(Xml.parse(stanzaSource)), false);
+		final session = SessionDescription.fromStanza(Stanza.parse(stanzaSource), false);
 		Assert.equals(sdpExample, session.toSdp());
 	}
 

@@ -20,9 +20,9 @@ class TestChatMessageBuilder extends utest.Test {
 
 	public function testConvertHtmlToText() {
 		final msg = new ChatMessageBuilder();
-		msg.setBody(Html.fromString("<blockquote>Hello<br>you</blockquote><img alt=':boop:'><br><b>hi</b> <em>hi</em> <s>hey</s> <tt>up</tt><pre>hello<br>you"));
+		msg.setBody(Html.fromString("<blockquote>Hello<br><br>you</blockquote><img alt=':boop:'><br><b>hi</b> <em>hi</em> <s>hey</s> <tt>up</tt><pre>hello<br>you"));
 		Assert.equals(
-			"> Hello\n> you\n\n:boop:\n*hi* _hi_ ~hey~ `up`\n```\nhello\nyou\n```",
+			"> Hello\n> \n> you\n\n:boop:\n*hi* _hi_ ~hey~ `up`\n```\nhello\nyou\n```",
 			msg.text
 		);
 	}

@@ -13,6 +13,7 @@ haxedoc.xml
 cpp
 venv
 docs/js/borogove*.md
+.cache/
 
 # Playwright
 /test-results/

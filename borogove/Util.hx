@@ -7,6 +7,28 @@ import js.html.TextEncoder;
 final textEncoder = new TextEncoder();
 #end
 
+#if macro
+import haxe.macro.Compiler;
+import haxe.macro.Context.*;
+
+using haxe.io.Path;
+using StringTools;
+using sys.io.File;
+using sys.FileSystem;
+
+class DummyRequireMacro {
+	static final META = ':dummyRequire';
+	static function init() {
+		onGenerate(types -> {
+			var tmp = Compiler.getOutput().directory() + '/tmp${Std.random(1 << 29)}.js';
+			tmp.saveContent("if (typeof(require) === 'undefined') globalThis.require = (){};");
+			Compiler.includeFile(tmp);
+			onAfterGenerate(tmp.deleteFile);
+		});
+	}
+}
+#end
+
 function setupTrace() {
 #if js
 	haxe.Log.trace = (v, ?infos) -> {

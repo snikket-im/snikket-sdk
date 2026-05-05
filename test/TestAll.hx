@@ -6,25 +6,30 @@ import utest.ui.Report;
 class TestAll {
 	public static function main() {
 		utest.UTest.run([
-			new TestPresence(),
 			new TestCapsRepo(),
 			new TestChatMessage(),
 			new TestSessionDescription(),
 			new TestChatMessageBuilder(),
 			new TestStanza(),
+#if !nodejs
 			new TestCaps(),
+			new TestPresence(),
 			new TestClient(),
+			new TestSortId(),
+			new TestParticipant(),
+			new TestChat(),
+#end
 			new TestXEP0393(),
 			new TestEmojiUtil(),
 			new TestJID(),
 			new TestStringUtil(),
 			new TestUtil(),
 			new TestReaction(),
-			new TestSortId(),
 			new TestHtml(),
-			new TestChat(),
 			new TestStatus(),
-			new TestParticipant(),
+#if !eval
+			new TestSqlite(),
+#end
 		]);
 	}
 }

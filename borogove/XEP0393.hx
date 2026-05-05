@@ -123,7 +123,7 @@ class XEP0393 {
 		}
 
 		if (xhtml.name == "blockquote") {
-			return ~/^/gm.replace(s.toString(), "> ") + "\n";
+			return ~/^|(?<=\n)(?!$)/g.replace(s.toString(), "> ") + "\n";
 		}
 
 		return s.toString();

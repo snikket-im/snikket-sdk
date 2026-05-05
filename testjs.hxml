@@ -4,24 +4,23 @@
 --library haxe-strings
 --library hsluv
 --library hxnodejs
---library hxtsdgen
 --library jsImport
 --library thenshim
 --library tink_http
 --library uuidv7
 
-borogove.Client
-borogove.Register
-borogove.Push
-borogove.Version
-borogove.persistence.Sqlite
-borogove.Html
+--library utest
 
 --macro borogove.Util.DummyRequireMacro.init()
+-D test
 -D analyzer-optimize
 -D js-es=6
--D hxtsdgen_enums_ts
 -D js_global=globalThis
--D js-classic
 -D NO_OMEMO
---js npm/borogove.js
+-D no-traces
+-main test.TestAll
+-w -WDeprecated
+--js .cache/test.js
+
+--cmd npx cjstoesm -s true .cache/test.js
+--cmd nodejs --disable-warning=ExperimentalWarning .cache/test.js
