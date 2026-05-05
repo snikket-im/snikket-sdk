@@ -97,7 +97,8 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function removeMedia(hashAlgorithm:String, hash:BytesData) {
+	public function removeMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool> {
+		return Promise.resolve(false);
 	}
 
 	@HaxeCBridge.noemit
@@ -117,7 +118,9 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function removeAccount(accountId:String, completely:Bool) { }
+	public function removeAccount(accountId:String, completely:Bool) {
+		return Promise.resolve(false);
+	}
 
 	@HaxeCBridge.noemit
 	public function listAccounts(): Promise<Array<String>> {

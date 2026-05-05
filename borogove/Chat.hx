@@ -32,7 +32,37 @@ import HaxeCBridge;
 #if js
 typedef StringMapNullableKey = Map<Null<String>, String>;
 #else
-typedef StringMapNullableKey = haxe.ds.ObjectMap<Null<String>, String>;
+final nullSentinel = "65e2ca3a-a13e-490c-bfe6-9c6b4c8651d0";
+
+@:forward
+abstract StringMapNullableKey(haxe.ds.StringMap<String>) {
+	public inline function new() {
+		this = new haxe.ds.StringMap();
+	}
+
+	public inline function set(k: Null<String>, v: String) {
+		this.set(k == null ? nullSentinel : k, v);
+	}
+
+	public inline function get(k: Null<String>) {
+		return this.get(k == null ? nullSentinel : k,);
+	}
+
+	public inline function remove(k: Null<String>) {
+		return this.remove(k == null ? nullSentinel : k,);
+	}
+
+	public inline function keyValueIterator() {
+		final iter = this.keyValueIterator();
+		return {
+			hasNext: () -> iter.hasNext(),
+			next: () -> {
+				final v = iter.next();
+				return v.key == nullSentinel ? { key: null, value: v.value } : v;
+			}
+		};
+	}
+}
 #end
 
 /**

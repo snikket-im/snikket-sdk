@@ -846,7 +846,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 		},
 
 		removeMedia: function(hashAlgorithm, hash) {
-			media.removeMedia(hashAlgorithm, hash);
+			return media.removeMedia(hashAlgorithm, hash);
 		},
 
 		storeMedia: function(mime, buffer) {
@@ -1092,7 +1092,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			store.put(storedKey, dbKey);
 		},
 
-		removeAccount(account, completely) {
+		async removeAccount(account, completely) {
 			const tx = db.transaction(["keyvaluepairs", "services", "messages", "chats", "reactions"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
 			store.delete("login:clientId:" + account);
@@ -1101,7 +1101,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			store.delete("fn:" + account);
 			store.delete("sm:" + account);
 
-			if (!completely) return;
+			if (!completely) return true;
 
 			const servicesStore = tx.objectStore("services");
 			const servicesCursor = servicesStore.openCursor(IDBKeyRange.bound([account], [account, []]));
@@ -1138,6 +1138,8 @@ export default async (dbname, media, tokenize, stemmer) => {
 					event.target.result.continue();
 				}
 			};
+
+			return true;
 		},
 
 		async listAccounts() {

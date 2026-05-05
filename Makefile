@@ -8,8 +8,9 @@ test:
 	haxe test.hxml
 
 ci: test playwright
-	mkdir .cache
+	mkdir -p .cache
 	haxe testjs.hxml
+	haxe testcpp.hxml
 
 hx-build-dep:
 	haxelib --quiet git jsImport https://github.com/back2dos/jsImport

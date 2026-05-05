@@ -308,7 +308,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 						channel?.disco?.verRaw().hash, Json.stringify(mapPresence(chat)),
 						Type.getClassName(Type.getClass(chat)).split(".").pop(),
 						chat.notificationsFiltered(), chat.notifyMention(), chat.notifyReply(),
-						chat.isBookmarked, Json.stringify({
+						chat.isBookmarked, JsonPrinter.print({
 							status: { emoji: chat.status.emoji, text: chat.status.text },
 							threads: {
 								final t: DynamicAccess<String> = {};
@@ -645,7 +645,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function removeMedia(hashAlgorithm:String, hash:BytesData) {
-		media.removeMedia(hashAlgorithm, hash);
+		return media.removeMedia(hashAlgorithm, hash);
 	}
 
 	@HaxeCBridge.noemit
@@ -746,13 +746,15 @@ class Sqlite implements Persistence implements KeyValueStore {
 		@param completely if message history, etc should be removed also
 	**/
 	public function removeAccount(accountId:String, completely:Bool) {
-		db.exec("DELETE FROM accounts WHERE account_id=?", [accountId]);
+		return db.exec("DELETE FROM accounts WHERE account_id=?", [accountId]).then(_ -> {
+			if (!completely) return Promise.resolve(null);
 
-		if (!completely) return;
-
-		db.exec("DELETE FROM messages WHERE account_id=?", [accountId]);
-		db.exec("DELETE FROM chats WHERE account_id=?", [accountId]);
-		db.exec("DELETE FROM services WHERE account_id=?", [accountId]);
+			return db.execMany([
+				{ sql: "DELETE FROM messages WHERE account_id=?", params: [accountId] },
+				{ sql: "DELETE FROM chats WHERE account_id=?", params: [accountId] },
+				{ sql: "DELETE FROM services WHERE account_id=?", params: [accountId] }
+			]);
+		}).then(_ -> true);
 	}
 
 

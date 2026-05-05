@@ -2,13 +2,15 @@ package test;
 
 import utest.Assert;
 import utest.Async;
+using StringTools;
 
 import borogove.Stanza;
 import borogove.XEP0393;
 
 class TestXEP0393 extends utest.Test {
 	function toHtml(s: String) {
-		return XEP0393.parse(s).map(b -> b.toString()).join("");
+		// Unescape &quot; which libstrophe generates but others do not
+		return XEP0393.parse(s).map(b -> b.toString()).join("").replace("&quot;", "\"");
 	}
 
 	public function testSpansDoNotEscapeBlocks() {

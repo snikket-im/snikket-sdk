@@ -158,8 +158,9 @@ interface Persistence {
 
 		@param hashAlgorithm hash algorithm for the content ID
 		@param hash raw hash bytes
+		@returns Promise resolving to true when removal succeeded
 	**/
-	public function removeMedia(hashAlgorithm:String, hash:BytesData):Void;
+	public function removeMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool>;
 
 	/**
 		Store service discovery capabilities for later reuse
@@ -202,8 +203,9 @@ interface Persistence {
 
 		@param accountId the account to remove
 		@param completely true to delete all account data, false to keep recoverable state
+		@returns Promise resolving to true when removal succeeded
 	**/
-	public function removeAccount(accountId: String, completely:Bool):Void;
+	public function removeAccount(accountId: String, completely:Bool): Promise<Bool>;
 
 	/**
 		List all accounts present in storage

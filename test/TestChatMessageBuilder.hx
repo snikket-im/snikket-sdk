@@ -89,11 +89,13 @@ class TestChatMessageBuilder extends utest.Test {
 	}
 
 	public function testConstructor() {
-		final msgText = new ChatMessageBuilder({ text: "hello" });
+		final msgText = new ChatMessageBuilder();
+		msgText.setBody(Html.text("hello"));
 		Assert.equals("hello", msgText.text);
 		Assert.equals("<unstyled xmlns=\"urn:xmpp:styling:0\"/>", msgText.payloads[0].toString());
 
-		final msgHtml = new ChatMessageBuilder({ html: Html.fromString("<b>hello</b>") });
+		final msgHtml = new ChatMessageBuilder();
+		msgHtml.setBody(Html.fromString("<b>hello</b>"));
 		Assert.equals("*hello*", msgHtml.text);
 		Assert.equals("<html xmlns=\"http://jabber.org/protocol/xhtml-im\"><body xmlns=\"http://www.w3.org/1999/xhtml\"><b>hello</b></body></html>", msgHtml.payloads[0].toString());
 	}

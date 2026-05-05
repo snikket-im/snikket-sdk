@@ -23,18 +23,17 @@ export default async (cacheName) => {
 			return true;
 		},
 
-		removeMedia(hashAlgorithm, hash) {
-			(async () => {
-				let niUrl;
-				if (hashAlgorithm === "sha-256") {
-					niUrl = mkNiUrl(hashAlgorithm, hash);
-				} else {
-					niUrl = this.kv && await this.kv.get(mkNiUrl(hashAlgorithm, hash));
-					if (!niUrl) return;
-				}
+		async removeMedia(hashAlgorithm, hash) {
+			let niUrl;
+			if (hashAlgorithm === "sha-256") {
+				niUrl = mkNiUrl(hashAlgorithm, hash);
+			} else {
+				niUrl = this.kv && await this.kv.get(mkNiUrl(hashAlgorithm, hash));
+				if (!niUrl) return;
+			}
 
-				return await cache.delete(niUrl);
-			})();
+			await cache.delete(niUrl);
+			return true;
 		},
 
 		routeHashPathSW() {

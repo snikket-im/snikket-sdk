@@ -123,7 +123,8 @@ class XEP0393 {
 		}
 
 		if (xhtml.name == "blockquote") {
-			return ~/^|(?<=\n)(?!$)/g.replace(s.toString(), "> ") + "\n";
+			final inner = s.toString(); // Always ends with newline for blockquote
+			return "> " + inner.substr(0, inner.length - 1).split("\n").join("\n> ") + "\n\n";
 		}
 
 		return s.toString();

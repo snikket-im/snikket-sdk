@@ -68,8 +68,9 @@ class MediaStoreFS implements MediaStore {
 	@HaxeCBridge.noemit
 	public function removeMedia(hashAlgorithm: String, hash: BytesData) {
 		final hash = new Hash(hashAlgorithm, hash);
-		getMediaPath(hash.toUri()).then((path) -> {
+		return getMediaPath(hash.toUri()).then((path) -> {
 			if (path != null) FileSystem.deleteFile(path);
+			return true;
 		});
 	}
 

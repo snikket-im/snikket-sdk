@@ -1,0 +1,21 @@
+--library HtmlParser
+--library datetime
+--library fractional-indexing
+--library haxe-strings
+--library hsluv
+--library thenshim
+--library tink_http
+--library uuidv7
+
+--library utest
+
+-D test
+-D analyzer-optimize
+-D NO_OMEMO
+-D HXCPP_ALIGN_ALLOC
+-D HXCPP_CPP17
+-main test.TestAll
+-w -WDeprecated
+--cpp .cache/test
+
+--cmd .cache/test/TestAll
