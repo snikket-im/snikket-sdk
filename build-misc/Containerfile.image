@@ -2,7 +2,7 @@ FROM docker.io/debian:stable-slim AS build
 
 WORKDIR /usr/src/sdk
 
-ARG HAXE_VERSION=4.3.4
+ARG HAXE_VERSION=4.3.7
 
 RUN apt-get update \
 	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
