@@ -1,6 +1,0 @@
-{
-	"compilerOptions": {
-		"lib": ["dom", "dom.iterable", "esnext"]
-	},
-	"files": ["npm/index.d.ts"]
-}

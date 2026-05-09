@@ -19,14 +19,11 @@ class TestAll {
 			new TestSessionDescription(),
 			new TestChatMessageBuilder(),
 			new TestStanza(),
-#if eval
-			new TestCaps(),
 			new TestPresence(),
 			new TestClient(),
-			new TestSortId(),
 			new TestParticipant(),
 			new TestChat(),
-#end
+			new TestSortId(),
 			new TestXEP0393(),
 			new TestEmojiUtil(),
 			new TestJID(),
@@ -35,7 +32,9 @@ class TestAll {
 			new TestReaction(),
 			new TestHtml(),
 			new TestStatus(),
-#if !eval
+#if eval
+			new TestCaps(),
+#else
 			new TestSqlite(),
 #end
 		]);
