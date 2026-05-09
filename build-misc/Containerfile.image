@@ -5,43 +5,43 @@ WORKDIR /usr/src/sdk
 ARG HAXE_VERSION=4.3.4
 
 RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        ca-certificates \
-        gpgv \
-        wget \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /var/cache/*
+	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+		ca-certificates \
+		gpgv \
+		wget \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& rm -rf /var/cache/*
 
 RUN wget https://www.deb-multimedia.org/pool/main/d/deb-multimedia-keyring/deb-multimedia-keyring_2024.9.1_all.deb \
- && (sha256sum deb-multimedia-keyring_2024.9.1_all.deb | grep -q '^8dc6cbb266c701cfe58bd1d2eb9fe2245a1d6341c7110cfbfe3a5a975dcf97ca ') \
- && dpkg -i deb-multimedia-keyring_2024.9.1_all.deb
+	&& (sha256sum deb-multimedia-keyring_2024.9.1_all.deb | grep -q '^8dc6cbb266c701cfe58bd1d2eb9fe2245a1d6341c7110cfbfe3a5a975dcf97ca ') \
+	&& dpkg -i deb-multimedia-keyring_2024.9.1_all.deb
 
 COPY build-misc/dmo.sources /etc/apt/sources.list.d/dmo.sources
 
 RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        build-essential \
-		  autoconf \
-		  automake \
-		  libtool \
-		  pkg-config \
-        git \
-        npm \
-        libdatachannel-dev \
-        libopus-dev \
-        libc-ares-dev \
-		  libexpat1-dev \
-		  libssl-dev \
-		  zlib1g-dev \
-		  libmbedtls-dev \
-		  libsqlite3-dev \
-		  libpcre2-dev \
-        neko \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /var/cache/*
+	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+		build-essential \
+		autoconf \
+		automake \
+		libtool \
+		pkg-config \
+		git \
+		npm \
+		libdatachannel-dev \
+		libopus-dev \
+		libc-ares-dev \
+		libexpat1-dev \
+		libssl-dev \
+		zlib1g-dev \
+		libmbedtls-dev \
+		libsqlite3-dev \
+		libpcre2-dev \
+		neko \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& rm -rf /var/cache/*
 
 RUN git clone https://github.com/strophe/libstrophe \
-    && cd libstrophe \
+	&& cd libstrophe \
 	 && ./bootstrap.sh \
 	 && ./configure --enable-cares --prefix=/usr \
 	 && make \
@@ -58,8 +58,8 @@ RUN mkdir /opt/haxe \
 # The large packets get fragmented and this causes handshakes to fail in some
 # networks, including on our CI workers. Warrants further investigation.
 RUN printf '#!/bin/bash\nexec /usr/bin/node --tls-max-v1.2 "$@"' > /usr/local/bin/node \
- && chmod a+x /usr/local/bin/node \
- && npm install typescript
+	&& chmod a+x /usr/local/bin/node \
+	&& npm install typescript
 
 COPY Makefile *.hxml /usr/src/sdk/
 COPY . /usr/src/sdk/
