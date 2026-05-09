@@ -68,10 +68,10 @@ RUN haxelib setup /opt/haxe
 ENV HAXE_STD_PATH=/opt/haxe/std
 RUN make hx-build-dep
 
+RUN make ci
+
 RUN make -j$(nproc)
 RUN cd cpp && make clean
-
-RUN make test
 
 FROM docker.io/debian:stable-slim
 
