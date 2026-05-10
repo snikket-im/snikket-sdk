@@ -39,8 +39,11 @@ class Push {
 		final message = ChatMessage.fromStanza(stanza, JID.parse(stanza.attr.get("to")).asBare());
 		if (message != null) {
 			// TODO: this puts every push at the same sortId until the next sync
-			persistence.syncPoint(message.account(), message.type == MessageChannel ? message.chatId() : null).then(point -> {
-				final sortId = FractionalIndexing.between(point?.sortId, null, FractionalIndexing.BASE_95_DIGITS);
+			(message.type == MessageChannel ?
+				persistence.syncPoint(message.account(), message.chatId()).then(point -> point?.sortId ?? "a ") :
+				persistence.getStreamManagement(message.account()).then(data -> data.sortId)
+			).then(sortId -> {
+				final sortId = FractionalIndexing.between(sortId, null, FractionalIndexing.BASE_95_DIGITS);
 				final toStore = ChatMessage.fromStanza(
 					stanza,
 					JID.parse(stanza.attr.get("to")).asBare(),

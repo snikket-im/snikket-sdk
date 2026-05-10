@@ -228,6 +228,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 9"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 10) {
+						return exec(["ALTER TABLE accounts ADD COLUMN sort_id TEXT NOT NULL DEFAULT 'a '",
+						"PRAGMA user_version = 10"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -771,29 +777,31 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	private var smStoreInProgress = false;
 	private var smStoreNext: Null<BytesData> = null;
+	private var smStoreIdNext: String = "a ";
 	@HaxeCBridge.noemit
-	public function storeStreamManagement(accountId:String, sm:Null<BytesData>) {
+	public function storeStreamManagement(accountId:String, sm:Null<BytesData>, sortId:String) {
 		smStoreNext = sm;
+		smStoreIdNext = sortId;
 		if (!smStoreInProgress) {
 			smStoreInProgress = true;
 			db.exec(
-				"UPDATE accounts SET sm_state=? WHERE account_id=?",
-				[sm, accountId]
+				"UPDATE accounts SET sm_state=?, sort_id=? WHERE account_id=?",
+				[sm, sortId, accountId]
 			).then(_ -> {
 				smStoreInProgress = false;
-				if (smStoreNext != sm) storeStreamManagement(accountId, sm);
+				if (smStoreNext != sm || smStoreIdNext != sortId) storeStreamManagement(accountId, sm, sortId);
 			});
 		}
 	}
 
 	@HaxeCBridge.noemit
-	public function getStreamManagement(accountId:String): Promise<Null<BytesData>> {
-		return db.exec("SELECT sm_state FROM accounts  WHERE account_id=?", [accountId]).then(result -> {
+	public function getStreamManagement(accountId:String): Promise<{ sm: Null<BytesData>, sortId: String }> {
+		return db.exec("SELECT sm_state, sort_id FROM accounts  WHERE account_id=?", [accountId]).then(result -> {
 			for (row in result) {
-				return row.sm_state;
+				return { sm: row.sm_state, sortId: row.sort_id };
 			}
 
-			return null;
+			return { sm: null, sortId: "a " };
 		});
 	}
 

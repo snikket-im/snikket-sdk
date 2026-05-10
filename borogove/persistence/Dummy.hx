@@ -128,11 +128,11 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeStreamManagement(accountId:String, sm:Null<BytesData>) { }
+	public function storeStreamManagement(accountId:String, sm:Null<BytesData>, sortId: String) { }
 
 	@HaxeCBridge.noemit
-	public function getStreamManagement(accountId:String): Promise<Null<BytesData>> {
-		return Promise.resolve(null);
+	public function getStreamManagement(accountId:String): Promise<{ sm: Null<BytesData>, sortId: String }> {
+		return Promise.resolve({ sm: null, sortId: "a " });
 	}
 
 	@HaxeCBridge.noemit

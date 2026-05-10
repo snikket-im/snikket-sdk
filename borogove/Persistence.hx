@@ -219,9 +219,10 @@ interface Persistence {
 
 		@param accountId the account to store resumption data for
 		@param data stream management payload, or null to clear it
+		@param sortId highest sortId ever seen by this stream
 	**/
 	@HaxeCBridge.noemit
-	public function storeStreamManagement(accountId:String, data:Null<BytesData>):Void;
+	public function storeStreamManagement(accountId:String, data:Null<BytesData>, sortId: String):Void;
 
 	/**
 		Load stream management resumption data for an account
@@ -230,7 +231,7 @@ interface Persistence {
 		@returns Promise resolving to stored resumption data or null
 	**/
 	@HaxeCBridge.noemit
-	public function getStreamManagement(accountId:String): Promise<Null<BytesData>>;
+	public function getStreamManagement(accountId:String): Promise<{ sm: Null<BytesData>, sortId: String }>;
 
 	/**
 		Store metadata about a discovered service

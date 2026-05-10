@@ -166,7 +166,7 @@ class Client extends EventEmitter {
 		});
 
 		stream.on("sm/update", (data) -> {
-			persistence.storeStreamManagement(this.accountId(), stream.emitSMupdates ? data.sm : null);
+			persistence.storeStreamManagement(this.accountId(), stream.emitSMupdates ? data.sm : null, sortId);
 			return EventHandled;
 		});
 
@@ -713,7 +713,8 @@ class Client extends EventEmitter {
 		stream.emitSMupdates = false; // We don't care until after sync
 		startOffline().then(_ ->
 			persistence.getStreamManagement(accountId())
-		).then((sm) -> {
+		).then((data) -> {
+			if (data.sortId > sortId) sortId = data.sortId;
 			stream.on("auth/password-needed", (data: { ?mechanisms: Array<{ name: String, canFast: Bool, canOther: Bool }> }) -> {
 				fastMechanism = data.mechanisms?.find((mech) -> mech.canFast)?.name;
 				if (token == null || (fastMechanism == null && data.mechanisms != null)) {
@@ -725,14 +726,14 @@ class Client extends EventEmitter {
 			stream.on("auth/fail", (data) -> {
 				if (token != null) {
 					token = null;
-					stream.connect(jid.asString(), sm);
+					stream.connect(jid.asString(), data.sm);
 				} else {
-					stream.connect(jid.asString(), sm);
+					stream.connect(jid.asString(), data.sm);
 				}
 				return EventHandled;
 			});
 			firstSync = true;
-			stream.connect(jid.asString(), sm);
+			stream.connect(jid.asString(), data.sm);
 		});
 	}
 

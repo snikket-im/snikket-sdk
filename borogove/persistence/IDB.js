@@ -992,27 +992,28 @@ export default async (dbname, media, tokenize, stemmer) => {
 			};
 		},
 
-		storeStreamManagement: function(account, sm) {
+		async storeStreamManagement(account, sm, sortId) {
 			// Don't bother on ios, the indexeddb is too broken
 			// https://bugs.webkit.org/show_bug.cgi?id=287876
 			if (navigator.userAgent.match(/(iPad|iPhone|iPod)/g)) return;
 
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			const req = store.put(sm, "sm:" + account);
-			req.onerror = () => { console.error("storeStreamManagement", req.error.name, req.error.message); }
+			await Promise.all([
+				await promisifyRequest(store.put(sm, "sm:" + account)),
+				await promisifyRequest(store.put(sortId, "sortId:" + account))
+			]);
 		},
 
 		async getStreamManagement(account) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			const v = await promisifyRequest(store.get("sm:" + account));
-			if (v instanceof ArrayBuffer) {
-				return v;
-			} else if(!v) {
-				return null;
+			const sm = await promisifyRequest(store.get("sm:" + account)) || null;
+			const sortId = await promisifyRequest(store.get("sortId:" + account)) ?? "a ";
+			if (sm instanceof ArrayBuffer || !sm) {
+				return { sm, sortId };
 			} else {
-				return new Blob([JSON.stringify(v)], {type: "text/plain; charset=utf-8"}).arrayBuffer();
+				return { sm: new Blob([JSON.stringify(sm)], {type: "text/plain; charset=utf-8"}).arrayBuffer(), sortId };
 			}
 		},
 
