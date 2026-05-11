@@ -32,7 +32,7 @@ extern class XmppJsClient {
 		get: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 		set: (String, String, ({stanza: XmppJsXml})->Any)->Void,
 	};
-	var middleware: { use:(({stanza: XmppJsXml})->Void)->Void };
+	var middleware: XmppJsMiddleware;
 	var streamFeatures: { use:(String,String,({}, ()->Void, XmppJsXml)->Void)->Void };
 	var streamManagement: {
 		id:String,
@@ -130,6 +130,8 @@ extern class XmppJsResolve {
 @:js.import(@default "@xmpp/middleware")
 extern class XmppJsMiddleware {
 	function new(params: { entity: XmppJsClientCore });
+	function filter(f: ({ stanza: XmppJsXml }, ()->Any)->Any): Void;
+	function use(f: ({stanza: XmppJsXml})->Void): Void;
 }
 
 @:js.import(@default "@xmpp/stream-features")
@@ -321,7 +323,6 @@ class XmppJsStream extends GenericStream {
 		});
 
 		xmpp.on("stanza", function (stanza) {
-			triggerSMupdate();
 			this.onStanza(convertToStanza(stanza));
 		});
 
@@ -333,6 +334,12 @@ class XmppJsStream extends GenericStream {
 		xmpp.streamManagement.on("fail", (stanza) -> {
 			if (stanza.name == "message" && stanza.attrs.id != null) this.trigger("sm/fail", { id: stanza.attrs.id });
 			triggerSMupdate();
+		});
+
+		xmpp.middleware.filter((context, next) -> {
+			if (!["message", "iq", "presence"].contains(context.stanza.getName())) return next();
+			triggerSMupdate();
+			return next();
 		});
 
 		xmpp.fast.saveToken = (token) -> {
@@ -422,7 +429,6 @@ class XmppJsStream extends GenericStream {
 		} else {
 			client.send(convertFromStanza(stanza));
 		}
-		triggerSMupdate();
 	}
 
 	private function triggerSMupdate() {
