@@ -27,6 +27,7 @@ RUN apt-get update \
 		pkg-config \
 		git \
 		npm \
+		esbuild \
 		libdatachannel-dev \
 		libopus-dev \
 		libc-ares-dev \
