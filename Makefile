@@ -62,10 +62,10 @@ npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogov
 	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d persistence-browser.ts
 
 playwright/.cache/borogove.js: npm
-	esbuild npm/index.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" "--footer:js=export { borogove_JID as JID, borogove_Stanza as Stanza, borogove_ReactionUpdate as ReactionUpdate }" --outfile=$@
+	cd npm && esbuild index.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" "--footer:js=export { borogove_JID as JID, borogove_Stanza as Stanza, borogove_ReactionUpdate as ReactionUpdate }" --outfile=../$@
 
 playwright/.cache/sqlite-wasm.js: npm
-	esbuild npm/sqlite-wasm.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" --outfile=$@
+	cd npm && esbuild sqlite-wasm.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" --outfile=../$@
 	sed -i 's/new URL("sqlite-worker1.mjs", import.meta.url)/window.sqliteWorker1Url/g' $@
 
 playwright/.cache/sqlite-worker1.js: npm

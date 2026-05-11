@@ -1,0 +1,7 @@
+Package: *
+Pin: release o=Debian
+Pin-Priority: 900
+
+Package: *
+Pin: release o=Unofficial Multimedia Packages
+Pin-Priority: 1

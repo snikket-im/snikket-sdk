@@ -17,6 +17,7 @@ RUN wget https://www.deb-multimedia.org/pool/main/d/deb-multimedia-keyring/deb-m
 	&& dpkg -i deb-multimedia-keyring_2024.9.1_all.deb
 
 COPY build-misc/dmo.sources /etc/apt/sources.list.d/dmo.sources
+COPY build-misc/apt-pref /etc/apt/preferences.d/apt-pref
 
 RUN apt-get update \
 	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -61,6 +62,9 @@ RUN mkdir /opt/haxe \
 RUN printf '#!/bin/bash\nexec /usr/bin/node --tls-max-v1.2 "$@"' > /usr/local/bin/node \
 	&& chmod a+x /usr/local/bin/node \
 	&& npm install typescript @sqlite.org/sqlite-wasm @playwright/test
+
+RUN rm /etc/apt/sources.list.d/dmo.sources
+RUN npx playwright install --with-deps
 
 COPY Makefile *.hxml /usr/src/sdk/
 COPY . /usr/src/sdk/
