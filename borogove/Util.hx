@@ -32,6 +32,9 @@ class DummyRequireMacro {
 function setupTrace() {
 #if js
 	haxe.Log.trace = (v, ?infos) -> {
+#if nodejs
+		if (!js.Syntax.code("globalThis.process?.env?.BOROGOVE_DEBUG")) return;
+#end
 		if (js.Syntax.typeof(untyped console) != "undefined" && (untyped console).debug != null) {
 			final params = infos.customParams ?? [];
 			infos.customParams = [];
