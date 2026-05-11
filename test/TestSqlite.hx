@@ -813,4 +813,17 @@ class TestSqlite extends utest.Test {
 			});
 		}, 200);
 	}
+
+	public function testStoreStreamManamagementAndGetStreamManagement(async: Async) {
+		persistence.storeLogin("alice@example.com", "", "", null).then(_ ->
+			persistence.storeStreamManagement("alice@example.com", Bytes.ofHex("01020004").getData(), "ZZ")
+		).then(_ ->
+			persistence.getStreamManagement("alice@example.com")
+		).then(result -> {
+			Assert.equals(Bytes.ofData(result.sm).toHex(), "01020004");
+			Assert.isTrue(Std.isOfType(result.sm, BytesData), "Should be BytesData");
+			Assert.equals(result.sortId, "ZZ");
+			async.done();
+		});
+	}
 }

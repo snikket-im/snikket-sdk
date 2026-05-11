@@ -110,7 +110,9 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>) { }
+	public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>): Promise<Bool> {
+		return Promise.resolve(false);
+	}
 
 	@HaxeCBridge.noemit
 	public function getLogin(login:String): Promise<{ clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String> }> {
@@ -128,7 +130,9 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeStreamManagement(accountId:String, sm:Null<BytesData>, sortId: String) { }
+	public function storeStreamManagement(accountId:String, sm:Null<BytesData>, sortId: String): Promise<Bool> {
+		return Promise.resolve(false);
+	}
 
 	@HaxeCBridge.noemit
 	public function getStreamManagement(accountId:String): Promise<{ sm: Null<BytesData>, sortId: String }> {

@@ -1055,11 +1055,8 @@ test("storeChats and getChats with status", async ({ page }) => {
 		const borogove = await import(URL.createObjectURL(blob));
 
 		const mediaStore =
-			await borogove.persistence.MediaStoreCache("snikket_status");
-		const persistence = await borogove.persistence.IDB(
-			"snikket_status",
-			mediaStore,
-		);
+			await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
 
 		const chat = Object.create(borogove.DirectChat.prototype);
 		chat.chatId = "hatter@example.com";
@@ -1083,4 +1080,28 @@ test("storeChats and getChats with status", async ({ page }) => {
 	expect(result.chatId).toBe("hatter@example.com");
 	expect(result.statusEmoji).toBe("🎩");
 	expect(result.statusText).toBe("Time for tea!");
+});
+
+test("storeStreamManamagement and getStreamManagement", async ({ page }) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: "text/javascript" });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+
+		await persistence.storeLogin("alice@example.com", "", "", null); // or updating with SM may not work
+		await persistence.storeStreamManagement("alice@example.com", new Uint8Array([1,2,0,4]).buffer, "ZZ");
+		const result = await persistence.getStreamManagement("alice@example.com");
+		return { smIsArrayBuffer: result.sm instanceof ArrayBuffer, smIsEq: result.sm ? indexedDB.cmp(result.sm, new Uint8Array([1,2,0,4]).buffer) : "null", sortId: result.sortId };
+	}, code);
+
+	expect(result.smIsEq).toBe(0);
+	expect(result.smIsArrayBuffer).toBe(true);
+	expect(result.sortId).toBe("ZZ");
 });

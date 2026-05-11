@@ -186,8 +186,9 @@ interface Persistence {
 		@param clientId negotiated client ID
 		@param displayName last known display name
 		@param token persisted token or null to clear it
+		@returns Promise resolving to true when store succeeded
 	**/
-	public function storeLogin(accountId:String, clientId:String, displayName:String, token:Null<String>):Void;
+	public function storeLogin(accountId:String, clientId:String, displayName:String, token:Null<String>): Promise<Bool>;
 
 	/**
 		Load persisted login-related state for an account
@@ -220,9 +221,10 @@ interface Persistence {
 		@param accountId the account to store resumption data for
 		@param data stream management payload, or null to clear it
 		@param sortId highest sortId ever seen by this stream
+		@returns Promise resolving to true when store succeeded
 	**/
 	@HaxeCBridge.noemit
-	public function storeStreamManagement(accountId:String, data:Null<BytesData>, sortId: String):Void;
+	public function storeStreamManagement(accountId:String, data:Null<BytesData>, sortId: String): Promise<Bool>;
 
 	/**
 		Load stream management resumption data for an account

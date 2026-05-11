@@ -56,12 +56,11 @@ class Sqlite implements Persistence implements KeyValueStore {
 					Std.string(p);
 				case TNull:
 					"NULL";
-				case TClass(Array):
-					var bytes:Bytes = Bytes.ofData(p);
+				case TClass(BytesData):
+					var bytes = Bytes.ofData(p);
 					"X'" + bytes.toHex() + "'";
 				case TClass(haxe.io.Bytes):
-					var bytes:Bytes = cast p;
-					"X'" + bytes.toHex() + "'";
+					"X'" + p.toHex() + "'";
 				case _:
 					throw("UKNONWN: " + Type.typeof(p));
 			}
@@ -702,7 +701,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeLogin(accountId:String, clientId:String, displayName:String, token:Null<String>) {
+	public function storeLogin(accountId:String, clientId:String, displayName:String, token:Null<String>): Promise<Bool> {
 		final params = [accountId, clientId, displayName];
 		final q = new StringBuf();
 		q.add("INSERT INTO accounts (account_id, client_id, display_name");
@@ -724,7 +723,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			params.push(token);
 			q.add(", fast_count=0"); // reset count to zero on new token
 		}
-		db.exec(q.toString(), params);
+		return db.exec(q.toString(), params).then(_ -> true);
 	}
 
 	@HaxeCBridge.noemit
@@ -784,14 +783,18 @@ class Sqlite implements Persistence implements KeyValueStore {
 		smStoreIdNext = sortId;
 		if (!smStoreInProgress) {
 			smStoreInProgress = true;
-			db.exec(
+			return db.exec(
 				"UPDATE accounts SET sm_state=?, sort_id=? WHERE account_id=?",
 				[sm, sortId, accountId]
 			).then(_ -> {
 				smStoreInProgress = false;
-				if (smStoreNext != sm || smStoreIdNext != sortId) storeStreamManagement(accountId, sm, sortId);
-			});
+				if (smStoreNext != sm || smStoreIdNext != sortId) storeStreamManagement(accountId, smStoreNext, smStoreIdNext);
+				return null;
+			}).then(_ -> Promise.resolve(true));
 		}
+
+		// Hmm, we're not really done yet?
+		return Promise.resolve(true);
 	}
 
 	@HaxeCBridge.noemit

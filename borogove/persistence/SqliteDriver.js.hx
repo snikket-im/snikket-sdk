@@ -33,7 +33,15 @@ class SqliteDriver {
 				for (const q of qs) {
 					db.exec(q);
 				}
-				parentPort.postMessage({ id, result: db.prepare(lastQ).all() });
+				const result = db.prepare(lastQ).all().map(row => {
+					for (const k of Object.keys(row)) {
+						// NodeJS sqlite produces Uin8Array for blob
+						// but Haxe expects ArrayBuffer for BytesData
+						if (row[k] instanceof Uint8Array) row[k] = row[k].buffer;
+					}
+					return row;
+				});
+				parentPort.postMessage({ id, result });
 				if (qs.length > 0) db.exec("COMMIT");
 			} catch (error) {
 				if (qs.length > 0) db.exec("ROLLBACK");
@@ -151,7 +159,11 @@ class SqliteDriver {
 				if (r.rowNumber == null) {
 					signalAllDone(null);
 				} else {
-					items.push(r.row);
+					final row: haxe.DynamicAccess<Dynamic> = r.row;
+					for (k => v in row) {
+						if (Std.isOfType(v, js.lib.Uint8Array)) row[k] = row[k].buffer;
+					}
+					items.push(row);
 				}
 				null;
 			}

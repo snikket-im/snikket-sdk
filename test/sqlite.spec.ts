@@ -1559,4 +1559,60 @@ test.describe("not webkit", () => {
 		expect(result.statusEmoji).toBe("🎩");
 		expect(result.statusText).toBe("Time for tea!");
 	});
+
+	test("storeStreamManamagement and getStreamManagement", async ({ page }) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+
+				try {
+					await persistence.storeLogin("alice@example.com", "", "", null); // or updating with SM may not work
+					await persistence.storeStreamManagement("alice@example.com", new Uint8Array([1,2,0,4]).buffer, "ZZ");
+					const result = await persistence.getStreamManagement("alice@example.com");
+					return { smIsArrayBuffer: result.sm instanceof ArrayBuffer, smIsEq: result.sm ? indexedDB.cmp(result.sm, new Uint8Array([1,2,0,4]).buffer) : "null", sortId: result.sortId };
+				} catch (e) {
+					console.error(e, e.result);
+					throw e.result ? JSON.stringify(e.result) : e.message;
+				}
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result.smIsEq).toBe(0);
+		expect(result.smIsArrayBuffer).toBe(true);
+		expect(result.sortId).toBe("ZZ");
+	});
 });

@@ -875,15 +875,16 @@ export default async (dbname, media, tokenize, stemmer) => {
 			return null;
 		},
 
-		storeLogin: function(login, clientId, displayName, token) {
+		async storeLogin(login, clientId, displayName, token) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			store.put(clientId, "login:clientId:" + login).onerror = console.error;
-			store.put(displayName, "fn:" + login).onerror = console.error;
+			await promisifyRequest(store.put(clientId, "login:clientId:" + login));
+			await promisifyRequest(store.put(displayName, "fn:" + login));
 			if (token != null) {
-				store.put(token, "login:token:" + login).onerror = console.error;
-				store.put(0, "login:fastCount:" + login).onerror = console.error;
+				await promisifyRequest(store.put(token, "login:token:" + login));
+				await promisifyRequest(store.put(0, "login:fastCount:" + login));
 			}
+			return true;
 		},
 
 		storeOmemoId: function(account, omemoId) {
@@ -1003,6 +1004,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				await promisifyRequest(store.put(sm, "sm:" + account)),
 				await promisifyRequest(store.put(sortId, "sortId:" + account))
 			]);
+			return true;
 		},
 
 		async getStreamManagement(account) {
