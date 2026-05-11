@@ -60,7 +60,7 @@ RUN mkdir /opt/haxe \
 # networks, including on our CI workers. Warrants further investigation.
 RUN printf '#!/bin/bash\nexec /usr/bin/node --tls-max-v1.2 "$@"' > /usr/local/bin/node \
 	&& chmod a+x /usr/local/bin/node \
-	&& npm install typescript
+	&& npm install typescript @sqlite.org/sqlite-wasm @playwright/test
 
 COPY Makefile *.hxml /usr/src/sdk/
 COPY . /usr/src/sdk/
@@ -69,6 +69,7 @@ RUN haxelib setup /opt/haxe
 ENV HAXE_STD_PATH=/opt/haxe/std
 RUN make hx-build-dep
 
+RUN cd npm && npm install
 RUN make ci
 
 RUN make -j$(nproc)
