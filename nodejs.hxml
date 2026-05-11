@@ -15,6 +15,7 @@ borogove.Register
 borogove.Push
 borogove.Version
 borogove.persistence.Sqlite
+borogove.persistence.MediaStoreFS
 borogove.Html
 
 --macro borogove.Util.DummyRequireMacro.init()

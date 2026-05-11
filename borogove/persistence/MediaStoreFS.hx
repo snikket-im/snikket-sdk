@@ -14,6 +14,7 @@ import thenshim.Promise;
 @:build(HaxeSwiftBridge.expose())
 @HaxeCBridge.name("borogove_persistence_media_store_fs")
 #end
+@:expose
 class MediaStoreFS implements MediaStore {
 	private final blobpath: String;
 	private var kv: Null<KeyValueStore> = null;

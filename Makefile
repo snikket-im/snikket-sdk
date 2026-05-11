@@ -48,6 +48,7 @@ npm/borogove.js:
 	sed -i '/\$$hx_exports.*|| {};/d' npm/borogove.js
 	sed -i 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove.js
 	sed -i 's/"\[Symbol.asyncIterator\]"() {/[Symbol.asyncIterator]() {/g' npm/borogove.js
+	echo "export { FractionalIndexing_between, FractionalIndexing_BASE_95_DIGITS }" >> npm/borogove.js
 	cd npm && npx cjstoesm borogove.js
 	echo "export class borogove_Presence {}" >> npm/borogove.d.ts
 
@@ -55,8 +56,10 @@ npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogov
 	cp borogove/persistence/IDB.js npm
 	cp borogove/persistence/MediaStoreCache.js npm
 	cp borogove/persistence/sqlite-worker1.mjs npm
+	$(RM) =f npm/calls.js npm/persistence.js npm/persistence-browser.js npm/borogove-enums.js
 	-cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts > /dev/null
 	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts
+	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d persistence-browser.ts
 
 playwright/.cache/borogove.js: npm
 	esbuild npm/index.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" "--footer:js=export { borogove_JID as JID, borogove_Stanza as Stanza, borogove_ReactionUpdate as ReactionUpdate }" --outfile=$@

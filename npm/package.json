@@ -11,7 +11,8 @@
     "*.ts"
   ],
   "browser": {
-    "./borogove.js": "./borogove-browser.js"
+    "./borogove.js": "./borogove-browser.js",
+    "./persistence.js": "./persistence-browser.js"
   },
   "exports": {
     ".": "./index.js",

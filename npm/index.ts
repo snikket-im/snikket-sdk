@@ -6,7 +6,7 @@ export {
 	borogove_ReactionUpdateKind as ReactionUpdateKind,
 	borogove_UiState as UiState,
 	borogove_UserState as UserState,
-} from "./borogove-enums";
+} from "./borogove-enums.js";
 export {
     borogove_AvailableChat as AvailableChat,
     borogove_AvailableChatIterator as AvailableChatIterator,
@@ -46,10 +46,10 @@ export type {
     borogove_Persistence as Persistence,
 } from "./borogove.js";
 
-import * as persistence from "./persistence";
+import * as persistence from "./persistence.js";
 export { persistence };
 
-import * as calls from "./calls";
+import * as calls from "./calls.js";
 export { calls };
 
 import { borogove_Version } from "./borogove.js";
