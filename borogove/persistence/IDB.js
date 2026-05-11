@@ -329,7 +329,10 @@ export default async (dbname, media, tokenize, stemmer) => {
 		const replyToMessage = range && await hydrateMessage((await promisifyRequest(store.openCursor(range)))?.value);
 
 		message.replyToMessage = replyToMessage;
-		message.versions = await Promise.all((value.versions || []).map(hydrateMessage));
+		message.versions = await Promise.all((value.versions || []).map(v => {
+			v.versions = []; // No need for nested versions...
+			return hydrateMessage(v);
+		}));
 		return message;
 	}
 
