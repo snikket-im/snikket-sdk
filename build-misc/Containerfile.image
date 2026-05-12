@@ -67,13 +67,24 @@ RUN rm /etc/apt/sources.list.d/dmo.sources
 RUN npx playwright install --with-deps
 
 COPY Makefile *.hxml /usr/src/sdk/
-COPY . /usr/src/sdk/
 
 RUN haxelib setup /opt/haxe
 ENV HAXE_STD_PATH=/opt/haxe/std
 RUN make hx-build-dep
 
+COPY npm /usr/src/sdk/npm
 RUN cd npm && npm install
+
+# Just need a newer version to actually run make ci with
+# For the nodejs sqlite tests, since sqlite was added to nodejs in 22
+ADD https://nodejs.org/dist/v22.22.2/node-v22.22.2-linux-x64.tar.xz /tmp/nodejs.tar.xz
+
+RUN mkdir /opt/nodejs \
+ && tar xGf /tmp/nodejs.tar.xz --strip-components=1 -C /opt/nodejs \
+ && mv /opt/nodejs/bin/node /usr/local/bin/nodejs
+
+COPY . /usr/src/sdk/
+
 RUN make ci
 
 RUN make -j$(nproc)
