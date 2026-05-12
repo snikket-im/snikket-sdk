@@ -30,7 +30,7 @@ class DummyRequireMacro {
 #end
 
 function setupTrace() {
-#if js
+#if (js && !test)
 	haxe.Log.trace = (v, ?infos) -> {
 #if nodejs
 		if (!js.Syntax.code("globalThis.process?.env?.BOROGOVE_DEBUG")) return;
