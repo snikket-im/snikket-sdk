@@ -407,7 +407,8 @@ class XmppJsStream extends GenericStream {
 				attrs.set("{" + el.findNS(parts[0]) + "}" + parts[1], val);
 			}
 		}
-		attrs.set("xmlns", el.getNS());
+		final ns = el.getNS();
+		if (ns != null) attrs.set("xmlns", ns);
 		var stanza = new Stanza(el.getName(), attrs);
 		for (child in el.children) {
 			if(XmppJsLtx.isText(child)) {
