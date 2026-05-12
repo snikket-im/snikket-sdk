@@ -55,13 +55,21 @@ RUN mkdir /opt/haxe \
  && tar xzf /tmp/haxe.tar.gz --strip-components=1 -C /opt/haxe \
  && mv /opt/haxe/haxe /opt/haxe/haxelib /usr/local/bin
 
+# Just need a newer version to actually run make ci with
+# For the nodejs sqlite tests, since sqlite was added to nodejs in 22
+ADD https://nodejs.org/dist/v22.22.2/node-v22.22.2-linux-x64.tar.xz /tmp/nodejs.tar.xz
+
+RUN mkdir /opt/nodejs \
+ && tar xGf /tmp/nodejs.tar.xz --strip-components=1 -C /opt/nodejs \
+ && mv /opt/nodejs/bin/node /usr/local/bin/nodejs
+
 # Hack to disable TLS 1.3: OpenSSL 3.5.0 (currently in Debian testing) emits
 # signficiantly larger ClientHello packets due to post-quantum key algorithms.
 # The large packets get fragmented and this causes handshakes to fail in some
 # networks, including on our CI workers. Warrants further investigation.
 RUN printf '#!/bin/bash\nexec /usr/bin/node --tls-max-v1.2 "$@"' > /usr/local/bin/node \
 	&& chmod a+x /usr/local/bin/node \
-	&& npm install typescript @sqlite.org/sqlite-wasm @playwright/test
+	&& npm install typescript @playwright/test @sqlite.org/sqlite-wasm @xmpp/sasl-scram-sha-1
 
 RUN rm /etc/apt/sources.list.d/dmo.sources
 RUN npx playwright install --with-deps
@@ -74,14 +82,6 @@ RUN make hx-build-dep
 
 COPY npm /usr/src/sdk/npm
 RUN cd npm && npm install
-
-# Just need a newer version to actually run make ci with
-# For the nodejs sqlite tests, since sqlite was added to nodejs in 22
-ADD https://nodejs.org/dist/v22.22.2/node-v22.22.2-linux-x64.tar.xz /tmp/nodejs.tar.xz
-
-RUN mkdir /opt/nodejs \
- && tar xGf /tmp/nodejs.tar.xz --strip-components=1 -C /opt/nodejs \
- && mv /opt/nodejs/bin/node /usr/local/bin/nodejs
 
 COPY . /usr/src/sdk/
 
