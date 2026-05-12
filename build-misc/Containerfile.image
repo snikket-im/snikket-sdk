@@ -67,9 +67,8 @@ RUN mkdir /opt/nodejs \
 # signficiantly larger ClientHello packets due to post-quantum key algorithms.
 # The large packets get fragmented and this causes handshakes to fail in some
 # networks, including on our CI workers. Warrants further investigation.
-RUN printf '#!/bin/bash\nexec /usr/bin/node --tls-max-v1.2 "$@"' > /usr/local/bin/node \
-	&& chmod a+x /usr/local/bin/node \
-	&& npm install typescript @playwright/test @sqlite.org/sqlite-wasm @xmpp/sasl-scram-sha-1
+RUN printf '#!/bin/bash\nexec /usr/local/bin/nodejs --tls-max-v1.2 "$@"' > /usr/local/bin/node \
+	&& chmod a+x /usr/local/bin/node
 
 RUN rm /etc/apt/sources.list.d/dmo.sources
 RUN npx playwright install --with-deps
@@ -81,7 +80,8 @@ ENV HAXE_STD_PATH=/opt/haxe/std
 RUN make hx-build-dep
 
 COPY npm /usr/src/sdk/npm
-RUN cd npm && npm install
+RUN cd npm && npm install && npm install @playwright/test @sqlite.org/sqlite-wasm
+RUN ln -s npm/node_modules node_modules
 
 COPY . /usr/src/sdk/
 
