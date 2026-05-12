@@ -75,7 +75,7 @@ playwright/.cache/sqlite-worker1.js: npm
 	esbuild $@.mjs --bundle --format=esm --loader:.wasm=dataurl --outfile=$@
 	$(RM) $@.mjs
 
-playwright: playwright/.cache/borogove.js playwright/.cache/sqlite-wasm.js
+playwright: playwright/.cache/borogove.js playwright/.cache/sqlite-wasm.js playwright/.cache/sqlite-worker1.js
 	npx playwright test
 
 cpp/libborogove.dso:
