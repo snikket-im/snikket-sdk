@@ -286,9 +286,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 		storeChatTimer = haxe.Timer.delay(() -> {
 			final mapPresence = (chat: Chat) -> {
 				final storePresence: DynamicAccess<String> = {};
-				for (resource => presence in chat.presence) {
+				/* TODO for (resource => presence in chat.presence) {
 					if (storePresence[resource ?? ""] == null) storePresence[resource ?? ""] = presence.toString();
-				}
+				}*/
 				return storePresence;
 			};
 			final q = new StringBuf();
@@ -329,6 +329,36 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
+	public function storeMembers(accountId: String, chatId: String, chat: Array<Member>) {
+		// TODO
+		return Promise.resolve(false);
+	}
+
+	@HaxeCBridge.noemit
+	public function storeMemberUpdates(accountId: String, chat: Chat, updates: Array<MemberUpdate>, isFullList: Bool) {
+		// TODO
+		return Promise.resolve([]);
+	}
+
+	@HaxeCBridge.noemit
+	public function clearMemberPresence(accountId: String, chatId: Null<String>) {
+		//  TODO
+		return Promise.resolve(false);
+	}
+
+	@HaxeCBridge.noemit
+	public function getMembers(accountId: String, chat: Chat, forModerator: Bool) {
+		//  TODO
+		return Promise.resolve([]);
+	}
+
+	@HaxeCBridge.noemit
+	public function getMemberDetails(accountId: String, chat: Null<Chat>, ids: Array<String>) {
+		// TODO
+		return Promise.resolve([]);
+	}
+
+	@HaxeCBridge.noemit
 	public function searchMessages(accountId: String, chatId: Null<String>, q: String): Promise<Array<ChatMessage>> {
 		var sql = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sort_id, sync_point FROM messages WHERE account_id=? AND stanza LIKE ?";
 		final params = [accountId, "%" + q + "%"];
@@ -364,13 +394,16 @@ class Sqlite implements Persistence implements KeyValueStore {
 				}
 
 				final metaJson: { ?threads: Null<DynamicAccess<String>>, ?status: Null<{ emoji: String, text: String }> } = Json.parse(row.meta);
-				final threadsMap: StringMapNullableKey = new StringMapNullableKey();
+				final threadsMap: StringMapNullableKey<String> = new StringMapNullableKey();
 				for (thread => subject in metaJson.threads ?? {}) {
 					threadsMap.set(thread == "" ? null : thread, subject);
 				}
 
 				// FIXME: Empty OMEMO contact device ids hardcoded in next line
-				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.bookmarked != 0, row.avatar_sha1, presenceMap, row.fn, row.ui_state, row.blocked != 0, new Status(metaJson.status?.emoji ?? "", metaJson.status?.text ?? ""), row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, threadsMap, row.capsObj, [], Reflect.field(row, "class")));
+				// TODO: memebersForName
+				// TODO: new presence storage
+				// TODO: mavUntil
+				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.bookmarked != 0, row.avatar_sha1, presenceMap, [], row.fn, row.ui_state, row.blocked != 0, new Status(metaJson.status?.emoji ?? "", metaJson.status?.text ?? ""), row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, threadsMap, row.capsObj, null, [], Reflect.field(row, "class")));
 			}
 			return chats;
 		});

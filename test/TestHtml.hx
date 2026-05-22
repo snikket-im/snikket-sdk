@@ -6,7 +6,7 @@ import utest.Async;
 import borogove.Html;
 import borogove.ChatMessageBuilder;
 import borogove.JID;
-import borogove.Participant;
+import borogove.Member;
 
 @:access(borogove)
 class TestHtml extends utest.Test {
@@ -44,7 +44,7 @@ class TestHtml extends utest.Test {
 		msg.sender = msg.from;
 		msg.text = "/me says hello";
 
-		final participant = new Participant("hatter", null, "", false, [], msg.from, null);
+		final participant = new Member("id1", "hatter", null, false, [], msg.from, new Map(), null);
 
 		Assert.equals(
 			"<div class=\"action\"><p>hatter says hello</p></div>",
@@ -60,7 +60,7 @@ class TestHtml extends utest.Test {
 		msg.sender = msg.from;
 		msg.setBody(Html.fromString("/me says <div class='sup&amp;2'><img src='hai'><br><p></p>"));
 
-		final participant = new Participant("hatter", null, "", false, [], msg.from, null);
+		final participant = new Member("id1", "hatter", null, false, [], msg.from, new Map(), null);
 
 		Assert.equals(
 			"<div class=\"action\">hatter says <div class=\"sup&amp;2\"><img src=\"hai\" /><br /><p></p></div></div>",

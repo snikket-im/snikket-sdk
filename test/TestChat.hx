@@ -7,9 +7,13 @@ import borogove.ChatMessageBuilder;
 import borogove.Stanza;
 import borogove.JID;
 import borogove.persistence.Dummy;
+import borogove.CapsRepo;
 import borogove.Chat.Channel;
 import borogove.Chat.AvailableChat;
 import borogove.Caps.Identity;
+import borogove.Member;
+import borogove.Role;
+import thenshim.Promise;
 
 @:access(borogove)
 class TestChat extends utest.Test {
@@ -265,18 +269,23 @@ class TestChat extends utest.Test {
 		chat.disco = new borogove.Caps("", [], ["urn:xmpp:message-moderate:1", "http://jabber.org/protocol/muc"], []);
 		Assert.isFalse(chat.canModerate());
 
-		// Nick in use set
-		chat._nickInUse = "mynick";
+		chat.self = new Member("me", "myself", null, true, [], JID.parse("test@example.com"), new Map(), null);
 		Assert.isFalse(chat.canModerate());
 
 		// Presence set but not moderator
-		final p = new borogove.Presence(null, new Stanza("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("item", { role: "participant" }).up(), null);
-		chat.presence.set("mynick", p);
+		chat.self = new Member(
+			"me", "myself", null, true, [], JID.parse("test@example.com"),
+			["myself" => new borogove.Presence(null, new Stanza("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("item", { role: "participant" }).up(), null)],
+			null
+		);
 		Assert.isFalse(chat.canModerate());
 
 		// Is moderator
-		final p2 = new borogove.Presence(null, new Stanza("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("item", { role: "moderator" }).up(), null);
-		chat.presence.set("mynick", p2);
+		chat.self = new Member(
+			"me", "myself", null, true, [], JID.parse("test@example.com"),
+			["myself" => new borogove.Presence(null, new Stanza("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("item", { role: "moderator" }).up(), null)],
+			null
+		);
 		Assert.isTrue(chat.canModerate());
 	}
 
@@ -352,62 +361,38 @@ class TestChat extends utest.Test {
 		Assert.isTrue(builder.syncPoint, "Message SHOULD have syncPoint if inSync");
 	}
 
-	public function testGetParticipantDetailsWithRoles() {
-		final persistence = new Dummy();
-		final client = new Client("test@example.com", persistence);
-		final chat = new Channel(client, client.stream, persistence, "channel@example.com");
-
-		final stanza = Stanza.parse('<presence from="channel@example.com/other">
-			<x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="admin" role="participant"/></x>
-			<hats xmlns="urn:xmpp:hats:0">
-				<hat uri="http://example.com/custom" title="Custom Role"/>
-			</hats>
-		</presence>');
-		chat.presence.set("other", stanza);
-
-		final details = chat.getParticipantDetails("channel@example.com/other");
-		Assert.equals(2, details.roles.length);
-		Assert.equals("admin", details.roles[0].id);
-		Assert.equals("Admin", details.roles[0].title);
-		Assert.equals("http://example.com/custom", details.roles[1].id);
-		Assert.equals("Custom Role", details.roles[1].title);
-	}
-
 	public function testAvailableRoles() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
 		final chat = new Channel(client, client.stream, persistence, "channel@example.com");
-		chat._nickInUse = "me";
+		chat.self = new Member("me", "myself", null, true, [new Role("owner", "")], JID.parse("test@example.com"), new Map(), null);
 
-		// I am owner
-		final myPresence = Stanza.parse('<presence from="channel@example.com/me">
-			<x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="owner" role="moderator"/></x>
-		</presence>');
-		chat.presence.set("me", myPresence);
-
-		// Other is member
-		final otherPresence = Stanza.parse('<presence from="channel@example.com/other">
-			<x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="member" role="participant" jid="other@example.com"/></x>
-		</presence>');
-		chat.presence.set("other", otherPresence);
-
-		final roles = chat.availableRoles("channel@example.com/other");
+		final roles = chat.availableRoles(new Member("other", "other", null, true, [], JID.parse("test@example.com"), new Map(), null));
 		final ids = roles.map(r -> r.id);
 		Assert.contains("owner", ids);
 		Assert.contains("admin", ids);
 		Assert.contains("outcast", ids);
-		Assert.isFalse(ids.contains("member"), "Should not include current role");
+		Assert.contains("none", ids);
+	}
+
+	public function testAvailableRolesForNone() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new Channel(client, client.stream, persistence, "channel@example.com");
+		chat.self = new Member("me", "myself", null, true, [new Role("owner", "")], JID.parse("test@example.com"), new Map(), null);
+
+		final roles = chat.availableRoles(new Member("other", "other", null, true, [new Role("none", "")], JID.parse("test@example.com"), new Map(), null));
+		final ids = roles.map(r -> r.id);
+		Assert.contains("owner", ids);
+		Assert.contains("admin", ids);
+		Assert.contains("outcast", ids);
+		Assert.isFalse(ids.contains("none"));
 	}
 
 	public function testAddRole(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
 		final chat = new Channel(client, client.stream, persistence, "channel@example.com");
-
-		final otherPresence = Stanza.parse('<presence from="channel@example.com/other">
-			<x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="member" role="participant" jid="other@example.com"/></x>
-		</presence>');
-		chat.presence.set("other", otherPresence);
 
 		client.stream.on("sendStanza", (stanza: Stanza) -> {
 			if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
@@ -423,7 +408,7 @@ class TestChat extends utest.Test {
 			return EventUnhandled;
 		});
 
-		chat.addRole("channel@example.com/other", borogove.Role.forAffiliation("admin"));
+		chat.addRole(new Member("other", "other", null, true, [], JID.parse("test@example.com"), new Map(), new AvailableChat("other@example.com", "", "", CapsRepo.empty)), borogove.Role.forAffiliation("admin"));
 	}
 
 	public function testRemoveRole(async: Async) {
@@ -431,17 +416,12 @@ class TestChat extends utest.Test {
 		final client = new Client("test@example.com", persistence);
 		final chat = new Channel(client, client.stream, persistence, "channel@example.com");
 
-		final otherPresence = Stanza.parse('<presence from="channel@example.com/other">
-			<x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="member" role="participant" jid="other@example.com"/></x>
-		</presence>');
-		chat.presence.set("other", otherPresence);
-
 		client.stream.on("sendStanza", (stanza: Stanza) -> {
 			if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
 				final query = stanza.getChild("query", "http://jabber.org/protocol/muc#admin");
 				if (query != null) {
 					final item = query.getChild("item");
-					Assert.equals("none", item.attr.get("affiliation"));
+					Assert.equals("member", item.attr.get("affiliation"));
 					Assert.equals("other@example.com", item.attr.get("jid"));
 					async.done();
 					return EventHandled;
@@ -450,6 +430,59 @@ class TestChat extends utest.Test {
 			return EventUnhandled;
 		});
 
-		chat.removeRole("channel@example.com/other", borogove.Role.forAffiliation("member"));
+		chat.removeRole(new Member("other", "other", null, true, [new Role("admin", "")], JID.parse("test@example.com"), new Map(), new AvailableChat("other@example.com", "", "", CapsRepo.empty)), borogove.Role.forAffiliation("admin"));
+	}
+
+	public function testDirectChatMembers(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.DirectChat(client, client.stream, persistence, "alice@example.com\nbob@example.com");
+
+		chat.members().then(members -> {
+			Assert.equals(3, members.length);
+			Assert.equals("alice@example.com", members[0].id);
+			Assert.equals("bob@example.com", members[1].id);
+			Assert.equals("test@example.com", members[2].id);
+			Assert.isTrue(members[2].isSelf);
+			Assert.equals("alice@example.com (via alice@example.com\nbob@example.com)", members[0].chat.note);
+			async.done();
+		});
+	}
+
+	public function testDirectChatMultiDisplayName() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.getDirectChat("bob@example.com").displayName = "Bobby";
+		client.getDirectChat("alice@example.com").displayName = "Alice";
+		final chat = new borogove.Chat.DirectChat(client, client.stream, persistence, "bob@example.com\nalice@example.com");
+
+		Assert.equals("Alice, Bobby", chat.getDisplayName());
+	}
+
+	public function testChannelMembersPassesModeratorFlag(async: Async) {
+		final persistence = new ChannelMembersPersistence();
+		final client = new Client("test@example.com", persistence);
+		final chat = new Channel(client, client.stream, persistence, "channel@example.com");
+		chat.self = new Member("me", "myself", null, true, [new Role("admin", "Admin")], JID.parse("test@example.com"), new Map(), null);
+
+		chat.members().then(members -> {
+			Assert.isTrue(persistence.forModerator);
+			Assert.equals(1, members.length);
+			Assert.equals("other", members[0].id);
+			async.done();
+		});
+	}
+}
+
+@:access(borogove)
+class ChannelMembersPersistence extends Dummy {
+	public var forModerator = false;
+
+	override public function getMembers(accountId: String, chat: borogove.Chat, forModerator: Bool) {
+		this.forModerator = forModerator;
+		return Promise.resolve([
+			new Member(chat.chatId, "Room", null, false, [], JID.parse(chat.chatId), new Map(), null),
+			new Member("other", "Other", null, false, [], JID.parse("other@example.com"), new Map(), new AvailableChat("other@example.com", "", "", CapsRepo.empty))
+		]);
 	}
 }

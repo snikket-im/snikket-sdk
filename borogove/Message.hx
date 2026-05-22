@@ -88,7 +88,8 @@ class Message {
 		if (msg.type == MessageChat && stanza.getChild("x", "http://jabber.org/protocol/muc#user") != null) {
 			msg.type = MessageChannelPrivate;
 		}
-		msg.senderId = (msg.type == MessageChannel || msg.type == MessageChannelPrivate ? msg.from : msg.from?.asBare())?.asString();
+		final occupantId = stanza.getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
+		msg.senderId = occupantId != null ? msg.chatId() + "/" + occupantId : (msg.type == MessageChannel || msg.type == MessageChannelPrivate ? msg.from : msg.from?.asBare())?.asString();
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;
 		final to = stanza.attr.get("to");
@@ -344,6 +345,7 @@ class Message {
 				final replyToMessage = new ChatMessageBuilder();
 				replyToMessage.to = replyToJid == msg.senderId ? msg.to : msg.from;
 				replyToMessage.from = replyToJid == null ? null : JID.parse(replyToJid);
+				// Note: in MUC this senderid is wrong and not an occupant-id
 				replyToMessage.senderId = isGroupchat ? replyToMessage.from?.asString() : replyToMessage.from?.asBare()?.asString();
 				replyToMessage.replyId = replyToID;
 				if ((msg.serverIdBy != null && msg.serverIdBy != localJid.asBare().asString()) || isGroupchat) {

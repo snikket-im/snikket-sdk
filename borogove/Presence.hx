@@ -4,6 +4,14 @@ import borogove.Hash;
 import borogove.MucUser;
 import borogove.Role;
 
+enum abstract ShowPresence(Int) to Int {
+	var Online;
+	var Idle;
+	var DoNotDisturb;
+	var Standby;
+	var Offline;
+}
+
 @:nullSafety(StrictThreaded)
 @:forward(toString)
 @:expose
@@ -13,6 +21,9 @@ abstract Presence(Stanza) from Stanza to Stanza {
 	public var mucUser(get, never): Null<MucUser>;
 	public var hats(get, never): Null<Array<Role>>;
 	public var avatarHash(get, never): Null<Hash>;
+	public var type(get, never): Null<String>;
+	public var show(get, never): ShowPresence;
+	public var priority(get, never): Int;
 
 	/**
 		Create a presence stanza wrapper from caps, MUC metadata, and avatar hash.
@@ -49,5 +60,24 @@ abstract Presence(Stanza) from Stanza to Stanza {
 	private inline function get_avatarHash() {
 		final avatarSha1Hex = this.findText("{vcard-temp:x:update}x/photo#");
 		return avatarSha1Hex == null || avatarSha1Hex == "" ? null : Hash.fromHex("sha-1", avatarSha1Hex);
+	}
+
+	private inline function get_type() {
+		return this.attr.get("type");
+	}
+
+	private inline function get_show() {
+		if (type == "unavailable") return Offline;
+
+		return switch (this.getChildText("show")) {
+			case "away": Idle;
+			case "dnd": DoNotDisturb;
+			case "xa": Standby;
+			default: Online;
+		};
+	}
+
+	private inline function get_priority() {
+		return Std.parseInt(this.getChildText("priority") ?? "0") ?? 0;
 	}
 }

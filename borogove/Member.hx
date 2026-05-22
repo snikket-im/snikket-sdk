@@ -4,6 +4,7 @@ import thenshim.Promise;
 import haxe.ds.ReadOnlyArray;
 
 import borogove.Chat;
+import borogove.Presence;
 import borogove.queries.PubsubGet;
 
 #if cpp
@@ -16,14 +17,19 @@ import HaxeCBridge;
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
-class Participant {
+class Member {
 	/**
-		Display name to show for this participant
+		A unique id for this member
+	**/
+	public final id: String;
+
+	/**
+		Display name to show for this member
 	**/
 	public final displayName: String;
 
 	/**
-		Avatar URI for this participant, or null when none is known
+		Avatar URI for this member, or null when none is known
 	**/
 	public final photoUri: Null<String>;
 
@@ -33,38 +39,55 @@ class Participant {
 	public final placeholderUri: String;
 
 	/**
-		True when this participant is the connected account
+		True when this member is the connected account
 	**/
 	public final isSelf: Bool;
 
 	/**
-		Chat metadata for this participant when it is available as a direct Chat
+		Chat metadata for this member when it is available as a direct Chat
 	**/
 	public final chat: Null<AvailableChat>;
 
 	/**
-		Roles this participant has in the Chat
+		Roles this member has in the Chat
 	**/
 	public final roles: ReadOnlyArray<Role>;
 
+	public final showPresence: ShowPresence;
+
+	@:allow(borogove)
+	private var presence: Map<String, Presence>;
+
+	@:allow(borogove.MemberUpdate)
 	private final jid: JID;
 
 	@:allow(borogove)
-	private function new(displayName: String, photoUri: Null<String>, placeholderUri: String, isSelf: Bool, roles: Array<Role>, jid: JID, chat: Null<AvailableChat>) {
+	private function new(id: String, displayName: String, photoUri: Null<String>, isSelf: Bool, roles: Array<Role>, jid: JID, presence: Map<String, Presence>, chat: Null<AvailableChat>) {
+		this.id = id;
 		this.displayName = displayName;
 		this.photoUri = photoUri;
-		this.placeholderUri = placeholderUri;
+		this.placeholderUri = Color.defaultPhoto(id, displayName.charAt(0).toUpperCase());
 		this.isSelf = isSelf;
 		this.roles = roles;
-		this.chat = chat;
 		this.jid = jid;
+		this.presence = presence;
+		this.chat = chat;
+		var lowestShow = Offline;
+		var highestPrio = -100000;
+		for (_ => p in presence) {
+			if (p.priority >= highestPrio) {
+				highestPrio = p.priority;
+				if ((lowestShow : Int) > (p.show : Int)) lowestShow = p.show;
+			}
+		}
+		showPresence = lowestShow;
 	}
 
 	/**
-		Load the participant's profile
+		Load the member's profile
 
 		@param client connected client used to send the profile query
-		@returns Promise resolving to the participant profile
+		@returns Promise resolving to the member Profile
 	**/
 	public function profile(client: Client): Promise<Profile> {
 		return new Promise((resolve, reject) -> {
@@ -83,10 +106,10 @@ class Participant {
 	}
 
 	/**
-		Load the participant's status
+		Load the member's status
 
 		@param client connected client used to send the profile query
-		@returns Promise resolving to the participant status
+		@returns Promise resolving to the member Status
 	**/
 	public function status(client: Client): Promise<Status> {
 		return new Promise((resolve, reject) -> {

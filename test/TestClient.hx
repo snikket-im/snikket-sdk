@@ -9,8 +9,11 @@ import borogove.ChatMessage;
 import borogove.ChatMessageBuilder;
 import borogove.Client;
 import borogove.JID;
+import borogove.Member;
+import borogove.MemberUpdate;
 import borogove.Message;
 import borogove.ModerationAction;
+import borogove.Role;
 import borogove.Stanza;
 import borogove.Status;
 import borogove.persistence.Dummy;
@@ -513,6 +516,90 @@ class TestClient extends utest.Test {
 
 		client.doSync((_) -> {}, null);
 	}
+
+	public function testMucAffiliationMessageStoresMemberUpdatesAndEmits(async: Async) {
+		final persistence = new MemberUpdateMockPersistence();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "room@example.com");
+		client.chats.push(chat);
+		var onPersistedEvent = null;
+		final afterPersistedEvent = new Promise((resolved, rejected) -> { onPersistedEvent = resolved; });
+
+		chat.addMembersUpdatedListener((members) -> {
+			if (persistence.lastUpdates.length > 0) {
+				Assert.equals(1, members.length);
+				Assert.equals("room@example.com/occ-1", members[0].id);
+				Assert.equals("alice@example.com", members[0].chat.chatId);
+				onPersistedEvent(null);
+			}
+		});
+
+		client.stream.onStanza(Stanza.parse('<message from="room@example.com" xmlns="jabber:client">
+			<x xmlns="http://jabber.org/protocol/muc#user">
+				<item affiliation="admin" jid="alice@example.com" nick="Alice">
+					<occupant-id xmlns="urn:xmpp:occupant-id:0" id="occ-1" />
+				</item>
+			</x>
+		</message>'));
+
+		afterPersistedEvent.then(_ -> {
+			Assert.equals(false, persistence.lastIsFullList);
+			Assert.equals("room@example.com", persistence.lastChatId);
+			Assert.equals(1, persistence.lastUpdates.length);
+			if (persistence.lastUpdates.length > 0) {
+				Assert.equals("room@example.com/occ-1", persistence.lastUpdates[0].id);
+			}
+			async.done();
+		});
+	}
+
+	public function testMucAffiliationFullListSetsFlag(async: Async) {
+		final persistence = new MemberUpdateMockPersistence();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "room@example.com");
+		client.chats.push(chat);
+
+		client.stream.onStanza(Stanza.parse('<message from="room@example.com" xmlns="jabber:client">
+			<x xmlns="http://jabber.org/protocol/muc#user">
+				<mav xmlns="urn:xmpp:muc:affiliations:1" until="v2" />
+				<item affiliation="admin" jid="alice@example.com" nick="Alice">
+					<occupant-id xmlns="urn:xmpp:occupant-id:0" id="occ-1" />
+				</item>
+			</x>
+		</message>'));
+
+		haxe.Timer.delay(() -> {
+			Assert.equals(true, persistence.lastIsFullList);
+			Assert.equals("v2", chat.mavUntil);
+			async.done();
+		}, 1);
+	}
+
+	public function testConnectClearsMemberPresence(async: Async) {
+		final persistence = new MemberUpdateMockPersistence();
+		final client = new Client("test@example.com", persistence);
+
+		client.stream.on("connect", (data) -> {
+			client.stream.trigger("status/online", { jid: "test@example.com/resource" });
+			return EventHandled;
+		});
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq") {
+				client.stream.onStanza(new Stanza("iq", { xmlns: "jabber:client", type: "error", id: stanza.attr.get("id") }));
+			}
+			return EventHandled;
+		});
+
+		client.addStatusOnlineListener(() -> {
+			Assert.equals(1, persistence.clearMemberPresenceCalls.length);
+			Assert.equals("test@example.com", persistence.clearMemberPresenceCalls[0].accountId);
+			Assert.isNull(persistence.clearMemberPresenceCalls[0].chatId);
+			async.done();
+		});
+
+		client.start();
+	}
 }
 
 @:access(borogove)
@@ -551,5 +638,36 @@ class MessageMockPersistence extends Dummy {
 
 	override public function updateMessage(accountId: String, message: ChatMessage) {
 		if (message.serverId != null) this.messages.set(message.serverId, message);
+	}
+}
+
+@:access(borogove)
+class MemberUpdateMockPersistence extends Dummy {
+	public var lastUpdates: Array<MemberUpdate> = [];
+	public var lastIsFullList: Null<Bool> = null;
+	public var lastChatId: Null<String> = null;
+	public var clearMemberPresenceCalls: Array<{ accountId: String, chatId: Null<String> }> = [];
+
+	override public function storeMemberUpdates(accountId: String, chat: Chat, updates: Array<MemberUpdate>, isFullList: Bool) {
+		lastUpdates = updates;
+		lastIsFullList = isFullList;
+		lastChatId = chat.chatId;
+		return Promise.resolve([
+			new Member(
+				"room@example.com/occ-1",
+				"Alice",
+				null,
+				false,
+				[Role.forAffiliation("admin")],
+				JID.parse("alice@example.com"),
+				new Map(),
+				new borogove.Chat.AvailableChat("alice@example.com", "Alice", "", borogove.CapsRepo.empty)
+			)
+		]);
+	}
+
+	override public function clearMemberPresence(accountId: String, chatId: Null<String>) {
+		clearMemberPresenceCalls.push({ accountId: accountId, chatId: chatId });
+		return Promise.resolve(true);
 	}
 }

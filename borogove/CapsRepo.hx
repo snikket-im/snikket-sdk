@@ -4,6 +4,7 @@ import thenshim.Promise;
 
 @:nullSafety(StrictThreaded)
 class CapsRepo {
+	public static final empty = new Caps("", [], [], []);
 	private final persistence: Persistence;
 	private final cache: Map<String, Caps> = [];
 
@@ -11,9 +12,16 @@ class CapsRepo {
 		this.persistence = persistence;
 	}
 
-	public function add(caps: Caps) {
-		persistence.storeCaps(caps);
-		cache[caps.ver()] = caps;
+	public function add(caps: Caps, storeOnMiss = true) {
+		final ver = caps.ver();
+		final r = cache[ver];
+		if (r == null) {
+			if (storeOnMiss) persistence.storeCaps(caps);
+			cache[ver] = caps;
+			return caps;
+		}
+
+		return r;
 	}
 
 	public function getAsync(presence: Presence): Promise<Null<Caps>> {
@@ -39,6 +47,6 @@ class CapsRepo {
 			getAsync(presence); // Fetch and put in cache for later
 		}
 
-		return new Caps("", [], [], []);
+		return empty;
 	}
 }

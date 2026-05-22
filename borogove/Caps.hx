@@ -13,6 +13,7 @@ import borogove.Util;
 
 // exposed for IDB.js, not really part of public API
 @:expose
+@:nullSafety(StrictThreaded)
 class Caps {
 	public final node: String;
 	public final identities: ReadOnlyArray<Identity>;
@@ -20,34 +21,42 @@ class Caps {
 	public final data: ReadOnlyArray<DataForm>;
 	private var _ver : Null<Hash> = null;
 
-	@:allow(borogove)
-	private static function withIdentity(caps:KeyValueIterator<String, Null<Caps>>, category:Null<String>, type:Null<String>):Array<String> {
-		final result = [];
-		for (cap in caps) {
-			if (cap.value != null) {
-				for (identity in cap.value.identities) {
-					if ((category == null || category == identity.category) && (type == null || type == identity.type)) {
-						result.push(cap.key);
-					}
+	private static function filter(caps:KeyValueIterator<Null<String>, Caps>, predicate:Caps->Bool):KeyValueIterator<Null<String>, Caps> {
+		var nextMatch:Null<{key:Null<String>, value:Caps}> = null;
+
+		final findNext = () -> {
+			while (caps.hasNext()) {
+				var n = caps.next();
+				if (predicate(n.value)) {
+					nextMatch = n;
+					return;
 				}
 			}
-		}
-		return result;
+			nextMatch = null;
+		};
+
+		findNext();
+
+		return {
+			hasNext: () -> nextMatch != null,
+			next: () -> {
+				final r = nextMatch;
+				if (r == null) throw "No more elements";
+
+				findNext();
+				return r;
+			}
+		};
 	}
 
 	@:allow(borogove)
-	private static function withFeature(caps:KeyValueIterator<String, Null<Caps>>, feature:String):Array<String> {
-		final result = [];
-		for (cap in caps) {
-			if (cap.value != null) {
-				for (feat in cap.value.features) {
-					if (feature == feat) {
-						result.push(cap.key);
-					}
-				}
-			}
-		}
-		return result;
+	private static function withIdentity(caps:KeyValueIterator<Null<String>, Caps>, category:Null<String>, type:Null<String>):KeyValueIterator<Null<String>, Caps> {
+		return filter(caps, (c) -> c.identities.exists((identity) -> (category == null || category == identity.category) && (type == null || type == identity.type)));
+	}
+
+	@:allow(borogove)
+	private static function withFeature(caps:KeyValueIterator<Null<String>, Caps>, feature:String):KeyValueIterator<Null<String>, Caps> {
+		return filter(caps, (c) -> c.features.contains(feature));
 	}
 
 	/**
@@ -167,7 +176,9 @@ class Caps {
 			s += feature + "<";
 		}
 		for (form in data) {
-			s += form.field("FORM_TYPE").value[0] + "<";
+			final formType = form.field("FORM_TYPE");
+			s += formType == null ? "" : formType.value[0];
+			s += "<";
 			final fields = form.fields;
 			fields.sort((x, y) -> Reflect.compare(x.name, y.name));
 			for (field in fields) {
@@ -188,8 +199,12 @@ class Caps {
 		Get the raw XEP-0115 capability hash object for this capability set.
 	**/
 	public function verRaw(): Hash {
-		if (_ver == null) _ver = computeVer();
-		return _ver;
+		final ver = _ver;
+		if (ver != null) return ver;
+
+		final newVer = computeVer();
+		_ver = newVer;
+		return newVer;
 	}
 
 	/**

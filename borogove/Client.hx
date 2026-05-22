@@ -358,12 +358,9 @@ class Client extends EventEmitter {
 
 				if (presence.ver == null) {
 					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza);
-					persistence.storeChats(this.accountId(), [chat]);
-					if (chat.livePresence()) this.trigger("chats/update", [chat]);
 				} else {
 					final handleCaps = (caps) -> {
 						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza);
-						if (presence.mucUser == null || chat.livePresence()) persistence.storeChats(this.accountId(), [chat]);
 						return chat;
 					};
 
@@ -378,12 +375,12 @@ class Client extends EventEmitter {
 									final chatsToUpdate: Map<String, Chat> = [];
 									final handlers = pendingCaps.get(ver) ?? [];
 									pendingCaps.remove(ver);
-									if (discoGet.getResult() != null) capsRepo.add(discoGet.getResult());
-									for (handler in handlers) {
-										final c = handler(discoGet.getResult());
-										if (c.livePresence()) chatsToUpdate.set(c.chatId, c);
+									if (discoGet.getResult() != null) {
+										final cachedCaps = capsRepo.add(discoGet.getResult());
+										for (handler in handlers) {
+											final c = handler(cachedCaps);
+										}
 									}
-									this.trigger("chats/update", Lambda.array({ iterator: () -> chatsToUpdate.iterator() }));
 								});
 								sendQuery(discoGet);
 							} else {
@@ -429,9 +426,7 @@ class Client extends EventEmitter {
 					trace("Presence for unknown JID: " + stanza.attr.get("from"));
 					return EventUnhandled;
 				}
-				// Maybe in the future record it as offine rather than removing it
-				chat.removePresence(JID.parse(stanza.attr.get("from")).resource);
-				persistence.storeChats(this.accountId(), [chat]);
+				chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza);
 				this.trigger("chats/update", [chat]);
 			}
 
@@ -494,18 +489,19 @@ class Client extends EventEmitter {
 				if (chat != null) {
 					final updateChat = (chatMessage: ChatMessage) -> {
 						final eventType = chatMessage.versions.length > 1 ? CorrectionEvent : DeliveryEvent;
-						if (chat.lastMessage == null || eventType == DeliveryEvent || chatMessage.canReplace(chat.lastMessage)) {
-							chat.setLastMessage(chatMessage);
-						}
+						((chat.lastMessage == null || eventType == DeliveryEvent || chatMessage.canReplace(chat.lastMessage)) ?
+							chat.setLastMessage(chatMessage) :
+							Promise.resolve(null)
+						).then(_ -> {
+							notifyMessageHandlers(chatMessage, eventType);
 
-						notifyMessageHandlers(chatMessage, eventType);
-
-						if (eventType == DeliveryEvent) {
-							chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
-							chatActivity(chat);
-						} else if (newChat != null) {
-							this.trigger("chats/update", [newChat]);
-						}
+							if (eventType == DeliveryEvent) {
+								chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
+								chatActivity(chat);
+							} else if (newChat != null) {
+								this.trigger("chats/update", [newChat]);
+							}
+						});
 					};
 					if (chatMessage.serverId == null) {
 						updateChat(chatMessage);
@@ -599,6 +595,7 @@ class Client extends EventEmitter {
 		}
 #end
 
+		final chat = getChat(from.asBare().asString());
 		final chatState = stanza.getChild(null, "http://jabber.org/protocol/chatstates");
 		final userState = switch (chatState?.name) {
 			case "active": UserState.Active;
@@ -609,10 +606,37 @@ class Client extends EventEmitter {
 			default: null;
 		};
 		if (userState != null) {
-			final chat = getChat(from.asBare().asString());
-			if (chat == null || !chat.getParticipantDetails(message.senderId).isSelf) {
-				this.trigger("chat-state/update", { message: message, userState: userState });
+			if (chat == null) {
+				chat.getMemberDetails([message.senderId]).then(members -> {
+					if (members.length > 0 && members[0].isSelf) return;
+
+					this.trigger("chat-state/update", { message: message, userState: userState });
+				});
 			}
+		}
+
+		final memberUpdates = MemberUpdate.extractUpdates(accountId(), chat, stanza);
+		if (memberUpdates.length > 0) {
+trace("YYZZXX memberUpdates", chat.chatId, memberUpdates.length);
+			final channel = Util.downcast(chat, Channel);
+			final mucUser = stanza.getChild("x", "http://jabber.org/protocol/muc#user");
+			var isFullList = false;
+			if (channel != null && mucUser != null) {
+				final mav = mucUser.getChild("mav", "urn:xmpp:muc:affiliations:1");
+				if (mav != null && mav.attr.get("since") == null) {
+					isFullList = true;
+				} else if (mav != null && mav.attr.get("since") != channel.mavUntil) {
+					trace("MAV update with unknown previous version", channel.mavUntil, stanza);
+				}
+				if (channel.mavUntil != mav?.attr?.get("until")) {
+					channel.mavUntil = mav?.attr?.get("until");
+					persistence.storeChats(accountId(), [channel]);
+				}
+			}
+
+			persistence.storeMemberUpdates(accountId(), chat, memberUpdates, isFullList).then(members -> {
+				if (members.length > 0) chat.trigger("members/update", members);
+			});
 		}
 
 		checkForReceipts(stanza);
@@ -760,6 +784,7 @@ class Client extends EventEmitter {
 
 			return persistence.getChats(accountId());
 		}).then((protoChats) -> {
+			protoChats.sort((a, b) -> a.chatId == accountId() ? 1 : 0);
 			var oneProtoChat = null;
 			while ((oneProtoChat = protoChats.pop()) != null) {
 				chats.push(oneProtoChat.toChat(this, stream, persistence));
@@ -921,6 +946,12 @@ class Client extends EventEmitter {
 			return EventHandled;
 		}
 
+		// We don't know what any presences are
+		persistence.clearMemberPresence(accountId(), null);
+		for (chat in chats) {
+			final directChat = Util.downcast(chat, DirectChat);
+			if (directChat != null) directChat.presence.clear();
+		}
 
 		discoverServices(new JID(null, jid.domain), (service, caps) -> {
 			persistence.storeService(accountId(), service.jid.asString(), service.name, service.node, caps);
@@ -943,10 +974,10 @@ class Client extends EventEmitter {
 				persistence.getChatsUnreadDetails(accountId(), chats).then((details) -> {
 					for (detail in details) {
 						var chat = getChat(detail.chatId) ?? getDirectChat(detail.chatId, false);
-						final initialLastId = chat.lastMessageId();
+						final initialLast = chat.lastMessage;
 						if (detail.message != null) chat.setLastMessage(detail.message);
 						chat.setUnreadCount(detail.unreadCount);
-						if (detail.unreadCount > 0 && initialLastId != chat.lastMessageId()) {
+						if (detail.unreadCount > 0 && initialLast != null && !initialLast.canReplace(chat.lastMessage)) {
 							chatActivity(chat, false);
 						}
 					}
@@ -1047,21 +1078,21 @@ class Client extends EventEmitter {
 
 		for (chat in chats) {
 			if (chat.isTrusted()) {
-				final resources:Map<String, Bool> = new Map();
-				for (resource in Caps.withIdentity(chat.getCaps(), "gateway", null)) {
+				final resources:StringMapNullableKey<Caps> = new StringMapNullableKey();
+				for (resource => caps in Caps.withIdentity(chat.getCaps(), "gateway", null)) {
 					// Sometimes gateway items also have id "gateway" for whatever reason
-					final identities = chat.getResourceCaps(resource)?.identities ?? [];
+					final identities = caps.identities;
 					if (
 						(chat.chatId.indexOf("@") < 0 || identities.find(i -> i.category == "conference") == null) &&
 						identities.find(i -> i.category == "client") == null
 					) {
-						resources[resource] = true;
+						resources[resource] = caps;
 					}
 				}
-				if (!sendAvailable && JID.parse(chat.chatId).isDomain()) {
-					resources[null] = true;
+				if (!resources.exists(null) && !sendAvailable && JID.parse(chat.chatId).isDomain()) {
+					resources[null] = CapsRepo.empty;
 				}
-				for (resource in resources.keys()) {
+				for (resource => caps in resources) {
 					final bareJid = JID.parse(chat.chatId);
 					final fullJid = new JID(bareJid.node, bareJid.domain, bareJid.isDomain() && resource == "" ? null : resource);
 					final jigGet = new JabberIqGatewayGet(fullJid.asString());
@@ -1069,7 +1100,7 @@ class Client extends EventEmitter {
 						jigGet.onFinished(() -> {
 							final result = jigGet.getResult();
 							if (result == null) {
-								final identity = chat.getResourceCaps(resource).identities[0];
+								final identity = caps.identities[0];
 								if (identity == null) {
 									resolve("");
 								} else {
@@ -1709,7 +1740,7 @@ class Client extends EventEmitter {
 			for (item in itemsGet.getResult() ?? []) {
 				final infoGet = new DiscoInfoGet(item.jid.asString(), item.node);
 				infoGet.onFinished(() -> {
-					callback(item, infoGet.getResult() ?? new Caps("", [], [], []));
+					callback(item, infoGet.getResult() ?? CapsRepo.empty);
 				});
 				sendQuery(infoGet);
 			}
@@ -1778,9 +1809,9 @@ class Client extends EventEmitter {
 					this.trigger("chats/update", [chat]);
 				}
 			} else {
-				capsRepo.add(resultCaps);
-				if (resultCaps.isChannel(jid)) {
-					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, false, false, null, resultCaps);
+				final cachedCaps = capsRepo.add(resultCaps);
+				if (cachedCaps.isChannel(jid)) {
+					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, false, false, null, cachedCaps);
 					chat.setupNotifications();
 					chats.unshift(chat);
 					if (inSync && sendAvailable) chat.selfPing(false);
@@ -1849,7 +1880,7 @@ class Client extends EventEmitter {
 					if (chat == null) {
 						startChatWith(item.attr.get("id"), _ -> Closed, (chat) -> chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")));
 					} else {
-						chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by")).then(_ -> null, e -> e != null ? Promise.reject(e) : null);
+						chat.markReadUpToId(upTo.attr.get("id"), upTo.attr.get("by"), false).then(_ -> null, e -> e != null ? Promise.reject(e) : null);
 						chatsToUpdate.push(chat);
 					}
 				}

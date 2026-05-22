@@ -3,6 +3,7 @@
 
 // Importing internals not the public interface
 import {
+	borogove_AvailableChat,
 	borogove_Caps,
 	borogove_Channel,
 	borogove_ChatMessageBuilder,
@@ -10,6 +11,8 @@ import {
 	borogove_DirectChat,
 	borogove_Hash,
 	borogove_Identity,
+	borogove_Member,
+	borogove_Role,
 	borogove_JID,
 	borogove_Presence,
 	borogove_Reaction,
@@ -152,6 +155,15 @@ export default async (dbname, media, tokenize, stemmer) => {
 				if (!db.objectStoreNames.contains("chats")) {
 					db.createObjectStore("chats", { keyPath: ["account", "chatId"] });
 				}
+				if (!db.objectStoreNames.contains("members")) {
+					const members = db.createObjectStore("members", { keyPath: ["account", "id"] });
+				}
+				if (tx.objectStore("members").indexNames.contains("chats")) {
+					tx.objectStore("members").deleteIndex("chats");
+				}
+				if (!tx.objectStore("members").indexNames.contains("chatsWithTrueJid")) {
+					tx.objectStore("members").createIndex("chatsWithTrueJid", ["account", "chatId", "isSelf", "chat"]);
+				}
 				if (!db.objectStoreNames.contains("services")) {
 					db.createObjectStore("services", { keyPath: ["account", "serviceId"] });
 				}
@@ -192,14 +204,15 @@ export default async (dbname, media, tokenize, stemmer) => {
 			dbOpenReq.onsuccess = (event) => {
 				const db = event.target.result;
 				const storeNames = [
-					"messages",
-					"keyvaluepairs",
 					"chats",
-					"services",
-					"reactions",
+					"keyvaluepairs",
+					"members",
+					"messages",
 					"omemo_identities",
 					"omemo_sessions",
-					"omemo_sessions_meta"
+					"omemo_sessions_meta",
+					"reactions",
+					"services",
 				];
 				for(const storeName of storeNames) {
 					if(!db.objectStoreNames.contains(storeName)) {
@@ -208,7 +221,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 						return;
 					}
 				}
-				const tx = db.transaction(["messages", "keyvaluepairs"], "readonly");
+				const tx = db.transaction(["messages", "members", "keyvaluepairs"], "readonly");
 				const messagesIndexNames = tx.objectStore("messages").indexNames;
 				const wantIndexNames = ["chatsBySortId", "accountsBySortId", "terms", "chats"];
 				for(const indexName of wantIndexNames) {
@@ -217,6 +230,12 @@ export default async (dbname, media, tokenize, stemmer) => {
 						openDb(db.version + 1).then(resolve, reject);
 						return;
 					}
+				}
+
+				if (!tx.objectStore("members").indexNames.contains("chatsWithTrueJid")) {
+					db.close();
+					openDb(db.version + 1).then(resolve, reject);
+					return;
 				}
 
 				(async () => {
@@ -251,6 +270,19 @@ export default async (dbname, media, tokenize, stemmer) => {
 			request.oncomplete = request.onsuccess = () => resolve(request.result);
 			request.onabort = request.onerror = () => reject(request.error);
 		});
+	}
+
+	function hydrateMember(chat, raw) {
+		return new borogove_Member(
+			raw.id,
+			raw.displayName,
+			raw.photoUri,
+			raw.isSelf ? true : false,
+			raw.roles.map(role => new borogove_Role(role.id, role.title)),
+			raw.jid instanceof borogove_JID ? raw.jid : borogove_JID.parse(raw.jid),
+			new Map((raw.presence?.entries() ?? []).map(([k, p]) => [k, p instanceof borogove_Stanza ? p : borogove_Stanza.parse(p)])),
+			raw.chat ? new borogove_AvailableChat(raw.chat, raw.displayName, raw.chat + (chat ? " (via " + chat.getDisplayName() + ")" : ""), new borogove_Caps("", [], [], [])) : null
+		);
 	}
 
 	function hydrateStringReaction(r, senderId, timestamp) {
@@ -409,6 +441,37 @@ export default async (dbname, media, tokenize, stemmer) => {
 		return reactionsMap;
 	}
 
+	async function chatPresenceAndMembersForName(account, store, rawChat) {
+		if (rawChat.class == "DirectChat") {
+			return [new Map(((await promisifyRequest(store.get([account, rawChat.chatId])))?.presence?.entries() ?? []).map(([k, p]) => [k, borogove_Stanza.parse(p)])), null];
+		}
+
+		const range = IDBKeyRange.bound([account, rawChat.chatId], [account, rawChat.chatId, []]);
+		const cursor = store.index("chatsWithTrueJid").openCursor(range, "prev");
+		let membersForName = [];
+		let presence = new Map();
+		while (true) {
+			const cresult = await promisifyRequest(cursor);
+			if (!cresult?.value) break;
+
+			if (cresult.value.isSelf) {
+				presence = new Map((cresult.value.presence?.entries() ?? []).map(([k, p]) => [k, borogove_Stanza.parse(p)]));
+			} else if (!cresult.value.roles.find(r => ["none", "outcast"].includes(r.id)) && cresult.value.id !== rawChat.chatId) {
+				membersForName.push({ id: cresult.value.id, displayName: cresult.value.displayName });
+			}
+
+			// In big rooms we don't make a name from the members
+			if (membersForName.length > 20) {
+				membersForName = null;
+				break;
+			}
+
+			cresult.continue();
+		}
+
+		return [presence, membersForName];
+	};
+
 	const obj = {
 		syncPoint: async function(account, chatId) {
 			const tx = db.transaction(["messages"], "readonly");
@@ -448,7 +511,6 @@ export default async (dbname, media, tokenize, stemmer) => {
 					trusted: chat.trusted,
 					isBookmarked: chat.isBookmarked,
 					avatarSha1: chat.avatarSha1,
-					presence: new Map([...chat.presence.entries()].map(([k, p]) => [k, p.toString()])),
 					status: chat.status,
 					displayName: chat.displayName,
 					uiState: chat.uiState,
@@ -458,6 +520,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					readUpToBy: chat.readUpToBy,
 					notificationSettings: chat.notificationsFiltered() ? { mention: chat.notifyMention(), reply: chat.notifyReply() } : null,
 					threads: chat.threads,
+					mavUntil: chat.mavUntil,
 					disco: { ...chat.disco, data: chat.disco?.data?.map(d => d.toString()) },
 					omemoDevices: chat.omemoContactDeviceIDs,
 					class: chat instanceof borogove_DirectChat ? "DirectChat" : (chat instanceof borogove_Channel ? "Channel" : "Chat")
@@ -466,8 +529,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 		},
 
 		getChats: async function(account) {
-			const tx = db.transaction(["chats"], "readonly");
+			const tx = db.transaction(["chats", "members"], "readonly");
 			const store = tx.objectStore("chats");
+			const membersStore = tx.objectStore("members");
 			const range = IDBKeyRange.bound([account], [account, []]);
 			const result = await promisifyRequest(store.getAll(range));
 			return await Promise.all(result.map(async (r) => new borogove_SerializedChat(
@@ -475,12 +539,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				r.trusted,
 				r.isBookmarked,
 				r.avatarSha1,
-				new Map(await Promise.all((r.presence instanceof Map ? [...r.presence.entries()] : Object.entries(r.presence)).map(
-					async ([k, p]) => [k,
-						typeof(p) === "string" ? borogove_Stanza.parse(p) :
-						borogove_Presence._new(p.caps && await this.getCaps(p.caps), p.mucUser && borogove_Stanza.parse(p.mucUser), p.avatarHash && borogove_Hash.fromUri(p.avatarHash))
-					]
-				))),
+				...await chatPresenceAndMembersForName(account, membersStore, r),
 				r.displayName,
 				r.uiState,
 				r.isBlocked,
@@ -498,9 +557,146 @@ export default async (dbname, media, tokenize, stemmer) => {
 					r.disco.features || [],
 					(r.disco.data || []).map(s => borogove_Stanza.parse(s))
 				) : null,
+				r.mavUntil,
 				r.omemoDevices || [],
 				r.class
 			)));
+		},
+
+		async storeMembers(account, chatId, members) {
+			const tx = db.transaction(["members"], "readwrite");
+			const store = tx.objectStore("members");
+
+			await Promise.all(members.map(member => promisifyRequest(store.put({
+				account,
+				chatId,
+				id: member.id,
+				displayName: member.displayName,
+				photoUri: member.photoUri,
+				isSelf: member.isSelf ? 1 : 0, // Can't index on boolean
+				chat: member.chat?.chatId ?? "",
+				roles: member.roles,
+				presence: new Map([...member.presence.entries()].map(([k, p]) => [k, p.toString()])),
+				jid: member.jid.asString(),
+			}))));
+
+			return true;
+		},
+
+		async storeMemberUpdates(account, chat, updates, isFullList) {
+			const tx = db.transaction(["members"], "readonly");
+			const store = tx.objectStore("members");
+			const updatesFor = new Set();
+
+			const pseudoMembers = await Promise.all(updates.map(async (update) => {
+				let member = null;
+				if (update.id) {
+					member = await promisifyRequest(store.get([account, update.id]));
+				}
+				if (update.jid && !member) {
+					member = await promisifyRequest(store.index("chatsWithTrueJid").get([account, chat.chatId, update.isSelf ? 1 : 0, update.jid.asString()]));
+				}
+				if (member?.id || update.id) updatesFor.add(update.id ?? member?.id);
+				return update.applyTo(member ? hydrateMember(chat, member) : null);
+			}));
+
+			await this.storeMembers(account, chat.chatId, pseudoMembers.filter(m => m?.id));
+
+			if (isFullList) {
+				const txW = db.transaction(["members"], "readwrite");
+				const storeW = txW.objectStore("members");
+				const range = IDBKeyRange.bound([account, chat.chatId], [account, chat.chatId, []]);
+				const cursor = storeW.index("chatsWithTrueJid").openCursor(range);
+				while (true) {
+					const cresult = await promisifyRequest(cursor);
+					if (!cresult?.value) break;
+
+					if (!updatesFor.has(cresult.value.id)) {
+						// No update for this member, and we have the full list
+						// So they are no longer an affiliated member
+						cresult.update({ ...cresult.value, roles: [] });
+					}
+
+					cresult.continue();
+				}
+			}
+
+			return pseudoMembers.filter(m => m?.id && m?.displayName && m?.jid).map(m => hydrateMember(chat, {...m, chat: chat?.chatId }));
+		},
+
+		async clearMemberPresence(account, chatId) {
+			const tx = db.transaction(["members"], "readwrite");
+			const store = tx.objectStore("members");
+			const range = IDBKeyRange.bound(chatId ? [account, chatId] : [account], chatId ? [account, chatId, []] : [account, []]);
+			const cursor = store.index("chatsWithTrueJid").openCursor(range);
+			while (true) {
+				const cresult = await promisifyRequest(cursor);
+				if (!cresult?.value) break;
+
+				cresult.update({ ...cresult.value, presence: new Map() });
+
+				cresult.continue();
+			}
+
+			return true;
+		},
+
+		async getMembers(account, chat, forModerator) {
+			const roleSort = { owner: 4, admin: 3, none: 1, outcast: 0 };
+			const tx = db.transaction(["members"], "readonly");
+			const store = tx.objectStore("members");
+			const range = IDBKeyRange.bound([account, chat.chatId], [account, chat.chatId, []]);
+			// getAll is much faster than openCursor,
+			// but if the room has more than 20k members this will miss people
+			// at which point we need paging
+			const allMembers = await promisifyRequest(store.index("chatsWithTrueJid").getAll(range, 20000));
+			let clearedOffline = false;
+			let result = [];
+			let member = null;
+			while ((member = allMembers.pop())) {
+				if (!member.id || !member.displayName || !member.jid) continue;
+				if (!forModerator && member.roles.find(r => r.id == "outcast")) continue;
+
+				const presenceKey = member.presence.keys().next()?.value;
+				const isOnline = presenceKey && !member.presence.get(presenceKey).includes('type="unavailable"');
+				if (member.roles.find(r => r.id == "none") && !isOnline) continue;
+
+				if (!forModerator && !clearedOffline && result.length >= 1000) {
+					result = result.filter(m => m.__isOnline);
+					clearedOffline = true;
+				}
+
+				if (!forModerator && clearedOffline && !isOnline) continue;
+
+				const hydrated = hydrateMember(chat, member);
+				hydrated.__isOnline = isOnline;
+				hydrated.__roleSort = hydrated.roles.length < 1 ? 2 : Math.max(...hydrated.roles.map(r => roleSort[r.id] ?? 2));
+				hydrated.__sortKey = hydrated.roles.map(r => r.title).sort().join(" ") + " " + hydrated.displayName;
+				result.push(hydrated);
+
+				if (!forModerator && result.length >= 2000) break;
+			}
+
+			const collator = new Intl.Collator(undefined, {
+				numeric: true,
+				sensitivity: "base",
+			});
+
+			return result.sort((x, y) => {
+				if (x.__roleSort !== y.__roleSort) return y.__roleSort - x.__roleSort;
+				return collator.compare(x.__sortKey, y.__sortKey);
+			});
+		},
+
+		async getMemberDetails(account, chat, ids) {
+			const tx = db.transaction(["members"], "readonly");
+			const store = tx.objectStore("members");
+			return await Promise.all(ids.map(async (id) => {
+				const raw = await promisifyRequest(store.get([account, id]));
+				if (!raw?.id || !raw?.displayName || !raw?.jid) return null;
+
+				return hydrateMember(chat, raw);
+			}));
 		},
 
 		getChatUnreadDetails: async function(account, chat) {

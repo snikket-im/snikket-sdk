@@ -299,9 +299,7 @@ class TestSortId extends utest.Test {
 			return EventHandled;
 		});
 
-		channel.join();
-
-		Promise.resolve(null).then(_ -> {
+		channel.join().then(_ -> {
 			Assert.notNull(queryId);
 			Assert.notNull(iqId);
 

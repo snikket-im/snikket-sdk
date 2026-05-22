@@ -48,6 +48,61 @@ interface Persistence {
 	public function getChats(accountId: String): Promise<Array<SerializedChat>>;
 
 	/**
+		Persist some members for a chat
+
+		@param accountId the account that owns the chat
+		@param chatId the chat whose members are being stored
+		@param members members to write to storage
+		@returns Promise resolving true when the write completes
+	**/
+	@HaxeCBridge.noemit
+	public function storeMembers(accountId: String, chatId: String, members: Array<Member>): Promise<Bool>;
+
+	/**
+		Apply one or more member updates to stored chat membership state
+
+		@param accountId the account that owns the chat
+		@param chat the chat whose membership is being updated
+		@param updates incremental member updates to apply
+		@param isFullList true when updates represent the complete current affiliation list
+		@returns Promise resolving to the updated members that should be surfaced to callers
+	**/
+	@HaxeCBridge.noemit
+	public function storeMemberUpdates(accountId: String, chat: Chat, updates: Array<MemberUpdate>, isFullList: Bool): Promise<Array<Member>>;
+
+	/**
+		Clear cached member presence for one chat or an entire account
+
+		@param accountId the account whose cached presence should be cleared
+		@param chatId the chat to clear, or null to clear every chat in the account
+		@returns Promise resolving true when the clear completes
+	**/
+	@HaxeCBridge.noemit
+	public function clearMemberPresence(accountId: String, chatId: Null<String>): Promise<Bool>;
+
+	/**
+		Load some members for a chat
+
+		@param accountId the account that owns the chat
+		@param chat the chat to load members for
+		@param forModerator true to include moderator-only rows such as banned occupants
+		@returns Promise resolving to the members visible for the requested view
+	**/
+	@HaxeCBridge.noemit
+	public function getMembers(accountId: String, chat: Chat, forModerator: Bool): Promise<Array<Member>>;
+
+	/**
+		Load detailed member records by ID
+
+		@param accountId the account that owns the member records
+		@param chat the chat context for any hydrated chat-specific metadata, or null when unavailable
+		@param ids member IDs to look up
+		@returns Promise resolving to an entry per requested ID, with null for unknown or incomplete members
+	**/
+	@HaxeCBridge.noemit
+	public function getMemberDetails(accountId: String, chat: Null<Chat>, ids: Array<String>): Promise<Array<Null<Member>>>;
+
+	/**
 		Load unread counters and most recent unread message per Chat
 
 		@param accountId the account to load unread details for

@@ -30,26 +30,30 @@ import HaxeCBridge;
 #end
 
 #if js
-typedef StringMapNullableKey = Map<Null<String>, String>;
+typedef StringMapNullableKey<T> = Map<Null<String>, T>;
 #else
 final nullSentinel = "65e2ca3a-a13e-490c-bfe6-9c6b4c8651d0";
 
 @:forward
-abstract StringMapNullableKey(haxe.ds.StringMap<String>) {
+abstract StringMapNullableKey<T>(haxe.ds.StringMap<T>) {
 	public inline function new() {
 		this = new haxe.ds.StringMap();
 	}
 
-	public inline function set(k: Null<String>, v: String) {
+	@:arrayAccess public inline function set(k: Null<String>, v: T) {
 		this.set(k == null ? nullSentinel : k, v);
 	}
 
-	public inline function get(k: Null<String>) {
-		return this.get(k == null ? nullSentinel : k,);
+	@:arrayAccess public inline function get(k: Null<String>) {
+		return this.get(k == null ? nullSentinel : k);
 	}
 
 	public inline function remove(k: Null<String>) {
-		return this.remove(k == null ? nullSentinel : k,);
+		return this.remove(k == null ? nullSentinel : k);
+	}
+
+	public inline function exists(k: Null<String>) {
+		return this.exists(k == null ? nullSentinel : k);
 	}
 
 	public inline function keyValueIterator() {
@@ -104,14 +108,13 @@ enum abstract EncryptionMode(Int) {
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
-abstract class Chat {
+abstract class Chat extends EventEmitter {
 	private var client:Client;
 	private var stream:GenericStream;
 	private var persistence:Persistence;
 	@:allow(borogove)
 	private var avatarSha1:Null<BytesData> = null;
-	@:allow(borogove)
-	private var presence:Map<String, Presence> = [];
+	@:allow(borogove.SerializedChat)
 	private var trusted:Bool = false;
 	@:allow(borogove)
 	public var status(default, null):Status = new Status("", "");
@@ -150,7 +153,7 @@ abstract class Chat {
 	@:allow(borogove)
 	private var readUpToBy: Null<String>;
 	@:allow(borogove.persistence)
-	private final threads: StringMapNullableKey = new StringMapNullableKey();
+	private final threads: StringMapNullableKey<String> = new StringMapNullableKey();
 	private var isTyping = false;
 	private var typingThread: Null<String> = null;
 	private var typingTimer: haxe.Timer = null;
@@ -165,6 +168,7 @@ abstract class Chat {
 
 	@:allow(borogove)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBookmarked = false, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
+		super();
 		if (chatId == null || chatId == "") {
 			throw "chatId may not be empty";
 		}
@@ -268,42 +272,63 @@ abstract class Chat {
 	abstract public function bookmark():Void;
 
 	/**
-		Get the list of IDs of participants in this Chat
+		Get a list of members in this Chat
 
-		@returns array of IDs
+		This list will often be a a complete list of everyone who has access to
+		the chat, but for larger chats may be incomplete.
 	**/
-	abstract public function getParticipants():Array<String>;
+	abstract public function members():Promise<Array<Member>>;
 
 	/**
-		Roles the current user can assign to the target participant
+		Get the details for some members in this Chat
+
+		@param memberIds the IDs of the member to look up
+		**/
+	abstract public function getMemberDetails(memberIds: Array<String>):Promise<Array<Null<Member>>>;
+
+	/**
+		Event fired when a member is updated, or when a new member is added
+
+		@param handler takes one argument, an array of Member that were updated
+		@returns token for use with removeEventListener
 	**/
-	public function availableRoles(participantId: String):Array<Role> {
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
+	public function addMembersUpdatedListener(handler: (Array<Member>)->Void) {
+		return this.on("members/update", (data) -> {
+			handler(data);
+			return EventHandled;
+		});
+	}
+
+	/**
+		Roles the current user can assign to the target member
+	**/
+	public function availableRoles(member: Member):Array<Role> {
 		return [];
 	}
 
 	/**
-		Can the current user remove this role from the participant?
+		Can the current user remove this role from the member?
 	**/
-	public function canRemoveRole(participantId: String, role: Role):Bool {
+	public function canRemoveRole(member: Member, role: Role):Bool {
 		return false;
 	}
 
 	/**
-		Add a role to a participant
+		Add a role to a member
+
+		@param member the member to update
+		@param role the role to add
 	**/
-	public function addRole(participantId: String, role: Role) { }
+	public function addRole(member: Member, role: Role) { }
 
 	/**
-		Remove a role from a participant
-	**/
-	public function removeRole(participantId: String, role: Role) { }
+		Remove a role from a member
 
-	/**
-		Get the details for one participant in this Chat
-
-		@param participantId the ID of the participant to look up
+		@param member the member to update
+		@param role the role to remove
 	**/
-	abstract public function getParticipantDetails(participantId: String):Participant;
+	public function removeRole(member: Member, role: Role) { }
 
 	/**
 		Correct an already-send message by replacing it with a new one
@@ -553,11 +578,6 @@ abstract class Chat {
 		return notificationSettings == null || notificationSettings.reply;
 	}
 
-	/**
-		An ID of the most recent message in this chat
-	**/
-	abstract public function lastMessageId():Null<String>;
-
 	@:allow(borogove)
 	private function updateFromBookmark(item: Stanza) {
 		isBookmarked = true;
@@ -638,8 +658,9 @@ abstract class Chat {
 	}
 
 	@:allow(borogove)
-	private function setLastMessage(message:Null<ChatMessage>) {
+	private function setLastMessage(message:Null<ChatMessage>): Promise<Any> {
 		lastMessage = message;
+		return Promise.resolve(null);
 	}
 
 	/**
@@ -658,14 +679,6 @@ abstract class Chat {
 	public function getDisplayName() {
 		if (this.displayName == chatId) {
 			if (chatId == client.accountId()) return client.displayName();
-
-			final participants = getParticipants();
-			if (participants.length > 2 && participants.length < 20) {
-				return participants.map(id -> {
-					final p = id == chatId ? null : getParticipantDetails(id);
-					p == null || p.isSelf ? null : p.displayName;
-				}).filter(fn -> fn != null).join(", ");
-			}
 		} else if (uiState == Invited) {
 			return '${displayName} (${chatId})';
 		}
@@ -686,32 +699,10 @@ abstract class Chat {
 	}
 
 	@:allow(borogove)
-	private function setPresence(resource:String, presence:Presence) {
-		this.presence.set(resource, presence);
-	}
+	abstract private function setPresence(resource:String, presence:Presence, noStore:Bool = false):Void;
 
 	@:allow(borogove)
-	private function removePresence(resource:String) {
-		presence.remove(resource);
-	}
-
-	@:allow(borogove)
-	private function getCaps():KeyValueIterator<String, Caps> {
-		final iter = presence.keyValueIterator();
-		return {
-			hasNext: iter.hasNext,
-			next: () -> {
-				final n = iter.next();
-				return { key: n.key, value: client.capsRepo.get(n.value) };
-			}
-		};
-	}
-
-	@:allow(borogove)
-	private function getResourceCaps(resource:String):Caps {
-		final p = presence[resource];
-		return p == null ? new Caps("", [], [], []) : client.capsRepo.get(p);
-	}
+	abstract private function getCaps():KeyValueIterator<Null<String>, Caps>;
 
 	@:allow(borogove)
 	private function setAvatarSha1(sha1: BytesData) {
@@ -866,7 +857,7 @@ abstract class Chat {
 		Can the user send messages to this chat?
 	**/
 	public function canSend() {
-		return Caps.withFeature(getCaps(), "urn:xmpp:noreply:0").length < 1;
+		return !Caps.withFeature(getCaps(), "urn:xmpp:noreply:0").hasNext();
 	}
 
 	/**
@@ -909,17 +900,17 @@ abstract class Chat {
 			return chatId.indexOf("@") < 0 && hasCommands();
 		}
 
-		final bot = Caps.withIdentity(getCaps(), "client", "bot").length > 0;
-		final client = Caps.withIdentity(getCaps(), "client", null).length > 0;
-		final account = Caps.withIdentity(getCaps(), "account", null).length > 0;
+		final bot = Caps.withIdentity(getCaps(), "client", "bot").hasNext();
+		final client = Caps.withIdentity(getCaps(), "client", null).hasNext();
+		final account = Caps.withIdentity(getCaps(), "account", null).hasNext();
 		// Clients are not apps, we chat with them
 		if ((client || account) && !bot) return false;
 
-		final noReply = Caps.withFeature(getCaps(), "urn:xmpp:noreply:0").length > 0;
+		final noReply = Caps.withFeature(getCaps(), "urn:xmpp:noreply:0").hasNext();
 		// A bot that doesn't want messages is an app
 		if (bot && noReply) return hasCommands();
 
-		final conference = Caps.withIdentity(getCaps(), "conference", null).length > 0;
+		final conference = Caps.withIdentity(getCaps(), "conference", null).hasNext();
 		// A MUC component is an app
 		if (conference && chatId.indexOf("@") < 0) return hasCommands();
 
@@ -955,8 +946,8 @@ abstract class Chat {
 	private function commandJids() {
 		final jids = [];
 		final jid = JID.parse(chatId);
-		for (resource in Caps.withFeature(getCaps(), "http://jabber.org/protocol/commands")) {
-			jids.push(resource == "" || resource == null ? jid : jid.withResource(resource));
+		for (resource => caps in Caps.withFeature(getCaps(), "http://jabber.org/protocol/commands")) {
+			jids.push(resource == null ? jid : jid.withResource(resource));
 		}
 		if (jids.length < 1 && jid.isDomain()) {
 			jids.push(jid);
@@ -965,11 +956,11 @@ abstract class Chat {
 	}
 
 	/**
-		The Participant that originally invited us to this Chat, if we were invited
+		The Member that originally invited us to this Chat, if we were invited
 	**/
 	public function invitedBy() {
 		final inviteEls = invites();
-		if (inviteEls.length < 1) return null;
+		if (inviteEls.length < 1) return Promise.resolve(null);
 
 		final inviteFrom = JID.parse(inviteEls[0].attr.get("from"));
 		final bare = inviteFrom.asBare().asString();
@@ -977,11 +968,13 @@ abstract class Chat {
 		if (maybeChannel != null) {
 			final channel = maybeChannel.downcast(Channel);
 			if (channel != null) {
-				return channel.getParticipantDetails(inviteFrom.asString());
+				members()
+					.then(members -> members.filter(member -> member.displayName == inviteFrom.resource))
+					.then(result -> result.length > 0 ? result[0] : null);
 			}
 		}
 
-		return (maybeChannel ?? client.getDirectChat(bare)).getParticipantDetails(bare);
+		return (maybeChannel ?? client.getDirectChat(bare)).getMemberDetails([bare]).then(result -> result[0] != null ? result[0] : null);
 	}
 
 	private function invites() {
@@ -1004,7 +997,7 @@ abstract class Chat {
 	}
 
 	@:allow(borogove)
-	private function markReadUpToId(upTo: String, upToBy: String): Promise<Any> {
+	private function markReadUpToId(upTo: String, upToBy: String, recompute = true): Promise<Any> {
 		if (upTo == null) return Promise.reject(null);
 		if (readUpToId == upTo) {
 			return Promise.reject(null);
@@ -1012,8 +1005,8 @@ abstract class Chat {
 
 		readUpToId = upTo;
 		readUpToBy = upToBy;
-		persistence.storeChats(client.accountId(), [this]);
-		return recomputeUnread();
+		if (recompute) persistence.storeChats(client.accountId(), [this]);
+		return recompute ? recomputeUnread() : Promise.resolve(null);
 	}
 
 	private function markReadUpToMessage(message: ChatMessage): Promise<Any> {
@@ -1061,46 +1054,100 @@ abstract class Chat {
 @:build(HaxeSwiftBridge.expose())
 #end
 class DirectChat extends Chat {
+	@:allow(borogove.Client)
+	private final presence: Map<String, Presence> = new Map();
+	private var _fullCounterparts: Array<String>;
+
 	@:allow(borogove)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBookmarked = false, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
 		super(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensions, readUpToId, readUpToBy, omemoContactDeviceIDs);
+		_fullCounterparts = counterparts();
 		outbox.start();
 	}
 
-	@HaxeCBridge.noemit // on superclass as abstract
-	public function getParticipants(): Array<String> {
-		final counters = counterparts();
-		final ids: Map<String, Bool> = [];
-		if (counters.length < 2 && (lastMessage?.recipients?.length ?? 0) > 1) {
-			ids[lastMessage.senderId] = true;
-			for (id in lastMessage.recipients.map(r -> r.asString())) {
-				ids[id] = true;
-			}
+	@:allow(borogove)
+	private function setPresence(resource:String, presence:Presence, noStore = false) {
+		// We only store presence for 1:1
+		if (_fullCounterparts.length > 1) return;
+
+		if (presence.type == "unavailable") {
+			this.presence.remove(resource);
 		} else {
-			ids[client.accountId()] = true;
-			for (id in counterparts()) {
-				ids[id] = true;
-			}
+			this.presence.set(resource, presence);
 		}
-		return { iterator: () -> ids.keys() }.array();
+
+		if (noStore) return;
+
+		getMemberDetails(_fullCounterparts)
+			.then(members -> persistence.storeMembers(client.accountId(), chatId, members).then(_ -> members))
+			.then(members -> {
+				trigger("members/update", members);
+				client.trigger("chats/update", [this]);
+				return null;
+			});
+	}
+
+	@:allow(borogove)
+	private function getCaps():KeyValueIterator<Null<String>, Caps> {
+		final iter = presence.keyValueIterator();
+		return {
+			hasNext: iter.hasNext,
+			next: () -> {
+				final n = iter.next();
+				return { key: n.key, value: client.capsRepo.get(n.value) };
+			}
+		};
+	}
+
+	@:allow(borogove)
+	private function getResourceCaps(resource: Null<String>):Caps {
+		final p = presence[resource];
+		return p == null ? CapsRepo.empty : client.capsRepo.get(p);
+	}
+
+	override public function getDisplayName() {
+		final name = super.getDisplayName();
+		if (name == chatId && _fullCounterparts.length > 1) {
+			final names = _fullCounterparts.map(id -> client.getDirectChat(id).getDisplayName());
+			names.sort(Reflect.compare);
+			return names.join(", ");
+		}
+
+		return name;
+	}
+
+	@HaxeCBridge.noemit // on superclass as abstract
+	public function members() {
+		return getMemberDetails(_fullCounterparts.concat([client.accountId()]));
+	}
+
+	@HaxeCBridge.noemit // on superclass as abstract
+	public function getMemberDetails(memberIds: Array<String>) {
+		return Promise.resolve(memberIds.map(id -> {
+			final chat = client.getDirectChat(id);
+			return new Member(
+				id,
+				chat.getDisplayName(),
+				chat.getPhoto(),
+				chat.chatId == client.accountId(),
+				[], // No roles in direct chat
+				JID.parse(id),
+				chat.presence,
+				new AvailableChat(id, chat.getDisplayName(), '${id} (via ${displayName})', CapsRepo.empty)
+			);
+		}));
+	}
+
+	override private function setLastMessage(message:Null<ChatMessage>): Promise<Any> {
+		// If last message at load time is a sent message, this may not include everyone
+		if (_fullCounterparts.length < 2 && (message?.recipients?.length ?? 0) > 1) {
+			_fullCounterparts = message.recipients.map(r -> r.asBare().asString()).filter(id -> id != client.accountId());
+		}
+		return super.setLastMessage(message);
 	}
 
 	private function counterparts() {
 		return chatId.split("\n");
-	}
-
-	@HaxeCBridge.noemit // on superclass as abstract
-	public function getParticipantDetails(participantId:String): Participant {
-		final chat = client.getDirectChat(participantId);
-		return new Participant(
-			chat.getDisplayName(),
-			chat.getPhoto(),
-			chat.getPlaceholder(),
-			chat.chatId == client.accountId(),
-			[], // No roles in direct chat
-			JID.parse(participantId),
-			new AvailableChat(participantId, chat.getDisplayName(), '${participantId} (via ${displayName})', new Caps("", [], [], []))
-		);
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -1177,8 +1224,9 @@ class DirectChat extends Chat {
 			message.localId = toSendId;
 			sendMessageStanza(message.build().asStanza(), outboxItem);
 			if (lastMessage == null || corrected.canReplace(lastMessage)) {
-				setLastMessage(corrected);
-				client.trigger("chats/update", [this]);
+				setLastMessage(corrected).then(_ ->
+					client.trigger("chats/update", [this])
+				);
 			}
 			client.notifyMessageHandlers(corrected, CorrectionEvent);
 		});
@@ -1203,9 +1251,10 @@ class DirectChat extends Chat {
 						stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
 					}
 					sendMessageStanza(stanza, outboxItem);
-					setLastMessage(stored);
-					client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
-					client.trigger("chats/update", [this]);
+					setLastMessage(stored).then(_ -> {
+						client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
+						client.trigger("chats/update", [this]);
+					});
 				});
 			case ReactionUpdateStanza(update):
 				persistence.storeReaction(client.accountId(), update).then((stored) -> {
@@ -1285,11 +1334,6 @@ class DirectChat extends Chat {
 				}
 			});
 		});
-	}
-
-	@HaxeCBridge.noemit // on superclass as abstract
-	public function lastMessageId() {
-		return lastMessage?.serverId ?? lastMessage?.localId;
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -1391,8 +1435,14 @@ class Channel extends Chat {
 	private var joinFailed = null;
 	private var sync = null;
 	private var forceLive = false;
-	private var _nickInUse = null;
+	@:allow(borogove)
+	private var self: Null<Member> = null;
+	@:allow(borogove)
+	private var mavUntil = null;
+	@:allow(borogove.SerializedChat)
+	private var membersForName: Null<Array<{id: String, displayName: String}>> = [];
 	private var sortId = null;
+	private var lastMessageSenderName = null;
 
 	@:allow(borogove)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBookmarked = false, isBlocked = false, extensions = null, readUpToId = null, readUpToBy = null, ?disco: Caps) {
@@ -1449,29 +1499,35 @@ class Channel extends Chat {
 	}
 
 	@:allow(borogove)
-	private function join() {
+	private function join(): Promise<Any> {
 		if (uiState == Invited || uiState == Closed) {
 			// Do not join
-			return;
+			return Promise.resolve(null);
 		}
 
-		presence = []; // About to ask for a fresh set
-		_nickInUse = null;
-		outbox.pause();
-		inSync = false;
-		client.trigger("chats/update", [this]);
-		final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
-		client.sendPresence(
-			desiredFullJid.asString(),
-			(stanza) -> {
-				stanza.tag("x", { xmlns: "http://jabber.org/protocol/muc" });
-				if (disco.features.contains("urn:xmpp:mam:2")) stanza.tag("history", { maxchars: "0" }).up();
-				// TODO: else since (last message we know about)
-				stanza.up();
-				return stanza;
-			}
-		);
-		persistence.syncPoint(client.accountId(), chatId).then((point) -> doSync(point));
+		return persistence.clearMemberPresence(client.accountId(), chatId).then(_ -> {
+			self = null;
+			outbox.pause();
+			inSync = false;
+			client.trigger("chats/update", [this]);
+			final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
+			client.sendPresence(
+				desiredFullJid.asString(),
+				(stanza) -> {
+					final mavAttr: haxe.DynamicAccess<String> = { xmlns: "urn:xmpp:muc:affiliations:1" };
+					if (mavUntil != null) mavAttr.set("since", mavUntil);
+					stanza.tag("x", { xmlns: "http://jabber.org/protocol/muc" })
+						.tag("mav", mavAttr).up();
+					if (disco.features.contains("urn:xmpp:mam:2")) stanza.tag("history", { maxchars: "0" }).up();
+					// TODO: else since (last message we know about)
+					stanza.up();
+					return stanza;
+				}
+			);
+			persistence.syncPoint(client.accountId(), chatId).then((point) -> doSync(point));
+
+			return null;
+		});
 	}
 
 	private function selfPingSuccess() {
@@ -1486,12 +1542,15 @@ class Channel extends Chat {
 	}
 
 	override public function getDisplayName() {
-		if (this.displayName == chatId) {
+		final name = super.getDisplayName();
+		if (name == chatId) {
 			final title = (info()?.field("muc#roomconfig_roomname")?.value ?? []).join("\n");
 			if (title != null && title != "") return title;
+
+			if (membersForName != null && membersForName.length > 0 && membersForName.length < 20) return membersForName.map(m -> m.displayName).join(", ");
 		}
 
-		return super.getDisplayName();
+		return name;
 	}
 
 	/**
@@ -1527,63 +1586,104 @@ class Channel extends Chat {
 
 	override public function canInvite() {
 		if (!isPrivate()) return true;
-		if (_nickInUse == null) return false;
+		if (self == null) return false;
 
-		final p = presence[_nickInUse];
-		if (p == null) return false;
+		final it = self.presence.iterator();
+		if (!it.hasNext()) return false;
 
-		if (p.mucUser.role == "moderator") return true;
+		if (it.next().mucUser.role == "moderator") return true;
 
 		return false;
 	}
 
 	override public function canSend() {
 		if (!super.canSend()) return false;
-		if (_nickInUse == null) return true;
+		if (self == null) return true;
 
-		final p = presence[_nickInUse];
-		if (p == null) return true;
+		final it = self.presence.iterator();
+		if (!it.hasNext()) return true;
 
-		return p.mucUser.role != "visitor";
+		return it.next().mucUser.role != "visitor";
 	}
 
 	override public function canModerate() {
-		if (_nickInUse == null) return false;
+		if (self == null || disco == null) return false;
 
-		final p = presence[_nickInUse];
-		if (p == null) return false;
+		final it = self.presence.iterator();
+		if (!it.hasNext()) return false;
 
-		return disco.features.contains("urn:xmpp:message-moderate:1") && p.mucUser.role == "moderator";
+		return disco.features.contains("urn:xmpp:message-moderate:1") && it.next().mucUser.role == "moderator";
 	}
 
 	@:allow(borogove)
-	override private function getCaps():KeyValueIterator<String, Caps> {
-		return ["" => disco].keyValueIterator();
+	private function getCaps():KeyValueIterator<Null<String>, Caps> {
+		var hasNext = true;
+		return {
+			hasNext: () -> hasNext,
+			next: () -> {
+				hasNext = false;
+				return { key: null, value: disco };
+			}
+		};
 	}
 
 	@:allow(borogove)
-	override private function setPresence(resource:String, presence:Presence) {
+	private function setPresence(resource:String, presence:Presence, noStore = false) {
 		final oneTen = presence?.mucUser?.statusCodes?.find((status) -> status == "110");
-		if (oneTen != null) {
-			_nickInUse = resource;
-			outbox.start();
-		} else if (resource == _nickInUse) {
-			_nickInUse = null;
-			outbox.pause();
+		final member = buildMember(resource, presence);
+		if (presence.mucUser != null && oneTen == null && member.isSelf) {
+			// ejabberd sends presence updates for self without 110
+			final mucUser: Stanza = presence.mucUser;
+			mucUser.tag("status", { code: "110" }).up();
+			setPresence(resource, presence);
+			return;
 		}
-		if (presence != null && presence.mucUser != null && oneTen == null) {
-			final existing = this.presence.get(resource);
-			if (existing != null && existing?.mucUser?.statusCodes?.find((status) -> status == "110") != null) {
-				final mucUser: Stanza = presence.mucUser;
-				mucUser.tag("status", { code: "110" }).up();
-				setPresence(resource, presence);
-				return;
+		final occupantId = (presence : Stanza).getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
+		if (!noStore && !(disco.features.contains("urn:xmpp:occupant-id:0") && member.id != chatId + "/" + occupantId)) {
+			(if (presence.type == "unavailable" && member.photoUri == null) {
+				final memberUpdates = MemberUpdate.extractUpdates(client.accountId(), this, presence);
+				getMemberDetails([member.id]).then(fetched ->
+					cast memberUpdates[0].applyTo(fetched[0])
+				);
+			} else {
+				Promise.resolve(member);
+			}).then(member -> {
+				persistence.storeMembers(client.accountId(), chatId, [member]).then(_ -> {
+					trigger("members/update", [member]);
+				});
+			});
+		}
+		final mucUser = (presence : Stanza).getChild("x", "http://jabber.org/protocol/muc#user");
+		if (mucUser != null) {
+			final mav = mucUser.getChild("mav", "urn:xmpp:muc:affiliations:1");
+			if (mav?.attr?.get("since") != null && mav?.attr?.get("since") != mavUntil) {
+				trace("MAV update with unknown previous version", mavUntil, presence);
+			}
+			if (mav?.attr?.get("until") != null && mavUntil != mav?.attr?.get("until")) {
+				mavUntil = mav?.attr?.get("until");
+				persistence.storeChats(client.accountId(), [this]);
 			}
 		}
-		super.setPresence(resource, presence);
+		if (member.isSelf) {
+			if (presence.type == "unavailable") {
+				self = null;
+				outbox.pause();
+			} else {
+				self = member;
+				outbox.start();
+			}
+			client.trigger("chats/update", [this]);
+		}
+		if (!member.isSelf && member.id != chatId && membersForName != null) {
+			membersForName = membersForName.filter(m -> m.id != member.id);
+			membersForName.push({ id: member.id, displayName: member.displayName });
+			membersForName.sort((a, b) -> Reflect.compare(a.displayName, b.displayName));
+			if (membersForName.length > 20) membersForName = null;
+			if (displayName == chatId) client.trigger("chats/update", [this]);
+		}
 		final tripleThree = presence?.mucUser?.statusCodes?.find((status) -> status == "333");
-		if (oneTen != null && tripleThree != null) {
-			selfPing(true);
+		if (member.isSelf && tripleThree != null) {
+			haxe.Timer.delay(() -> selfPing(true), 5000);
 		}
 	}
 
@@ -1677,19 +1777,22 @@ class Channel extends Chat {
 					// Sort by time so that eg edits go into the past
 					dedupedMessages.sort((x, y) -> Reflect.compare(x.timestamp, y.timestamp));
 
-					final lastFromSync = dedupedMessages[dedupedMessages.length - 1];
-					if (lastFromSync != null && (lastMessage == null || lastFromSync.sortId > lastMessage.sortId)) {
-						setLastMessage(lastFromSync);
-						client.sortChats();
-					}
-
 					final readIndex = dedupedMessages.findLastIndex((m) -> m.serverId == readUpToId || !m.isIncoming());
 					if (readIndex < 0) {
 						setUnreadCount(unreadCount() + dedupedMessages.length);
 					} else {
 						setUnreadCount(dedupedMessages.length - readIndex - 1);
 					}
-					client.trigger("chats/update", [this]);
+
+					final lastFromSync = dedupedMessages[dedupedMessages.length - 1];
+					if (lastFromSync != null && (lastMessage == null || lastFromSync.sortId > lastMessage.sortId)) {
+						setLastMessage(lastFromSync).then(_ -> {
+							client.sortChats();
+							client.trigger("chats/update", [this]);
+						});
+					} else {
+						Promise.resolve(client.trigger("chats/update", [this]));
+					}
 				}
 			});
 		});
@@ -1734,8 +1837,7 @@ class Channel extends Chat {
 		final discoGet = new DiscoInfoGet(chatId);
 		discoGet.onFinished(() -> {
 			if (discoGet.getResult() != null) {
-				disco = discoGet.getResult();
-				client.capsRepo.add(discoGet.getResult());
+				disco = client.capsRepo.add(discoGet.getResult());
 				persistence.storeChats(client.accountId(), [this]);
 			}
 			if (callback != null) callback();
@@ -1745,7 +1847,6 @@ class Channel extends Chat {
 				avatarSha1 = hash.hash;
 				persistence.hasMedia("sha-1", avatarSha1).then((has) -> {
 					if (!has) {
-trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1Hex);
 						final vcardGet = new VcardTempGet(JID.parse(chatId));
 						vcardGet.onFinished(() -> {
 							final vcard = vcardGet.getResult();
@@ -1765,14 +1866,14 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	override public function preview() {
 		if (lastMessage == null) return super.preview();
 
-		return getParticipantDetails(lastMessage.senderId).displayName + ": " + super.preview();
+		return lastMessageSenderName + ": " + super.preview();
 	}
 
 	@:allow(borogove)
 	override private function livePresence() {
 		if (forceLive) return true;
 
-		return _nickInUse != null;
+		return self != null;
 	}
 
 	override public function syncing() {
@@ -1780,8 +1881,15 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	}
 
 	override private function setLastMessage(message:Null<ChatMessage>) {
-		super.setLastMessage(message);
-		if (message != null && message.type == MessageChannel && (sortId == null || sortId < message.sortId)) sortId = message.sortId;
+		return super.setLastMessage(message).then(_ -> {
+			if (message != null && message.type == MessageChannel && (sortId == null || sortId < message.sortId)) sortId = message.sortId;
+			if (message == null) return Promise.resolve(null);
+
+			return getMemberDetails([message.senderId]).then(sender -> {
+				lastMessageSenderName = sender[0] != null ? sender[0].displayName : message.senderMemberStub().displayName;
+				return null;
+			});
+		});
 	}
 
 	override public function canAudioCall():Bool {
@@ -1793,7 +1901,7 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	}
 
 	private function nickInUse() {
-		return _nickInUse ?? client.displayName();
+		return self?.displayName ?? client.displayName();
 	}
 
 	@:allow(borogove)
@@ -1802,115 +1910,101 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getParticipants() {
-		final jid = JID.parse(chatId);
-		return { iterator: () -> presence.keys() }.filter(resource -> resource != null).map((resource) -> new JID(jid.node, jid.domain, resource).asString());
+	public function members() {
+		return persistence
+			.getMembers(client.accountId(), this, self == null ? false : self.roles.exists(r -> ["admin", "owner"].contains(r.id)))
+			.then(members -> members.filter(member -> member.id != chatId));
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function getParticipantDetails(participantId:String): Participant {
-		final jid = JID.parse(participantId);
-		final nick = jid.resource;
-		final ppresence = presence[nick];
-		final roles = ppresence?.hats ?? [];
-		if (ppresence?.mucUser != null) {
-			final affRole = Role.forAffiliation(ppresence.mucUser.affiliation);
+	public function getMemberDetails(memberIds: Array<String>) {
+		if (memberIds.length == 1 && self != null && memberIds[0] == self.id) return Promise.resolve([cast self]);
+
+		return persistence.getMemberDetails(client.accountId(), this, memberIds);
+	}
+
+	private function buildMember(resource: String, presence: Presence): Member {
+		final oneTen = presence?.mucUser?.statusCodes?.find((status) -> status == "110");
+		final jid = JID.parse(chatId).withResource(resource);
+		final nick = resource ?? getDisplayName();
+		final roles = presence?.hats ?? [];
+		final occupantId = (presence : Stanza).getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
+		final id = occupantId == null ? jid.asString() : chatId + "/" + occupantId;
+		if (presence?.mucUser != null) {
+			final affRole = Role.forAffiliation(presence.mucUser.affiliation);
 			if (affRole != null) roles.unshift(affRole);
 		}
-		if (participantId == getFullJid().asString()) {
+		if (oneTen != null || id == self?.id) {
 			final chat = client.getDirectChat(client.accountId(), false);
-			return new Participant(
-				client.displayName(),
+			return new Member(
+				id,
+				nick,
 				chat.getPhoto(),
-				chat.getPlaceholder(),
 				true,
 				roles,
 				JID.parse(chat.chatId),
-				new AvailableChat(chat.chatId, chat.getDisplayName(), chat.chatId, new Caps("", [], [], []))
+				[ nick => presence ],
+				new AvailableChat(chat.chatId, chat.getDisplayName(), chat.chatId, CapsRepo.empty)
 			);
 		} else {
-			final placeholderUri = Color.defaultPhoto(participantId, nick == null ? " " : nick.charAt(0));
-			final trueJid = ppresence?.mucUser?.jid?.asBare()?.asString();
-			return new Participant(
-				nick ?? "",
-				ppresence?.avatarHash?.toUri(),
-				placeholderUri,
+			final trueJid = presence?.mucUser?.jid?.asBare()?.asString();
+			return new Member(
+				id,
+				nick,
+				presence?.avatarHash?.toUri(),
 				false,
 				roles,
 				trueJid == null ? jid : JID.parse(trueJid),
-				trueJid == null ? null : new AvailableChat(trueJid, nick ?? "", '$trueJid (via ${displayName})', new Caps("", [], [], []))
+				[ nick => presence ],
+				trueJid == null ? null : new AvailableChat(trueJid, nick, '$trueJid (via ${displayName})', CapsRepo.empty)
 			);
 		}
 	}
 
-	override public function availableRoles(participantId: String):Array<Role> {
-		if (_nickInUse == null) return [];
+	override public function availableRoles(member: Member):Array<Role> {
+		if (self == null) return [];
 
-		final p = presence[_nickInUse];
-		if (p?.mucUser == null) return [];
-
-		// TODO: this should get their affiliation from the list not using presence
-		// once we are fetching the affiliation list
-		// That's probably true everywhere we use affiliation
-		final pjid = JID.parse(participantId);
-		final pnick = pjid.resource;
-		final ppresence = presence[pnick];
-		if (ppresence?.mucUser == null) return [];
-		if (ppresence?.mucUser?.jid == null) return [];
-
-		if (p.mucUser.affiliation == "owner") {
-			return ["owner", "admin", "member", "outcast"].filter(aff -> aff != ppresence.mucUser.affiliation).map(aff -> Role.forAffiliation(aff));
+		if (self.roles.exists(r -> r.id == "owner")) {
+			return ["owner", "admin", "none", "outcast"].filter(aff -> !member.roles.exists(r -> r.id == aff)).map(aff -> Role.forAffiliation(aff));
 		}
 
-		if (p.mucUser.affiliation == "admin") {
-			if (ppresence.mucUser.affiliation == "owner") return [];
+		if (self.roles.exists(r -> r.id == "admin")) {
+			if (member.roles.exists(r -> r.id == "owner")) return [];
 
-			return ["member", "outcast"].filter(aff -> aff != ppresence.mucUser.affiliation).map(aff -> Role.forAffiliation(aff));
+			return ["none", "outcast"].filter(aff -> !member.roles.exists(r -> r.id == aff)).map(aff -> Role.forAffiliation(aff));
 		}
 
 		return [];
 	}
 
-	override public function canRemoveRole(participantId: String, role: Role):Bool {
-		if (_nickInUse == null) return false;
+	override public function canRemoveRole(member: Member, role: Role):Bool {
+		if (self == null) return false;
 
-		final p = presence[_nickInUse];
-		if (p?.mucUser == null) return false;
-
-		final pjid = JID.parse(participantId);
-		final pnick = pjid.resource;
-		final ppresence = presence[pnick];
-		if (ppresence?.mucUser == null) return false;
-		if (ppresence?.mucUser?.jid == null) return false;
-
-		if (p.mucUser.affiliation == "owner") {
-			return ["owner", "admin", "member", "outcast"].contains(role.id);
+		if (self.roles.exists(r -> r.id == "owner")) {
+			return ["owner", "admin", "none", "outcast"].contains(role.id);
 		}
 
-		if (p.mucUser.affiliation == "admin") {
-			if (ppresence.mucUser.affiliation == "owner") return false;
+		if (self.roles.exists(r -> r.id == "admin")) {
+			if (member.roles.exists(r -> r.id == "owner")) return false;
 
-			return ["admin", "member", "outcast"].contains(role.id);
+			return ["admin", "none", "outcast"].contains(role.id);
 		}
 
 		return false;
 	}
 
-	override public function addRole(participantId: String, role: Role) {
-		final pjid = JID.parse(participantId);
-		final pnick = pjid.resource;
-		final ppresence = presence[pnick];
-		if (ppresence?.mucUser?.jid == null) return;
+	override public function addRole(member: Member, role: Role) {
+		if (member.chat == null) return; // We don't know their jid
 
 		final iq = new Stanza("iq", { type: "set", to: chatId })
 			.tag("query", { xmlns: "http://jabber.org/protocol/muc#admin" })
-			.textTag("item", "", { affiliation: role.id, jid: ppresence.mucUser.jid.asBare().asString() });
+			.textTag("item", "", { affiliation: role.id, jid: member.chat.chatId });
 		stream.sendIq(iq, (response) -> {});
 	}
 
-	override public function removeRole(participantId: String, role: Role) {
-		// For affiliation-backed roles we remove them by adding affiliation of none
-		addRole(participantId, new Role("none", ""));
+	override public function removeRole(member: Member, role: Role) {
+		// For affiliation-backed roles we remove them by adding affiliation of member, which we treat as "no role"
+		addRole(member, new Role("member", ""));
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -1977,8 +2071,9 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 				message.sortId = client.nextSortId();
 			}
 		}
-		message.senderId = stanza.attr.get("from"); // MUC always needs full JIDs
-		if (message.senderId == getFullJid().asString()) {
+		final occupantId = stanza.getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
+		message.senderId = occupantId == null ? stanza.attr.get("from") : chatId + "/" + occupantId; // MUC always needs full JIDs
+		if (message.senderId == self?.id) {
 			message.recipients = message.replyTo;
 			message.direction = MessageSent;
 		}
@@ -1990,8 +2085,8 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
 		message.direction = MessageSent;
 		message.from = client.jid;
-		message.sender = getFullJid();
-		message.replyTo = [message.sender];
+		message.senderId = self?.id ?? getFullJid().asString(); // TODO: what if we aren't joined and self is null and this is an occupant id room?
+		message.replyTo = [getFullJid()];
 		message.to = JID.parse(chatId);
 		message.recipients = [message.to];
 		if (message.localId == null) message.localId = ID.unique();
@@ -2012,8 +2107,9 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 			sendMessageStanza(message.build().asStanza(), outboxItem);
 			client.notifyMessageHandlers(corrected, CorrectionEvent);
 			if (lastMessage == null || corrected.canReplace(lastMessage)) {
-				setLastMessage(corrected);
-				client.trigger("chats/update", [this]);
+				setLastMessage(corrected).then(_ ->
+					client.trigger("chats/update", [this])
+				);
 			}
 		});
 	}
@@ -2027,7 +2123,10 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		final stanza = message.build().asStanza();
 		// Fake from as it will look on reflection for storage purposes
 		stanza.attr.set("from", getFullJid().asString());
-		final fromStanza = Message.fromStanza(stanza, client.jid).parsed;
+		final fromStanza = Message.fromStanza(stanza, client.jid, (builder, _) -> {
+			if (message.senderId != null) builder.senderId = message.senderId;
+			return builder;
+		}).parsed;
 		stanza.attr.set("from", client.jid.asString());
 		switch (fromStanza) {
 			case ChatMessageStanza(_):
@@ -2039,9 +2138,10 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 				final outboxItem = outbox.newItem();
 				client.storeMessageBuilder(message).then((stored) -> {
 					sendMessageStanza(stanza, outboxItem);
-					setLastMessage(stored);
-					client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
-					client.trigger("chats/update", [this]);
+					setLastMessage(stored).then(_ -> {
+						client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
+						client.trigger("chats/update", [this]);
+					});
 				});
 			case ReactionUpdateStanza(update):
 				persistence.storeReaction(client.accountId(), update).then((stored) -> {
@@ -2073,11 +2173,11 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		final reactions = [];
 		for (areaction => reacts in m.reactions) {
 			if (areaction != reaction.key) {
-				final react = reacts.find(r -> r.senderId == getFullJid().asString());
+				final react = reacts.find(r -> r.senderId == self?.id);
 				if (react != null && !Std.isOfType(react, CustomEmojiReaction)) reactions.push(react);
 			}
 		}
-		final update = new ReactionUpdate(ID.unique(), m.serverId, m.chatId(), null, m.chatId(), getFullJid().asString(), Date.format(std.Date.now()), reactions, EmojiReactions);
+		final update = new ReactionUpdate(ID.unique(), m.serverId, m.chatId(), null, m.chatId(), self?.id, Date.format(std.Date.now()), reactions, EmojiReactions);
 		final outboxItem = outbox.newItem();
 		persistence.storeReaction(client.accountId(), update).then((stored) -> {
 			sendMessageStanza(update.asStanza(), outboxItem);
@@ -2092,11 +2192,6 @@ trace("XYZZY no MUC avatar locally matching so fetch vcard", chatId, avatarSha1H
 		stanza.attr.set("type", "groupchat");
 		stanza.attr.set("to", chatId);
 		outboxItem.handle(() -> client.sendStanza(stanza));
-	}
-
-	@HaxeCBridge.noemit // on superclass as abstract
-	public function lastMessageId() {
-		return lastMessage?.serverId;
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
@@ -2272,6 +2367,7 @@ class SerializedChat {
 	public final isBookmarked:Bool;
 	public final avatarSha1:Null<BytesData>;
 	public final presence:Map<String, Presence>;
+	public final membersForName: Null<Array<{id: String, displayName: String}>>;
 	public final displayName:Null<String>;
 	public final uiState:UiState;
 	public final isBlocked:Bool;
@@ -2279,23 +2375,25 @@ class SerializedChat {
 	public final extensions:String;
 	public final readUpToId:Null<String>;
 	public final readUpToBy:Null<String>;
-	public final threads: StringMapNullableKey = new StringMapNullableKey();
+	public final threads: StringMapNullableKey<String> = new StringMapNullableKey();
 	public final disco:Null<Caps>;
+	public final mavUntil:Null<String>;
 	public final omemoContactDeviceIDs: Array<Int>;
-	public final klass:String;
 	public final notificationsFiltered: Null<Bool>;
 	public final notifyMention: Bool;
 	public final notifyReply: Bool;
+	public final klass:String;
 
 	/**
 		Create a serialized chat snapshot suitable for persistence.
 	**/
-	public function new(chatId: String, trusted: Bool, isBookmarked: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, status: Status, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, threads: StringMapNullableKey, disco: Null<Caps>, omemoContactDeviceIDs: Array<Int>, klass: String) {
+	public function new(chatId: String, trusted: Bool, isBookmarked: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, membersForName: Null<Array<{id: String, displayName: String}>>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, status: Status, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, threads: StringMapNullableKey<String>, disco: Null<Caps>, mavUntil: Null<String>, omemoContactDeviceIDs: Array<Int>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.isBookmarked = isBookmarked;
 		this.avatarSha1 = avatarSha1;
 		this.presence = presence;
+		this.membersForName = membersForName;
 		this.displayName = displayName;
 		this.uiState = uiState ?? Open;
 		this.isBlocked = isBlocked ?? false;
@@ -2308,6 +2406,7 @@ class SerializedChat {
 		this.notifyReply = notifyReply;
 		this.threads = threads;
 		this.disco = disco;
+		this.mavUntil = mavUntil;
 		this.omemoContactDeviceIDs = omemoContactDeviceIDs;
 		this.klass = klass;
 	}
@@ -2329,7 +2428,9 @@ class SerializedChat {
 			new DirectChat(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensionsStanza, readUpToId, readUpToBy, omemoContactDeviceIDs);
 		} else if (klass == "Channel") {
 			final channel = new Channel(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensionsStanza, readUpToId, readUpToBy);
-			channel.disco = disco ?? new Caps("", [], ["http://jabber.org/protocol/muc"], []);
+			channel.membersForName = membersForName;
+			channel.mavUntil = mavUntil;
+			if (disco != null) channel.disco = client.capsRepo.add(disco, false);
 			if (notificationsFiltered == null && !channel.isPrivate()) {
 				mention = filterN = true;
 			}
@@ -2343,7 +2444,7 @@ class SerializedChat {
 		chat.status = status;
 		chat.setTrusted(trusted);
 		for (resource => p in presence) {
-			chat.setPresence(resource, p);
+			chat.setPresence(resource, p, true);
 		}
 		for (threadId => subject in threads) {
 			chat.setThreadSubject(threadId, subject);

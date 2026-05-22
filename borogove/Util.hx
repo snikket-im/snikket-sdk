@@ -193,6 +193,10 @@ class Util {
 		o.writeBytes(b, 0, b.length);
 	}
 
+	inline static public function filterOutNulls<A>(arr: Array<Null<A>>, f: (A -> Bool)): Array<A> {
+		return arr.filter((x) -> x != null && f(x));
+	}
+
 	/**
 		Convert a String index to a UnicodeString index
 	**/

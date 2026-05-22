@@ -31,7 +31,7 @@ export {
     borogove_Identicon as Identicon,
     borogove_LinkMetadata as LinkMetadata,
     borogove_Notification as Notification,
-    borogove_Participant as Participant,
+    borogove_Member as Member,
     borogove_Profile as Profile,
     borogove_ProfileBuilder as ProfileBuilder,
     borogove_ProfileItem as ProfileItem,

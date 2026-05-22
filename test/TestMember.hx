@@ -3,17 +3,17 @@ package test;
 import utest.Assert;
 import utest.Async;
 import borogove.Client;
-import borogove.Participant;
+import borogove.Member;
 import borogove.JID;
 import borogove.Stanza;
 import borogove.persistence.Dummy;
 
 @:access(borogove)
-class TestParticipant extends utest.Test {
+class TestMember extends utest.Test {
 	public function testStatus(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
-		final participant = new Participant("Friend", null, "", false, [], JID.parse("friend@example.com"), null);
+		final participant = new Member("id1", "Friend", null, false, [], JID.parse("friend@example.com"), new Map(), null);
 
 		client.stream.on("sendStanza", (stanza: Stanza) -> {
 			if (stanza.name == "iq" && stanza.attr.get("type") == "get") {

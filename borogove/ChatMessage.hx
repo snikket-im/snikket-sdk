@@ -411,7 +411,7 @@ class ChatMessage {
 
 		@param sender optionally specify the full details of the sender
 	**/
-	public function body(sender: Null<Participant> = null):Html {
+	public function body(sender: Null<Member> = null):Html {
 		return new Html(htmlBody(), sender);
 	}
 
@@ -438,6 +438,14 @@ class ChatMessage {
 	**/
 	public function account():String {
 		return (!isIncoming() ? from?.asBare()?.asString() : to?.asBare()?.asString()) ?? throw "from or to is null";
+	}
+
+	/**
+		A basic Member for the sender, in case the full one can't be loaded
+	**/
+	public function senderMemberStub():Member {
+		final displayName = (type == MessageChannel ? from.resource : from.asString()) ?? " ";
+		return new Member(senderId, displayName, null, !isIncoming(), [], from, new Map(), null);
 	}
 
 	/**

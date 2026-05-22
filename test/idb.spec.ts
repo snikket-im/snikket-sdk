@@ -1054,8 +1054,7 @@ test("storeChats and getChats with status", async ({ page }) => {
 		const blob = new Blob([code], { type: "text/javascript" });
 		const borogove = await import(URL.createObjectURL(blob));
 
-		const mediaStore =
-			await borogove.persistence.MediaStoreCache("snikket");
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
 		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
 
 		const chat = Object.create(borogove.DirectChat.prototype);
@@ -1096,12 +1095,567 @@ test("storeStreamManamagement and getStreamManagement", async ({ page }) => {
 		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
 
 		await persistence.storeLogin("alice@example.com", "", "", null); // or updating with SM may not work
-		await persistence.storeStreamManagement("alice@example.com", new Uint8Array([1,2,0,4]).buffer, "ZZ");
+		await persistence.storeStreamManagement(
+			"alice@example.com",
+			new Uint8Array([1, 2, 0, 4]).buffer,
+			"ZZ",
+		);
 		const result = await persistence.getStreamManagement("alice@example.com");
-		return { smIsArrayBuffer: result.sm instanceof ArrayBuffer, smIsEq: result.sm ? indexedDB.cmp(result.sm, new Uint8Array([1,2,0,4]).buffer) : "null", sortId: result.sortId };
+		return {
+			smIsArrayBuffer: result.sm instanceof ArrayBuffer,
+			smIsEq: result.sm
+				? indexedDB.cmp(result.sm, new Uint8Array([1, 2, 0, 4]).buffer)
+				: "null",
+			sortId: result.sortId,
+		};
 	}, code);
 
 	expect(result.smIsEq).toBe(0);
 	expect(result.smIsArrayBuffer).toBe(true);
 	expect(result.sortId).toBe("ZZ");
+});
+
+test("getMembers hydrates persisted member data", async ({ page }) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: "text/javascript" });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+		const chat = Object.create(borogove.Channel.prototype);
+		chat.chatId = "room-members-1@example.com";
+		chat.getDisplayName = () => "Tea Room";
+
+		const member = {
+			id: "room-members-1@example.com/occ-1",
+			displayName: "Alice",
+			photoUri: "photo:alice",
+			isSelf: false,
+			roles: [{ id: "admin", title: "Admin" }],
+			jid: borogove.JID.parse("alice@example.com"),
+			presence: new Map([
+				[
+					"laptop",
+					borogove.Stanza.parse("<presence><show>away</show></presence>"),
+				],
+			]),
+			chat: { chatId: "alice@example.com" },
+		};
+
+		await persistence.storeMembers("alice@example.com", chat.chatId, [member]);
+		const [stored] = await persistence.getMembers(
+			"alice@example.com",
+			chat,
+			false,
+		);
+
+		return {
+			id: stored.id,
+			displayName: stored.displayName,
+			chatId: stored.chat?.chatId,
+			roleIds: stored.roles.map((r) => r.id),
+			presenceKeys: [...stored.presence.keys()],
+			showPresence: stored.showPresence,
+		};
+	}, code);
+
+	expect(result.id).toBe("room-members-1@example.com/occ-1");
+	expect(result.displayName).toBe("Alice");
+	expect(result.chatId).toBe("alice@example.com");
+	expect(result.roleIds).toEqual(["admin"]);
+	expect(result.presenceKeys).toEqual(["laptop"]);
+	expect(result.showPresence).toBe(1);
+});
+
+test("storeMemberUpdates merges existing member data", async ({ page }) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: "text/javascript" });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+		const chat = Object.create(borogove.Channel.prototype);
+		chat.chatId = "room-members-2@example.com";
+		chat.getDisplayName = () => "Tea Room";
+
+		await persistence.storeMembers("alice@example.com", chat.chatId, [
+			{
+				id: "room-members-2@example.com/occ-1",
+				displayName: "Alice",
+				photoUri: null,
+				isSelf: false,
+				roles: [
+					{ id: "admin", title: "Admin" },
+					{ id: "urn:xmpp:hats:test", title: "Tea Host" },
+				],
+				jid: borogove.JID.parse("alice@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "alice@example.com" },
+			},
+		]);
+
+		const updates = [
+			new borogove.MemberUpdate(
+				"room-members-2@example.com/occ-1",
+				borogove.JID.parse("alice@example.com"),
+				"Alice Cooper",
+				false,
+				null,
+				new Map([["mobile", borogove.Stanza.parse("<presence />")]]),
+			),
+		];
+
+		const updated = await persistence.storeMemberUpdates(
+			"alice@example.com",
+			chat,
+			updates,
+			false,
+		);
+
+		return {
+			updatedRoleIds: updated[0].roles.map((r) => r.id),
+			updatedPresenceKeys: [...updated[0].presence.keys()].sort(),
+			updatedDisplayName: updated[0].displayName,
+		};
+	}, code);
+
+	expect(result.updatedRoleIds).toEqual(["urn:xmpp:hats:test"]);
+	expect(result.updatedPresenceKeys).toEqual(["desk", "mobile"]);
+	expect(result.updatedDisplayName).toBe("Alice Cooper");
+});
+
+test("storeMemberUpdates clears omitted full-list affiliations", async ({
+	page,
+}) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: "text/javascript" });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+		const chat = Object.create(borogove.Channel.prototype);
+		chat.chatId = "room-members-2b@example.com";
+		chat.getDisplayName = () => "Tea Room";
+
+		await persistence.storeMembers("alice@example.com", chat.chatId, [
+			{
+				id: "room-members-2b@example.com/occ-1",
+				displayName: "Alice",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "admin", title: "Admin" }],
+				jid: borogove.JID.parse("alice@example.com"),
+				presence: new Map(),
+				chat: { chatId: "alice@example.com" },
+			},
+			{
+				id: "room-members-2b@example.com/occ-2",
+				displayName: "Bob",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "owner", title: "Owner" }],
+				jid: borogove.JID.parse("bob@example.com"),
+				presence: new Map(),
+				chat: { chatId: "bob@example.com" },
+			},
+		]);
+
+		await persistence.storeMemberUpdates(
+			"alice@example.com",
+			chat,
+			[
+				new borogove.MemberUpdate(
+					"room-members-2b@example.com/occ-1",
+					borogove.JID.parse("alice@example.com"),
+					"Alice",
+					false,
+					null,
+					new Map(),
+				),
+			],
+			true,
+		);
+		const members = await persistence.getMembers(
+			"alice@example.com",
+			chat,
+			true,
+		);
+
+		return members.find((m) => m.id.endsWith("occ-2")).roles.map((r) => r.id);
+	}, code);
+
+	expect(result).toEqual([]);
+});
+
+test("storeMemberUpdates matches existing member by true JID", async ({
+	page,
+}) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: "text/javascript" });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+		const chat1 = Object.create(borogove.Channel.prototype);
+		chat1.chatId = "room-members-3@example.com";
+		chat1.getDisplayName = () => "Tea Room";
+		const chat2 = Object.create(borogove.Channel.prototype);
+		chat2.chatId = "room-members-4@example.com";
+		chat2.getDisplayName = () => "Other Room";
+
+		await persistence.storeMembers("alice@example.com", chat1.chatId, [
+			{
+				id: "room-members-3@example.com/occ-1",
+				displayName: "Alice",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "admin", title: "Admin" }],
+				jid: borogove.JID.parse("alice@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "alice@example.com" },
+			},
+			{
+				id: "room-members-4@example.com/occ-1",
+				displayName: "Bob",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "admin", title: "Admin" }],
+				jid: borogove.JID.parse("bob@example.com"),
+				presence: new Map([["phone", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "bob@example.com" },
+			},
+		]);
+
+		await persistence.storeMemberUpdates(
+			"alice@example.com",
+			chat1,
+			[
+				new borogove.MemberUpdate(
+					null,
+					borogove.JID.parse("alice@example.com"),
+					"Alice Renamed",
+					false,
+					null,
+					new Map(),
+				),
+			],
+			false,
+		);
+		const [chat1Member] = await persistence.getMemberDetails(
+			"alice@example.com",
+			chat1,
+			["room-members-3@example.com/occ-1"],
+		);
+
+		return chat1Member.displayName;
+	}, code);
+
+	expect(result).toBe("Alice Renamed");
+});
+
+test("clearMemberPresence only clears the targeted chat", async ({ page }) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: "text/javascript" });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+		const chat1 = Object.create(borogove.Channel.prototype);
+		chat1.chatId = "room-members-4a@example.com";
+		chat1.getDisplayName = () => "Tea Room";
+		const chat2 = Object.create(borogove.Channel.prototype);
+		chat2.chatId = "room-members-4b@example.com";
+		chat2.getDisplayName = () => "Other Room";
+
+		await persistence.storeMembers("alice@example.com", chat1.chatId, [
+			{
+				id: "room-members-4a@example.com/occ-1",
+				displayName: "Alice",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "admin", title: "Admin" }],
+				jid: borogove.JID.parse("alice@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "alice@example.com" },
+			},
+		]);
+		await persistence.storeMembers("alice@example.com", chat2.chatId, [
+			{
+				id: "room-members-4b@example.com/occ-1",
+				displayName: "Bob",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "admin", title: "Admin" }],
+				jid: borogove.JID.parse("bob@example.com"),
+				presence: new Map([["phone", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "bob@example.com" },
+			},
+		]);
+
+		await persistence.clearMemberPresence("alice@example.com", chat1.chatId);
+		const [chat1Member] = await persistence.getMemberDetails(
+			"alice@example.com",
+			chat1,
+			["room-members-4a@example.com/occ-1"],
+		);
+		const [chat2Member] = await persistence.getMemberDetails(
+			"alice@example.com",
+			chat2,
+			["room-members-4b@example.com/occ-1"],
+		);
+
+		return {
+			chat1PresenceKeys: [...chat1Member.presence.keys()],
+			chat2PresenceKeys: [...chat2Member.presence.keys()],
+		};
+	}, code);
+
+	expect(result.chat1PresenceKeys).toEqual([]);
+	expect(result.chat2PresenceKeys).toEqual(["phone"]);
+});
+
+test("getMembers filters hidden rows for non-moderators", async ({ page }) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: "text/javascript" });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+		const chat = Object.create(borogove.Channel.prototype);
+		chat.chatId = "room-members-5@example.com";
+		chat.getDisplayName = () => "Tea Room";
+
+		await persistence.storeMembers("alice@example.com", chat.chatId, [
+			{
+				id: "room-members-5@example.com/owner",
+				displayName: "Zulu",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "owner", title: "Owner" }],
+				jid: borogove.JID.parse("zulu@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "zulu@example.com" },
+			},
+			{
+				id: "room-members-5@example.com/outcast",
+				displayName: "Banned",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "outcast", title: "Banned" }],
+				jid: borogove.JID.parse("banned@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "banned@example.com" },
+			},
+			{
+				id: "room-members-5@example.com/guest-offline",
+				displayName: "Guest",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "none", title: "Guest" }],
+				jid: borogove.JID.parse("guest@example.com"),
+				presence: new Map([
+					["desk", borogove.Stanza.parse('<presence type="unavailable" />')],
+				]),
+				chat: { chatId: "guest@example.com" },
+			},
+			{
+				id: "room-members-5@example.com/guest-offline2",
+				displayName: "Guest2",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "none", title: "Guest" }],
+				jid: borogove.JID.parse("guest2@example.com"),
+				presence: new Map(),
+				chat: { chatId: "guest2@example.com" },
+			},
+			{
+				id: "room-members-5@example.com/admin",
+				displayName: "Alpha",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "admin", title: "Admin" }],
+				jid: borogove.JID.parse("alpha@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "alpha@example.com" },
+			},
+		]);
+
+		const normal = await persistence.getMembers(
+			"alice@example.com",
+			chat,
+			false,
+		);
+
+		return normal.map((m) => m.displayName);
+	}, code);
+
+	expect(result).toEqual(["Zulu", "Alpha"]);
+});
+
+test("getMembers includes moderator-visible rows", async ({ page }) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: "text/javascript" });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+		const chat = Object.create(borogove.Channel.prototype);
+		chat.chatId = "room-members-6@example.com";
+		chat.getDisplayName = () => "Tea Room";
+
+		await persistence.storeMembers("alice@example.com", chat.chatId, [
+			{
+				id: "room-members-6@example.com/owner",
+				displayName: "Zulu",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "owner", title: "Owner" }],
+				jid: borogove.JID.parse("zulu@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "zulu@example.com" },
+			},
+			{
+				id: "room-members-6@example.com/outcast",
+				displayName: "Banned",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "outcast", title: "Banned" }],
+				jid: borogove.JID.parse("banned@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "banned@example.com" },
+			},
+			{
+				id: "room-members-6@example.com/guest-offline",
+				displayName: "Guest",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "none", title: "Guest" }],
+				jid: borogove.JID.parse("guest@example.com"),
+				presence: new Map([
+					["desk", borogove.Stanza.parse('<presence type="unavailable" />')],
+				]),
+				chat: { chatId: "guest@example.com" },
+			},
+			{
+				id: "room-members-6@example.com/admin",
+				displayName: "Alpha",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "admin", title: "Admin" }],
+				jid: borogove.JID.parse("alpha@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "alpha@example.com" },
+			},
+		]);
+
+		const moderator = await persistence.getMembers(
+			"alice@example.com",
+			chat,
+			true,
+		);
+		return moderator.map((m) => m.displayName);
+	}, code);
+
+	expect(result).toEqual(["Zulu", "Alpha", "Banned"]);
+});
+
+test("getMemberDetails returns null for incomplete rows", async ({ page }) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: "text/javascript" });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+		const chat = Object.create(borogove.Channel.prototype);
+		chat.chatId = "room-members-7@example.com";
+		chat.getDisplayName = () => "Tea Room";
+
+		await persistence.storeMembers("alice@example.com", chat.chatId, [
+			{
+				id: "room-members-7@example.com/admin",
+				displayName: "Alpha",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "admin", title: "Admin" }],
+				jid: borogove.JID.parse("alpha@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "alpha@example.com" },
+			},
+		]);
+
+		const tx = indexedDB.open("snikket");
+		const db = await new Promise((resolve, reject) => {
+			tx.onsuccess = () => resolve(tx.result);
+			tx.onerror = () => reject(tx.error);
+		});
+		const write = db.transaction(["members"], "readwrite");
+		write.objectStore("members").put({
+			account: "alice@example.com",
+			chatId: chat.chatId,
+			id: "room-members-7@example.com/incomplete",
+			displayName: "",
+			photoUri: null,
+			isSelf: 0,
+			chat: "",
+			roles: [],
+			presence: new Map(),
+			jid: "",
+		});
+		await new Promise((resolve, reject) => {
+			write.oncomplete = () => resolve(null);
+			write.onerror = () => reject(write.error);
+		});
+
+		const details = await persistence.getMemberDetails(
+			"alice@example.com",
+			chat,
+			[
+				"room-members-7@example.com/admin",
+				"room-members-7@example.com/incomplete",
+			],
+		);
+		return details.map((m) => (m ? m.displayName : null));
+	}, code);
+
+	expect(result).toEqual(["Alpha", null]);
 });

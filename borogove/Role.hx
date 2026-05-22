@@ -10,7 +10,7 @@ import borogove.Color;
 #end
 class Role {
 	// A role is the unification of XMPP affiliations and hats
-	// importantly, it is *not* and XMPP MUC role
+	// importantly, it is *not* an XMPP MUC role
 
 	/**
 		Unique id for the role
@@ -32,9 +32,9 @@ class Role {
 	private static function forAffiliation(aff: String) {
 		final title = switch (aff) {
 			case "outcast": "Banned";
-			case "member": "Member";
 			case "admin": "Admin";
 			case "owner": "Owner";
+			case "none": "Guest";
 			default: return null;
 		}
 		return new Role(aff, title);

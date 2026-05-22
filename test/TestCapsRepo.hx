@@ -28,6 +28,30 @@ class CapsRepoMockPersistence extends Dummy {
 }
 
 class TestCapsRepo extends utest.Test {
+	public function testAddDeduplicatesAndReturnsCached() {
+		final persistence = new CapsRepoMockPersistence();
+		final repo = new CapsRepo(persistence);
+		final caps1 = new Caps("node1", [], ["feat1"], []);
+		final caps2 = new Caps("node1", [], ["feat1"], []);
+
+		final added1 = repo.add(caps1);
+		final added2 = repo.add(caps2);
+
+		Assert.equals(caps1, added1);
+		Assert.equals(caps1, added2);
+		Assert.equals(1, persistence.storedCaps.length);
+	}
+
+	public function testAddWithoutStoreOnMiss() {
+		final persistence = new CapsRepoMockPersistence();
+		final repo = new CapsRepo(persistence);
+		final caps = new Caps("node1", [], ["feat1"], []);
+
+		repo.add(caps, false);
+
+		Assert.equals(0, persistence.storedCaps.length);
+	}
+
 	public function testAddAndGet(async: Async) {
 		final persistence = new CapsRepoMockPersistence();
 		final repo = new CapsRepo(persistence);
@@ -85,5 +109,15 @@ class TestCapsRepo extends utest.Test {
 			Assert.equals(caps.node, retrieved2.node);
 			async.done();
 		}, 1);
+	}
+
+	public function testGetSyncMissingReturnsEmpty() {
+		final persistence = new CapsRepoMockPersistence();
+		final repo = new CapsRepo(persistence);
+		final presence = Stanza.parse('<presence><c xmlns="http://jabber.org/protocol/caps" node="node1" ver="missing"/></presence>');
+
+		final retrieved = repo.get(presence);
+
+		Assert.equals(CapsRepo.empty, retrieved);
 	}
 }

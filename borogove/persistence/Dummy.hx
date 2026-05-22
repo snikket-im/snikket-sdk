@@ -43,6 +43,31 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
+	public function storeMembers(accountId: String, chatId: String, chat: Array<Member>) {
+		return Promise.resolve(false);
+	}
+
+	@HaxeCBridge.noemit
+	public function storeMemberUpdates(accountId: String, chat: Chat, updates: Array<MemberUpdate>, isFullList: Bool) {
+		return Promise.resolve([]);
+	}
+
+	@HaxeCBridge.noemit
+	public function clearMemberPresence(accountId: String, chatId: Null<String>) {
+		return Promise.resolve(false);
+	}
+
+	@HaxeCBridge.noemit
+	public function getMembers(accountId: String, chat: Chat, forModerator: Bool) {
+		return Promise.resolve([]);
+	}
+
+	@HaxeCBridge.noemit
+	public function getMemberDetails(accountId: String, chat: Null<Chat>, ids: Array<String>) {
+		return Promise.resolve([]);
+	}
+
+	@HaxeCBridge.noemit
 	public function storeMessages(accountId: String, messages: Array<ChatMessage>): Promise<Array<ChatMessage>> {
 		return Promise.resolve(messages);
 	}

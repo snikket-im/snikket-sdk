@@ -42,10 +42,10 @@ class Html {
 
 	@:allow(borogove)
 	private final xml: ReadOnlyArray<Node>;
-	private final sender: Null<Participant>;
+	private final sender: Null<Member>;
 
 	@:allow(borogove)
-	private function new(xml: Array<Node>, sender: Null<Participant>) {
+	private function new(xml: Array<Node>, sender: Null<Member>) {
 		this.xml = xml;
 		this.sender = sender;
 	}
