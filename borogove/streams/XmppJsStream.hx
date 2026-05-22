@@ -402,8 +402,7 @@ class XmppJsStream extends GenericStream {
 			final parts = attr.split(":");
 			if (parts.length == 1 || parts[0] == "xml") {
 				attrs.set(attr, val);
-			}
-			if (parts.length == 2 && parts[0] != "xmlns") {
+			} else if (parts.length == 2 && parts[0] != "xmlns") {
 				attrs.set("{" + el.findNS(parts[0]) + "}" + parts[1], val);
 			}
 		}
