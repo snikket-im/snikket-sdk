@@ -56,7 +56,7 @@ npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogov
 	cp borogove/persistence/IDB.js npm
 	cp borogove/persistence/MediaStoreCache.js npm
 	cp borogove/persistence/sqlite-worker1.mjs npm
-	$(RM) =f npm/calls.js npm/persistence.js npm/persistence-browser.js npm/borogove-enums.js
+	$(RM) npm/calls.js npm/persistence.js npm/persistence-browser.js npm/borogove-enums.js
 	-cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts > /dev/null
 	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts
 	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d persistence-browser.ts
