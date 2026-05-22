@@ -1610,8 +1610,10 @@ class Client extends EventEmitter {
 	private function sendNextLazyQuery() {
 		if (lazyQueryTimer != null) return;
 		lazyQueryTimer = haxe.Timer.delay(() -> {
-			final query = queriesToSend.shift();
-			if (query != null) sendQuery(query);
+			for (i in 0...10) {
+				final query = queriesToSend.shift();
+				if (query != null) sendQuery(query);
+			}
 
 			lazyQueryTimer = null;
 			if (queriesToSend.length > 0) sendNextLazyQuery();
