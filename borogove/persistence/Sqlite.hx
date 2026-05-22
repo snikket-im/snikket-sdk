@@ -21,8 +21,6 @@ using borogove.SignalProtocol;
 
 using Lambda;
 
-// TODO: consider doing background threads for operations
-
 @:expose
 #if cpp
 @:build(HaxeCBridge.expose())
