@@ -1,15 +1,15 @@
 // This example MediaStore is written in JavaScript
 // so that SDK users can easily see how to write their own
 
-export default async (cacheName) => {
-	const cache = await caches.open(cacheName);
+export default (cacheName, { routeHashPath } = {}) => {
+	let cache = null; // Allow the definitions to be sync
 
 	function mkNiUrl(hashAlgorithm, hashBytes) {
 		const b64url = btoa(Array.from(new Uint8Array(hashBytes), (x) => String.fromCodePoint(x)).join("")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 		return "/.well-known/ni/" + hashAlgorithm + "/" + b64url;
 	}
 
-	return {
+	const o = {
 		setKV(kv) {
 			this.kv = kv;
 		},
@@ -36,22 +36,6 @@ export default async (cacheName) => {
 			return true;
 		},
 
-		routeHashPathSW() {
-			const waitForMedia = async (uri) => {
-				const r = await this.getMediaResponse(uri);
-				if (r) return r;
-				await new Promise(resolve => setTimeout(resolve, 5000));
-				return await waitForMedia(uri);
-			};
-
-			addEventListener("fetch", (event) => {
-				const url = new URL(event.request.url);
-				if (url.origin === self.location.origin && url.pathname.startsWith("/.well-known/ni/")) {
-					event.respondWith(waitForMedia(url.pathname));
-				}
-			});
-		},
-
 		async getMediaResponse(uri) {
 			uri = uri.replace(/^ni:\/\/\//, "/.well-known/ni/").replace(/;/, "/");
 			var niUrl;
@@ -72,4 +56,27 @@ export default async (cacheName) => {
 			return !!response;
 		}
 	};
+
+	if (routeHashPath) {
+		const waitForMedia = async (uri) => {
+			if (cache) {
+				const r = await o.getMediaResponse(uri);
+				if (r) return r;
+			}
+			await new Promise(resolve => setTimeout(resolve, 5000));
+			return await waitForMedia(uri);
+		};
+
+		self.addEventListener("fetch", (event) => {
+			const url = new URL(event.request.url);
+			if (url.origin === self.location.origin && url.pathname.startsWith("/.well-known/ni/")) {
+				event.respondWith(waitForMedia(url.pathname));
+			}
+		});
+	}
+
+	return caches.open(cacheName).then(c => {
+		cache = c;
+		return o;
+	});
 };
