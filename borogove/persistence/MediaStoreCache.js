@@ -1,7 +1,7 @@
 // This example MediaStore is written in JavaScript
 // so that SDK users can easily see how to write their own
 
-export default (cacheName, { routeHashPath } = {}) => {
+export default (cacheName, { routeHashPath } = { routeHashPath: null }) => {
 	let cache = null; // Allow the definitions to be sync
 
 	function mkNiUrl(hashAlgorithm, hashBytes) {
