@@ -3,6 +3,7 @@ package borogove;
 import thenshim.Promise;
 
 @:nullSafety(StrictThreaded)
+@:expose
 class CapsRepo {
 	public static final empty = new Caps("", [], [], []);
 	private final persistence: Persistence;

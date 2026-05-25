@@ -15,11 +15,16 @@ import borogove.JID;
 import borogove.ID;
 import borogove.Message;
 import borogove.Chat;
+import borogove.Chat.AvailableChat;
 import borogove.Status;
 import borogove.Reaction;
 import borogove.ReactionUpdate;
 import borogove.Html;
 import borogove.Hash;
+import borogove.Member;
+import borogove.MemberUpdate;
+import borogove.Role;
+import borogove.Stanza;
 
 using Lambda;
 using thenshim.PromiseTools;
@@ -693,6 +698,7 @@ class TestSqlite extends utest.Test {
 	public function testGetChatUnreadDetails(async: Async) {
 		final account = "alice@example.com";
 		final chat = new DirectChat(cast null, cast null, persistence, "hatter@example.com");
+		chat.displayName = "A Chat";
 		chat.readUpToId = "srv1";
 
 		final builder = new ChatMessageBuilder();
@@ -814,6 +820,127 @@ class TestSqlite extends utest.Test {
 		}, 200);
 	}
 
+	public function testGetChatsUsesMemberPresenceForDirectChats(async: Async) {
+		final account = "alice@example.com";
+		final chat = new DirectChat(cast null, cast null, persistence, "hatter@example.com");
+		chat.displayName = "The Mad Hatter";
+		chat.trusted = true;
+		chat.setPresence("desk", Stanza.parse("<presence />"), true);
+
+		persistence.storeChats(account, [chat]);
+		persistence.storeMembers(account, chat.chatId, [
+			new Member(
+				"hatter@example.com",
+				"The Mad Hatter",
+				null,
+				false,
+				[],
+				JID.parse("hatter@example.com"),
+				["phone" => Stanza.parse("<presence />")],
+				null
+			)
+		]).then(_ -> {
+			haxe.Timer.delay(() -> {
+				persistence.getChats(account).then(chats -> {
+					final stored = chats[0];
+					Assert.equals(1, [for (_ in stored.presence.keys()) _].length);
+					Assert.notNull(stored.presence["phone"]);
+					Assert.isNull(stored.presence["desk"]);
+					async.done();
+				}).catchError(e -> {
+					Assert.fail(Std.string(e));
+					async.done();
+				});
+			}, 200);
+			return null;
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testGetChatsHydratesMembersForNameAndMavUntil(async: Async) {
+		final account = "alice@example.com";
+		final chat = new Channel(cast null, cast null, persistence, "room-chat-hydrate@example.com");
+		chat.displayName = "Tea Room";
+		chat.mavUntil = "2024-05-01T12:00:00Z";
+
+		persistence.storeChats(account, [chat]);
+		persistence.storeMembers(account, chat.chatId, [
+			new Member(
+				chat.chatId,
+				"Tea Room",
+				null,
+				false,
+				[],
+				JID.parse(chat.chatId),
+				new Map(),
+				null
+			),
+			new Member(
+				chat.chatId + "/self",
+				"Myself",
+				null,
+				true,
+				[new Role("owner", "Owner")],
+				JID.parse("alice@example.com"),
+				["desk" => Stanza.parse("<presence />")],
+				null
+			),
+			new Member(
+				chat.chatId + "/zulu",
+				"Zulu",
+				null,
+				false,
+				[new Role("admin", "Admin")],
+				JID.parse("zulu@example.com"),
+				["desk" => Stanza.parse("<presence />")],
+				new AvailableChat("zulu@example.com", "Zulu", "", new borogove.Caps("", [], [], []))
+			),
+			new Member(
+				chat.chatId + "/alpha",
+				"Alpha",
+				null,
+				false,
+				[],
+				JID.parse("alpha@example.com"),
+				["desk" => Stanza.parse("<presence />")],
+				new AvailableChat("alpha@example.com", "Alpha", "", new borogove.Caps("", [], [], []))
+			),
+			new Member(
+				chat.chatId + "/hidden",
+				"Hidden",
+				null,
+				false,
+				[new Role("none", "Guest")],
+				JID.parse("hidden@example.com"),
+				["desk" => Stanza.parse("<presence />")],
+				new AvailableChat("hidden@example.com", "Hidden", "", new borogove.Caps("", [], [], []))
+			)
+		]).then(_ -> {
+			haxe.Timer.delay(() -> {
+				persistence.getChats(account).then(chats -> {
+					final stored = chats[0];
+					Assert.notNull(stored.membersForName);
+					Assert.equals("2024-05-01T12:00:00Z", stored.mavUntil);
+					Assert.equals(2, stored.membersForName.length);
+					Assert.equals("Alpha", stored.membersForName[0].displayName);
+					Assert.equals("Zulu", stored.membersForName[1].displayName);
+					Assert.equals(1, [for (_ in stored.presence.keys()) _].length);
+					Assert.notNull(stored.presence["desk"]);
+					async.done();
+				}).catchError(e -> {
+					Assert.fail(Std.string(e));
+					async.done();
+				});
+			}, 200);
+			return null;
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
 	public function testStoreStreamManamagementAndGetStreamManagement(async: Async) {
 		persistence.storeLogin("alice@example.com", "", "", null).then(_ ->
 			persistence.storeStreamManagement("alice@example.com", Bytes.ofHex("01020004").getData(), "ZZ")
@@ -823,6 +950,312 @@ class TestSqlite extends utest.Test {
 			Assert.equals(Bytes.ofData(result.sm).toHex(), "01020004");
 			Assert.isTrue(Std.isOfType(result.sm, BytesData), "Should be BytesData");
 			Assert.equals(result.sortId, "ZZ");
+			async.done();
+		});
+	}
+
+	public function testGetMembersHydratesPersistedMemberData(async: Async) {
+		final account = "alice@example.com";
+		final chat = new Channel(cast null, cast null, persistence, "room-members-1@example.com");
+		chat.displayName = "A Chat";
+		chat.trusted = true;
+		final member = new Member(
+			"room-members-1@example.com/occ-1",
+			"Alice",
+			"photo:alice",
+			false,
+			[new Role("admin", "Admin")],
+			JID.parse("alice@example.com"),
+			["laptop" => Stanza.parse('<presence><show>away</show></presence>')],
+			new AvailableChat("alice@example.com", "Alice", "", new borogove.Caps("", [], [], []))
+		);
+
+		persistence.storeMembers(account, chat.chatId, [member]).then(_ ->
+			persistence.getMembers(account, chat, false)
+		).then(result -> {
+			Assert.equals(1, result.length);
+			Assert.equals(member.id, result[0].id);
+			Assert.equals("Alice", result[0].displayName);
+			Assert.equals("alice@example.com", result[0].chat.chatId);
+			Assert.equals("admin", result[0].roles[0].id);
+			Assert.notNull(result[0].presence.get("laptop"));
+			Assert.equals(1, cast(result[0].showPresence, Int));
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testStoreMemberUpdatesMergesExistingMemberData(async: Async) {
+		final account = "alice@example.com";
+		final chat = new Channel(cast null, cast null, persistence, "room-members-2@example.com");
+		chat.displayName = "A Chat";
+
+		persistence.storeMembers(account, chat.chatId, [
+			new Member(
+				"room-members-2@example.com/occ-1",
+				"Alice",
+				null,
+				false,
+				[new Role("admin", "Admin"), new Role("urn:xmpp:hats:test", "Tea Host")],
+				JID.parse("alice@example.com"),
+				["desk" => Stanza.parse("<presence />")],
+				new AvailableChat("alice@example.com", "Alice", "", new borogove.Caps("", [], [], []))
+			)
+		]).then(_ ->
+			persistence.storeMemberUpdates(account, chat, [
+				new MemberUpdate(
+					"room-members-2@example.com/occ-1",
+					JID.parse("alice@example.com"),
+					"Alice Cooper",
+					false,
+					null,
+					["mobile" => Stanza.parse("<presence />")]
+				)
+			], false)
+		).then(result -> {
+			Assert.equals(1, result.length);
+			Assert.equals("Alice Cooper", result[0].displayName);
+			Assert.equals(1, result[0].roles.length);
+			Assert.equals("urn:xmpp:hats:test", result[0].roles[0].id);
+			Assert.notNull(result[0].presence.get("desk"));
+			Assert.notNull(result[0].presence.get("mobile"));
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testStoreMemberUpdatesClearsOmittedFullListAffiliations(async: Async) {
+		final account = "alice@example.com";
+		final chat = new Channel(cast null, cast null, persistence, "room-members-2b@example.com");
+		chat.displayName = "A Chat";
+
+		persistence.storeMembers(account, chat.chatId, [
+			new Member(
+				"room-members-2b@example.com/occ-1",
+				"Alice",
+				null,
+				false,
+				[new Role("admin", "Admin")],
+				JID.parse("alice@example.com"),
+				new Map(),
+				new AvailableChat("alice@example.com", "Alice", "", new borogove.Caps("", [], [], []))
+			),
+			new Member(
+				"room-members-2b@example.com/occ-2",
+				"Bob",
+				null,
+				false,
+				[new Role("owner", "Owner")],
+				JID.parse("bob@example.com"),
+				new Map(),
+				new AvailableChat("bob@example.com", "Bob", "", new borogove.Caps("", [], [], []))
+			)
+		]).then(_ ->
+			persistence.storeMemberUpdates(account, chat, [
+				new MemberUpdate(
+					"room-members-2b@example.com/occ-1",
+					JID.parse("alice@example.com"),
+					"Alice",
+					false,
+					null,
+					new Map()
+				)
+			], true)
+			).then(_ ->
+				persistence.getMembers(account, chat, true)
+			).then(result -> {
+				var bob: Null<Member> = null;
+				for (member in result) {
+					if (member.id == "room-members-2b@example.com/occ-2") {
+						bob = member;
+						break;
+					}
+				}
+				Assert.notNull(bob);
+				if (bob != null) Assert.equals(0, bob.roles.length);
+				async.done();
+			}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testStoreMemberUpdatesMatchesExistingMemberByTrueJid(async: Async) {
+		final account = "alice@example.com";
+		final chat = new Channel(cast null, cast null, persistence, "room-members-3@example.com");
+		chat.displayName = "A Chat";
+
+		persistence.storeMembers(account, chat.chatId, [
+			new Member(
+				"room-members-3@example.com/occ-1",
+				"Alice",
+				null,
+				false,
+				[new Role("admin", "Admin")],
+				JID.parse("alice@example.com"),
+				new Map(),
+				new AvailableChat("alice@example.com", "Alice", "", new borogove.Caps("", [], [], []))
+			)
+		]).then(_ ->
+			persistence.storeMemberUpdates(account, chat, [
+				new MemberUpdate(
+					null,
+					JID.parse("alice@example.com"),
+					"Alice Renamed",
+					false,
+					null,
+					new Map()
+				)
+			], false)
+		).then(_ ->
+			persistence.getMemberDetails(account, chat, ["room-members-3@example.com/occ-1"])
+		).then(result -> {
+			Assert.notNull(result[0]);
+			Assert.equals("Alice Renamed", result[0].displayName);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testClearMemberPresenceOnlyClearsTargetedChat(async: Async) {
+		final account = "alice@example.com";
+		final chat1 = new Channel(cast null, cast null, persistence, "room-members-4a@example.com");
+		chat1.displayName = "A Chat";
+		final chat2 = new Channel(cast null, cast null, persistence, "room-members-4b@example.com");
+		chat2.displayName = "A Chat";
+
+		persistence.storeMembers(account, chat1.chatId, [
+			new Member(
+				"room-members-4a@example.com/occ-1",
+				"Alice",
+				null,
+				false,
+				[new Role("admin", "Admin")],
+				JID.parse("alice@example.com"),
+				["desk" => Stanza.parse("<presence />")],
+				new AvailableChat("alice@example.com", "Alice", "", new borogove.Caps("", [], [], []))
+			)
+		]).then(_ ->
+			persistence.storeMembers(account, chat2.chatId, [
+				new Member(
+					"room-members-4b@example.com/occ-1",
+					"Bob",
+					null,
+					false,
+					[new Role("admin", "Admin")],
+					JID.parse("bob@example.com"),
+					["phone" => Stanza.parse("<presence />")],
+					new AvailableChat("bob@example.com", "Bob", "", new borogove.Caps("", [], [], []))
+				)
+			])
+		).then(_ ->
+			persistence.clearMemberPresence(account, chat1.chatId)
+		).then(_ ->
+			persistence.getMemberDetails(account, chat1, ["room-members-4a@example.com/occ-1"]).then(result1 ->
+				persistence.getMemberDetails(account, chat2, ["room-members-4b@example.com/occ-1"]).then(result2 ->
+					Promise.resolve([result1[0], result2[0]])
+				)
+			)
+		).then(result -> {
+			Assert.notNull(result[0]);
+			Assert.notNull(result[1]);
+			Assert.equals(0, result[0].presence.keys().hasNext() ? 1 : 0);
+			Assert.notNull(result[1].presence.get("phone"));
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testGetMembersFiltersHiddenRowsForNonModerators(async: Async) {
+		final account = "alice@example.com";
+		final chat = new Channel(cast null, cast null, persistence, "room-members-5@example.com");
+		chat.displayName = "A Chat";
+
+		persistence.storeMembers(account, chat.chatId, [
+			new Member("room-members-5@example.com/owner", "Zulu", null, false, [new Role("owner", "Owner")], JID.parse("zulu@example.com"), ["desk" => Stanza.parse("<presence />")], new AvailableChat("zulu@example.com", "Zulu", "", new borogove.Caps("", [], [], []))),
+			new Member("room-members-5@example.com/outcast", "Banned", null, false, [new Role("outcast", "Banned")], JID.parse("banned@example.com"), ["desk" => Stanza.parse("<presence />")], new AvailableChat("banned@example.com", "Banned", "", new borogove.Caps("", [], [], []))),
+			new Member("room-members-5@example.com/guest-offline", "Guest", null, false, [new Role("none", "Guest")], JID.parse("guest@example.com"), ["desk" => Stanza.parse('<presence type="unavailable" />')], new AvailableChat("guest@example.com", "Guest", "", new borogove.Caps("", [], [], []))),
+			new Member("room-members-5@example.com/admin", "Alpha", null, false, [new Role("admin", "Admin")], JID.parse("alpha@example.com"), ["desk" => Stanza.parse("<presence />")], new AvailableChat("alpha@example.com", "Alpha", "", new borogove.Caps("", [], [], [])))
+		]).then(_ ->
+			persistence.getMembers(account, chat, false)
+		).then(result -> {
+			Assert.same(["Zulu", "Alpha"], result.map(m -> m.displayName));
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testGetMembersIncludesModeratorVisibleRows(async: Async) {
+		final account = "alice@example.com";
+		final chat = new Channel(cast null, cast null, persistence, "room-members-6@example.com");
+		chat.displayName = "A Chat";
+
+		persistence.storeMembers(account, chat.chatId, [
+			new Member("room-members-6@example.com/owner", "Zulu", null, false, [new Role("owner", "Owner")], JID.parse("zulu@example.com"), ["desk" => Stanza.parse("<presence />")], new AvailableChat("zulu@example.com", "Zulu", "", new borogove.Caps("", [], [], []))),
+			new Member("room-members-6@example.com/outcast", "Banned", null, false, [new Role("outcast", "Banned")], JID.parse("banned@example.com"), ["desk" => Stanza.parse("<presence />")], new AvailableChat("banned@example.com", "Banned", "", new borogove.Caps("", [], [], []))),
+			new Member("room-members-6@example.com/guest-offline", "Guest", null, false, [new Role("none", "Guest")], JID.parse("guest@example.com"), ["desk" => Stanza.parse('<presence type="unavailable" />')], new AvailableChat("guest@example.com", "Guest", "", new borogove.Caps("", [], [], []))),
+			new Member("room-members-6@example.com/admin", "Alpha", null, false, [new Role("admin", "Admin")], JID.parse("alpha@example.com"), ["desk" => Stanza.parse("<presence />")], new AvailableChat("alpha@example.com", "Alpha", "", new borogove.Caps("", [], [], [])))
+		]).then(_ ->
+			persistence.getMembers(account, chat, true)
+		).then(result -> {
+			Assert.same(["Zulu", "Alpha", "Banned"], result.map(m -> m.displayName));
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testGetMemberDetailsReturnsNullForIncompleteRows(async: Async) {
+		final account = "alice@example.com";
+		final chat = new Channel(cast null, cast null, persistence, "room-members-7@example.com");
+		chat.displayName = "A Chat";
+
+		persistence.storeMembers(account, chat.chatId, [
+			new Member(
+				"room-members-7@example.com/admin",
+				"Alpha",
+				null,
+				false,
+				[new Role("admin", "Admin")],
+				JID.parse("alpha@example.com"),
+				["desk" => Stanza.parse("<presence />")],
+				new AvailableChat("alpha@example.com", "Alpha", "", new borogove.Caps("", [], [], []))
+			)
+		]).then(_ -> {
+			return untyped persistence.db.exec('INSERT INTO members(account_id, chat_id, member_id, display_name, photo_uri, is_self, chat, roles, presence, jid) VALUES(?, ?, ?, ?, ?, ?, ?, jsonb(?), jsonb(?), ?)', [
+				account,
+				chat.chatId,
+				"room-members-7@example.com/incomplete",
+				"",
+				null,
+				0,
+				"{}",
+				"[]",
+				"{}",
+				""
+			]);
+		}).then(_ ->
+			persistence.getMemberDetails(account, chat, [
+				"room-members-7@example.com/admin",
+				"room-members-7@example.com/incomplete"
+			])
+		).then(result -> {
+			Assert.equals("Alpha", result[0]?.displayName);
+			Assert.isNull(result[1]);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
 			async.done();
 		});
 	}

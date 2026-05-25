@@ -65,7 +65,7 @@ playwright/.cache/borogove.js: npm
 	cd npm && esbuild index.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" "--footer:js=export { borogove_JID as JID, borogove_Stanza as Stanza, borogove_ReactionUpdate as ReactionUpdate, borogove_MemberUpdate as MemberUpdate }" --outfile=../$@
 
 playwright/.cache/sqlite-wasm.js: npm
-	cd npm && esbuild sqlite-wasm.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" --outfile=../$@
+	cd npm && esbuild sqlite-wasm.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" "--footer:js=export { borogove_Channel as Channel }"  --outfile=../$@
 	sed -i 's/new URL("sqlite-worker1.mjs", import.meta.url)/window.sqliteWorker1Url/g' $@
 
 playwright/.cache/sqlite-worker1.js: npm

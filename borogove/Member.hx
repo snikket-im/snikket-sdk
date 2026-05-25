@@ -58,7 +58,7 @@ class Member {
 	@:allow(borogove)
 	private var presence: Map<String, Presence>;
 
-	@:allow(borogove.MemberUpdate)
+	@:allow(borogove)
 	private final jid: JID;
 
 	@:allow(borogove)

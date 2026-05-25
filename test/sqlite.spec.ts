@@ -1560,6 +1560,210 @@ test.describe("not webkit", () => {
 		expect(result.statusText).toBe("Time for tea!");
 	});
 
+	test("getChats uses member presence for direct chats", async ({ page }) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+
+				const chat = new borogove.DirectChat(
+					null,
+					null,
+					persistence,
+					"hatter@example.com",
+				);
+				chat.displayName = "The Mad Hatter";
+				chat.trusted = true;
+
+				try {
+					await persistence.storeChats("alice@example.com", [chat]);
+					await new Promise((resolve) => setTimeout(resolve, 200));
+					await persistence.storeMembers("alice@example.com", chat.chatId, [
+						{
+							id: "hatter@example.com",
+							displayName: "The Mad Hatter",
+							photoUri: null,
+							isSelf: false,
+							roles: [],
+							jid: borogove.JID.parse("hatter@example.com"),
+							presence: new Map([
+								["phone", borogove.Stanza.parse("<presence />")],
+							]),
+							chat: null,
+						},
+					]);
+					const [stored] = await persistence.getChats("alice@example.com");
+					return [...stored.presence.keys()].sort();
+				} catch (e) {
+					console.error(e, e.result);
+					throw e.result ? JSON.stringify(e.result) : e.message;
+				}
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result).toEqual(["phone"]);
+	});
+
+	test("getChats hydrates membersForName and mavUntil from members", async ({
+		page,
+	}) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+
+				const chat = new sqlite.Channel(
+					null,
+					null,
+					persistence,
+					"room-chat-hydrate@example.com",
+				);
+				chat.displayName = "Tea Room";
+				chat.trusted = true;
+				chat.mavUntil = "2024-05-01T12:00:00Z";
+
+				await persistence.storeChats("alice@example.com", [chat]);
+				await new Promise((resolve) => setTimeout(resolve, 200));
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: chat.chatId,
+						displayName: "Tea Room",
+						photoUri: null,
+						isSelf: false,
+						roles: [],
+						jid: borogove.JID.parse(chat.chatId),
+						presence: new Map(),
+						chat: null,
+					},
+					{
+						id: `${chat.chatId}/self`,
+						displayName: "Myself",
+						photoUri: null,
+						isSelf: true,
+						roles: [{ id: "owner", title: "Owner" }],
+						jid: borogove.JID.parse("alice@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: null,
+					},
+					{
+						id: `${chat.chatId}/zulu`,
+						displayName: "Zulu",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("zulu@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "zulu@example.com" },
+					},
+					{
+						id: `${chat.chatId}/alpha`,
+						displayName: "Alpha",
+						photoUri: null,
+						isSelf: false,
+						roles: [],
+						jid: borogove.JID.parse("alpha@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "alpha@example.com" },
+					},
+					{
+						id: `${chat.chatId}/hidden`,
+						displayName: "Hidden",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "none", title: "Guest" }],
+						jid: borogove.JID.parse("hidden@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "hidden@example.com" },
+					},
+				]);
+				const [stored] = await persistence.getChats("alice@example.com");
+				return {
+					mavUntil: stored.mavUntil,
+					membersForName: stored.membersForName.map((m) => m.displayName),
+					presenceKeys: [...stored.presence.keys()].sort(),
+				};
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result.mavUntil).toBe("2024-05-01T12:00:00Z");
+		expect(result.membersForName).toEqual(["Alpha", "Zulu"]);
+		expect(result.presenceKeys).toEqual(["desk"]);
+	});
+
 	test("storeStreamManamagement and getStreamManagement", async ({ page }) => {
 		page.route("https://localhost/", (route) =>
 			route.fulfill({
@@ -1600,9 +1804,20 @@ test.describe("not webkit", () => {
 
 				try {
 					await persistence.storeLogin("alice@example.com", "", "", null); // or updating with SM may not work
-					await persistence.storeStreamManagement("alice@example.com", new Uint8Array([1,2,0,4]).buffer, "ZZ");
-					const result = await persistence.getStreamManagement("alice@example.com");
-					return { smIsArrayBuffer: result.sm instanceof ArrayBuffer, smIsEq: result.sm ? indexedDB.cmp(result.sm, new Uint8Array([1,2,0,4]).buffer) : "null", sortId: result.sortId };
+					await persistence.storeStreamManagement(
+						"alice@example.com",
+						new Uint8Array([1, 2, 0, 4]).buffer,
+						"ZZ",
+					);
+					const result =
+						await persistence.getStreamManagement("alice@example.com");
+					return {
+						smIsArrayBuffer: result.sm instanceof ArrayBuffer,
+						smIsEq: result.sm
+							? indexedDB.cmp(result.sm, new Uint8Array([1, 2, 0, 4]).buffer)
+							: "null",
+						sortId: result.sortId,
+					};
 				} catch (e) {
 					console.error(e, e.result);
 					throw e.result ? JSON.stringify(e.result) : e.message;
@@ -1614,5 +1829,813 @@ test.describe("not webkit", () => {
 		expect(result.smIsEq).toBe(0);
 		expect(result.smIsArrayBuffer).toBe(true);
 		expect(result.sortId).toBe("ZZ");
+	});
+
+	test("getMembers hydrates persisted member data", async ({ page }) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+				const chat = new borogove.Channel(
+					null,
+					null,
+					persistence,
+					"room-members-1@example.com",
+				);
+				chat.displayName = "A Chat";
+				chat.trusted = true;
+
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-members-1@example.com/occ-1",
+						displayName: "Alice",
+						photoUri: "photo:alice",
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("alice@example.com"),
+						presence: new Map([
+							[
+								"laptop",
+								borogove.Stanza.parse("<presence><show>away</show></presence>"),
+							],
+						]),
+						chat: { chatId: "alice@example.com" },
+					},
+				]);
+
+				const members = await persistence.getMembers(
+					"alice@example.com",
+					chat,
+					false,
+				);
+				return {
+					id: members[0]?.id,
+					displayName: members[0]?.displayName,
+					chatId: members[0]?.chat?.chatId,
+					roleIds: members[0]?.roles?.map((r) => r.id),
+					presenceKeys: members[0] ? [...members[0].presence.keys()] : [],
+					showPresence: members[0]?.showPresence,
+				};
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result.id).toBe("room-members-1@example.com/occ-1");
+		expect(result.displayName).toBe("Alice");
+		expect(result.chatId).toBe("alice@example.com");
+		expect(result.roleIds).toEqual(["admin"]);
+		expect(result.presenceKeys).toEqual(["laptop"]);
+		expect(result.showPresence).toBe(1);
+	});
+
+	test("storeMemberUpdates merges existing member data", async ({ page }) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+				const chat = new borogove.Channel(
+					null,
+					null,
+					persistence,
+					"room-members-2@example.com",
+				);
+				chat.displayName = "A Chat";
+				chat.trusted = true;
+
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-members-2@example.com/occ-1",
+						displayName: "Alice",
+						photoUri: null,
+						isSelf: false,
+						roles: [
+							{ id: "admin", title: "Admin" },
+							{ id: "urn:xmpp:hats:test", title: "Tea Host" },
+						],
+						jid: borogove.JID.parse("alice@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "alice@example.com" },
+					},
+				]);
+
+				const updated = await persistence.storeMemberUpdates(
+					"alice@example.com",
+					chat,
+					[
+						new borogove.MemberUpdate(
+							"room-members-2@example.com/occ-1",
+							borogove.JID.parse("alice@example.com"),
+							"Alice Cooper",
+							false,
+							null,
+							new Map([["mobile", borogove.Stanza.parse("<presence />")]]),
+						),
+					],
+					false,
+				);
+
+				return {
+					displayName: updated[0]?.displayName,
+					roleIds: updated[0]?.roles?.map((r) => r.id),
+					presenceKeys: updated[0]
+						? [...updated[0].presence.keys()].sort()
+						: [],
+				};
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result.displayName).toBe("Alice Cooper");
+		expect(result.roleIds).toEqual(["urn:xmpp:hats:test"]);
+		expect(result.presenceKeys).toEqual(["desk", "mobile"]);
+	});
+
+	test("storeMemberUpdates clears omitted full-list affiliations", async ({
+		page,
+	}) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+				const chat = new borogove.Channel(
+					null,
+					null,
+					persistence,
+					"room-members-2b@example.com",
+				);
+				chat.displayName = "A Chat";
+				chat.trusted = true;
+
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-members-2b@example.com/occ-1",
+						displayName: "Alice",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("alice@example.com"),
+						presence: new Map(),
+						chat: { chatId: "alice@example.com" },
+					},
+					{
+						id: "room-members-2b@example.com/occ-2",
+						displayName: "Bob",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "owner", title: "Owner" }],
+						jid: borogove.JID.parse("bob@example.com"),
+						presence: new Map(),
+						chat: { chatId: "bob@example.com" },
+					},
+				]);
+
+				await persistence.storeMemberUpdates(
+					"alice@example.com",
+					chat,
+					[
+						new borogove.MemberUpdate(
+							"room-members-2b@example.com/occ-1",
+							borogove.JID.parse("alice@example.com"),
+							"Alice",
+							false,
+							null,
+							new Map(),
+						),
+					],
+					true,
+				);
+				const members = await persistence.getMembers(
+					"alice@example.com",
+					chat,
+					true,
+				);
+				return members
+					.find((m) => m.id.endsWith("occ-2"))
+					?.roles?.map((r) => r.id);
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result).toEqual([]);
+	});
+
+	test("storeMemberUpdates matches existing member by true JID", async ({
+		page,
+	}) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+				const chat = new borogove.Channel(
+					null,
+					null,
+					persistence,
+					"room-members-3@example.com",
+				);
+				chat.displayName = "A Chat";
+				chat.trusted = true;
+
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-members-3@example.com/occ-1",
+						displayName: "Alice",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("alice@example.com"),
+						presence: new Map(),
+						chat: { chatId: "alice@example.com" },
+					},
+				]);
+
+				await persistence.storeMemberUpdates(
+					"alice@example.com",
+					chat,
+					[
+						new borogove.MemberUpdate(
+							null,
+							borogove.JID.parse("alice@example.com"),
+							"Alice Renamed",
+							false,
+							null,
+							new Map(),
+						),
+					],
+					false,
+				);
+				const [member] = await persistence.getMemberDetails(
+					"alice@example.com",
+					chat,
+					["room-members-3@example.com/occ-1"],
+				);
+				return member?.displayName;
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result).toBe("Alice Renamed");
+	});
+
+	test("clearMemberPresence only clears the targeted chat", async ({
+		page,
+	}) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+				const chat1 = new borogove.Channel(
+					null,
+					null,
+					persistence,
+					"room-members-4a@example.com",
+				);
+				chat1.displayName = "A Chat";
+				chat1.trusted = true;
+				const chat2 = new borogove.Channel(
+					null,
+					null,
+					persistence,
+					"room-members-4b@example.com",
+				);
+				chat2.displayName = "A Chat";
+				chat2.trusted = true;
+
+				await persistence.storeMembers("alice@example.com", chat1.chatId, [
+					{
+						id: "room-members-4a@example.com/occ-1",
+						displayName: "Alice",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("alice@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "alice@example.com" },
+					},
+				]);
+				await persistence.storeMembers("alice@example.com", chat2.chatId, [
+					{
+						id: "room-members-4b@example.com/occ-1",
+						displayName: "Bob",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("bob@example.com"),
+						presence: new Map([
+							["phone", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "bob@example.com" },
+					},
+				]);
+
+				await persistence.clearMemberPresence(
+					"alice@example.com",
+					chat1.chatId,
+				);
+				const [member1] = await persistence.getMemberDetails(
+					"alice@example.com",
+					chat1,
+					["room-members-4a@example.com/occ-1"],
+				);
+				const [member2] = await persistence.getMemberDetails(
+					"alice@example.com",
+					chat2,
+					["room-members-4b@example.com/occ-1"],
+				);
+				return {
+					chat1PresenceKeys: member1 ? [...member1.presence.keys()] : [],
+					chat2PresenceKeys: member2 ? [...member2.presence.keys()] : [],
+				};
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result.chat1PresenceKeys).toEqual([]);
+		expect(result.chat2PresenceKeys).toEqual(["phone"]);
+	});
+
+	test("getMembers filters hidden rows for non-moderators", async ({
+		page,
+	}) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+				const chat = new borogove.Channel(
+					null,
+					null,
+					persistence,
+					"room-members-5@example.com",
+				);
+				chat.displayName = "A Chat";
+				chat.trusted = true;
+
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-members-5@example.com/owner",
+						displayName: "Zulu",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "owner", title: "Owner" }],
+						jid: borogove.JID.parse("zulu@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "zulu@example.com" },
+					},
+					{
+						id: "room-members-5@example.com/outcast",
+						displayName: "Banned",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "outcast", title: "Banned" }],
+						jid: borogove.JID.parse("banned@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "banned@example.com" },
+					},
+					{
+						id: "room-members-5@example.com/guest-offline",
+						displayName: "Guest",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "none", title: "Guest" }],
+						jid: borogove.JID.parse("guest@example.com"),
+						presence: new Map([
+							[
+								"desk",
+								borogove.Stanza.parse('<presence type="unavailable" />'),
+							],
+						]),
+						chat: { chatId: "guest@example.com" },
+					},
+					{
+						id: "room-members-5@example.com/admin",
+						displayName: "Alpha",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("alpha@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "alpha@example.com" },
+					},
+				]);
+
+				const members = await persistence.getMembers(
+					"alice@example.com",
+					chat,
+					false,
+				);
+				return members.map((m) => m.displayName);
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result).toEqual(["Zulu", "Alpha"]);
+	});
+
+	test("getMembers includes moderator-visible rows", async ({ page }) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+				const chat = new borogove.Channel(
+					null,
+					null,
+					persistence,
+					"room-members-6@example.com",
+				);
+				chat.displayName = "A Chat";
+				chat.trusted = true;
+
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-members-6@example.com/owner",
+						displayName: "Zulu",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "owner", title: "Owner" }],
+						jid: borogove.JID.parse("zulu@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "zulu@example.com" },
+					},
+					{
+						id: "room-members-6@example.com/outcast",
+						displayName: "Banned",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "outcast", title: "Banned" }],
+						jid: borogove.JID.parse("banned@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "banned@example.com" },
+					},
+					{
+						id: "room-members-6@example.com/guest-offline",
+						displayName: "Guest",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "none", title: "Guest" }],
+						jid: borogove.JID.parse("guest@example.com"),
+						presence: new Map([
+							[
+								"desk",
+								borogove.Stanza.parse('<presence type="unavailable" />'),
+							],
+						]),
+						chat: { chatId: "guest@example.com" },
+					},
+					{
+						id: "room-members-6@example.com/admin",
+						displayName: "Alpha",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("alpha@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "alpha@example.com" },
+					},
+				]);
+
+				const members = await persistence.getMembers(
+					"alice@example.com",
+					chat,
+					true,
+				);
+				return members.map((m) => m.displayName);
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result).toEqual(["Zulu", "Alpha", "Banned"]);
+	});
+
+	test("getMemberDetails returns null for incomplete rows", async ({
+		page,
+	}) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+				const chat = new borogove.Channel(
+					null,
+					null,
+					persistence,
+					"room-members-7@example.com",
+				);
+				chat.displayName = "A Chat";
+				chat.trusted = true;
+
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-members-7@example.com/admin",
+						displayName: "Alpha",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("alpha@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "alpha@example.com" },
+					},
+				]);
+
+				await persistence.db.exec(
+					"INSERT INTO members(account_id, chat_id, member_id, display_name, photo_uri, is_self, chat, roles, presence, jid) VALUES(?, ?, ?, ?, ?, ?, ?, jsonb(?), jsonb(?), ?)",
+					[
+						"alice@example.com",
+						chat.chatId,
+						"room-members-7@example.com/incomplete",
+						"",
+						null,
+						0,
+						"{}",
+						"[]",
+						"{}",
+						"",
+					],
+				);
+				const details = await persistence.getMemberDetails(
+					"alice@example.com",
+					chat,
+					[
+						"room-members-7@example.com/admin",
+						"room-members-7@example.com/incomplete",
+					],
+				);
+				return details.map((m) => (m ? m.displayName : null));
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result).toEqual(["Alpha", null]);
 	});
 });

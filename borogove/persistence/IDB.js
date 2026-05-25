@@ -621,7 +621,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				}
 			}
 
-			return pseudoMembers.filter(m => m?.id && m?.displayName && m?.jid).map(m => hydrateMember(chat, {...m, chat: chat?.chatId }));
+			return pseudoMembers.filter(m => m?.id && m?.displayName && m?.jid).map(m => hydrateMember(chat, {...m, chat: m.chat?.chatId }));
 		},
 
 		async clearMemberPresence(account, chatId) {

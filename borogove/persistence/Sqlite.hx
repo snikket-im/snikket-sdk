@@ -11,9 +11,14 @@ import haxe.io.BytesData;
 import thenshim.Promise;
 import borogove.Caps;
 import borogove.Chat;
+import borogove.Chat.AvailableChat;
 import borogove.Message;
+import borogove.Member;
+import borogove.MemberUpdate;
+import borogove.Presence;
 import borogove.Reaction;
 import borogove.ReactionUpdate;
+import borogove.Role;
 #if !NO_OMEMO
 import borogove.OMEMO;
 using borogove.SignalProtocol;
@@ -231,6 +236,26 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 10"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 11) {
+						return exec(["CREATE TABLE members (
+							account_id TEXT NOT NULL,
+							chat_id TEXT NOT NULL,
+							member_id TEXT NOT NULL,
+							display_name TEXT,
+							photo_uri TEXT,
+							is_self INTEGER NOT NULL,
+							chat TEXT,
+							roles BLOB NOT NULL,
+							presence BLOB NOT NULL,
+							jid TEXT,
+							PRIMARY KEY (account_id, member_id)
+						) STRICT",
+						"CREATE INDEX members_chats ON members (account_id, chat_id, is_self, jid)",
+						"ALTER TABLE chats DROP COLUMN presence",
+						"PRAGMA user_version = 11"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -284,20 +309,13 @@ class Sqlite implements Persistence implements KeyValueStore {
 		}
 
 		storeChatTimer = haxe.Timer.delay(() -> {
-			final mapPresence = (chat: Chat) -> {
-				final storePresence: DynamicAccess<String> = {};
-				/* TODO for (resource => presence in chat.presence) {
-					if (storePresence[resource ?? ""] == null) storePresence[resource ?? ""] = presence.toString();
-				}*/
-				return storePresence;
-			};
 			final q = new StringBuf();
 			q.add("INSERT OR REPLACE INTO chats VALUES ");
 			var first = true;
 			for (_ in storeChatBuffer) {
 				if (!first) q.add(",");
 				first = false;
-				q.add("(?,?,?,?,?,?,?,?,?,?,?,jsonb(?),?,?,?,?,?,jsonb(?))");
+				q.add("(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,jsonb(?))");
 			}
 			db.exec(
 				q.toString(),
@@ -308,11 +326,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 						accountId, chat.chatId, chat.isTrusted(), chat.avatarSha1,
 						chat.getDisplayName(), chat.uiState, chat.isBlocked,
 						chat.extensions.toString(), chat.readUpToId, chat.readUpToBy,
-						channel?.disco?.verRaw().hash, Json.stringify(mapPresence(chat)),
+						channel?.disco?.verRaw().hash,
 						Type.getClassName(Type.getClass(chat)).split(".").pop(),
 						chat.notificationsFiltered(), chat.notifyMention(), chat.notifyReply(),
 						chat.isBookmarked, JsonPrinter.print({
 							status: { emoji: chat.status.emoji, text: chat.status.text },
+							mavUntil: channel?.mavUntil,
 							threads: {
 								final t: DynamicAccess<String> = {};
 								for (id => s in chat.threads) t.set(id ?? "", s);
@@ -328,34 +347,280 @@ class Sqlite implements Persistence implements KeyValueStore {
 		}, 100);
 	}
 
+	private function serializePresenceMap(presence: Map<String, Presence>) {
+		final storePresence: DynamicAccess<String> = {};
+		if (presence == null) return JsonPrinter.print(storePresence);
+
+		for (resource => p in presence) {
+			storePresence[resource ?? ""] = p.toString();
+		}
+
+		return JsonPrinter.print(storePresence);
+	}
+
+	private function hydratePresenceMap(raw: String): Map<String, Presence> {
+		final map: Map<String, Presence> = new Map();
+		if (raw == null || raw == "") return map;
+
+		final parsed: DynamicAccess<String> = Json.parse(raw);
+		for (resource => presence in parsed) {
+			map[resource == "" ? null : resource] = Stanza.parse(presence);
+		}
+
+		return map;
+	}
+
+	private function hydrateStoredMember(chat: Null<Chat>, row: Dynamic): Null<Member> {
+		if (row == null || row.member_id == null || row.member_id == "" || row.display_name == null || row.display_name == "" || row.jid == null || row.jid == "") {
+			return null;
+		}
+
+		final rolesData: Array<Dynamic> = row.roles == null ? [] : Json.parse(row.roles);
+		final roles = rolesData.map(r -> new Role(r.id, r.title));
+		final presence = hydratePresenceMap(row.presence);
+		final chatId: String = row.chat;
+		final availableChat = chatId == null || chatId == "" ? null : new AvailableChat(
+			chatId,
+			row.display_name,
+			chat == null ? chatId : chatId + " (via " + chat.getDisplayName() + ")",
+			CapsRepo.empty
+		);
+
+		return new Member(
+			row.member_id,
+			row.display_name,
+			row.photo_uri,
+			row.is_self != 0,
+			roles,
+			row.jid == null ? null : JID.parse(row.jid),
+			presence,
+			availableChat
+		);
+	}
+
+	private function chatPresenceAndMembersForName(accountId: String, rawChats: Array<Dynamic>): Promise<Map<String, { presence: Map<String, Presence>, membersForName: Null<Array<{id: String, displayName: String}>> }>> {
+		if (rawChats.length < 1) return Promise.resolve(new Map());
+
+		final query = "
+			SELECT chat_id, member_id, display_name, is_self, json(roles) AS roles, json(presence) AS presence
+			FROM (
+				SELECT chat_id, member_id, display_name, is_self, roles, presence,
+					CASE WHEN is_self OR member_id=chat_id THEN 0
+						ELSE ROW_NUMBER() OVER(PARTITION BY chat_id ORDER BY display_name)
+					END as rn
+				FROM members
+				WHERE account_id = ?
+					AND (is_self OR (display_name IS NOT NULL AND display_name<>''))
+			) sub
+			WHERE rn <= 23
+			ORDER BY chat_id, display_name
+		";
+
+		return db.exec(query, [accountId]).then(rows -> {
+			final result = new Map<String, { presence: Map<String, Presence>, membersForName: Null<Array<{id: String, displayName: String}>> }>();
+
+			final chatRows = new Map<String, Array<Dynamic>>();
+			for (row in rows) {
+				if (!chatRows.exists(row.chat_id)) chatRows[row.chat_id] = [];
+				chatRows[row.chat_id].push(row);
+			}
+
+			for (rawChat in rawChats) {
+				final cid = rawChat.chat_id;
+				final members = chatRows[cid];
+				if (members == null) {
+					result[cid] = { presence: new Map(), membersForName: null };
+					continue;
+				}
+
+				var presence: Map<String, Presence> = new Map();
+				var membersForName: Null<Array<{id: String, displayName: String}>> = null;
+
+				if (Reflect.field(rawChat, "class") == "DirectChat") {
+					final selfRow: Dynamic = members.find(r -> r.member_id == cid);
+					if (selfRow != null) presence = hydratePresenceMap(selfRow.presence);
+				} else {
+					membersForName = [];
+
+					for (row in members) {
+						if (row.is_self != 0) {
+							presence = hydratePresenceMap(row.presence);
+							continue;
+						}
+
+						if (row.member_id == cid) continue;
+
+						final rolesData: Array<Dynamic> = row.roles != null ? Json.parse(row.roles) : [];
+						if (rolesData.exists(r -> r.id == "none" || r.id == "outcast")) continue;
+
+						membersForName.push({ id: row.member_id, displayName: row.display_name });
+					}
+
+					if (membersForName.length > 20) {
+						membersForName = null;
+					} else {
+						membersForName.sort((a, b) -> Reflect.compare(a.displayName, b.displayName));
+					}
+				}
+
+				result[cid] = { presence: presence, membersForName: membersForName };
+			}
+
+			return result;
+		});
+	}
+
 	@HaxeCBridge.noemit
-	public function storeMembers(accountId: String, chatId: String, chat: Array<Member>) {
-		// TODO
-		return Promise.resolve(false);
+	public function storeMembers(accountId: String, chatId: String, membersArg: Array<Member>) {
+		if (membersArg.length < 1) return Promise.resolve(true);
+
+		// To allow being called with member-compatible Dynamics
+		final members: Array<Dynamic> = cast membersArg;
+
+		final q = new StringBuf();
+		q.add("INSERT OR REPLACE INTO members VALUES ");
+		var first = true;
+		final params: Array<Dynamic> = [];
+		final f: Dynamic = false;
+		for (member in members) {
+			if (!first) q.add(",");
+			first = false;
+			q.add("(?,?,?,?,?,?,?,jsonb(?),jsonb(?),?)");
+			params.push(accountId);
+			params.push(chatId);
+			params.push(member.id);
+			params.push(member.displayName);
+			params.push(member.photoUri);
+			params.push(member.isSelf);
+			params.push(member.chat?.chatId);
+			params.push(JsonPrinter.print(member.roles));
+			params.push(serializePresenceMap(member.presence));
+			params.push(member.jid?.asString());
+		}
+
+		return db.exec(q.toString(), params).then(_ -> true);
 	}
 
 	@HaxeCBridge.noemit
 	public function storeMemberUpdates(accountId: String, chat: Chat, updates: Array<MemberUpdate>, isFullList: Bool) {
-		// TODO
-		return Promise.resolve([]);
+		final updatedIds: Map<String, Bool> = [];
+		return thenshim.PromiseTools.all(updates.map(update -> {
+			return (update.id == null ? Promise.resolve(cast null) : db.exec(
+				"SELECT member_id, display_name, photo_uri, is_self, chat, json(roles) AS roles, json(presence) AS presence, jid FROM members WHERE account_id=? AND member_id=? LIMIT 1",
+				[accountId, update.id]
+			).then(rows ->
+				return rows.hasNext() ? rows.next() : null
+			)).then(existing -> {
+				if (existing != null || update.jid == null) return Promise.resolve(existing);
+
+				return db.exec(
+					"SELECT member_id, display_name, photo_uri, is_self, chat, json(roles) AS roles, json(presence) AS presence, jid FROM members WHERE account_id=? AND chat_id=? AND jid=? LIMIT 1",
+					[accountId, chat.chatId, update.jid.asString()]
+				).then(rows ->
+					return rows.hasNext() ? rows.next() : null
+				);
+			}).then(existing -> {
+				final member = hydrateStoredMember(chat, existing);
+				final knownId = update.id ?? existing?.member_id;
+				if (knownId != null && knownId != "") updatedIds[knownId] = true;
+
+				return update.applyTo(member);
+			});
+		})).then(pseudoMembers -> {
+			final valid = pseudoMembers.filter(m -> m != null);
+			return storeMembers(accountId, chat.chatId, cast valid).then(_ -> valid);
+		}).then(valid -> {
+			if (!isFullList) return Promise.resolve(valid);
+
+			final ids = [for (id => _ in updatedIds) id];
+			return if (ids.length < 1) {
+				db.exec(
+					"UPDATE members SET roles=jsonb('[]') WHERE account_id=? AND chat_id=?",
+					[accountId, chat.chatId]
+				).then(_ -> valid);
+			} else {
+				final placeholders = ids.map(_ -> "?").join(",");
+				final params: Array<Dynamic> = [accountId, chat.chatId].concat(ids);
+				db.exec(
+					"UPDATE members SET roles=jsonb('[]') WHERE account_id=? AND chat_id=? AND member_id NOT IN (" + placeholders + ")",
+					params
+				).then(_ -> valid);
+			}
+		}).then(valid -> {
+			valid.filter(m -> m?.id != null && m?.displayName != null && m.displayName != "" && m?.jid != null).map(m -> {
+				return new Member(
+					m.id,
+					m.displayName,
+					m.photoUri,
+					m.isSelf,
+					cast m.roles,
+					m.jid,
+					m.presence,
+					m.chat
+				);
+			});
+		});
 	}
 
 	@HaxeCBridge.noemit
 	public function clearMemberPresence(accountId: String, chatId: Null<String>) {
-		//  TODO
-		return Promise.resolve(false);
+		return db.exec(
+			chatId == null
+				? "UPDATE members SET presence=jsonb('{}') WHERE account_id=?"
+				: "UPDATE members SET presence=jsonb('{}') WHERE account_id=? AND chat_id=?",
+			chatId == null ? [accountId] : [accountId, chatId]
+		).then(_ -> true);
 	}
 
 	@HaxeCBridge.noemit
 	public function getMembers(accountId: String, chat: Chat, forModerator: Bool) {
-		//  TODO
-		return Promise.resolve([]);
+		return db.exec(
+			"SELECT
+				member_id, display_name, photo_uri, is_self, chat,
+				json(roles) AS roles, json(presence) AS presence, jid,
+				COALESCE(
+					(SELECT MAX(CASE value->>'$.id' WHEN 'owner' THEN 4 WHEN 'admin' THEN 3 WHEN 'none' THEN 1 WHEN 'outcast' THEN 0 ELSE 2 END) FROM json_each(roles)),
+					2
+				) AS role_rank,
+				CASE WHEN json(presence) NOT LIKE '% type=\\\"unavailable\\\"%' THEN 1 ELSE 0 END AS is_online
+			FROM members
+			WHERE
+				account_id=? AND chat_id=?
+				AND (? OR NOT EXISTS (SELECT 1 FROM json_each(roles) WHERE value->>'$.id' = 'outcast'))
+				AND NOT (EXISTS (SELECT 1 FROM json_each(roles) WHERE value->>'$.id' = 'none') AND NOT is_online)
+			ORDER BY role_rank DESC, is_online DESC, LOWER(display_name) ASC
+			LIMIT " + (forModerator ? 20000 : 2000),
+			[accountId, chat.chatId, forModerator]
+		).then(rows -> {
+			final result: Array<Member> = [];
+			for (row in rows) {
+				final member = hydrateStoredMember(chat, row);
+				if (member == null) continue;
+
+				result.push(member);
+			}
+			if (result.length > 1000 && !forModerator) return result.filter(m -> m.showPresence != Offline);
+			return result;
+		});
 	}
 
 	@HaxeCBridge.noemit
 	public function getMemberDetails(accountId: String, chat: Null<Chat>, ids: Array<String>) {
-		// TODO
-		return Promise.resolve([]);
+		if (ids.length == 0) return thenshim.Promise.resolve([]);
+
+		var placeholders = ids.map(_ -> "?").join(", ");
+		var sql = 'SELECT member_id, display_name, photo_uri, is_self, chat, json(roles) AS roles, json(presence) AS presence, jid FROM members WHERE account_id = ? AND member_id IN ($placeholders)';
+
+		var params = [accountId].concat(ids);
+
+		return db.exec(sql, params).then(rows -> {
+			var lookup = new Map<String, Member>();
+			for (row in rows) {
+				lookup.set(row.member_id, hydrateStoredMember(chat, row));
+			}
+
+			return ids.map(id -> lookup[id]);
+		});
 	}
 
 	@HaxeCBridge.noemit
@@ -372,40 +637,28 @@ class Sqlite implements Persistence implements KeyValueStore {
 	@HaxeCBridge.noemit
 	public function getChats(accountId: String): Promise<Array<SerializedChat>> {
 		return db.exec(
-			"SELECT chat_id, trusted, bookmarked, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, notifications_filtered, notify_mention, notify_reply, json(caps) AS caps, caps_ver, json(presence) AS presence, json(meta) AS meta, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
+			"SELECT chat_id, trusted, bookmarked, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, notifications_filtered, notify_mention, notify_reply, json(caps) AS caps, caps_ver, json(meta) AS meta, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
 			[accountId]
 		).then(result -> {
-			final chats: Array<SerializedChat> = [];
-			for (row in result) {
-				final capsJson = row.caps == null ? null : Json.parse(row.caps);
-				row.capsObj = capsJson == null ? null : hydrateCaps(capsJson, row.caps_ver);
-				final presenceJson: DynamicAccess<Dynamic> = Json.parse(row.presence);
-				final presenceMap: Map<String, Presence> = [];
-				for (resource => presence in presenceJson) {
-					if (Std.isOfType(presence, String)) {
-						presenceMap[resource] = Stanza.parse(presence);
-					} else {
-						presenceMap[resource] = new Presence(
-							presence.caps == null ? null : new Caps("", [], [], [], Base64.decode(presence.caps).getData()),
-							presence.mucUser == null ? null : Stanza.parse(presence.mucUser),
-							presence.avatarHash == null ? null : Hash.fromUri(presence.avatarHash)
-						);
+			final rows = { iterator: () -> result }.array();
+			return chatPresenceAndMembersForName(accountId, rows).then(chatData -> {
+				final chats: Array<SerializedChat> = [];
+				for (row in rows) {
+					final capsJson = row.caps == null ? null : Json.parse(row.caps);
+					row.capsObj = capsJson == null ? null : hydrateCaps(capsJson, row.caps_ver);
+
+					final metaJson: { ?threads: Null<DynamicAccess<String>>, ?status: Null<{ emoji: String, text: String }>, ?mavUntil: Null<String> } = Json.parse(row.meta);
+					final threadsMap: StringMapNullableKey<String> = new StringMapNullableKey();
+					for (thread => subject in metaJson.threads ?? {}) {
+						threadsMap.set(thread == "" ? null : thread, subject);
 					}
-				}
 
-				final metaJson: { ?threads: Null<DynamicAccess<String>>, ?status: Null<{ emoji: String, text: String }> } = Json.parse(row.meta);
-				final threadsMap: StringMapNullableKey<String> = new StringMapNullableKey();
-				for (thread => subject in metaJson.threads ?? {}) {
-					threadsMap.set(thread == "" ? null : thread, subject);
+					// FIXME: Empty OMEMO contact device ids hardcoded in next line
+					final derived = chatData[row.chat_id];
+					chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.bookmarked != 0, row.avatar_sha1, derived.presence ?? new Map(), derived?.membersForName, row.fn, row.ui_state, row.blocked != 0, new Status(metaJson.status?.emoji ?? "", metaJson.status?.text ?? ""), row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, threadsMap, row.capsObj, metaJson.mavUntil, [], Reflect.field(row, "class")));
 				}
-
-				// FIXME: Empty OMEMO contact device ids hardcoded in next line
-				// TODO: memebersForName
-				// TODO: new presence storage
-				// TODO: mavUntil
-				chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.bookmarked != 0, row.avatar_sha1, presenceMap, [], row.fn, row.ui_state, row.blocked != 0, new Status(metaJson.status?.emoji ?? "", metaJson.status?.text ?? ""), row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, threadsMap, row.capsObj, null, [], Reflect.field(row, "class")));
-			}
-			return chats;
+				return chats;
+			});
 		});
 	}
 
