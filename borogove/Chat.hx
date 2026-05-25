@@ -1142,6 +1142,7 @@ class DirectChat extends Chat {
 		// If last message at load time is a sent message, this may not include everyone
 		if (_fullCounterparts.length < 2 && (message?.recipients?.length ?? 0) > 1) {
 			_fullCounterparts = message.recipients.map(r -> r.asBare().asString()).filter(id -> id != client.accountId());
+			if (!_fullCounterparts.contains(message.senderId)) _fullCounterparts.push(message.senderId);
 		}
 		return super.setLastMessage(message);
 	}
