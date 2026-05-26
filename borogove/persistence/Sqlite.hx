@@ -1034,6 +1034,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		@param accountId the account to remove
 		@param completely if message history, etc should be removed also
 	**/
+	@HaxeCBridge.noemit
 	public function removeAccount(accountId:String, completely:Bool) {
 		return db.exec("DELETE FROM accounts WHERE account_id=?", [accountId]).then(_ -> {
 			if (!completely) return Promise.resolve(null);
@@ -1052,6 +1053,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 		@returns Promise resolving to array of account IDs
 	**/
+	@HaxeCBridge.noemit
 	public function listAccounts(): Promise<Array<String>> {
 		return db.exec("SELECT account_id FROM accounts").then(result ->
 			result == null ? [] : { iterator: () -> result }.map(row -> row.account_id)
