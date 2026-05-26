@@ -89,6 +89,7 @@ class TestSqlite extends utest.Test {
 		persistence = new Sqlite("file:" + ID.unique() + "?mode=memory&cache=shared", mediaStore);
 	}
 
+	@:timeout(1000)
 	public function testOrder(async: Async) {
 		final account = "alice@example.com";
 		final builder = new ChatMessageBuilder();
@@ -129,6 +130,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testMessagesBefore(async: Async) {
 		final account = "alice@example.com";
 		final builder = new ChatMessageBuilder();
@@ -254,6 +256,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testMessagesBeforePM(async: Async) {
 		final account = "alice@example.com";
 		final builder = new ChatMessageBuilder();
@@ -322,6 +325,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testMessagesAfter(async: Async) {
 		final account = "alice@example.com";
 		final builder = new ChatMessageBuilder();
@@ -378,6 +382,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testMessagesAfterPoint(async: Async) {
 		final account = "alice@example.com";
 		final builder = new ChatMessageBuilder();
@@ -514,6 +519,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testStoreChats(async: Async) {
 		final account = "alice@example.com";
 		final chat = new DirectChat(cast null, cast null, persistence, "hatter@example.com");
@@ -540,6 +546,7 @@ class TestSqlite extends utest.Test {
 		}, 200);
 	}
 
+	@:timeout(1000)
 	public function testGetMessage(async: Async) {
 		final account = "alice@example.com";
 		final builder = new ChatMessageBuilder();
@@ -610,6 +617,7 @@ class TestSqlite extends utest.Test {
 		});
 	}*/
 
+	@:timeout(1000)
 	public function testUpdateMessageStatus(async: Async) {
 		final account = "alice@example.com";
 		final builder = new ChatMessageBuilder();
@@ -634,6 +642,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testSearchMessages(async: Async) {
 		final account = "alice@example.com";
 		final builder = new ChatMessageBuilder();
@@ -672,6 +681,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testRemoveAccount(async: Async) {
 		final account1 = "alice@example.com";
 		final account2 = "bob@example.com";
@@ -695,6 +705,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testGetChatUnreadDetails(async: Async) {
 		final account = "alice@example.com";
 		final chat = new DirectChat(cast null, cast null, persistence, "hatter@example.com");
@@ -735,6 +746,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testMedia(async: Async) {
 		final bytes = haxe.io.Bytes.ofString("hello").getData();
 		persistence.storeMedia("image/png", bytes).then(_ -> {
@@ -753,6 +765,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testHydrateReplyTo(async: Async) {
 		final account = "alice@example.com";
 		final builder = new ChatMessageBuilder();
@@ -820,6 +833,7 @@ class TestSqlite extends utest.Test {
 		}, 200);
 	}
 
+	@:timeout(1000)
 	public function testGetChatsUsesMemberPresenceForDirectChats(async: Async) {
 		final account = "alice@example.com";
 		final chat = new DirectChat(cast null, cast null, persistence, "hatter@example.com");
@@ -859,6 +873,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testGetChatsHydratesMembersForNameAndMavUntil(async: Async) {
 		final account = "alice@example.com";
 		final chat = new Channel(cast null, cast null, persistence, "room-chat-hydrate@example.com");
@@ -941,6 +956,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testStoreStreamManamagementAndGetStreamManagement(async: Async) {
 		persistence.storeLogin("alice@example.com", "", "", null).then(_ ->
 			persistence.storeStreamManagement("alice@example.com", Bytes.ofHex("01020004").getData(), "ZZ")
@@ -954,6 +970,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testGetMembersHydratesPersistedMemberData(async: Async) {
 		final account = "alice@example.com";
 		final chat = new Channel(cast null, cast null, persistence, "room-members-1@example.com");
@@ -987,6 +1004,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testStoreMemberUpdatesMergesExistingMemberData(async: Async) {
 		final account = "alice@example.com";
 		final chat = new Channel(cast null, cast null, persistence, "room-members-2@example.com");
@@ -1028,6 +1046,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testStoreMemberUpdatesClearsOmittedFullListAffiliations(async: Async) {
 		final account = "alice@example.com";
 		final chat = new Channel(cast null, cast null, persistence, "room-members-2b@example.com");
@@ -1084,6 +1103,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testStoreMemberUpdatesMatchesExistingMemberByTrueJid(async: Async) {
 		final account = "alice@example.com";
 		final chat = new Channel(cast null, cast null, persistence, "room-members-3@example.com");
@@ -1123,6 +1143,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testClearMemberPresenceOnlyClearsTargetedChat(async: Async) {
 		final account = "alice@example.com";
 		final chat1 = new Channel(cast null, cast null, persistence, "room-members-4a@example.com");
@@ -1174,6 +1195,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testGetMembersFiltersHiddenRowsForNonModerators(async: Async) {
 		final account = "alice@example.com";
 		final chat = new Channel(cast null, cast null, persistence, "room-members-5@example.com");
@@ -1195,6 +1217,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testGetMembersIncludesModeratorVisibleRows(async: Async) {
 		final account = "alice@example.com";
 		final chat = new Channel(cast null, cast null, persistence, "room-members-6@example.com");
@@ -1216,6 +1239,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	@:timeout(1000)
 	public function testGetMemberDetailsReturnsNullForIncompleteRows(async: Async) {
 		final account = "alice@example.com";
 		final chat = new Channel(cast null, cast null, persistence, "room-members-7@example.com");
