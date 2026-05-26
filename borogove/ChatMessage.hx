@@ -331,7 +331,7 @@ class ChatMessage {
 	@:allow(borogove)
 	private function getReplyId() {
 		if (replyId != null) return replyId;
-		return type == MessageChannel || type == MessageChannelPrivate ? serverId : localId;
+		return type == MessageChannel ? serverId : localId;
 	}
 
 	@:allow(borogove)
