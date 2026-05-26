@@ -37,7 +37,12 @@ class Reaction {
 		this.timestamp = timestamp;
 		this.text = text.replace("\u{fe0f}", "");
 		this.envelopeId = envelopeId;
+		#if cpp
+		// Workaround for has normalization issues
+		this.key = haxe.io.Bytes.ofString(key ?? this.text).toString();
+		#else
 		this.key = key ?? this.text;
+		#end
 	}
 
 	/**

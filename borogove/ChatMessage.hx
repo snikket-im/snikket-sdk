@@ -196,7 +196,7 @@ class ChatMessage {
 		Details of a set of reaction to this message
 	**/
 	public function reactionDetails(reactionKey: String): Array<Reaction> {
-		return reactions[reactionKey] ?? [];
+		return reactions[haxe.io.Bytes.ofString(reactionKey).toString()] ?? [];
 	}
 	#end
 

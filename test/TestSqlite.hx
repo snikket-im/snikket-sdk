@@ -577,7 +577,8 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
-	/* segfault ? public function testStoreReaction(async: Async) {
+	@:timeout(1000)
+	public function testStoreReaction(async: Async) {
 		final account = "alice@example.com";
 		final builder = new ChatMessageBuilder();
 		builder.serverId = "srv1";
@@ -590,8 +591,10 @@ class TestSqlite extends utest.Test {
 		builder.recipients = [builder.to];
 		builder.replyTo = [builder.from];
 
+		// Workaround for https://github.com/HaxeFoundation/haxe/issues/12914
+		final key = haxe.io.Bytes.ofString("👍").toString();
 		persistence.storeMessages(account, [builder.build()]).then(_ -> {
-			final reaction = new Reaction("alice@example.com", "2020-01-01T00:00:01Z", "👍");
+			final reaction = new Reaction("alice@example.com", "2020-01-01T00:00:01Z", key);
 			final update = new ReactionUpdate(
 				"up1",
 				"srv1",
@@ -606,16 +609,16 @@ class TestSqlite extends utest.Test {
 			return persistence.storeReaction(account, update);
 		}).then(msg -> {
 			Assert.notNull(msg);
-			final reactions = msg.reactions;
+			final reactions: haxe.ds.StringMap<Array<Reaction>> = msg.reactions;
 			Assert.equals(1, Lambda.count({ iterator: () -> reactions.iterator() }));
-			Assert.isTrue(reactions.exists("👍"));
-			Assert.equals(1, reactions.get("👍").length);
+			Assert.isTrue(reactions.exists(key));
+			Assert.equals(1, reactions.get(key).length);
 			async.done();
 		}).catchError(e -> {
 			Assert.fail(Std.string(e));
 			async.done();
 		});
-	}*/
+	}
 
 	@:timeout(1000)
 	public function testUpdateMessageStatus(async: Async) {
