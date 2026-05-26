@@ -256,6 +256,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 11"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 12) {
+						return exec(["CREATE INDEX messages_sync_point ON messages (account_id, mam_by, sort_id DESC) WHERE sync_point",
+						"PRAGMA user_version = 12"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
