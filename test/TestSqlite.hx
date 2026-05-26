@@ -782,6 +782,7 @@ class TestSqlite extends utest.Test {
 		builder.from = JID.parse("hatter@example.com");
 		builder.recipients = [builder.to];
 		builder.replyTo = [builder.from];
+		builder.type = MessageChannel;
 		final parentStub = builder.build();
 
 		builder.setBody(Html.text("Hello"));
@@ -799,6 +800,7 @@ class TestSqlite extends utest.Test {
 		builder2.recipients = [builder2.to];
 		builder2.replyTo = [builder2.from];
 		builder2.replyToMessage = parentStub;
+		builder2.type = MessageChannel;
 		final childMsg = builder2.build();
 
 		persistence.storeMessages(account, [parentMsg]).then(_ -> {
