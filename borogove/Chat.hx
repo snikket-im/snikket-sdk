@@ -283,7 +283,7 @@ abstract class Chat extends EventEmitter {
 		Get the details for some members in this Chat
 
 		@param memberIds the IDs of the member to look up
-		**/
+	**/
 	abstract public function getMemberDetails(memberIds: Array<String>):Promise<Array<Null<Member>>>;
 
 	/**
