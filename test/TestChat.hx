@@ -309,6 +309,24 @@ class TestChat extends utest.Test {
 		Assert.isFalse(channel.syncing(), "Should NOT be syncing after join failure");
 	}
 
+	public function testJoinSuccess() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final caps = new borogove.Caps("", [new Identity("conference", "text", "Channel")], ["http://jabber.org/protocol/muc"], []);
+		final availableChat = new AvailableChat("channel@example.com", "Channel", "", caps);
+		final channel = cast(client.startChat(availableChat), Channel);
+
+		Assert.isNull(channel.self);
+
+		final joinedStanza = new Stanza("presence", { xmlns: "jabber:client", from: "channel@example.com/test", to: "test@example.com" })
+			.tag("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("status", { code: "110" }).up()
+			.up();
+
+		client.stream.onStanza(joinedStanza);
+
+		Assert.notNull(channel.self);
+	}
+
 	public function testSyncFailure(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);

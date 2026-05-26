@@ -357,10 +357,10 @@ class Client extends EventEmitter {
 				}
 
 				if (presence.ver == null) {
-					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza);
+					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza, false);
 				} else {
 					final handleCaps = (caps) -> {
-						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza);
+						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza, false);
 						return chat;
 					};
 
@@ -426,7 +426,7 @@ class Client extends EventEmitter {
 					trace("Presence for unknown JID: " + stanza.attr.get("from"));
 					return EventUnhandled;
 				}
-				chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza);
+				chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza, false);
 				this.trigger("chats/update", [chat]);
 			}
 

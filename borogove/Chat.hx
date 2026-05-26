@@ -699,7 +699,7 @@ abstract class Chat extends EventEmitter {
 	}
 
 	@:allow(borogove)
-	abstract private function setPresence(resource:String, presence:Presence, noStore:Bool = false):Void;
+	abstract private function setPresence(resource:String, presence:Presence, noStore:Bool):Void;
 
 	@:allow(borogove)
 	abstract private function getCaps():KeyValueIterator<Null<String>, Caps>;
@@ -1066,7 +1066,7 @@ class DirectChat extends Chat {
 	}
 
 	@:allow(borogove)
-	private function setPresence(resource:String, presence:Presence, noStore = false) {
+	private function setPresence(resource:String, presence:Presence, noStore:Bool) {
 		// We only store presence for 1:1
 		if (_fullCounterparts.length > 1) return;
 
@@ -1629,14 +1629,14 @@ class Channel extends Chat {
 	}
 
 	@:allow(borogove)
-	private function setPresence(resource:String, presence:Presence, noStore = false) {
+	private function setPresence(resource:String, presence:Presence, noStore:Bool) {
 		final oneTen = presence?.mucUser?.statusCodes?.find((status) -> status == "110");
 		final member = buildMember(resource, presence);
 		if (presence.mucUser != null && oneTen == null && member.isSelf) {
 			// ejabberd sends presence updates for self without 110
 			final mucUser: Stanza = presence.mucUser;
 			mucUser.tag("status", { code: "110" }).up();
-			setPresence(resource, presence);
+			setPresence(resource, presence, noStore);
 			return;
 		}
 		final occupantId = (presence : Stanza).getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
