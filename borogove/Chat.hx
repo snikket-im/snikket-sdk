@@ -958,7 +958,7 @@ abstract class Chat extends EventEmitter {
 	/**
 		The Member that originally invited us to this Chat, if we were invited
 	**/
-	public function invitedBy() {
+	public function invitedBy(): Promise<Member> {
 		final inviteEls = invites();
 		if (inviteEls.length < 1) return Promise.resolve(null);
 
