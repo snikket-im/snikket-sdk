@@ -1641,18 +1641,16 @@ class Channel extends Chat {
 		}
 		final occupantId = (presence : Stanza).getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
 		if (!noStore && !(disco.features.contains("urn:xmpp:occupant-id:0") && member.id != chatId + "/" + occupantId)) {
-			(if (presence.type == "unavailable" && member.photoUri == null) {
+			if (presence.type == "unavailable" && member.photoUri == null) {
 				final memberUpdates = MemberUpdate.extractUpdates(client.accountId(), this, presence);
-				getMemberDetails([member.id]).then(fetched ->
-					cast memberUpdates[0].applyTo(fetched[0])
-				);
+				persistence.storeMemberUpdates(client.accountId(), this, memberUpdates, false).then(members -> {
+					trigger("members/update", members);
+				});
 			} else {
-				Promise.resolve(member);
-			}).then(member -> {
 				persistence.storeMembers(client.accountId(), chatId, [member]).then(_ -> {
 					trigger("members/update", [member]);
 				});
-			});
+			}
 		}
 		final mucUser = (presence : Stanza).getChild("x", "http://jabber.org/protocol/muc#user");
 		if (mucUser != null) {
