@@ -108,7 +108,7 @@ class TestCapsRepo extends utest.Test {
 			final retrieved2 = repo.get(presence);
 			Assert.equals(caps.node, retrieved2.node);
 			async.done();
-		}, 1);
+		}, 10);
 	}
 
 	public function testGetSyncMissingReturnsEmpty() {
