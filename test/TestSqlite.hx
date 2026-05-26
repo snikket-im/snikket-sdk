@@ -609,7 +609,7 @@ class TestSqlite extends utest.Test {
 			return persistence.storeReaction(account, update);
 		}).then(msg -> {
 			Assert.notNull(msg);
-			final reactions: haxe.ds.StringMap<Array<Reaction>> = msg.reactions;
+			final reactions = msg.reactions;
 			Assert.equals(1, Lambda.count({ iterator: () -> reactions.iterator() }));
 			Assert.isTrue(reactions.exists(key));
 			Assert.equals(1, reactions.get(key).length);
