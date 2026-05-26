@@ -65,7 +65,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				case TClass(haxe.io.Bytes):
 					"X'" + p.toHex() + "'";
 				case _:
-					throw("UKNONWN: " + Type.typeof(p));
+					throw("UNKNOWN: " + Type.typeof(p));
 			}
 		});
 
