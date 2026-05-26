@@ -710,7 +710,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 					] : Array<Dynamic>);
 				})
 			).then(_ ->
-				hydrateReplyTo(accountId, messages, replyTos)
+				thenshim.PromiseTools.all(messages.map(m -> fetchFromStub(accountId, m)))
+			).then(ms ->
+				hydrateReplyTo(accountId, ms, replyTos)
 			).then(ms ->
 				hydrateReactions(accountId, ms)
 			)
@@ -722,6 +724,44 @@ class Sqlite implements Persistence implements KeyValueStore {
 	@HaxeCBridge.noemit
 	public function updateMessage(accountId: String, message: ChatMessage) {
 		storeMessages(accountId, [message]);
+	}
+
+	private function fetchFromStub(accountId, stub: ChatMessage) {
+		var q = "SELECT
+			correction_id AS stanza_id,
+			versions.stanza,
+			json_group_object(CASE WHEN versions.mam_id IS NULL OR versions.mam_id='' THEN versions.stanza_id ELSE versions.mam_id END, strftime('%FT%H:%M:%fZ', versions.created_at / 1000.0, 'unixepoch')) AS version_times,
+			json_group_object(CASE WHEN versions.mam_id IS NULL OR versions.mam_id='' THEN versions.stanza_id ELSE versions.mam_id END, versions.stanza) AS versions,
+			messages.direction,
+			messages.type,
+			messages.status,
+			messages.status_text,
+			strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp,
+			messages.sender_id,
+			messages.mam_id,
+			messages.mam_by,
+			messages.sort_id,
+			messages.sync_point,
+			MAX(versions.created_at)
+			FROM messages INNER JOIN messages versions USING (correction_id, sender_id) WHERE messages.account_id=? AND messages.chat_id=? AND (messages.stanza_id IS NULL OR messages.stanza_id='' OR messages.stanza_id=correction_id)";
+		var params = [accountId, stub.chatId()];
+		if (stub.versions.length > 0 || stub.serverId == null) {
+			q += " AND correction_id=? AND sender_id=?";
+			params.push(stub.localId);
+			params.push(stub.senderId);
+		} else if (stub.serverId != null) {
+			q += " AND messages.mam_id=? AND messages.mam_by=?";
+			params.push(stub.serverId);
+			params.push(stub.serverIdBy);
+		} else {
+			throw "No way to look up this message";
+		}
+		q += " GROUP BY correction_id, CASE WHEN messages.type=? THEN 'call' ELSE messages.sender_id END";
+		return db.exec(q, params).then(results -> {
+			final row = results.next();
+			if (row == null) return stub;
+			return hydrateMessages(accountId, [row].iterator())[0];
+		});
 	}
 
 	/**
@@ -851,7 +891,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			}
 			final replyTos = [];
 			for (message in messages) {
-				if (message.replyToMessage != null && message.replyToMessage.serverIdBy == null) {
+				if (message.replyToMessage != null && message.replyToMessage.stanza == null) {
 					replyTos.push({ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId });
 				}
 			}
