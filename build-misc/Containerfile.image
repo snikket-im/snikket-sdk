@@ -89,6 +89,7 @@ RUN make ci
 
 RUN make -j$(nproc)
 RUN cd cpp && make clean
+RUN rm -rf npm/node_modules npm/package-lock.json npm/api-extractor.json npm/tsconfig.json
 
 FROM docker.io/debian:stable-slim
 
