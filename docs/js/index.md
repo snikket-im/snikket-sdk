@@ -3,7 +3,7 @@
 This guide quickly brings you up to speed on Borogove's JavaScript API. The API is flexible and allows you to build any type of chat or messaging.
 
 ```console
-npm i https://gitpkg-singpolyma.vercel.app/snikket-im/snikket-sdk/npm?compiled
+npm i borogove
 ```
 
 There is a known bug in one of our JavaScript dependencies for browser builds, if xmpp.js is <= 0.14.0 then you may need something like this vite.config.js example

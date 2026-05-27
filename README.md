@@ -7,11 +7,11 @@ Working towards simplicity in developing Snikket-compatible apps.
 
 # JavaScript / TypeScript
 
-`npm` subdirectory will contain installable package for browser or nodejs after build.
+`npm` subdirectory will contain installable package for browser or nodejs after build, or simply:
+
+    npm i borogove
 
 Also Typescript typings are generated which include documenation comments.
-
-    npm install https://gitpkg-singpolyma.vercel.app/snikket-im/snikket-sdk/npm?compiled
 
 There is a known bug in one of our JavaScript dependencies for browser builds, if xmpp.js is <= 0.14.0 then you may need something like this vite.config.js example
 
