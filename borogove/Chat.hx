@@ -749,6 +749,14 @@ abstract class Chat extends EventEmitter {
 		for (resource => caps in getCaps()) {
 			if (caps.features?.contains("urn:xmpp:jingle:apps:rtp:audio") ?? false) return true;
 		}
+
+		final jid = JID.parse(chatId);
+		if (jid != null && !jid.isDomain()) {
+			final domainChat = client.getChat(jid.domain);
+			if (domainChat != null && Caps.withIdentity(domainChat.getCaps(), "gateway", "pstn").hasNext()) {
+				return true;
+			}
+		}
 #end
 		return false;
 	}

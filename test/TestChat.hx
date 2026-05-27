@@ -490,6 +490,22 @@ class TestChat extends utest.Test {
 			async.done();
 		});
 	}
+
+	public function testCanAudioCallPSTN() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+
+		final domain = "pstn.example.com";
+		final domainChat = client.getDirectChat(domain);
+
+		final caps = new borogove.Caps("", [new Identity("gateway", "pstn", "PSTN Gateway")], [], []);
+		final presence = new borogove.Presence(caps, null, null);
+		domainChat.presence.set("", presence);
+		client.capsRepo.add(caps);
+
+		final chat = client.getDirectChat("+123456789@" + domain);
+		Assert.isTrue(chat.canAudioCall());
+	}
 }
 
 @:access(borogove)
