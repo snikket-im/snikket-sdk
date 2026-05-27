@@ -84,6 +84,7 @@ RUN cd npm && npm install && npm install @playwright/test @sqlite.org/sqlite-was
 RUN ln -s npm/node_modules node_modules
 
 COPY . /usr/src/sdk/
+RUN git fetch --tags
 
 RUN make ci
 
