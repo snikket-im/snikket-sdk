@@ -669,7 +669,7 @@ abstract class Chat extends EventEmitter {
 		@param displayName String to use as display name
 	**/
 	public function setDisplayName(displayName: String) {
-		this.displayName = displayName;
+		this.displayName = displayName == "" ? chatId : displayName;
 		bookmark();
 	}
 
