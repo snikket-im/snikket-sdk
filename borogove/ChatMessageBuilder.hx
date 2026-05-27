@@ -329,8 +329,8 @@ class ChatMessageBuilder {
 
 		@returns sender ID for this message
 	**/
-	public function get_senderId():String {
-		return senderId ?? sender?.asString() ?? throw "sender is null";
+	public function get_senderId(): Null<String> {
+		return senderId ?? sender?.asString();
 	}
 
 	@:allow(borogove)
@@ -347,6 +347,8 @@ class ChatMessageBuilder {
 		if (serverId == null && localId == null) throw "Cannot build a ChatMessage with no id";
 		final to = this.to ?? (isIncoming() ? new JID(null, "inbound.to.me.example.com") : null);
 		if (to == null) throw "Cannot build a ChatMessage with no to";
+		final senderId = this.senderId;
+		if (senderId == null) throw "Cannot builder a ChatMessage with no sender";
 		final from = this.from ?? (senderId == null ? null : JID.parse(senderId));
 		if (from == null) throw "Cannot build a ChatMessage with no from";
 		final sender = this.sender ?? from.asBare();

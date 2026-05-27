@@ -51,9 +51,9 @@ class Message {
 	public final encryption: Null<EncryptionInfo>;
 	public final parsed: MessageStanza;
 
-	private function new(chatId: String, senderId: String, threadId: Null<String>, parsed: MessageStanza, encryption:Null<EncryptionInfo>) {
+	private function new(chatId: String, senderId: Null<String>, threadId: Null<String>, parsed: MessageStanza, encryption:Null<EncryptionInfo>) {
 		this.chatId = chatId;
-		this.senderId = senderId;
+		this.senderId = senderId ?? throw "no sender id";
 		this.threadId = threadId;
 		this.parsed = parsed;
 		this.encryption = encryption;
@@ -88,8 +88,6 @@ class Message {
 		if (msg.type == MessageChat && stanza.getChild("x", "http://jabber.org/protocol/muc#user") != null) {
 			msg.type = MessageChannelPrivate;
 		}
-		final occupantId = stanza.getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
-		msg.senderId = occupantId != null ? msg.chatId() + "/" + occupantId : (msg.type == MessageChannel || msg.type == MessageChannelPrivate ? msg.from : msg.from?.asBare())?.asString();
 		final localJidBare = localJid.asBare();
 		final domain = localJid.domain;
 		final to = stanza.attr.get("to");
@@ -195,6 +193,11 @@ class Message {
 		msg.replyTo = ({ iterator: () -> replyTo.keys() }).map((s) -> JID.parse(s));
 		msg.replyTo.sort((x, y) -> Reflect.compare(x.asString(), y.asString()));
 
+		if (msg.senderId == null) {
+			final occupantId = stanza.getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
+			msg.senderId = occupantId != null ? msg.chatId() + "/" + occupantId : (msg.type == MessageChannel || msg.type == MessageChannelPrivate ? msg.from : msg.from?.asBare())?.asString();
+		}
+
 		final msgFrom = msg.from;
 		// Not sure why the compiler things we need to use Null<JID> with findFast
 		if (msg.direction == MessageReceived && msgFrom != null && Util.findFast(msg.replyTo, @:nullSafety(Off) (r: Null<JID>) -> r.asBare().equals(msgFrom.asBare())) == null) {
@@ -218,9 +221,9 @@ class Message {
 					isGroupchat ? msg.chatId() : null,
 					isGroupchat ? null : reactionId,
 					msg.chatId(),
-					msg.senderId,
+					msg.senderId ?? throw "no sender",
 					timestamp,
-					reactions.map(text -> new Reaction(msg.senderId, timestamp, text, msg.localId)),
+					reactions.map(text -> new Reaction(msg.senderId ?? throw "no sender", timestamp, text, msg.localId)),
 					EmojiReactions
 				)), encryptionInfo);
 			}
@@ -310,9 +313,9 @@ class Message {
 					isGroupchat ? msg.chatId() : null,
 					isGroupchat ? null : replyToID,
 					msg.chatId(),
-					msg.senderId,
+					msg.senderId ?? throw "no sender",
 					timestamp,
-					[new Reaction(msg.senderId, timestamp, text.trim(), msg.localId)],
+					[new Reaction(msg.senderId ?? throw "no sender", timestamp, text.trim(), msg.localId)],
 					AppendReactions
 				)), encryptionInfo);
 			}
@@ -330,9 +333,9 @@ class Message {
 								isGroupchat ? msg.chatId() : null,
 								isGroupchat ? null : replyToID,
 								msg.chatId(),
-								msg.senderId,
+								msg.senderId ?? throw "no sender",
 								timestamp,
-								[new CustomEmojiReaction(msg.senderId, timestamp, els[0].attr.get("alt") ?? "", hash.serializeUri(), msg.localId)],
+								[new CustomEmojiReaction(msg.senderId ?? throw "no sender", timestamp, els[0].attr.get("alt") ?? "", hash.serializeUri(), msg.localId)],
 								AppendReactions
 							)), encryptionInfo);
 						}
