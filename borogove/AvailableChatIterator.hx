@@ -115,7 +115,7 @@ class AvailableChatIterator {
 					final bareJid = JID.parse(chat.chatId);
 					final fullJid = new JID(bareJid.node, bareJid.domain, bareJid.isDomain() && resource == "" ? null : resource);
 					final jigGet = new JabberIqGatewayGet(fullJid.asString(), query);
-					results.push(new Promise((resolve, reject) -> {
+					results.unshift(new Promise((resolve, reject) -> {
 						jigGet.onFinished(() -> {
 							final result = jigGet.getResult();
 							if (result == null) {
