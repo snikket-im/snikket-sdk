@@ -1,8 +1,9 @@
 {
   "name": "borogove",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "homepage": "https://borogove.dev",
   "description": "An SDK that makes it easy to build your own custom chat experience",
+  "keywords": ["chat", "xmpp"],
   "main": "index.js",
   "type": "module",
   "files": [
