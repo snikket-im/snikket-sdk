@@ -1520,6 +1520,7 @@ class Channel extends Chat {
 		}
 
 		return persistence.clearMemberPresence(client.accountId(), chatId).then(_ -> {
+			joinFailed = null;
 			self = null;
 			outbox.pause();
 			inSync = false;
@@ -1889,7 +1890,9 @@ class Channel extends Chat {
 	}
 
 	override public function syncing() {
-		return sync != null || (!livePresence() && joinFailed == null);
+		if (joinFailed != null) return false;
+
+		return sync != null || !livePresence();
 	}
 
 	override private function setLastMessage(message:Null<ChatMessage>) {
