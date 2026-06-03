@@ -3,9 +3,7 @@ package borogove;
 import haxe.DynamicAccess;
 import haxe.Exception;
 import haxe.ds.StringMap;
-#if (!cpp && !js)
 import Xml;
-#end
 
 enum Node {
 	Element(stanza:Stanza);
@@ -64,9 +62,10 @@ class StanzaError {
 }
 
 @:expose
+@:access(Xml)
 class Stanza {
 	public final name:String = null;
-	public final attr:DynamicAccess<String> = {};
+	public final attr:haxe.ds.StringMap<String>;
 	public var children(default, null):Array<Node> = [];
 	private var last_added(null, null):Stanza;
 	private var last_added_stack(null, null):Array<Stanza> = [];
@@ -74,11 +73,13 @@ class Stanza {
 
 	public function new(name:String, ?attr:DynamicAccess<String>, ?attrMap:haxe.ds.StringMap<String>) {
 		this.name = name;
-		if(attr != null) {
-			this.attr = attr;
-		}
 		if (attrMap != null) {
-			for (k => v in attrMap) this.attr.set(k, v);
+			this.attr = attrMap;
+		} else {
+			this.attr = new haxe.ds.StringMap();
+		}
+		if(attr != null) {
+			for (k => v in attr) this.attr.set(k, v);
 		}
 		this.last_added = this;
 	};
@@ -88,7 +89,7 @@ class Stanza {
 
 		#if cpp
 		return (serialized = borogove.streams.XmppStropheStream.serializeStanza(this));
-		#elseif js
+		#elseif false
 		final el = borogove.streams.XmppJsStream.convertFromStanza(this);
 		return (serialized = el.toString());
 		#else
@@ -133,18 +134,13 @@ class Stanza {
 		return stanza;
 	}
 
-	#if (!cpp && !js)
 	@:allow(borogove)
 	private static function fromXml(el:Xml):Stanza {
 		if(el.nodeType == XmlType.Document) {
 			return fromXml(el.firstElement());
 		}
 
-		var attrs: DynamicAccess<String> = {};
-		for (a in el.attributes()) {
-			attrs.set(a, el.get(a));
-		}
-		var stanza = new Stanza(el.nodeName, attrs);
+		var stanza = new Stanza(el.nodeName, el.attributeMap);
 		for (child in el) {
 			if(child.nodeType == XmlType.Element) {
 				stanza.addChild(fromXml(child));
@@ -156,7 +152,6 @@ class Stanza {
 		}
 		return stanza;
 	}
-	#end
 
 	public function tag(name:String, ?attr:DynamicAccess<String>, ?attrMap:haxe.ds.StringMap<String>) {
 		serialized = null;
@@ -173,9 +168,9 @@ class Stanza {
 		return this;
 	}
 
-	public function textTag(tagName:String, textContent:String, ?attr:DynamicAccess<String>) {
+	public function textTag(tagName:String, textContent:String, ?attr:DynamicAccess<String>, ?attrMap:haxe.ds.StringMap<String>) {
 		serialized = null;
-		this.last_added.addDirectChild(Element(new Stanza(tagName, attr ?? {}).text(textContent)));
+		this.last_added.addDirectChild(Element(new Stanza(tagName, attr, attrMap).text(textContent)));
 		return this;
 	}
 

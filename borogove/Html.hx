@@ -146,7 +146,7 @@ class Html {
 						final attrs = st.attr.keys();
 
 						if (["div", "span", "p", "br"].contains(st.name)) {
-							return attrs.length < 1 && !kids.exists(plain -> !plain);
+							return !attrs.hasNext() && !kids.exists(plain -> !plain);
 						}
 
 						return false;
@@ -180,7 +180,7 @@ class Html {
 						// We don't deeply sanitize but we can remove some obvious dumb stuff
 						if (st.name == "style" || st.name == "script") return mkTxt("");
 
-						final keys = st.attr.keys().filter(k -> !k.startsWith("on"));
+						final keys = { iterator: () -> st.attr.keys() }.array().filter(k -> !k.startsWith("on"));
 						return f(
 							st.name,
 							keys,

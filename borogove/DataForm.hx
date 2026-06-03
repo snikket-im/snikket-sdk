@@ -102,7 +102,8 @@ abstract Field(Stanza) from Stanza to Stanza {
 	}
 
 	inline public function set_type(newType: String) {
-		return this.attr.set("type", newType);
+		this.attr.set("type", newType);
+		return newType;
 	}
 
 	public function get_datatype() {
