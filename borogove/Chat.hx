@@ -653,6 +653,8 @@ abstract class Chat extends EventEmitter {
 				lastMessage.isIncoming() ? "Incoming Call" : "Outgoing Call";
 			default:
 				final txt = lastMessage.body().toPlainText() ?? "";
+				if (txt == "" && lastMessage.attachments.length > 0) return "Media";
+
 				txt.split("\n").find(line -> !~/(^[ \n]*$)|(^>)/.match(line)) ?? txt;
 		}
 	}
