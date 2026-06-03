@@ -1701,6 +1701,9 @@ class Channel extends Chat {
 	}
 
 	private function doSync(syncPoint: Null<ChatMessage>, ?sortA: Null<String>) {
+		if (syncPoint?.sortId != null && (sortId == null || syncPoint.sortId > sortId)) {
+			sortId = syncPoint.sortId;
+		}
 		if (!disco.features.contains("urn:xmpp:mam:2")) {
 			inSync = true;
 			return;
