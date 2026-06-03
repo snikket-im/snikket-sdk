@@ -6,6 +6,7 @@
 --library hxnodejs
 --library hxtsdgen
 --library jsImport
+--library ltx
 --library thenshim
 --library tink_http
 --library uuidv7
@@ -17,6 +18,7 @@ borogove.Version
 borogove.persistence.Sqlite
 borogove.persistence.MediaStoreFS
 borogove.Html
+borogove.Import
 
 --macro borogove.Util.DummyRequireMacro.init()
 -D analyzer-optimize

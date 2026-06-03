@@ -72,10 +72,13 @@ class Stanza {
 	private var last_added_stack(null, null):Array<Stanza> = [];
 	private var serialized: Null<String> = null;
 
-	public function new(name:String, ?attr:DynamicAccess<String>) {
+	public function new(name:String, ?attr:DynamicAccess<String>, ?attrMap:haxe.ds.StringMap<String>) {
 		this.name = name;
 		if(attr != null) {
 			this.attr = attr;
+		}
+		if (attrMap != null) {
+			for (k => v in attrMap) this.attr.set(k, v);
 		}
 		this.last_added = this;
 	};
@@ -155,9 +158,9 @@ class Stanza {
 	}
 	#end
 
-	public function tag(name:String, ?attr:DynamicAccess<String>) {
+	public function tag(name:String, ?attr:DynamicAccess<String>, ?attrMap:haxe.ds.StringMap<String>) {
 		serialized = null;
-		var child = new Stanza(name, attr);
+		var child = new Stanza(name, attr, attrMap);
 		this.last_added.addDirectChild(Element(child));
 		this.last_added_stack.push(this.last_added);
 		this.last_added = child;
@@ -174,6 +177,10 @@ class Stanza {
 		serialized = null;
 		this.last_added.addDirectChild(Element(new Stanza(tagName, attr ?? {}).text(textContent)));
 		return this;
+	}
+
+	public function atTop() {
+		return this.last_added == this;
 	}
 
 	public function up() {

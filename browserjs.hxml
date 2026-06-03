@@ -1,13 +1,14 @@
 --library HtmlParser
 --library datetime
+--library fractional-indexing
 --library haxe-strings
 --library hsluv
 --library hxtsdgen
 --library jsImport
+--library ltx
 --library thenshim
 --library tink_http
 --library uuidv7
---library fractional-indexing
 
 borogove.Client
 borogove.Register
@@ -15,6 +16,7 @@ borogove.Push
 borogove.Version
 borogove.persistence.Sqlite
 borogove.Html
+borogove.Import
 
 -D analyzer-optimize
 -D js-es=6

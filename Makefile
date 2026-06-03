@@ -30,6 +30,7 @@ hx-build-dep:
 
 npm/borogove-browser.js:
 	haxe browserjs.hxml
+	sed -i 's/ implements haxe_IMap<K,V>//g' npm/borogove-browser.d.ts
 	sed -i '/;var $$hx_exports = typeof exports != "undefined" ? exports : globalThis;/d' npm/borogove-browser.js
 	sed -i '/\$$hx_exports.*|| {};/d' npm/borogove-browser.js
 	sed -i 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove-browser.js
@@ -44,6 +45,7 @@ npm/borogove-browser.js:
 
 npm/borogove.js:
 	haxe nodejs.hxml
+	sed -i 's/ implements haxe_IMap<K,V>//g' npm/borogove.d.ts
 	sed -i '/;var $$hx_exports = typeof exports != "undefined" ? exports : globalThis;/d' npm/borogove.js
 	sed -i '/\$$hx_exports.*|| {};/d' npm/borogove.js
 	sed -i 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove.js

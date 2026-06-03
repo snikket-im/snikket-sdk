@@ -3,6 +3,7 @@
 --library fractional-indexing
 --library haxe-strings
 --library hsluv
+--library ltx
 --library thenshim
 --library tink_http
 --library uuidv7
