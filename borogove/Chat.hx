@@ -1022,7 +1022,10 @@ abstract class Chat extends EventEmitter {
 	private function markReadUpToMessage(message: ChatMessage): Promise<Any> {
 		if (message.serverId == null || message.chatId() != chatId) return Promise.reject(null);
 		if (readUpToId == message.serverId) {
-			if (lastMessage != null && lastMessage.serverId == readUpToId) setUnreadCount(0);
+			if (lastMessage != null && lastMessage.serverId == readUpToId && unreadCount() > 0) {
+				setUnreadCount(0);
+				client.trigger("chats/update", [this]);
+			}
 			return Promise.reject(null);
 		}
 
