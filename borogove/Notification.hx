@@ -102,6 +102,24 @@ class Notification {
 		);
 	}
 
+	@:allow(borogove)
+	private static function fromReactionUpdate(m: ReactionUpdate, stanza: Stanza) {
+		return new Notification(
+			"Reacted",
+			m.reactions.map(r -> r.render((s) -> s, (name, uri) -> ":" + name + ":")).join(" "),
+			JID.parse(stanza.attr.get("to")).asBare().asString(),
+			m.chatId,
+			m.senderId,
+			m.serverId,
+			stanza.attr.get("type") == "groupchat" ? MessageChannel : MessageChat,
+			null,
+			null,
+			null,
+			null,
+			m.timestamp
+		);
+	}
+
 	// Sometimes a stanza has not much in it, so make something generic
 	// Assume it is an incoming message of some kind
 	@:allow(borogove)
@@ -113,7 +131,7 @@ class Notification {
 			JID.parse(stanza.attr.get("from")).asBare().asString(),
 			JID.parse(stanza.attr.get("from")).asString(),
 			stanza.getChildText("stanza-id", "urn:xmpp:sid:0"),
-			MessageChat,
+			stanza.attr.get("type") == "groupchat" ? MessageChannel : MessageChat,
 			null,
 			null,
 			null,

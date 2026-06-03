@@ -35,28 +35,29 @@ class Push {
 			stanza = stanza.getChild("message", "jabber:client");
 		}
 		if (stanza.attr.get("to") == null) return null;
-		// Assume incoming message
-		final message = ChatMessage.fromStanza(stanza, JID.parse(stanza.attr.get("to")).asBare());
-		if (message != null) {
-			// TODO: this puts every push at the same sortId until the next sync
-			(message.type == MessageChannel ?
-				persistence.syncPoint(message.account(), message.chatId()).then(point -> point?.sortId ?? "a ") :
-				persistence.getStreamManagement(message.account()).then(data -> data.sortId)
-			).then(sortId -> {
-				final sortId = FractionalIndexing.between(sortId, null, FractionalIndexing.BASE_95_DIGITS);
-				final toStore = ChatMessage.fromStanza(
-					stanza,
-					JID.parse(stanza.attr.get("to")).asBare(),
-					(builder, stanza) -> {
-						builder.sortId = sortId;
-						return builder;
-					}
-				);
-				persistence.storeMessages(message.account(), [toStore]);
-			});
-			return Notification.fromChatMessage(message);
-		} else {
-			return Notification.fromThinStanza(stanza);
+		switch (Message.fromStanza(stanza, JID.parse(stanza.attr.get("to")).asBare()).parsed) {
+			case ChatMessageStanza(message):
+				// TODO: this puts every push at the same sortId until the next sync
+				(message.type == MessageChannel ?
+					persistence.syncPoint(message.account(), message.chatId()).then(point -> point?.sortId ?? "a ") :
+					persistence.getStreamManagement(message.account()).then(data -> data.sortId)
+				).then(sortId -> {
+					final sortId = FractionalIndexing.between(sortId, null, FractionalIndexing.BASE_95_DIGITS);
+					final toStore = ChatMessage.fromStanza(
+						stanza,
+						JID.parse(stanza.attr.get("to")).asBare(),
+						(builder, stanza) -> {
+							builder.sortId = sortId;
+							return builder;
+						}
+					);
+					persistence.storeMessages(message.account(), [toStore]);
+				});
+				return Notification.fromChatMessage(message);
+			case ReactionUpdateStanza(update):
+				return Notification.fromReactionUpdate(update, stanza);
+			default:
+				return Notification.fromThinStanza(stanza);
 		}
 	}
 }
