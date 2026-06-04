@@ -13,17 +13,18 @@ ci: test playwright
 	haxe testcpp.hxml
 
 hx-build-dep:
+	haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
 	haxelib --quiet git jsImport https://github.com/back2dos/jsImport
+	haxelib --quiet install HtmlParser
 	haxelib --quiet install datetime
+	haxelib --quiet install fractional-indexing
 	haxelib --quiet install haxe-strings
 	haxelib --quiet install hsluv
+	haxelib --quiet install hxnodejs
+	haxelib --quiet install ltx
+	haxelib --quiet install thenshim
 	haxelib --quiet install tink_http
 	haxelib --quiet install uuidv7
-	haxelib --quiet install fractional-indexing
-	haxelib --quiet install thenshim
-	haxelib --quiet install HtmlParser
-	haxelib --quiet install hxnodejs
-	haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
 	haxelib --quiet install utest
 	haxelib --quiet git hxcpp https://github.com/singpolyma/hxcpp update-sqlite
 	cd "$$(haxelib libpath hxcpp)"/tools/hxcpp && haxe compile.hxml
