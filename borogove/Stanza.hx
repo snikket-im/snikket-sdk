@@ -89,7 +89,7 @@ class Stanza {
 
 		#if cpp
 		return (serialized = borogove.streams.XmppStropheStream.serializeStanza(this));
-		#elseif false
+		#elseif js
 		final el = borogove.streams.XmppJsStream.convertFromStanza(this);
 		return (serialized = el.toString());
 		#else
