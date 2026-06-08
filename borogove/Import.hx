@@ -9,6 +9,7 @@ class Import {
 	private final p: Sax;
 	private final targetAccount: Null<String>;
 	private var sortA: String;
+	private final sortAinit: String;
 	private final sortB: String;
 	private var counterSameTime = 0;
 	private var previousMessageTime = "";
@@ -20,7 +21,7 @@ class Import {
 
 	public function new(targetAccount: Null<String>, sortA: String = "Wt@|q", sortB: String = "a ") {
 		this.targetAccount = targetAccount;
-		this.sortA = sortA;
+		this.sortAinit = this.sortA = sortA;
 		this.sortB = sortB;
 		p = new Sax();
 
@@ -42,12 +43,14 @@ class Import {
 			case "{urn:xmpp:pie:0}host":
 				host = tag.get("jid");
 			case "{urn:xmpp:pie:0}user":
+				sortA = sortAinit;
 				item = tag.get("name");
 				if (onAccount != null) onAccount(item + "@" + host);
 			case "{urn:xmpp:pie:0#component}component":
 				host = tag.get("jid");
 				mucComponent = tag.get("type") == "muc";
 			case "{urn:xmpp:pie:0#component}item":
+				sortA = sortAinit;
 				item = tag.get("name");
 				if (mucComponent && onChannel != null) onChannel(item + "@" + host);
 			case "{urn:xmpp:pie:0#mam}archive":
