@@ -250,6 +250,24 @@ class TestChat extends utest.Test {
 		chat.moderate(message, "Spam");
 	}
 
+	public function testChannelCommandsReturnsSettingsForOwner(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "channel@example.com");
+
+		chat.self = new Member("me", "myself", null, true, [new Role("member", "")], JID.parse("test@example.com"), new Map(), null);
+		chat.commands().then(cmds -> {
+			Assert.equals(0, cmds.length);
+
+			chat.self = new Member("me", "myself", null, true, [new Role("owner", "")], JID.parse("test@example.com"), new Map(), null);
+			chat.commands().then(cmds2 -> {
+				Assert.equals(1, cmds2.length);
+				Assert.equals("Settings", cmds2[0].name);
+				async.done();
+			});
+		});
+	}
+
 	public function testCanModerateDirectChat() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);

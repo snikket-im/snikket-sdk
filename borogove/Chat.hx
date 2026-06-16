@@ -1630,6 +1630,21 @@ class Channel extends Chat {
 		return disco.features.contains("urn:xmpp:message-moderate:1") && it.next().mucUser.role == "moderator";
 	}
 
+	private function isOwner() {
+		if (self == null) return false;
+
+		return self.roles.exists(r -> r.id == "owner");
+	}
+
+	override public function commands(): Promise<Array<Command>> {
+		return super.commands().then((cmds: Array<Command>) -> {
+			if (isOwner()) {
+				cmds.push(new MucSettingsCommand(client, JID.parse(chatId)));
+			}
+			return cmds;
+		});
+	}
+
 	@:allow(borogove)
 	private function getCaps():KeyValueIterator<Null<String>, Caps> {
 		var hasNext = true;

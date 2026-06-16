@@ -25,6 +25,7 @@ class TestAll {
 			new TestJID(),
 			new TestMember(),
 			new TestMemberUpdate(),
+			new TestMucSettingsCommand(),
 			new TestPresence(),
 			new TestReaction(),
 			new TestSessionDescription(),
