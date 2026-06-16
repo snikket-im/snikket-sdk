@@ -722,7 +722,7 @@ abstract class Chat extends EventEmitter {
 			uiState = Open;
 			client.trigger("chats/update", [this]);
 		}
-		if (isBlocked) unblock();
+		if (isBlocked && trusted) unblock();
 	}
 
 	/**
