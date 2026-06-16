@@ -849,6 +849,55 @@ trace("YYZZXX memberUpdates", chat.chatId, memberUpdates.length);
 	}
 
 	/**
+		Set the current profile photo for this account on the server
+
+		@param photo to set
+		@param publicAccess set the access for the photo to public
+	**/
+	public function setPhoto(source: AttachmentSource, publicAccess: Bool) {
+		if (source.size > 128000) throw "Size limit of 128KB";
+		final out = new haxe.io.BytesOutput();
+		final sink = new tink.io.std.OutputSink("bytes", out, tink.io.Worker.get());
+		source.tinkSource().pipeTo(sink).handle(_ -> {
+			final bytes = out.getBytes();
+			final b64 = haxe.crypto.Base64.encode(bytes);
+			final sha1 = Hash.sha1(bytes).toHex();
+			trace("set avatar", sha1, b64, bytes, source);
+
+			publishWithOptions(
+				new Stanza("iq", { type: "set" })
+					.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
+					.tag("publish", { node: "urn:xmpp:avatar:data" })
+					.tag("item", { id: sha1 })
+					.textTag("data", b64, { xmlns: "urn:xmpp:avatar:data" }),
+				new Stanza("x", { xmlns: "jabber:x:data", type: "submit" })
+					.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
+					.tag("field", { "var": "pubsub#type" }).textTag("value", "urn:xmpp:avatar:data").up()
+					.tag("field", { "var": "pubsub#deliver_payloads" }).textTag("value", "false").up()
+					.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
+					.tag("field", { "var": "pubsub#max_items" }).textTag("value", "1").up()
+					.tag("field", { "var": "pubsub#access_model" }).textTag("value", publicAccess ? "open" : "presence").up(),
+			);
+
+			publishWithOptions(
+				new Stanza("iq", { type: "set" })
+					.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
+					.tag("publish", { node: "urn:xmpp:avatar:metadata" })
+					.tag("item", { id: sha1 })
+					.tag("metadata", { xmlns: "urn:xmpp:avatar:metadata" })
+					.tag("info", { bytes: Std.string(source.size), type: source.type, id: sha1 }),
+				new Stanza("x", { xmlns: "jabber:x:data", type: "submit" })
+					.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
+					.tag("field", { "var": "pubsub#type" }).textTag("value", "urn:xmpp:avatar:metadata").up()
+					.tag("field", { "var": "pubsub#deliver_payloads" }).textTag("value", "true").up()
+					.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
+					.tag("field", { "var": "pubsub#max_items" }).textTag("value", "1").up()
+					.tag("field", { "var": "pubsub#access_model" }).textTag("value", publicAccess ? "open" : "presence").up(),
+			);
+		});
+	}
+
+	/**
 		Set the current profile for this account on the server
 
 		@param profile to set
