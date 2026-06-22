@@ -26,7 +26,7 @@ hx-build-dep:
 	haxelib --quiet install tink_http
 	haxelib --quiet install uuidv7
 	haxelib --quiet install utest
-	haxelib --quiet git hxcpp https://github.com/singpolyma/hxcpp update-sqlite
+	haxelib --quiet git hxcpp https://github.com/singpolyma/hxcpp master
 	cd "$$(haxelib libpath hxcpp)"/tools/hxcpp && haxe compile.hxml
 
 npm/borogove-browser.js:
@@ -100,6 +100,10 @@ cpp:
 	cp -pr "$(shell haxelib libpath hxcpp)"/src/hx/libs/regexp cpp/src/hx/libs/
 	cp -pr "$(shell haxelib libpath hxcpp)"/src/hx/libs/sqlite cpp/src/hx/libs/
 	cp -pr "$(shell haxelib libpath hxcpp)"/src/hx/gc cpp/src/hx/
+	cp -pr "$(shell haxelib libpath hxcpp)"/src/hx/thread cpp/src/hx/
+	$(RM) cpp/src/hx/thread/*.unsupported.cpp
+	$(RM) cpp/src/hx/thread/*.win32.cpp
+	$(RM) cpp/src/hx/thread/*.apple.cpp
 	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/StdLibs.cpp cpp/src/hx/
 	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Lib.cpp cpp/src/hx/
 	cp -p "$(shell haxelib libpath hxcpp)"/src/hx/Hash.h cpp/src/hx/
