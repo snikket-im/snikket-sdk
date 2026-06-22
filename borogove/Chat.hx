@@ -1577,6 +1577,33 @@ class Channel extends Chat {
 	}
 
 	/**
+		Can the user set the Channel subject?
+	**/
+	public function canSetSubject() {
+		if (self == null || disco == null) return false;
+
+		final it = self.presence.iterator();
+		if (!it.hasNext()) return false;
+
+		final subjectmod = (info()?.field("muc#roominfo_subjectmod")?.value ?? ["0"]).join("");
+		if (Stanza.parseXmlBool(subjectmod)) {
+			return true;
+		}
+
+		return it.next().mucUser.role == "moderator";
+	}
+
+	/**
+		Set the Channel subject, or subject of a thread
+	**/
+	public function setSubject(subject: String, threadId: Null<String> = null) {
+		final outboxItem = outbox.newItem();
+		final stanza = new Stanza("message", { to: chatId }).textTag("subject", subject);
+		if (threadId != null) stanza.textTag("thread", threadId);
+		sendMessageStanza(stanza, outboxItem);
+	}
+
+	/**
 		Description of this Channel
 	**/
 	public function description() {

@@ -307,6 +307,82 @@ class TestChat extends utest.Test {
 		Assert.isTrue(chat.canModerate());
 	}
 
+	public function testCanSetSubjectChannel() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "channel@example.com");
+
+		// Default
+		Assert.isFalse(chat.canSetSubject());
+
+		// Self set but no disco
+		chat.self = new Member(
+			"me", "myself", null, true, [], JID.parse("test@example.com"),
+			["myself" => new borogove.Presence(null, new Stanza("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("item", { role: "participant" }).up(), null)],
+			null
+		);
+		Assert.isFalse(chat.canSetSubject());
+
+		chat.disco = new borogove.Caps("", [], [], []);
+
+		// Is participant, subjectmod not set
+		Assert.isFalse(chat.canSetSubject());
+
+		// Is moderator, subjectmod not set
+		chat.self = new Member(
+			"me", "myself", null, true, [], JID.parse("test@example.com"),
+			["myself" => new borogove.Presence(null, new Stanza("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("item", { role: "moderator" }).up(), null)],
+			null
+		);
+		Assert.isTrue(chat.canSetSubject());
+
+		// Is participant, subjectmod set
+		chat.self = new Member(
+			"me", "myself", null, true, [], JID.parse("test@example.com"),
+			["myself" => new borogove.Presence(null, new Stanza("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("item", { role: "participant" }).up(), null)],
+			null
+		);
+		chat.disco = new borogove.Caps("", [], [], [new Stanza("x", { xmlns: "jabber:x:data", type: "result" }).tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/muc#roominfo").up().tag("field", { "var": "muc#roominfo_subjectmod" }).textTag("value", "1").up()]);
+		Assert.isTrue(chat.canSetSubject());
+	}
+
+	public function testSetSubject(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "channel@example.com");
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "message" && stanza.attr.get("to") == "channel@example.com") {
+				Assert.equals("New Subject", stanza.getChild("subject").getText());
+				async.done();
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		chat.outbox.start();
+		chat.setSubject("New Subject");
+	}
+
+	public function testSetSubjectThread(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "channel@example.com");
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "message" && stanza.attr.get("to") == "channel@example.com") {
+				Assert.equals("New Thread Subject", stanza.getChild("subject").getText());
+				Assert.equals("thread123", stanza.getChild("thread").getText());
+				async.done();
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		chat.outbox.start();
+		chat.setSubject("New Thread Subject", "thread123");
+	}
+
 	public function testJoinFailure() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
