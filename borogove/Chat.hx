@@ -1657,6 +1657,21 @@ class Channel extends Chat {
 		return disco.features.contains("urn:xmpp:message-moderate:1") && it.next().mucUser.role == "moderator";
 	}
 
+	/**
+		If the user is muted by local policy, send a request to moderators
+	**/
+	public function requestToSend() {
+		// TODO: no way to send a message long with the request right now that
+		// will be supported by Snikket, but might be nice.
+		final outboxItem = outbox.newItem();
+		outboxItem.handle(() -> client.sendStanza(
+			new Stanza("message", { to: chatId })
+			.tag("x", { xmlns: "jabber:x:data", type: "submit" })
+			.tag("field", { "var": "FORM_TYPE" }).textTag("value", "http://jabber.org/protocol/muc#request").up()
+			.tag("field", { "var": "muc#role" }).textTag("value", "participant").up()
+		));
+	}
+
 	private function isOwner() {
 		if (self == null) return false;
 
