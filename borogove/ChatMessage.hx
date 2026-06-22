@@ -444,7 +444,7 @@ class ChatMessage {
 		A basic Member for the sender, in case the full one can't be loaded
 	**/
 	public function senderMemberStub():Member {
-		final displayName = (type == MessageChannel ? from.resource : from.asString()) ?? " ";
+		final displayName = (type == MessageChannel || type == MessageChannelPrivate ? from.resource : from.asBare().asString()) ?? " ";
 		return new Member(senderId, displayName, null, !isIncoming(), [], from, new Map(), null);
 	}
 
