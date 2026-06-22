@@ -529,7 +529,12 @@ class Client extends EventEmitter {
 			case MucInviteStanza(serverId, serverIdBy, reason, password):
 				mucInvite(message.chatId, getChat(message.chatId), message.senderId, message.threadId, serverId, serverIdBy, reason, password);
 			case SubjectStanza(subject):
-				getChat(message.chatId)?.setThreadSubject(message.threadId, subject);
+				final chat = getChat(message.chatId);
+				if (chat != null) {
+					chat.setThreadSubject(message.threadId, subject);
+					persistence.storeChats(accountId(), [chat]);
+					this.trigger("chats/update", [chat]);
+				}
 			default:
 				// ignore
 				trace("Ignoring non-chat message: " + stanza.toString());
