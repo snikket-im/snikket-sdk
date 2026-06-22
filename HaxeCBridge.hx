@@ -952,6 +952,7 @@ class HaxeCBridge {
 
 				void defaultExceptionHandler(const char* info) {
 					fprintf(stderr, "Unhandled Borogove exception: %s\\n", info);
+					abort();
 				}
 
 				typedef void (* MainThreadCallback)(void* data);
