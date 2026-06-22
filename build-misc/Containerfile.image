@@ -80,7 +80,7 @@ ENV HAXE_STD_PATH=/opt/haxe/std
 RUN make hx-build-dep
 
 COPY npm /usr/src/sdk/npm
-RUN cd npm && npm install && npm install @playwright/test @sqlite.org/sqlite-wasm
+RUN cd npm && npm install && npm install @playwright/test@1.60.0 @sqlite.org/sqlite-wasm
 RUN ln -s npm/node_modules node_modules
 
 COPY . /usr/src/sdk/
