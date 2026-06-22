@@ -354,6 +354,7 @@ class TestChat extends utest.Test {
 		client.stream.on("sendStanza", (stanza: Stanza) -> {
 			if (stanza.name == "message" && stanza.attr.get("to") == "channel@example.com") {
 				Assert.equals("New Subject", stanza.getChild("subject").getText());
+				Assert.equals("groupchat", stanza.attr.get("type"));
 				async.done();
 				return EventHandled;
 			}

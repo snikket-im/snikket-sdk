@@ -1597,10 +1597,9 @@ class Channel extends Chat {
 		Set the Channel subject, or subject of a thread
 	**/
 	public function setSubject(subject: String, threadId: Null<String> = null) {
-		final outboxItem = outbox.newItem();
 		final stanza = new Stanza("message", { to: chatId }).textTag("subject", subject);
 		if (threadId != null) stanza.textTag("thread", threadId);
-		sendMessageStanza(stanza, outboxItem);
+		sendMessageStanza(stanza);
 	}
 
 	/**
