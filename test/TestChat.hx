@@ -524,6 +524,73 @@ class TestChat extends utest.Test {
 		final chat = client.getDirectChat("+123456789@" + domain);
 		Assert.isTrue(chat.canAudioCall());
 	}
+
+	public function testCanSetPhoto() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "channel@example.com");
+
+		Assert.isFalse(chat.canSetPhoto());
+
+		chat.self = new Member("me", "myself", null, true, [new Role("member", "")], JID.parse("test@example.com"), new Map(), null);
+		Assert.isFalse(chat.canSetPhoto());
+
+		chat.self = new Member("me", "myself", null, true, [new Role("owner", "")], JID.parse("test@example.com"), new Map(), null);
+		Assert.isTrue(chat.canSetPhoto());
+	}
+
+	public function testSetPhoto(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "channel@example.com");
+
+		#if js
+		final source = new js.html.File([], "", { type: "image/png" });
+		#else
+		final source = Type.createEmptyInstance(borogove.AttachmentSource);
+		Reflect.setField(source, "path", "/dev/null");
+		Reflect.setField(source, "size", 100);
+		Reflect.setField(source, "type", "image/png");
+		#end
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
+				final vcard = stanza.getChild("vCard", "vcard-temp");
+				if (vcard != null) {
+					final photo = vcard.getChild("PHOTO");
+					Assert.notNull(photo);
+					Assert.equals("image/png", photo.getChild("TYPE").getText());
+					Assert.equals("", photo.getChild("BINVAL").getText());
+					async.done();
+					return EventHandled;
+				}
+			}
+			return EventUnhandled;
+		});
+
+		chat.setPhoto(source);
+	}
+
+	public function testSetPhotoTooBig() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "channel@example.com");
+
+		#if js
+		var s = "";
+		for (i in 1...200000) {
+			s = s += "a";
+		}
+		final source = new js.html.File([s], "", { type: "image/png" });
+		#else
+		final source = Type.createEmptyInstance(borogove.AttachmentSource);
+		Reflect.setField(source, "path", "/dev/null");
+		Reflect.setField(source, "size", 200000);
+		Reflect.setField(source, "type", "image/png");
+		#end
+
+		Assert.raises(() -> chat.setPhoto(source), String);
+	}
 }
 
 @:access(borogove)

@@ -1646,6 +1646,36 @@ class Channel extends Chat {
 		});
 	}
 
+	/**
+		Can the user set the photo of this channel?
+	**/
+	public function canSetPhoto() {
+		return isOwner();
+	}
+
+	/**
+		Set the current photo for this channel on the server, if user is an owner
+
+		@param photo to set
+	**/
+	public function setPhoto(source: AttachmentSource) {
+		if (source.size > 128000) throw "Size limit of 128KB";
+		final out = new haxe.io.BytesOutput();
+		final sink = new tink.io.std.OutputSink("bytes", out, tink.io.Worker.get());
+		source.tinkSource().pipeTo(sink).handle(_ -> {
+			final bytes = out.getBytes();
+			final b64 = haxe.crypto.Base64.encode(bytes);
+
+			client.sendStanza(
+				new Stanza("iq", { type: "set", to: chatId })
+					.tag("vCard", { xmlns: "vcard-temp" })
+					.tag("PHOTO")
+					.textTag("TYPE", source.type)
+					.textTag("BINVAL", b64)
+			);
+		});
+	}
+
 	@:allow(borogove)
 	private function getCaps():KeyValueIterator<Null<String>, Caps> {
 		var hasNext = true;
