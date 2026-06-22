@@ -12,19 +12,29 @@ class SqliteDriver {
 	private final dbfile: String;
 	private final ready: Promise<Bool>;
 	private var setReady: (Bool)->Void;
+	private var setFailed: (Dynamic)->Void;
 
 	public function new(dbfile: String, migrate: (Array<String>->Promise<haxe.iterators.ArrayIterator<Dynamic>>)->Promise<Any>) {
 		this.dbfile = dbfile;
 		readPool = Config.constrainedMemoryMode ? writePool : new sys.thread.ElasticThreadPool(10);
-		ready = new Promise((resolve, reject) -> setReady = resolve);
+		ready = new Promise((resolve, reject) -> {
+			setReady = resolve;
+			setFailed = reject;
+		});
 
 		writePool.run(() -> {
-			final db = sys.db.Sqlite.open(dbfile);
-			db.request("PRAGMA journal_mode=WAL");
-			db.request("PRAGMA synchronous=NORMAL");
-			db.request("PRAGMA temp_store=2");
-			if (Config.constrainedMemoryMode) db.request("PRAGMA cache_size=0");
-			dbs.push(db);
+			try {
+				final db = sys.db.Sqlite.open(dbfile);
+				db.request("PRAGMA journal_mode=WAL");
+				db.request("PRAGMA synchronous=NORMAL");
+				db.request("PRAGMA temp_store=2");
+				if (Config.constrainedMemoryMode) db.request("PRAGMA cache_size=0");
+				dbs.push(db);
+			} catch (e) {
+				trace("Could not open Sqlite db", e);
+				setFailed(e);
+				return;
+			}
 			migrate((sql) -> this.execute(writePool, sql.map(q -> { sql: q, params: [] }))).then(_ -> {
 				setReady(true);
 			});
