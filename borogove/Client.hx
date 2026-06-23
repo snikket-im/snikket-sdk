@@ -622,7 +622,6 @@ class Client extends EventEmitter {
 
 		final memberUpdates = MemberUpdate.extractUpdates(accountId(), chat, stanza);
 		if (memberUpdates.length > 0) {
-trace("YYZZXX memberUpdates", chat.chatId, memberUpdates.length);
 			final channel = Util.downcast(chat, Channel);
 			final mucUser = stanza.getChild("x", "http://jabber.org/protocol/muc#user");
 			var isFullList = false;
