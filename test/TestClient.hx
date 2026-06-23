@@ -600,6 +600,43 @@ class TestClient extends utest.Test {
 
 		client.start();
 	}
+
+	public function testMucVoiceRequest(async: Async) {
+		final persistence = new VoiceRequestMockPersistence();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "room@example.com");
+		client.chats.push(chat);
+
+		var onPersistedEvent = null;
+		final afterPersistedEvent = new Promise((resolved, rejected) -> { onPersistedEvent = resolved; });
+
+		client.on("chats/update", (chats: Array<Chat>) -> {
+			final c = chats.find(x -> x.chatId == "room@example.com");
+			if (c != null && persistence.lastVoiceRequests.length > 0) {
+				onPersistedEvent(null);
+			}
+			return EventHandled;
+		});
+
+		final stanza = Stanza.parse('<message from="room@example.com" xmlns="jabber:client">
+			<x xmlns="jabber:x:data" type="form">
+				<field var="FORM_TYPE"><value>http://jabber.org/protocol/muc#request</value></field>
+				<field var="muc#role"><value>participant</value></field>
+				<field var="muc#jid"><value>requester@example.com</value></field>
+			</x>
+		</message>');
+
+		client.stream.onStanza(stanza);
+
+		afterPersistedEvent.then(_ -> {
+			Assert.equals(1, persistence.lastVoiceRequests.length);
+			Assert.equals("test@example.com", persistence.lastVoiceRequests[0].accountId);
+			Assert.equals("room@example.com", persistence.lastVoiceRequests[0].chat.chatId);
+			Assert.equals("requester@example.com", persistence.lastVoiceRequests[0].jid);
+			Assert.equals(true, persistence.lastVoiceRequests[0].requesting);
+			async.done();
+		});
+	}
 }
 
 @:access(borogove)
@@ -668,6 +705,16 @@ class MemberUpdateMockPersistence extends Dummy {
 
 	override public function clearMemberPresence(accountId: String, chatId: Null<String>) {
 		clearMemberPresenceCalls.push({ accountId: accountId, chatId: chatId });
+		return Promise.resolve(true);
+	}
+}
+
+@:access(borogove)
+class VoiceRequestMockPersistence extends Dummy {
+	public var lastVoiceRequests: Array<{ accountId: String, chat: Chat, jid: String, requesting: Bool }> = [];
+
+	override public function storeVoiceRequest(accountId: String, chat: Chat, jid: String, requesting: Bool): Promise<Bool> {
+		lastVoiceRequests.push({ accountId: accountId, chat: chat, jid: jid, requesting: requesting });
 		return Promise.resolve(true);
 	}
 }

@@ -68,6 +68,16 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
+	public function storeVoiceRequest(accountId: String, chat: Chat, jid: String, requesting: Bool) {
+		return Promise.resolve(false);
+	}
+
+	@HaxeCBridge.noemit
+	public function listVoiceRequests(accountId: String, chat: Chat) {
+		return Promise.resolve([]);
+	}
+
+	@HaxeCBridge.noemit
 	public function storeMessages(accountId: String, messages: Array<ChatMessage>): Promise<Array<ChatMessage>> {
 		return Promise.resolve(messages);
 	}

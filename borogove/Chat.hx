@@ -1753,15 +1753,19 @@ class Channel extends Chat {
 				});
 			}
 		}
-		final mucUser = (presence : Stanza).getChild("x", "http://jabber.org/protocol/muc#user");
+		final mucUser: MucUser = (presence : Stanza).getChild("x", "http://jabber.org/protocol/muc#user");
 		if (mucUser != null) {
-			final mav = mucUser.getChild("mav", "urn:xmpp:muc:affiliations:1");
+			final mav = mucUser.mav;
 			if (mav?.attr?.get("since") != null && mav?.attr?.get("since") != mavUntil) {
 				trace("MAV update with unknown previous version", mavUntil, presence);
 			}
 			if (mav?.attr?.get("until") != null && mavUntil != mav?.attr?.get("until")) {
 				mavUntil = mav?.attr?.get("until");
 				persistence.storeChats(client.accountId(), [this]);
+			}
+			if (mucUser.role != "visitor" && mucUser.jid != null) {
+				// If they're not a visitor they can't be requesting voice
+				persistence.storeVoiceRequest(client.accountId(), this, mucUser.jid.asString(), false);
 			}
 		}
 		if (member.isSelf) {
@@ -2026,6 +2030,31 @@ class Channel extends Chat {
 		if (memberIds.length == 1 && self != null && memberIds[0] == self.id) return Promise.resolve([cast self]);
 
 		return persistence.getMemberDetails(client.accountId(), this, memberIds);
+	}
+
+	/**
+		List of current voice requests we are aware of
+	**/
+	public function voiceRequests() {
+		return persistence.listVoiceRequests(client.accountId(), this);
+	}
+
+	/**
+		Respond to a particular voice request
+	**/
+	public function voiceRequestRespond(member: Member, canSend: Bool) {
+		if (member.chat == null) return;
+
+		// For canSend=true we could use normal set role to participant as well
+		final outboxItem = outbox.newItem();
+		outboxItem.handle(() -> client.sendStanza(
+			new Stanza("message", { to: chatId })
+			.tag("x", { xmlns: "jabber:x:data", type: "submit" })
+			.tag("field", { "var": "FORM_TYPE" }).textTag("value", "http://jabber.org/protocol/muc#request").up()
+			.tag("field", { "var": "muc#role" }).textTag("value", "participant").up()
+			.tag("field", { "var": "muc#jid" }).textTag("value", member.chat.chatId).up()
+			.tag("field", { "var": "muc#request_allow" }).textTag("value", canSend ? "1" : "0").up()
+		));
 	}
 
 	private function buildMember(resource: String, presence: Presence): Member {

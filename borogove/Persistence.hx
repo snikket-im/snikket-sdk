@@ -103,6 +103,27 @@ interface Persistence {
 	public function getMemberDetails(accountId: String, chat: Null<Chat>, ids: Array<String>): Promise<Array<Null<Member>>>;
 
 	/**
+		Store a voice request by Jabber ID
+
+		@param accountId the account that owns the member records
+		@param chat the Channel the request is for
+		@param jid the Jabber ID that is requesting / no longer requesting voice
+		@returns Promise resolving to true
+	**/
+	@HaxeCBridge.noemit
+	public function storeVoiceRequest(accountId: String, chat: Chat, jid: String, requesting: Bool): Promise<Bool>;
+
+	/**
+		List known voice requests
+
+		@param accountId the account that owns the member records
+		@param chat the Channels to look in
+		@returns Promise resolving to the list of Members requesting voice
+	**/
+	@HaxeCBridge.noemit
+	public function listVoiceRequests(accountId: String, chat: Chat): Promise<Array<Member>>;
+
+	/**
 		Load unread counters and most recent unread message per Chat
 
 		@param accountId the account to load unread details for

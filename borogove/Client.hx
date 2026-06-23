@@ -535,6 +535,16 @@ class Client extends EventEmitter {
 					persistence.storeChats(accountId(), [chat]);
 					this.trigger("chats/update", [chat]);
 				}
+			case MucVoiceRequest(jid):
+				final chat = getChat(message.chatId);
+				final channel = chat == null ? null : Util.downcast(chat, Channel);
+				if (channel == null) {
+					trace("Ignoring voice request from unknown channel: " + stanza.toString());
+				} else {
+					persistence.storeVoiceRequest(accountId(), channel, jid.asBare().asString(), true).then(_ -> {
+						this.trigger("chats/update", [channel]);
+					});
+				}
 			default:
 				// ignore
 				trace("Ignoring non-chat message: " + stanza.toString());

@@ -40,6 +40,7 @@ enum MessageStanza {
 	ModerateMessageStanza(action: ModerationAction);
 	ReactionUpdateStanza(update: ReactionUpdate);
 	MucInviteStanza(serverId: Null<String>, serverIdBy: Null<String>, reason: Null<String>, password: Null<String>);
+	MucVoiceRequest(jid: JID);
 	UnknownMessageStanza(stanza: Stanza);
 }
 
@@ -93,6 +94,20 @@ class Message {
 		final to = stanza.attr.get("to");
 		msg.to = to == null ? localJid : JID.parse(to);
 		msg.encryption = encryptionInfo;
+
+		// Voice request is just a message form, but we want to handle it special
+		final form: Null<DataForm> = stanza.getChild("x", "jabber:x:data");
+		if (
+			form != null &&
+			form.type == "form" &&
+			"http://jabber.org/protocol/muc#request" == form.field("FORM_TYPE")?.value?.join(" ") &&
+			"participant" == form.field("muc#role")?.value?.join(" ")
+		) {
+				final jid = form.field("muc#jid")?.value;
+				if (jid != null && jid.length == 1) {
+					return new Message(from, from, null, MucVoiceRequest(JID.parse(jid[0])), encryptionInfo);
+				}
+		}
 
 		if (msg.from != null && msg.from.equals(localJidBare)) {
 			var carbon = stanza.getChild("received", "urn:xmpp:carbons:2");

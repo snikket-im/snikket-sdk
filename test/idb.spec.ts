@@ -1659,3 +1659,61 @@ test("getMemberDetails returns null for incomplete rows", async ({ page }) => {
 
 	expect(result).toEqual(["Alpha", null]);
 });
+
+test("storeVoiceRequest and listVoiceRequests", async ({ page }) => {
+	page.route("https://localhost/", (route) =>
+		route.fulfill({ body: "<html></html>" }),
+	);
+	const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+	await page.goto("https://localhost/");
+	const result = await page.evaluate(async (code) => {
+		const blob = new Blob([code], { type: "text/javascript" });
+		const borogove = await import(URL.createObjectURL(blob));
+
+		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
+		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
+		const chat = Object.create(borogove.Channel.prototype);
+		chat.chatId = "room-voice-requests@example.com";
+		chat.getDisplayName = () => "Tea Room";
+
+		await persistence.storeMembers("alice@example.com", chat.chatId, [
+			{
+				id: "room-voice-requests@example.com/occ-1",
+				displayName: "Bob",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "none", title: "Participant" }],
+				jid: borogove.JID.parse("bob@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "bob@example.com" },
+			},
+			{
+				id: "room-voice-requests@example.com/occ-2",
+				displayName: "Charlie",
+				photoUri: null,
+				isSelf: false,
+				roles: [{ id: "none", title: "Participant" }],
+				jid: borogove.JID.parse("charlie@example.com"),
+				presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+				chat: { chatId: "charlie@example.com" },
+			}
+		]);
+
+		await persistence.storeVoiceRequest("alice@example.com", chat, "bob@example.com", true);
+		await persistence.storeVoiceRequest("alice@example.com", chat, "charlie@example.com", true);
+
+		const requests1 = await persistence.listVoiceRequests("alice@example.com", chat);
+
+		await persistence.storeVoiceRequest("alice@example.com", chat, "bob@example.com", false);
+
+		const requests2 = await persistence.listVoiceRequests("alice@example.com", chat);
+
+		return {
+			requests1: requests1.map((m) => m.displayName).sort(),
+			requests2: requests2.map((m) => m.displayName).sort(),
+		};
+	}, code);
+
+	expect(result.requests1).toEqual(["Bob", "Charlie"]);
+	expect(result.requests2).toEqual(["Charlie"]);
+});

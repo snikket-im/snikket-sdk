@@ -630,6 +630,26 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
+	public function storeVoiceRequest(accountId: String, chat: Chat, jid: String, requesting: Bool) {
+		return set("voiceRequest:" + accountId + "\n" + chat.chatId + "\n" + jid, requesting ? "1" : null).then(_ -> true);
+	}
+
+	@HaxeCBridge.noemit
+	public function listVoiceRequests(accountId: String, chat: Chat) {
+		return db.exec(
+			"SELECT member_id, display_name, photo_uri, is_self, chat, json(roles) AS roles, json(presence) AS presence, jid FROM members INNER JOIN keyvaluepairs ON keyvaluepairs.k='voiceRequest:' || account_id || char(10) || chat_id || char(10) || jid WHERE account_id=? AND chat_id=?",
+			[accountId, chat.chatId]
+		).then(rows -> {
+			final result: Array<Member> = [];
+			for (row in rows) {
+				final member = hydrateStoredMember(chat, row);
+				if (member != null) result.push(member);
+			}
+			return result;
+		});
+	}
+
+	@HaxeCBridge.noemit
 	public function searchMessages(accountId: String, chatId: Null<String>, q: String): Promise<Array<ChatMessage>> {
 		var sql = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sort_id, sync_point FROM messages WHERE account_id=? AND stanza LIKE ?";
 		final params = [accountId, "%" + q + "%"];

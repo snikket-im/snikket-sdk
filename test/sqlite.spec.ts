@@ -2640,4 +2640,90 @@ test.describe("not webkit", () => {
 
 		expect(result).toEqual(["Alpha", null]);
 	});
+
+	test("storeVoiceRequest and listVoiceRequests", async ({ page }) => {
+		page.route("https://localhost/", (route) =>
+			route.fulfill({
+				body: "<html></html>",
+				headers: {
+					"Cross-Origin-Opener-Policy": "same-origin",
+					"Cross-Origin-Embedder-Policy": "same-origin",
+					"Cross-Origin-Resource-Policy": "same-origin",
+				},
+			}),
+		);
+		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
+		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
+		const worker1 = fs.readFileSync(
+			"playwright/.cache/sqlite-worker1.js",
+			"utf8",
+		);
+		await page.goto("https://localhost/");
+		const result = await page.evaluate(
+			async ([code, sqliteCode, worker1Code]) => {
+				const borogove = await import(
+					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
+				);
+				const sqlite = await import(
+					URL.createObjectURL(
+						new Blob([sqliteCode], { type: "text/javascript" }),
+					)
+				);
+				window.sqliteWorker1Url = new URL(
+					URL.createObjectURL(
+						new Blob([worker1Code], { type: "text/javascript" }),
+					),
+				);
+				const persistence = new sqlite.borogove_persistence_Sqlite(
+					"snikket",
+					await borogove.persistence.MediaStoreCache("snikket"),
+				);
+
+				const chat = Object.create(borogove.Channel.prototype);
+				chat.chatId = "room-voice-requests@example.com";
+				chat.getDisplayName = () => "Tea Room";
+
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-voice-requests@example.com/occ-1",
+						displayName: "Bob",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "none", title: "Participant" }],
+						jid: borogove.JID.parse("bob@example.com"),
+						presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+						chat: { chatId: "bob@example.com" },
+					},
+					{
+						id: "room-voice-requests@example.com/occ-2",
+						displayName: "Charlie",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "none", title: "Participant" }],
+						jid: borogove.JID.parse("charlie@example.com"),
+						presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
+						chat: { chatId: "charlie@example.com" },
+					}
+				]);
+
+				await persistence.storeVoiceRequest("alice@example.com", chat, "bob@example.com", true);
+				await persistence.storeVoiceRequest("alice@example.com", chat, "charlie@example.com", true);
+
+				const requests1 = await persistence.listVoiceRequests("alice@example.com", chat);
+
+				await persistence.storeVoiceRequest("alice@example.com", chat, "bob@example.com", false);
+
+				const requests2 = await persistence.listVoiceRequests("alice@example.com", chat);
+
+				return {
+					requests1: requests1.map((m) => m.displayName).sort(),
+					requests2: requests2.map((m) => m.displayName).sort(),
+				};
+			},
+			[code, sqlite, worker1],
+		);
+
+		expect(result.requests1).toEqual(["Bob", "Charlie"]);
+		expect(result.requests2).toEqual(["Charlie"]);
+	});
 });

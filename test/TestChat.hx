@@ -694,6 +694,45 @@ class TestChat extends utest.Test {
 		chat.outbox.start();
 		chat.requestToSend();
 	}
+
+	public function testVoiceRequestRespond(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "channel@example.com");
+		final member = new Member("some_id", "some_name", null, false, [], JID.parse("someone@example.com"), new Map(), new AvailableChat("someone_chat@example.com", "", "", CapsRepo.empty));
+
+		var count = 0;
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "message" && stanza.attr.get("to") == "channel@example.com" && stanza.attr.get("type") == null) {
+				final x = stanza.getChild("x", "jabber:x:data");
+				if (x != null && x.attr.get("type") == "submit") {
+					final fields = x.allTags("field");
+					Assert.equals(4, fields.length);
+					Assert.equals("FORM_TYPE", fields[0].attr.get("var"));
+					Assert.equals("http://jabber.org/protocol/muc#request", fields[0].getChild("value").getText());
+					Assert.equals("muc#role", fields[1].attr.get("var"));
+					Assert.equals("participant", fields[1].getChild("value").getText());
+					Assert.equals("muc#jid", fields[2].attr.get("var"));
+					Assert.equals("someone_chat@example.com", fields[2].getChild("value").getText());
+					Assert.equals("muc#request_allow", fields[3].attr.get("var"));
+
+					if (count == 0) {
+						Assert.equals("1", fields[3].getChild("value").getText());
+					} else {
+						Assert.equals("0", fields[3].getChild("value").getText());
+						async.done();
+					}
+					count++;
+					return EventHandled;
+				}
+			}
+			return EventUnhandled;
+		});
+
+		chat.outbox.start();
+		chat.voiceRequestRespond(member, true);
+		chat.voiceRequestRespond(member, false);
+	}
 }
 
 @:access(borogove)

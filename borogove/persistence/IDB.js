@@ -701,6 +701,29 @@ export default async (dbname, media, tokenize, stemmer) => {
 			}));
 		},
 
+		async storeVoiceRequest(account, chat, jid, requesting) {
+			await this.set(`voiceRequest:${account}\n${chat.chatId}\n${jid}`, requesting ? true : undefined);
+			return true;
+		},
+
+		async listVoiceRequests(account, chat) {
+			const tx = db.transaction(["keyvaluepairs", "members"], "readonly");
+			const kvStore = tx.objectStore("keyvaluepairs");
+			const keys = await promisifyRequest(kvStore.getAllKeys(IDBKeyRange.bound(`voiceRequest:${account}\n${chat.chatId}\n`, `voiceRequest:${account}\n${chat.chatId}\n\uffff`)));
+			const jids = keys.map(k => k.split(/\n/)[2]);
+
+			const result = [];
+			const store = tx.objectStore("members");
+			for (const jid of jids) {
+				const raw = await promisifyRequest(store.index("chatsWithTrueJid").get([account, chat.chatId, 0, jid]));
+				if (!raw?.id || !raw?.displayName || !raw?.jid) continue;
+
+				result.push(hydrateMember(chat, raw));
+			}
+
+			return result;
+		},
+
 		getChatUnreadDetails: async function(account, chat) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
@@ -1491,7 +1514,11 @@ tx.onerror = console.error;
 		set(k, v) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			return promisifyRequest(store.put(v, k));
+			if (typeof(v) === "undefined") {
+				return promisifyRequest(store.delete(k));
+			} else {
+				return promisifyRequest(store.put(v, k));
+			}
 		}
 	};
 

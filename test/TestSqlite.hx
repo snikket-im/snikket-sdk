@@ -1288,4 +1288,36 @@ class TestSqlite extends utest.Test {
 			async.done();
 		});
 	}
+
+	@:timeout(3000)
+	public function testVoiceRequests(async: Async) {
+		final account = "alice@example.com";
+		final chat = new Channel(cast null, cast null, persistence, "room-voice-requests@example.com");
+		chat.displayName = "A Chat";
+
+		persistence.storeMembers(account, chat.chatId, [
+			new Member("room-voice-requests@example.com/bob", "Bob", null, false, [new Role("none", "Participant")], JID.parse("bob@example.com"), ["desk" => Stanza.parse("<presence />")], new AvailableChat("bob@example.com", "Bob", "", new borogove.Caps("", [], [], []))),
+			new Member("room-voice-requests@example.com/charlie", "Charlie", null, false, [new Role("none", "Participant")], JID.parse("charlie@example.com"), ["desk" => Stanza.parse("<presence />")], new AvailableChat("charlie@example.com", "Charlie", "", new borogove.Caps("", [], [], [])))
+		]).then(_ ->
+			persistence.storeVoiceRequest(account, chat, "bob@example.com", true)
+		).then(_ ->
+			persistence.storeVoiceRequest(account, chat, "charlie@example.com", true)
+		).then(_ ->
+			persistence.listVoiceRequests(account, chat)
+		).then(reqs1 -> {
+			final reqsNames = reqs1.map(m -> m.displayName);
+			reqsNames.sort((a, b) -> Reflect.compare(a, b));
+			Assert.same(["Bob", "Charlie"], reqsNames);
+			return persistence.storeVoiceRequest(account, chat, "bob@example.com", false);
+		}).then(_ ->
+			persistence.listVoiceRequests(account, chat)
+		).then(reqs2 -> {
+			final reqsNames2 = reqs2.map(m -> m.displayName);
+			Assert.same(["Charlie"], reqsNames2);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
 }

@@ -9,6 +9,7 @@ abstract MucUser(Stanza) from Stanza to Stanza {
 	public var role(get, never): String;
 	public var affiliation(get, never): String;
 	public var jid(get, never): Null<JID>;
+	public var mav(get, never): Null<Stanza>;
 
 	inline private function get_statusCodes() {
 		return this.allTags("status").map(el -> el.attr.get("code"));
@@ -31,5 +32,9 @@ abstract MucUser(Stanza) from Stanza to Stanza {
 
 	inline private function item() {
 		return this.getChild("item");
+	}
+
+	inline private function get_mav() {
+		return this.getChild("mav", "urn:xmpp:muc:affiliations:1");
 	}
 }
