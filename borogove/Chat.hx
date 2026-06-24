@@ -1687,6 +1687,12 @@ class Channel extends Chat {
 		});
 	}
 
+	override public function hasCommands() {
+		if (isOwner()) return true;
+
+		return super.hasCommands();
+	}
+
 	/**
 		Can the user set the photo of this channel?
 	**/
