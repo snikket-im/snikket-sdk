@@ -1486,7 +1486,7 @@ class Client extends EventEmitter {
 	**/
 	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addChatsUpdatedListener(handler:Array<Chat>->Void) {
-		final updateChatBuffer: Map<String, Chat> = [];
+		final updateChatBuffer: Map<String, Bool> = new Map();
 		var lastCall = -1.0;
 		var updateChatTimer = null;
 		return this.on("chats/update", (data: Array<Chat>) -> {
@@ -1495,17 +1495,25 @@ class Client extends EventEmitter {
 				updateChatTimer.stop();
 			}
 			for (chat in data) {
-				updateChatBuffer[chat.chatId] = chat;
+				updateChatBuffer[chat.chatId] = true;
 			}
 			if (lastCall < 0 || now - lastCall >= 500) {
 				lastCall = now;
-				handler({ iterator: updateChatBuffer.iterator }.array());
+				final toSend = [];
+				for (chatId => v in updateChatBuffer) {
+					toSend.push(getChat(chatId));
+				}
+				handler(toSend);
 				updateChatTimer = null;
 				updateChatBuffer.clear();
 			} else {
 				updateChatTimer = haxe.Timer.delay(() -> {
 					lastCall = haxe.Timer.stamp() * 1000;
-					handler({ iterator: updateChatBuffer.iterator }.array());
+					final toSend = [];
+					for (chatId => v in updateChatBuffer) {
+						toSend.push(getChat(chatId));
+					}
+					handler(toSend);
 					updateChatTimer = null;
 					updateChatBuffer.clear();
 				}, 500);
