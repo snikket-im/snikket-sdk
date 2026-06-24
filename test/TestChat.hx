@@ -707,19 +707,21 @@ class TestChat extends utest.Test {
 				final x = stanza.getChild("x", "jabber:x:data");
 				if (x != null && x.attr.get("type") == "submit") {
 					final fields = x.allTags("field");
-					Assert.equals(4, fields.length);
+					Assert.equals(5, fields.length);
 					Assert.equals("FORM_TYPE", fields[0].attr.get("var"));
 					Assert.equals("http://jabber.org/protocol/muc#request", fields[0].getChild("value").getText());
 					Assert.equals("muc#role", fields[1].attr.get("var"));
 					Assert.equals("participant", fields[1].getChild("value").getText());
 					Assert.equals("muc#jid", fields[2].attr.get("var"));
 					Assert.equals("someone_chat@example.com", fields[2].getChild("value").getText());
-					Assert.equals("muc#request_allow", fields[3].attr.get("var"));
+					Assert.equals("muc#roomnick", fields[3].attr.get("var"));
+					Assert.equals("some_name", fields[3].getChild("value").getText());
+					Assert.equals("muc#request_allow", fields[4].attr.get("var"));
 
 					if (count == 0) {
-						Assert.equals("1", fields[3].getChild("value").getText());
+						Assert.equals("1", fields[4].getChild("value").getText());
 					} else {
-						Assert.equals("0", fields[3].getChild("value").getText());
+						Assert.equals("0", fields[4].getChild("value").getText());
 						async.done();
 					}
 					count++;

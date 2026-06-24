@@ -1771,7 +1771,9 @@ class Channel extends Chat {
 			}
 			if (mucUser.role != "visitor" && mucUser.jid != null) {
 				// If they're not a visitor they can't be requesting voice
-				persistence.storeVoiceRequest(client.accountId(), this, mucUser.jid.asString(), false);
+				persistence.storeVoiceRequest(client.accountId(), this, mucUser.jid.asBare().asString(), false).then(_ -> {
+					client.trigger("chats/update", [this]);
+				});
 			}
 		}
 		if (member.isSelf) {
@@ -2051,16 +2053,30 @@ class Channel extends Chat {
 	public function voiceRequestRespond(member: Member, canSend: Bool) {
 		if (member.chat == null) return;
 
-		// For canSend=true we could use normal set role to participant as well
 		final outboxItem = outbox.newItem();
-		outboxItem.handle(() -> client.sendStanza(
-			new Stanza("message", { to: chatId })
-			.tag("x", { xmlns: "jabber:x:data", type: "submit" })
-			.tag("field", { "var": "FORM_TYPE" }).textTag("value", "http://jabber.org/protocol/muc#request").up()
-			.tag("field", { "var": "muc#role" }).textTag("value", "participant").up()
-			.tag("field", { "var": "muc#jid" }).textTag("value", member.chat.chatId).up()
-			.tag("field", { "var": "muc#request_allow" }).textTag("value", canSend ? "1" : "0").up()
-		));
+		outboxItem.handle(() -> {
+			client.sendStanza(
+				new Stanza("message", { to: chatId })
+				.tag("x", { xmlns: "jabber:x:data", type: "submit" })
+				.tag("field", { "var": "FORM_TYPE" }).textTag("value", "http://jabber.org/protocol/muc#request").up()
+				.tag("field", { "var": "muc#role" }).textTag("value", "participant").up()
+				.tag("field", { "var": "muc#jid" }).textTag("value", member.chat.chatId).up()
+				.tag("field", { "var": "muc#roomnick" }).textTag("value", member.displayName).up()
+				.tag("field", { "var": "muc#request_allow" }).textTag("value", canSend ? "1" : "0").up()
+			);
+			if (canSend) {
+				stream.sendIq(
+					new Stanza("iq", { type: "set", to: chatId })
+					.tag("query", { xmlns: "http://jabber.org/protocol/muc#admin" })
+					.tag("item", { nick: member.displayName, role: "participant" })
+					.textTag("reason", "Approve voice request"),
+					(response) -> {}
+				);
+			}
+			persistence.storeVoiceRequest(client.accountId(), this, member.chat.chatId, false).then(_ -> {
+				client.trigger("chats/update", [this]);
+			});
+		});
 	}
 
 	private function buildMember(resource: String, presence: Presence): Member {
