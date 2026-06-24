@@ -761,7 +761,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			}));
 		},
 
-		getMessage: async function(account, chatId, serverId, localId, store) {
+		getMessage: async function(account, chatId, serverId, localId, store = null) {
 			if (!serverId && !localId) throw "Can't getMessage by no id";
 
 			if (!store) {
@@ -788,7 +788,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			return await hydrateMessage(message, store);
 		},
 
-		async storeReaction(account, update, tx) {
+		async storeReaction(account, update, tx = null) {
 			if (!tx) {
 				tx = db.transaction(["messages", "reactions"], "readwrite");
 			}
