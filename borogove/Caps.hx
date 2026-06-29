@@ -23,6 +23,7 @@ class Caps {
 
 	private static function filter(caps:KeyValueIterator<Null<String>, Caps>, predicate:Caps->Bool):KeyValueIterator<Null<String>, Caps> {
 		var nextMatch:Null<{key:Null<String>, value:Caps}> = null;
+		var initialized = false;
 
 		final findNext = () -> {
 			while (caps.hasNext()) {
@@ -35,11 +36,20 @@ class Caps {
 			nextMatch = null;
 		};
 
-		findNext();
+		final ensureInit = () -> {
+			if (!initialized) {
+				initialized = true;
+				findNext();
+			}
+		};
 
 		return {
-			hasNext: () -> nextMatch != null,
+			hasNext: () -> {
+				ensureInit();
+				return nextMatch != null;
+			},
 			next: () -> {
+				ensureInit();
 				final r = nextMatch;
 				if (r == null) throw "No more elements";
 
