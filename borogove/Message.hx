@@ -364,7 +364,7 @@ class Message {
 				replyToMessage.to = replyToJid == msg.senderId ? msg.to : msg.from;
 				replyToMessage.from = replyToJid == null ? null : JID.parse(replyToJid);
 				// Note: in MUC this senderid is wrong and not an occupant-id
-				replyToMessage.senderId = isGroupchat ? replyToMessage.from?.asString() : replyToMessage.from?.asBare()?.asString();
+				replyToMessage.senderId = (isGroupchat ? replyToMessage.from?.asString() : replyToMessage.from?.asBare()?.asString()) ?? msg.chatId();
 				replyToMessage.replyId = replyToID;
 				if ((msg.serverIdBy != null && msg.serverIdBy != localJid.asBare().asString()) || isGroupchat) {
 					replyToMessage.serverId = replyToID;
