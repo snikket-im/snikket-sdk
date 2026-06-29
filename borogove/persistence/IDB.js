@@ -1003,6 +1003,7 @@ tx.onerror = console.error;
 
 		getMessagesAround: async function(account, around) {
 			if (!around) throw "Cannot look around nothing";
+			if (!around.sortId) throw "Cannot look around no sortId";
 			if (around.type == enums.borogove_MessageType.MessageChannelPrivate) throw "Cannot look around PM";
 
 			const chatId = around.chatId();
