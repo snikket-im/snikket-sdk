@@ -2570,14 +2570,15 @@ class SerializedChat {
 	/**
 		Recreate a live Chat object from this serialized representation.
 	**/
-	public function toChat(client: Client, stream: GenericStream, persistence: Persistence) {
+	public function toChat(client: Client, stream: GenericStream, persistence: Persistence): Promise<Chat> {
 		final extensionsStanza = Stanza.parse(extensions);
 		var filterN = notificationsFiltered ?? false;
 		var mention = notifyMention;
 
+		final getCapsPromises = [];
 		// Init capsRepo with all caps for this chat
 		for (resource => p in presence) {
-			if (p != null) client.capsRepo.getAsync(p);
+			if (p != null) getCapsPromises.push(client.capsRepo.getAsync(p));
 		}
 
 		final chat = if (klass == "DirectChat") {
@@ -2605,6 +2606,6 @@ class SerializedChat {
 		for (threadId => subject in threads) {
 			chat.setThreadSubject(threadId, subject);
 		}
-		return chat;
+		return thenshim.PromiseTools.all(getCapsPromises).then(_ -> chat);
 	}
 }

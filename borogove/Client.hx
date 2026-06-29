@@ -800,12 +800,16 @@ class Client extends EventEmitter {
 		}).then((protoChats) -> {
 			protoChats.sort((a, b) -> a.chatId == accountId() ? 1 : 0);
 			var oneProtoChat = null;
+			final chatPromises = [];
 			while ((oneProtoChat = protoChats.pop()) != null) {
-				chats.push(oneProtoChat.toChat(this, stream, persistence));
+				chatPromises.push(oneProtoChat.toChat(this, stream, persistence));
 			}
-			getDirectChat(accountId()); // Ensure self chat exists
-			getDirectChat(JID.parse(accountId()).domain); // Ensure server chat exists
-			return persistence.getChatsUnreadDetails(accountId(), chats);
+			return thenshim.PromiseTools.all(chatPromises).then(theChats -> {
+				chats = theChats;
+				getDirectChat(accountId()); // Ensure self chat exists
+				getDirectChat(JID.parse(accountId()).domain); // Ensure server chat exists
+				return persistence.getChatsUnreadDetails(accountId(), chats);
+			});
 		}).then((details) -> {
 			for (detail in details) {
 				var chat = getChat(detail.chatId);
