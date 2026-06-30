@@ -131,7 +131,7 @@ extern class XmppJsResolve {
 extern class XmppJsMiddleware {
 	function new(params: { entity: XmppJsClientCore });
 	function filter(f: ({ stanza: XmppJsXml }, ()->Any)->Any): Void;
-	function use(f: ({stanza: XmppJsXml})->Void): Void;
+	function use(f: ({stanza: XmppJsXml}, ()->Any)->Void): Void;
 }
 
 @:js.import(@default "@xmpp/stream-features")
@@ -334,6 +334,12 @@ class XmppJsStream extends GenericStream {
 		xmpp.streamManagement.on("fail", (stanza) -> {
 			if (stanza.name == "message" && stanza.attrs.id != null) this.trigger("sm/fail", { id: stanza.attrs.id });
 			triggerSMupdate();
+		});
+
+		xmpp.middleware.use((context, next) -> {
+			if (!["message", "iq", "presence"].contains(context.stanza.getName())) return next();
+			triggerSMupdate();
+			return next();
 		});
 
 		xmpp.middleware.filter((context, next) -> {
