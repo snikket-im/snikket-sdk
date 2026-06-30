@@ -1227,6 +1227,9 @@ class Client extends EventEmitter {
 		} else {
 			getDirectChat(availableChat.chatId, false);
 		}
+		if (availableChat.rosterItem != null) {
+			chat.updateFromRoster(availableChat.rosterItem);
+		}
 		persistence.storeChats(accountId(), [chat]);
 		this.trigger("chats/update", [chat]);
 		return chat;

@@ -3,6 +3,8 @@ package borogove;
 import ltx.Sax;
 using StringTools;
 
+import borogove.Chat;
+
 @:expose
 @:access(Xml)
 class Import {
@@ -17,6 +19,7 @@ class Import {
 
 	public var onAccount: String->Void;
 	public var onChannel: String->Void;
+	public var onChat: (String, AvailableChat)->Void;
 	public var onMessage: (String, Message)->Void;
 
 	public function new(targetAccount: Null<String>, sortA: String = "Wt@|q", sortB: String = "a ") {
@@ -30,6 +33,7 @@ class Import {
 		var item = null;
 		var mucComponent = false;
 		var inArchive = false;
+		var inRoster = false;
 		var resultStanza: Null<Stanza> = null;
 		p.onStartElement = (tag: Xml) -> {
 			ns = NsContext.from(ns, tag);
@@ -53,7 +57,15 @@ class Import {
 				sortA = sortAinit;
 				item = tag.get("name");
 				if (mucComponent && onChannel != null) onChannel(item + "@" + host);
+			case "{jabber:iq:roster}query":
+				if (inArchive) throw "Roster inside an archive?";
+				inRoster = true;
+			case "{jabber:iq:roster}item":
+				if (inRoster && onChat != null && !ignoredSources[item + "@" + host]) {
+					resultStanza = new Stanza("item", tag.attributeMap);
+				}
 			case "{urn:xmpp:pie:0#mam}archive":
+				if (inRoster) throw "Archive inside a roster?";
 				if (item != null && host != null) inArchive = true;
 			case "{urn:xmpp:mam:2}result":
 				if (inArchive && onMessage != null && !ignoredSources[item + "@" + host]) {
@@ -65,7 +77,11 @@ class Import {
 			if (resultStanza != null) {
 				resultStanza.up();
 				if (resultStanza.atTop()) {
-					if (onMessage != null) processResultStanza(resultStanza, item, host);
+					if (inRoster) {
+						if (onChat != null) onChat(item + "@" + host, new AvailableChat(resultStanza.attr.get("jid"), resultStanza.attr.get("name"), "Import", CapsRepo.empty, resultStanza));
+					} else if (inArchive) {
+						if (onMessage != null) processResultStanza(resultStanza, item, host);
+					}
 					resultStanza = null;
 				}
 				return;
@@ -79,6 +95,8 @@ class Import {
 				mucComponent = false;
 			case "{urn:xmpp:pie:0#component}item", "{urn:xmpp:pie:0}user":
 				item = null;
+			case "{jabber:iq:roster}query":
+				inRoster = false;
 			case "{urn:xmpp:pie:0#mam}archive":
 				inArchive = false;
 			case "{urn:xmpp:mam:2}result":

@@ -589,10 +589,10 @@ abstract class Chat extends EventEmitter {
 	}
 
 	@:allow(borogove)
-	private function updateFromRoster(item: { fn: Null<String>, subscription: String, groups: Array<String> }) {
+	private function updateFromRoster(item: RosterItem) {
 		isBookmarked = true;
 		setTrusted(item.subscription == "both" || item.subscription == "from");
-		if (item.fn != null && item.fn != "") displayName = item.fn;
+		if (item.name != null && item.name != "") displayName = item.name;
 		if (uiState == Invited) uiState = Open;
 		extensions.removeChildren("group", "jabber:iq:roster");
 		for (group in item.groups) {
@@ -2479,6 +2479,8 @@ class AvailableChat {
 	public final note: String;
 	@:allow(borogove)
 	private final caps: Caps;
+	@:allow(borogove)
+	private final rosterItem: Null<RosterItem>;
 
 	/**
 		Is this search result a channel?
@@ -2508,11 +2510,12 @@ class AvailableChat {
 	}
 
 	@:allow(borogove)
-	private function new(chatId: String, displayName: Null<String>, note: String, caps: Caps) {
+	private function new(chatId: String, displayName: Null<String>, note: String, caps: Caps, rosterItem: Null<RosterItem> = null) {
 		this.chatId = chatId;
 		this.displayName = displayName;
 		this.note = note;
 		this.caps = caps;
+		this.rosterItem = rosterItem;
 	}
 }
 
