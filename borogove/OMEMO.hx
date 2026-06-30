@@ -134,8 +134,6 @@ class OMEMOStore extends SignalProtocolStore {
 		return persistence.getOmemoPreKey(accountId, keyId);
 	}
 
-	
-
 	public function storePreKey(keyId:Int, keyPair:PreKeyPair):Promise<Bool> {
 		persistence.storeOmemoPreKey(accountId, keyId, keyPair);
 		return Promise.resolve(true);
@@ -249,7 +247,7 @@ class OMEMOPayload {
 		}
 		return fromXml(encrypted);
 	}
-	
+
 	public function getRawIv():BytesData {
 		return Base64.decode(encodedIv).getData();
 	}
@@ -367,7 +365,7 @@ class OMEMO {
 		persistence = persistence_;
 		signalStore = new OMEMOStore(client.accountId(), persistence);
 
-		 bundleLocalState = new FSM({
+		bundleLocalState = new FSM({
 			transitions: [
 				{ name: "loaded", from: ["loading"], to: "ok" },
 				{ name: "missing", from: ["loading"], to: "creating" },
@@ -382,7 +380,7 @@ class OMEMO {
 			],
 		}, "loading");
 
-		 bundlePublicState = new FSM({
+		bundlePublicState = new FSM({
 			transitions: [
 				{ name: "verify", from: ["unverified", "ok"], to: "verifying" },
 				{ name: "needs-update", from: ["unverified", "verifying", "waiting", "updating", "ok"], to: "updating" },
@@ -401,7 +399,7 @@ class OMEMO {
 
 		client.on("session-started", function (event) {
 			// If we're not already busy, verify our published
-			// bundle after starting a new session (since we 
+			// bundle after starting a new session (since we
 			// may have missed notifications about it changing)
 			if(bundlePublicState.can("verify")) {
 				bundlePublicState.event("verify");
@@ -604,7 +602,6 @@ class OMEMO {
 		}
 	}
 
-	
 	private function publishDeviceList() {
 		if(deviceList == null) {
 			deviceList = [bundle.device_id];
@@ -627,7 +624,7 @@ class OMEMO {
 		);
 		client.sendQuery(publish);
 	}
-	
+
 	private function publishBundle() {
 		final bundleTag = bundle.toXml();
 		final nodeName = "eu.siacs.conversations.axolotl.bundles:" + Std.string(bundle.device_id);
@@ -667,13 +664,13 @@ class OMEMO {
 			persistence.storeOmemoIdentityKey(client.accountId(), keypair);
 			return true;
 		});
-		
+
 		final preKeysPromise:Promise<Array<PublicPreKey>> = doneIdentityStorage.then(cast generatePreKeys);
 
 		return preKeysPromise.then(function (prekeys_:Array<PublicPreKey>):Promise<SignedPreKey> {
 			// Store prekeys array for publication in a moment
 			prekeys = prekeys_;
-			
+
 			return KeyHelper.generateSignedPreKey(identityKeyPair, 0);
 		}).then(cast function (signedPreKey:SignedPreKey):Bool {
 			trace("OMEMO: Built bundle");
@@ -799,7 +796,6 @@ class OMEMO {
 						resolve(cipher);
 					});
 				});
-				
 			} else {
 				trace("OMEMO: Received message from existing session");
 				getSessionCipher(deviceId, fromBare, payload.sid).then((cipher) -> {
