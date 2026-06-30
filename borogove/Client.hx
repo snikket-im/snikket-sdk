@@ -146,7 +146,7 @@ class Client extends EventEmitter {
 		this._displayName = this.jid.node ?? this.jid.asString();
 		this.persistence = persistence;
 #if !NO_OMEMO
-		this.omemo = new OMEMO(this, persistence);
+		if (SignalProtocol.exists()) this.omemo = new OMEMO(this, persistence);
 #end
 		stream = new Stream();
 		stream.on("status/online", this.onConnected);

@@ -4,6 +4,16 @@ import haxe.io.BytesData;
 
 using thenshim.Promise;
 
+function exists() {
+	#if NO_OMEMO
+		return false;
+	#elseif js
+		return js.Syntax.code("!!globalThis.libsignal");
+	#else
+		return false;
+	#end
+}
+
 // A description for of the types and methods used and provided by libsignal
 
 @:expose
