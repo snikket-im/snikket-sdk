@@ -23,5 +23,4 @@ borogove.Import
 -D hxtsdgen_enums_ts
 -D js_global=globalThis
 -D js-classic
--D NO_OMEMO
 --js npm/borogove-browser.js

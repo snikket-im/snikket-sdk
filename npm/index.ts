@@ -1,8 +1,10 @@
 export {
 	borogove_ChatMessageEvent as ChatMessageEvent,
+	borogove_EncryptionStatus as EncryptionStatus,
 	borogove_MessageDirection as MessageDirection,
 	borogove_MessageStatus as MessageStatus,
 	borogove_MessageType as MessageType,
+	borogove_OutgoingE2EEPreference as OutgoingE2EEPreference,
 	borogove_ReactionUpdateKind as ReactionUpdateKind,
 	borogove_UiState as UiState,
 	borogove_UserState as UserState,

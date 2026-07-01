@@ -735,6 +735,54 @@ class TestChat extends utest.Test {
 		chat.voiceRequestRespond(member, true);
 		chat.voiceRequestRespond(member, false);
 	}
+
+	public function testSendMessageNoE2EE(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("friend@example.com");
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "message" && stanza.getChild("encrypted", "eu.siacs.conversations.axolotl") == null) {
+				Assert.equals("hello", stanza.getChildText("body"));
+				async.done();
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		final builder = new ChatMessageBuilder();
+		builder.text = "hello";
+		chat.sendMessage(builder, borogove.Chat.OutgoingE2EEPreference.NoE2EE);
+	}
+
+#if js
+	public function testSendMessageOMEMO(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("friend@example.com");
+
+		Reflect.setField(client, "omemo", {
+			encryptMessage: function(jid: borogove.JID, stanza: Stanza) {
+				final encrypted = stanza.clone();
+				encrypted.tag("encrypted", { xmlns: "eu.siacs.conversations.axolotl" }).up();
+				return Promise.resolve(encrypted);
+			}
+		});
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "message" && stanza.getChild("encrypted", "eu.siacs.conversations.axolotl") != null) {
+				Assert.notNull(stanza.getChild("encrypted", "eu.siacs.conversations.axolotl"));
+				async.done();
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		final builder = new ChatMessageBuilder();
+		builder.text = "hello";
+		chat.sendMessage(builder, borogove.Chat.OutgoingE2EEPreference.OMEMO);
+	}
+#end
 }
 
 @:access(borogove)

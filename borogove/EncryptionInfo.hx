@@ -35,10 +35,10 @@ class EncryptionInfo {
 	];
 
 	@:allow(borogove)
-	private function new(status:EncryptionStatus, method:String, ?methodName:String, ?reason:String, ?reasonText:String) {
+	private function new(status:EncryptionStatus, method:String, ?reason:String, ?reasonText:String, ?methodName:String) {
 		this.status = status;
 		this.method = method;
-		this.methodName = methodName;
+		this.methodName = methodName ?? knownEncryptionSchemes.get(method);
 		this.reason = reason;
 		this.reasonText = reasonText;
 	}
@@ -79,9 +79,9 @@ class EncryptionInfo {
 			return new EncryptionInfo(
 				DecryptionFailure,
 				ns??"unknown",
-				knownEncryptionSchemes.get(ns)??name??"Unknown encryption",
 				"unsupported-encryption",
-				"Unsupported encryption method: "+(name??ns)
+				"Unsupported encryption method: "+(name??ns),
+				knownEncryptionSchemes.get(ns)??name??"Unknown encryption"
 			);
 		}
 		return null; // Probably not encrypted

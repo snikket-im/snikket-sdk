@@ -16,6 +16,7 @@ import thenshim.Promise;
 import thenshim.PromiseTools;
 
 using borogove.SignalProtocol;
+using Lambda;
 
 #if js
 import js.Browser;
@@ -1108,7 +1109,7 @@ class OMEMO {
 			return newStanza;
 		}, (failureReason) -> {
 			final noRecipientSupport = failureReason == "no-devices";
-			var allowUnencrypted:Bool = client.encryptionPolicy.allowUnencryptedOutgoing;
+			var allowUnencrypted:Bool = client.outgoingE2EEPreference.exists(p -> p == NoE2EE);
 
 			var errMsg:String;
 			if(noRecipientSupport) {
@@ -1120,7 +1121,7 @@ class OMEMO {
 				// encrypted communication *is* preferred, we need a good excuse to
 				// send unencrypted (such as no recipient support), but no such excuse
 				// is found here.
-				allowUnencrypted = allowUnencrypted && !client.encryptionPolicy.preferEncryptedOutgoing;
+				allowUnencrypted = allowUnencrypted && client.outgoingE2EEPreference[0] == NoE2EE;
 			}
 
 			if(!allowUnencrypted) {
@@ -1213,7 +1214,7 @@ class OMEMO {
 			// to a pair of bytes (since JS uses UTF-16).
 			return Browser.window.btoa(keyStr);
 		#else
-			return Base64.encode(bytesOfString(keyStr, RawNative));
+			return Base64.encode(bytesOfString(keyStr));
 		#end
 	}
 

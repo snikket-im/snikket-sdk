@@ -343,6 +343,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 		message.lang = value.lang;
 		message.type = value.type || (value.isGroupchat || value.groupchat ? enums.borogove_MessageType.Channel : enums.borogove_MessageType.Chat);
 		message.payloads = (value.payloads || []).map(borogove_Stanza.parse);
+		message.encryption = value.encryption;
 		message.stanza = value.stanza && borogove_Stanza.parse(value.stanza);
 		if (!message.localId && !message.serverId) message.localId = "NO_ID"; // bad data
 		return message.build();

@@ -91,16 +91,17 @@ enum abstract UserState(Int) {
 }
 
 /**
-	Describes the current encryption mode of the conversation.
-
-	This mode is a high-level representation of the user/app *intent*
-	for the current conversation - e.g. not a guarantee that incoming
-	messages will always match this expectation. It is used to determine
-	the logic for outgoing messages, though.
+	End-to-End Encryption preferences for outgoing messages.
 **/
-enum abstract EncryptionMode(Int) {
-	var Unencrypted; // No end-to-end encryption
-	var EncryptedOMEMO; // Use OMEMO
+enum abstract OutgoingE2EEPreference(Int) {
+	/** Use the client's default allowed E2EE method. **/
+	var Default = 0;
+	/** Send the message without any End-to-End Encryption. **/
+	var NoE2EE;
+#if !NO_OMEMO
+	/** Use OMEMO for End-to-End Encryption. **/
+	var OMEMO;
+#end
 }
 
 @:expose
@@ -161,7 +162,6 @@ abstract class Chat extends EventEmitter {
 	private var activeThread: Null<String> = null;
 	private var notificationSettings: Null<{reply: Bool, mention: Bool}> = null;
 	private var outbox = new Outbox();
-	private var _encryptionMode: EncryptionMode = Unencrypted;
 
 	@:allow(borogove)
 	private var omemoContactDeviceIDs: Null<Array<Int>> = null;
@@ -253,10 +253,11 @@ abstract class Chat extends EventEmitter {
 		Send a message to this Chat
 
 		@param message the ChatMessageBuilder to send
+		@param e2eePreference optional explicit End-to-End Encryption preference for this message. If Default, uses the client's preferred allowed E2EE method.
 	**/
-	abstract public function sendMessage(message:ChatMessageBuilder):Void;
+	abstract public function sendMessage(message:ChatMessageBuilder, e2eePreference:OutgoingE2EEPreference = Default):Void;
 
-	abstract private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem):Void;
+	abstract private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem, e2eePreference: OutgoingE2EEPreference = Default):Void;
 
 	/**
 		Signals that all messages up to and including this one have probably
@@ -852,17 +853,6 @@ abstract class Chat extends EventEmitter {
 		return jingleSessions.flatMap((session) -> session.videoTracks());
 	}
 #end
-	/**
-		Get encryption mode for this chat
-	**/
-	public function encryptionMode(): String {
-		switch(_encryptionMode) {
-			case Unencrypted:
-				return "unencrypted";
-			case EncryptedOMEMO:
-				return "omemo";
-		}
-	}
 
 	/**
 		Can the user send messages to this chat?
@@ -1248,7 +1238,7 @@ class DirectChat extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function sendMessage(message: ChatMessageBuilder):Void {
+	public function sendMessage(message: ChatMessageBuilder, e2eePreference: OutgoingE2EEPreference = Default):Void {
 		if (uiState == Invited) uiState = Open;
 		if (typingTimer != null) typingTimer.stop();
 		client.chatActivity(this);
@@ -1265,7 +1255,7 @@ class DirectChat extends Chat {
 						activeThread = message.threadId;
 						stanza.tag("active", { xmlns: "http://jabber.org/protocol/chatstates" }).up();
 					}
-					sendMessageStanza(stanza, outboxItem);
+					sendMessageStanza(stanza, outboxItem, e2eePreference);
 					setLastMessage(stored).then(_ -> {
 						client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 						client.trigger("chats/update", [this]);
@@ -1318,7 +1308,7 @@ class DirectChat extends Chat {
 		});
 	}
 
-	private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem) {
+	private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem, e2eePreference: OutgoingE2EEPreference = Default) {
 		if (stanza.name != "message") throw "Can only send message stanza this way";
 
 		if (outboxItem == null) outboxItem = outbox.newItem();
@@ -1335,12 +1325,24 @@ class DirectChat extends Chat {
 				addresses.up();
 			}
 
+			// Default should try all preferences in order?
+			// Otherwise force to the one we were passed?
+			if (e2eePreference == Default) e2eePreference = client.outgoingE2EEPreference[0];
 			#if NO_OMEMO
+			if (e2eePreference != NoE2EE) throw "Selected E2EE preference unsupported";
 			return Promise.resolve(stanza);
 			#else
-			return client.omemo.encryptMessage(JID.parse(counterpart), stanza).then((encryptedStanza) -> {
+			switch (e2eePreference) {
+			case OMEMO:
+				// As written this falls back to NoE2EE if allowed
+				return client.omemo.encryptMessage(JID.parse(counterpart), stanza).then((encryptedStanza) -> {
+					return Promise.resolve(encryptedStanza);
+				});
+			case NoE2EE:
 				return Promise.resolve(stanza);
-			});
+			case Default:
+				throw "Impossible";
+			}
 			#end
 		})).then(stanzas -> {
 			outboxItem.handle(() -> {
@@ -2271,7 +2273,7 @@ class Channel extends Chat {
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
-	public function sendMessage(message:ChatMessageBuilder):Void {
+	public function sendMessage(message:ChatMessageBuilder, e2eePreference:OutgoingE2EEPreference = Default):Void {
 		if (uiState == Invited) uiState = Open;
 		if (typingTimer != null) typingTimer.stop();
 		client.chatActivity(this);
@@ -2341,7 +2343,7 @@ class Channel extends Chat {
 		});
 	}
 
-	private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem) {
+	private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem, e2eePreference: OutgoingE2EEPreference = Default) {
 		if (stanza.name != "message") throw "Can only send message stanza this way";
 
 		if (outboxItem == null) outboxItem = outbox.newItem();

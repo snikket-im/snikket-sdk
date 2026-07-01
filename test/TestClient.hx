@@ -17,6 +17,7 @@ import borogove.Role;
 import borogove.Stanza;
 import borogove.Status;
 import borogove.persistence.Dummy;
+import borogove.Chat.OutgoingE2EEPreference;
 
 using Lambda;
 
@@ -637,6 +638,54 @@ class TestClient extends utest.Test {
 			async.done();
 		});
 	}
+
+	public function testPreferE2ee() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.outgoingE2EEPreference = [];
+		client.preferE2ee(OutgoingE2EEPreference.NoE2EE);
+		Assert.equals(OutgoingE2EEPreference.NoE2EE, client.outgoingE2EEPreference[0]);
+	}
+
+	public function testBanE2ee() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.banE2ee(OutgoingE2EEPreference.NoE2EE);
+		Assert.isFalse(client.outgoingE2EEPreference.contains(OutgoingE2EEPreference.NoE2EE));
+	}
+
+	public function testBlockIncomingWithoutE2EE(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.blockIncomingWithoutE2EE = true;
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "message" && stanza.attr.get("type") == "error") {
+				Assert.equals("friend@example.com", stanza.attr.get("to"));
+				final error = stanza.getChild("error");
+				Assert.notNull(error);
+				Assert.equals("cancel", error.attr.get("type"));
+				Assert.notNull(error.getChild("policy-violation", "urn:ietf:params:xml:ns:xmpp-stanzas"));
+				async.done();
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		client.stream.onStanza(
+			new Stanza("message", { xmlns: "jabber:client", from: "friend@example.com", id: "msg1" })
+				.textTag("body", "hello without e2ee")
+		);
+	}
+
+#if js
+	public function testPreferOMEMO() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.preferE2ee(OutgoingE2EEPreference.OMEMO);
+		Assert.equals(OutgoingE2EEPreference.OMEMO, client.outgoingE2EEPreference[0]);
+	}
+#end
 }
 
 @:access(borogove)

@@ -17,7 +17,6 @@
 -D analyzer-optimize
 -D js-es=6
 -D js_global=globalThis
--D NO_OMEMO
 -D no-traces
 -main test.TestAll
 -w -WDeprecated

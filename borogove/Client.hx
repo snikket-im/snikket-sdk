@@ -11,7 +11,6 @@ import borogove.Chat;
 import borogove.ChatMessage;
 import borogove.Message;
 import borogove.EventEmitter;
-import borogove.EncryptionPolicy;
 #if !NO_OMEMO
 import borogove.OMEMO;
 #end
@@ -65,6 +64,18 @@ class Client extends EventEmitter {
 	**/
 	@:allow(borogove)
 	public var sendAvailable(null, default): Bool = true;
+	/**
+		If true, the client will block and return a policy-violation error for
+		any incoming chat message that is not end-to-end encrypted.
+	**/
+	public var blockIncomingWithoutE2EE: Bool = false;
+	@:allow(borogove)
+	private var outgoingE2EEPreference: Array<OutgoingE2EEPreference> = [
+		NoE2EE,
+		#if !NO_OMEMO
+			OMEMO
+		#end
+	];
 	private var stream:GenericStream;
 	@:allow(borogove)
 	private var jid(default,null):JID;
@@ -108,12 +119,6 @@ class Client extends EventEmitter {
 	private var sortId: String = "a ";
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
 	private final brokenAvatars: Map<String, JID> = [];
-	@:allow(borogove)
-	private final encryptionPolicy:EncryptionPolicy = {
-		allowUnencryptedOutgoing: true,
-		allowUnencryptedIncoming: true,
-		preferEncryptedOutgoing: true,
-	};
 
 #if !NO_OMEMO
 	@:allow(borogove)
@@ -209,7 +214,7 @@ class Client extends EventEmitter {
 			}
 
 #if !NO_OMEMO
-			if((fwd??stanza).hasChild("encrypted", NS.OMEMO)) {
+			if((fwd??stanza).hasChild("encrypted", NS.OMEMO) && omemo != null) {
 				omemo.decryptMessage(stanza, fwd).then((decryptionResult) -> {
 					trace("OMEMO: Decrypted message, now processing...");
 					processLiveMessage(decryptionResult.stanza, fwd, decryptionResult.encryptionInfo);
@@ -218,6 +223,7 @@ class Client extends EventEmitter {
 				return EventHandled;
 			}
 #end
+
 			processLiveMessage(stanza, fwd);
 			return EventHandled;
 		});
@@ -482,6 +488,17 @@ class Client extends EventEmitter {
 
 		switch (message.parsed) {
 			case ChatMessageStanza(chatMessage):
+				if (blockIncomingWithoutE2EE && message.encryption == null) {
+					// return error for disallowed no-e2ee incoming chat message
+					sendStanza(
+						new Stanza("message", { type: "error", id: stanza.attr.get("id"), to: stanza.attr.get("from") })
+						.tag("error", { by: jid.asString(), type: "cancel" })
+						.tag("policy-violation", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" }).up()
+						.textTag("text", "E2EE Required", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" })
+					);
+					return;
+				}
+
 				for (hash in chatMessage.inlineHashReferences()) {
 					fetchMediaByHash([hash], [chatMessage.from]);
 				}
@@ -733,7 +750,7 @@ class Client extends EventEmitter {
 			trace("pubsubNode == "+pubsubNode);
 
 #if !NO_OMEMO
-			if(pubsubNode == "eu.siacs.conversations.axolotl.devicelist") {
+			if(pubsubNode == "eu.siacs.conversations.axolotl.devicelist" && omemo != null) {
 				if(isOwnAccount) {
 					omemo.onAccountUpdatedDeviceList(pubsubEvent.getItems());
 				} else {
@@ -986,6 +1003,27 @@ class Client extends EventEmitter {
 		persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, fn, null);
 		pingAllChannels(false);
 		return true;
+	}
+
+	/**
+		Adjusts the outgoing E2EE preference list to prioritize the specified preference.
+		This ensures that the client will attempt to use this E2EE protocol first when sending messages.
+
+		@param preference the OutgoingE2EEPreference to prioritize
+	**/
+	public function preferE2ee(preference: OutgoingE2EEPreference) {
+		outgoingE2EEPreference = outgoingE2EEPreference.filter(p -> p != preference);
+		outgoingE2EEPreference.unshift(preference);
+	}
+
+	/**
+		Removes the specified E2EE preference from the allowed outgoing preferences.
+		The client will no longer use this protocol for outgoing messages.
+
+		@param preference the OutgoingE2EEPreference to ban
+	**/
+	public function banE2ee(preference: OutgoingE2EEPreference) {
+		outgoingE2EEPreference = outgoingE2EEPreference.filter(p -> p != preference);
 	}
 
 	private function onConnected(data) { // Fired on connect or reconnect
@@ -2061,8 +2099,18 @@ class Client extends EventEmitter {
 			for (m in messageList.messages) {
 				switch (m.parsed) {
 					case ChatMessageStanza(message):
-						chatMessages.push(message);
-						if (message.type == MessageChat) chatIds[message.chatId()] = true;
+						if (blockIncomingWithoutE2EE && m.encryption == null) {
+							// return error for disallowed no-e2ee incoming chat message
+							sendStanza(
+								new Stanza("message", { type: "error", id: message.localId, to: message.from.asString() })
+								.tag("error", { by: jid.asString(), type: "cancel" })
+								.tag("policy-violation", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" }).up()
+								.textTag("text", "E2EE Required", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" })
+							);
+						} else {
+							chatMessages.push(message);
+							if (message.type == MessageChat) chatIds[message.chatId()] = true;
+						}
 					case ReactionUpdateStanza(update):
 						promises.push(
 							persistence.storeReaction(accountId(), update).then(_ -> null)
