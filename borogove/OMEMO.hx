@@ -983,15 +983,12 @@ class OMEMO {
 		payloadWithTag.blit(rawPayload.byteLength, bRawKeyWithTag, 16, 16);
 		final subtle = Browser.window.crypto.subtle;
 
-		// We have to wrap subtle's js.lib.Promise in a thenshim Promise *shrug*
-		return new Promise((resolve, reject) -> {
-			subtle.importKey("raw", rawKey, keyAlgorithm, false, keyPurposeDecrypt).then((key) -> {
-				subtle.decrypt({
-					name: "AES-GCM",
-					iv: rawIv,
-				}, key, payloadWithTag.getData()).then(resolve, reject);
-			});
-		});
+		return subtle.importKey("raw", rawKey, keyAlgorithm, false, keyPurposeDecrypt).then((key) ->
+			subtle.decrypt({
+				name: "AES-GCM",
+				iv: rawIv,
+			}, key, payloadWithTag.getData())
+		);
 		#else
 		throw new haxe.exceptions.NotImplementedException();
 		#end
@@ -1001,26 +998,26 @@ class OMEMO {
 		#if js
 		final subtle = Browser.window.crypto.subtle;
 		final encryptedPayload = new OMEMOEncryptionResult();
-		return new Promise((resolve, reject) -> {
-			encryptedPayload.iv = Browser.window.crypto.getRandomValues(new js.lib.Uint8Array(12)).buffer;
+		encryptedPayload.iv = Browser.window.crypto.getRandomValues(new js.lib.Uint8Array(12)).buffer;
 
-			subtle.generateKey(keyAlgorithm, true, keyPurposeEncrypt).then((generatedKey) -> {
-				subtle.encrypt({
+		return subtle.generateKey(keyAlgorithm, true, keyPurposeEncrypt).then((generatedKey) -> {
+			subtle.encrypt(
+				{
 					name: "AES-GCM",
 					iv: encryptedPayload.iv,
-				}, generatedKey, bytesOfString(plaintext).getData()).then((encryptionResult:BytesData) -> {
-					// Process result of encryption
-					final encryptedBytes = Bytes.ofData(encryptionResult);
-					final ciphertextLength = encryptionResult.byteLength - 16; // Exclude GCM tag
-					encryptedPayload.ciphertext = encryptedBytes.sub(0, ciphertextLength).getData();
-					encryptedPayload.tag = encryptedBytes.sub(ciphertextLength, 16).getData();
-					// Get the raw key data for the payload
-					new Promise((resolveKey, rejectKey) -> {
-						subtle.exportKey("raw", generatedKey).then(resolveKey, rejectKey);
-					}).then((exportedKey:BytesData) -> {
-						encryptedPayload.key = exportedKey;
-						resolve(encryptedPayload);
-					});
+				},
+				generatedKey,
+				bytesOfString(plaintext).getData()
+			).then((encryptionResult:BytesData) -> {
+				// Process result of encryption
+				final encryptedBytes = Bytes.ofData(encryptionResult);
+				final ciphertextLength = encryptionResult.byteLength - 16; // Exclude GCM tag
+				encryptedPayload.ciphertext = encryptedBytes.sub(0, ciphertextLength).getData();
+				encryptedPayload.tag = encryptedBytes.sub(ciphertextLength, 16).getData();
+				// Get the raw key data for the payload
+				subtle.exportKey("raw", generatedKey).then((exportedKey:BytesData) -> {
+					encryptedPayload.key = exportedKey;
+					return encryptedPayload;
 				});
 			});
 		});
@@ -1174,30 +1171,21 @@ class OMEMO {
 
 	private function getSessionCipher(sid:Int, jid:String, rid:Int):Promise<SessionCipher> {
 		final address = new SignalProtocolAddress(jid, rid);
-		final promSession = signalStore.loadSession(address);
 
 		// Load or start a session
-		final promReadySession = promSession.then((session) -> {
+		return signalStore.loadSession(address).then((session) -> {
 			if(session == null) {
 				trace("OMEMO: No session for "+address.toString());
 				return buildSession(sid, jid, rid, "new");
 			}
 			return session;
-		});
-
-		final promCipher = promReadySession.then((session) -> {
+		}).then((session) -> {
 			return new SessionCipher(signalStore, address);
 		});
-
-		return promCipher;
 	}
 
 	private function getRecipientSessions(sid:Int, jid:String, deviceList:Array<Int>):Promise<Array<SessionCipher>> {
-		return PromiseTools.all([
-			for (rid in deviceList) {
-				getSessionCipher(sid, jid, rid);
-			}
-		]);
+		return PromiseTools.all(deviceList.map(rid -> getSessionCipher(sid, jid, rid)));
 	}
 
 	private function encryptPayloadKeyForSession(encryptionResult:OMEMOEncryptionResult, sessionCipher:SessionCipher):Promise<SignalCipherText> {
@@ -1214,22 +1202,20 @@ class OMEMO {
 			// to a pair of bytes (since JS uses UTF-16).
 			return Browser.window.btoa(keyStr);
 		#else
-			return Base64.encode(bytesOfString(keyStr));
+			return Base64.encode(Bytes.ofString(keyStr, RawNative));
 		#end
 	}
 
 	private function encryptForDevice(sid:Int, jid:String, rid:Int, encryptionResult:OMEMOEncryptionResult):Promise<OMEMOPayloadKey> {
-		final promSessionCipher = getSessionCipher(sid, jid, rid);
-		return promSessionCipher.then((sessionCipher) -> {
-			return encryptPayloadKeyForSession(encryptionResult, sessionCipher).then((encryptedKey) -> {
-				final payloadKey:OMEMOPayloadKey = {
+		return getSessionCipher(sid, jid, rid).then((sessionCipher) ->
+			encryptPayloadKeyForSession(encryptionResult, sessionCipher)
+		).then((encryptedKey) ->
+				({
 					rid: rid,
 					prekey: encryptedKey.type == 3,
 					encodedKey: b64EncodeKey(encryptedKey.body),
-				};
-				return payloadKey;
-			});
-		});
+				} : OMEMOPayloadKey)
+		);
 	}
 
 	private function buildOMEMOHeader(encryptionResult:OMEMOEncryptionResult, sid:Int, jid:String, deviceList:Array<Int>):Promise<Stanza> {
@@ -1251,22 +1237,18 @@ class OMEMO {
 			}
 
 			// Return an array of promises which each resolve to an OMEMOPayloadKey
-			return keys;
+			return PromiseTools.all(keys);
 		});
 
-		final promHeader = new Promise((resolve, reject) -> {
-			promKeys.then((keys) -> {
-				PromiseTools.all(keys).then((recipientKeys) -> {
-					trace("OMEMO: Generating OMEMO header");
-					final header:OMEMOPayload = {
-						sid: sid,
-						keys: recipientKeys,
-						encodedIv: Base64.encode(Bytes.ofData(encryptionResult.iv)),
-						encodedPayload: Base64.encode(Bytes.ofData(encryptionResult.ciphertext)),
-					};
-					resolve(header);
-				});
-			});
+		final promHeader = promKeys.then((recipientKeys) -> {
+			trace("OMEMO: Generating OMEMO header");
+			final header:OMEMOPayload = {
+				sid: sid,
+				keys: recipientKeys,
+				encodedIv: Base64.encode(Bytes.ofData(encryptionResult.iv)),
+				encodedPayload: Base64.encode(Bytes.ofData(encryptionResult.ciphertext)),
+			};
+			return header;
 		});
 
 		return promHeader.then((header) -> {
