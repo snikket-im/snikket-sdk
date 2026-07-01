@@ -437,8 +437,7 @@ class OMEMO {
 		final pIdentityKey = persistence.getOmemoIdentityKey(client.accountId()).then(function (storedIdentityKey) {
 			if(storedIdentityKey == null) {
 				trace("No identity key stored");
-				this.bundleLocalState.event("missing");
-				return false;
+				return false; // Will trigger missing below
 			}
 			trace("Loaded identity key");
 			newBundle.identity_key = Base64.encode(Bytes.ofData(storedIdentityKey.pubKey));
