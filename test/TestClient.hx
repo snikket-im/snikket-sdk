@@ -146,6 +146,51 @@ class TestClient extends utest.Test {
 		});
 	}
 
+	public function testDecryptionFailurePreservesLocalMessage(async: Async) {
+		final persistence = new MessageMockPersistence();
+		final client = new Client("test@example.com", persistence);
+		final chatId = "chat@example.com";
+		client.getDirectChat(chatId);
+
+		final localBuilder = new ChatMessageBuilder({
+			localId: "local-123",
+			text: "good original text",
+			direction: MessageSent,
+			senderId: "test@example.com",
+			status: MessagePending
+		});
+		localBuilder.to = JID.parse(chatId);
+		final localMessage = localBuilder.build();
+
+		persistence.storeMessages(client.accountId(), [localMessage]).then(_ -> {
+			final incomingBuilder = new ChatMessageBuilder({
+				localId: "local-123",
+				serverId: "server-456",
+				serverIdBy: "server.com",
+				syncPoint: true,
+				direction: MessageSent,
+				senderId: "test@example.com",
+				status: MessageDeliveredToServer,
+				encryption: new borogove.EncryptionInfo(DecryptionFailure, "omemo"),
+				text: "failed decryption fallback"
+			});
+			incomingBuilder.sortId = "sort-1";
+			incomingBuilder.to = JID.parse(chatId);
+
+			client.storeMessages([incomingBuilder.build()]).then(stored -> {
+				Assert.equals(1, stored.length);
+				final m = stored[0];
+				Assert.equals("server-456", m.serverId);
+				Assert.equals("server.com", m.serverIdBy);
+				Assert.isTrue(m.syncPoint);
+				Assert.equals("sort-1", m.sortId);
+				Assert.equals(MessageDeliveredToServer, m.status);
+				Assert.equals("good original text", m.text);
+				async.done();
+			});
+		});
+	}
+
 	public function testDefaultDisplayName() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
@@ -714,12 +759,15 @@ class MessageMockPersistence extends Dummy {
 	override public function storeMessages(accountId: String, messages: Array<ChatMessage>): Promise<Array<ChatMessage>> {
 		for (m in messages) {
 			if (m.serverId != null) this.messages.set(m.serverId, m);
+			if (m.localId != null) this.messages.set(m.localId, m);
 		}
 		return Promise.resolve(messages);
 	}
 
 	override public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>): Promise<Null<ChatMessage>> {
-		return Promise.resolve(serverId != null ? messages.get(serverId) : null);
+		if (serverId != null && messages.exists(serverId)) return Promise.resolve(messages.get(serverId));
+		if (localId != null && messages.exists(localId)) return Promise.resolve(messages.get(localId));
+		return Promise.resolve(null);
 	}
 
 	override public function updateMessage(accountId: String, message: ChatMessage) {

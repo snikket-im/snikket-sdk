@@ -1744,7 +1744,23 @@ class Client extends EventEmitter {
 
 	@:allow(borogove)
 	private function storeMessages(messages: Array<ChatMessage>): Promise<Array<ChatMessage>> {
-		return persistence.storeMessages(accountId(), messages);
+		return thenshim.PromiseTools.all(messages.map(m -> {
+			if (m.encryption?.status == DecryptionFailure && ((!m.isIncoming() && m.localId != null) || m.serverId != null)) {
+				return persistence.getMessage(accountId(), m.chatId(), m.isIncoming() ? m.serverId : null, m.localId).then(existing -> {
+					if (existing == null) return m;
+
+					trace("Merging failed decryyption with existing local copy", m, existing);
+					final b = ChatMessageBuilder.fromMessage(existing);
+					if (m.serverId != null) b.serverId = m.serverId;
+					if (m.serverIdBy != null) b.serverIdBy = m.serverIdBy;
+					b.syncPoint = m.syncPoint;
+					b.sortId = m.sortId;
+					b.status = m.status;
+					return b.build();
+				});
+			}
+			return thenshim.Promise.resolve(m);
+		})).then(updatedMessages -> persistence.storeMessages(accountId(), updatedMessages));
 	}
 
 	@:allow(borogove)

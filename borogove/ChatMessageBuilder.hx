@@ -214,6 +214,41 @@ class ChatMessageBuilder {
 	}
 	#end
 
+	/**
+		Create a new ChatMessageBuilder from an existing ChatMessage
+	**/
+	public static function fromMessage(m: ChatMessage): ChatMessageBuilder {
+		final builder = new ChatMessageBuilder();
+		builder.localId = m.localId;
+		builder.serverId = m.serverId;
+		builder.serverIdBy = m.serverIdBy;
+		builder.sortId = m.sortId;
+		builder.type = m.type;
+		builder.syncPoint = m.syncPoint;
+		builder.replyId = m.replyId;
+		builder.timestamp = m.timestamp;
+		builder.to = m.to;
+		builder.from = m.from;
+		builder.senderId = m.senderId;
+		builder.recipients = m.recipients.array();
+		builder.replyTo = m.replyTo.array();
+		builder.replyToMessage = m.replyToMessage;
+		builder.threadId = m.threadId;
+		builder.attachments = m.attachments.array();
+		builder.reactions = m.reactions;
+		builder.direction = m.direction;
+		builder.status = m.status;
+		builder.statusText = m.statusText;
+		builder.versions = m.versions.array();
+		builder.payloads = m.payloads.array();
+		builder.encryption = m.encryption;
+		builder.linkMetadata = m.linkMetadata.array();
+		builder.stanza = m.stanza;
+		@:privateAccess builder.text = m.text;
+		builder.lang = m.lang;
+		return builder;
+	}
+
 	@:allow(borogove)
 	private static function makeModerated(m: ChatMessage, timestamp: String, moderatorId: Null<String>, reason: Null<String>) {
 		final builder = new ChatMessageBuilder();
