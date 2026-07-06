@@ -152,28 +152,26 @@ class TestClient extends utest.Test {
 		final chatId = "chat@example.com";
 		client.getDirectChat(chatId);
 
-		final localBuilder = new ChatMessageBuilder({
-			localId: "local-123",
-			text: "good original text",
-			direction: MessageSent,
-			senderId: "test@example.com",
-			status: MessagePending
-		});
+		final localBuilder = new ChatMessageBuilder();
+		localBuilder.localId = "local-123";
+		localBuilder.text = "good original text";
+		localBuilder.direction = MessageSent;
+		localBuilder.senderId = "test@example.com";
+		localBuilder.status = MessagePending;
 		localBuilder.to = JID.parse(chatId);
 		final localMessage = localBuilder.build();
 
 		persistence.storeMessages(client.accountId(), [localMessage]).then(_ -> {
-			final incomingBuilder = new ChatMessageBuilder({
-				localId: "local-123",
-				serverId: "server-456",
-				serverIdBy: "server.com",
-				syncPoint: true,
-				direction: MessageSent,
-				senderId: "test@example.com",
-				status: MessageDeliveredToServer,
-				encryption: new borogove.EncryptionInfo(DecryptionFailure, "omemo"),
-				text: "failed decryption fallback"
-			});
+			final incomingBuilder = new ChatMessageBuilder();
+			incomingBuilder.localId = "local-123";
+			incomingBuilder.serverId = "server-456";
+			incomingBuilder.serverIdBy = "server.com";
+			incomingBuilder.syncPoint = true;
+			incomingBuilder.direction = MessageSent;
+			incomingBuilder.senderId = "test@example.com";
+			incomingBuilder.status = MessageDeliveredToServer;
+			incomingBuilder.encryption = new borogove.EncryptionInfo(DecryptionFailure, "omemo");
+			incomingBuilder.text = "failed decryption fallback";
 			incomingBuilder.sortId = "sort-1";
 			incomingBuilder.to = JID.parse(chatId);
 
