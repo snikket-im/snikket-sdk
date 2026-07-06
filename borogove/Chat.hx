@@ -1335,7 +1335,7 @@ class DirectChat extends Chat {
 			switch (e2eePreference) {
 			case OMEMO:
 				// As written this falls back to NoE2EE if allowed
-				return client.omemo.encryptMessage(JID.parse(counterpart), stanza).then((encryptedStanza) -> {
+				return client.omemo.encryptMessage([JID.parse(counterpart)], stanza).then((encryptedStanza) -> {
 					return Promise.resolve(encryptedStanza);
 				});
 			case NoE2EE:
@@ -2343,13 +2343,48 @@ class Channel extends Chat {
 		});
 	}
 
+	// TODO: this is a gross heuristic. Large private groups that don't want e2ee are possible for example
+	private function defaultE2ee() {
+		if (!client.outgoingE2EEPreference.exists(p -> p == NoE2EE)) {
+			// Must E2EE
+			return client.outgoingE2EEPreference[0];
+		}
+
+		if (!isPrivate()) return NoE2EE;
+
+		return client.outgoingE2EEPreference[0];
+	}
+
 	private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem, e2eePreference: OutgoingE2EEPreference = Default) {
 		if (stanza.name != "message") throw "Can only send message stanza this way";
 
 		if (outboxItem == null) outboxItem = outbox.newItem();
 		stanza.attr.set("type", "groupchat");
 		stanza.attr.set("to", chatId);
+
+		// Default should try all preferences in order?
+		// Otherwise force to the one we were passed?
+		if (e2eePreference == Default) e2eePreference = defaultE2ee();
+		#if NO_OMEMO
+		if (e2eePreference != NoE2EE) throw "Selected E2EE preference unsupported";
 		outboxItem.handle(() -> client.sendStanza(stanza));
+		#else
+		switch (e2eePreference) {
+		case OMEMO:
+			// As written this falls back to NoE2EE if allowed and no one has OMEMO
+			// TODO: on some rooms, especially very large ones this may not be a full
+			// list of members. In practise it is fine anywhere OMEMO could actually work
+			members().then(members ->
+				client.omemo.encryptMessage(members.map(member -> JID.parse(member.chat?.chatId)), stanza)
+			).then((encryptedStanza) ->
+				outboxItem.handle(() -> client.sendStanza(encryptedStanza))
+			);
+		case NoE2EE:
+			outboxItem.handle(() -> client.sendStanza(stanza));
+		case Default:
+			throw "Impossible";
+		}
+		#end
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
