@@ -580,7 +580,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 				chat: member.chat?.chatId ?? "",
 				roles: member.roles,
 				presence: new Map([...member.presence.entries()].map(([k, p]) => [k, p.toString()])),
-				jid: member.jid.asString(),
+				jid: member.jid?.asString(),
 			}))));
 
 			return true;
