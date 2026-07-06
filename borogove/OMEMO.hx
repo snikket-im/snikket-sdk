@@ -598,6 +598,7 @@ class OMEMO {
 		var devices = deviceIdsFromPubsubItems(items);
 		if(devices != null) {
 			chat.omemoContactDeviceIDs = devices;
+			chat.omemoDeviceListRefreshed = true;
 			persistence.storeChats(client.accountId(), [chat]);
 		}
 	}
@@ -1053,13 +1054,14 @@ class OMEMO {
 		final jidBareStr = jid.asBare().asString();
 		// FIXME: Use local storage
 		var chat = client.getDirectChat(jidBareStr, false);
-		if(chat.omemoContactDeviceIDs != null) {
+		if(chat.omemoContactDeviceIDs != null && chat.omemoDeviceListRefreshed) {
 			return Promise.resolve(chat.omemoContactDeviceIDs.map(rid -> new SignalProtocolAddress(jidBareStr, rid)));
 		}
 		return new Promise((resolve, reject) -> {
 			final deviceListGet = new PubsubGet(jidBareStr, "eu.siacs.conversations.axolotl.devicelist");
 			deviceListGet.onFinished(() -> {
 				final devices = deviceIdsFromPubsubItems(deviceListGet.getResult());
+				chat.omemoDeviceListRefreshed = true;
 				if(devices != null) {
 					chat.omemoContactDeviceIDs = devices;
 					resolve(devices.map(rid -> new SignalProtocolAddress(jidBareStr, rid)));

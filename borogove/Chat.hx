@@ -167,6 +167,9 @@ abstract class Chat extends EventEmitter {
 	private var omemoContactDeviceIDs: Null<Array<Int>> = null;
 
 	@:allow(borogove)
+	private var omemoDeviceListRefreshed = false;
+
+	@:allow(borogove)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBookmarked = false, isBlocked = false, extensions: Null<Stanza> = null, readUpToId: Null<String> = null, readUpToBy: Null<String> = null, omemoContactDeviceIDs: Array<Int> = null) {
 		super();
 		if (chatId == null || chatId == "") {
