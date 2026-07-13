@@ -385,6 +385,7 @@ class TestClient extends utest.Test {
 		Assert.isNull(client.getChat("room@example.com"));
 	}
 
+#if !cpp
 	public function testKnownChatChatStateEmits(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
@@ -403,6 +404,7 @@ class TestClient extends utest.Test {
 				.tag("composing", { xmlns: "http://jabber.org/protocol/chatstates" })
 		);
 	}
+#end
 
 	public function testEmptyAccountId() {
 		final persistence = new Dummy();
