@@ -366,6 +366,44 @@ class TestClient extends utest.Test {
 		client.stream.onStanza(new Stanza("message", { xmlns: "jabber:client", from: "test2@example.com", id: "localid"}).textTag("body", "hi"));
 	}
 
+	public function testUnknownGroupchatChatStateDoesNotCrash() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		var gotChatState = false;
+
+		client.on("chat-state/update", (_) -> {
+			gotChatState = true;
+			return EventHandled;
+		});
+
+		client.stream.onStanza(
+			new Stanza("message", { xmlns: "jabber:client", from: "room@example.com/alice", type: "groupchat" })
+				.tag("composing", { xmlns: "http://jabber.org/protocol/chatstates" })
+		);
+
+		Assert.isFalse(gotChatState);
+		Assert.isNull(client.getChat("room@example.com"));
+	}
+
+	public function testKnownChatChatStateEmits(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.getDirectChat("friend@example.com");
+
+		client.addUserStateListener((senderId, chatId, threadId, userState) -> {
+			Assert.equals("friend@example.com", senderId);
+			Assert.equals("friend@example.com", chatId);
+			Assert.isNull(threadId);
+			Assert.equals(UserState.Composing, userState);
+			async.done();
+		});
+
+		client.stream.onStanza(
+			new Stanza("message", { xmlns: "jabber:client", from: "friend@example.com" })
+				.tag("composing", { xmlns: "http://jabber.org/protocol/chatstates" })
+		);
+	}
+
 	public function testEmptyAccountId() {
 		final persistence = new Dummy();
 		Assert.raises(() -> new Client("", persistence), String);

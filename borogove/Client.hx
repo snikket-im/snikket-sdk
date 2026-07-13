@@ -637,14 +637,12 @@ class Client extends EventEmitter {
 			case "paused": UserState.Paused;
 			default: null;
 		};
-		if (userState != null) {
-			if (chat == null) {
-				chat.getMemberDetails([message.senderId]).then(members -> {
-					if (members.length > 0 && members[0].isSelf) return;
+		if (userState != null && chat != null) {
+			chat.getMemberDetails([message.senderId]).then(members -> {
+				if (members.length > 0 && members[0].isSelf) return;
 
-					this.trigger("chat-state/update", { message: message, userState: userState });
-				});
-			}
+				this.trigger("chat-state/update", { message: message, userState: userState });
+			});
 		}
 
 		final memberUpdates = MemberUpdate.extractUpdates(accountId(), chat, stanza);
