@@ -76,12 +76,13 @@ class EncryptionInfo {
 			ns = "eu.siacs.conversations.axolotl";
 		}
 		if(ns != null) {
+			if (name == null) name = knownEncryptionSchemes.get(ns);
 			return new EncryptionInfo(
 				DecryptionFailure,
 				ns??"unknown",
 				"unsupported-encryption",
 				"Unsupported encryption method: "+(name??ns),
-				knownEncryptionSchemes.get(ns)??name??"Unknown encryption"
+				name??"Unknown encryption"
 			);
 		}
 		return null; // Probably not encrypted
