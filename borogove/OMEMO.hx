@@ -1108,7 +1108,15 @@ class OMEMO {
 
 		final promStanza = promHeader.then((header) -> {
 			final newStanza = stanza.clone();
-			newStanza.removeChildren("body");
+			// Remove most unencrypted leaks from legacy OMEMO
+			for (c in newStanza.allTags()) {
+				if (
+					!["thread"].contains(c.name) &&
+					!["urn:xmpp:message-correct:0", "http://jabber.org/protocol/address", "urn:xmpp:receipts"].contains(c.attr.get("xmlns"))
+				) {
+					newStanza.removeChild(c);
+				}
+			}
 			newStanza.addChild(header);
 			newStanza.textTag("encryption", "", { xmlns: "urn:xmpp:eme:0", namespace: "eu.siacs.conversations.axolotl" });
 			newStanza.textTag("body", "I sent you an OMEMO encrypted message but your client doesn’t seem to support that. Find more information on https://conversations.im/omemo");
