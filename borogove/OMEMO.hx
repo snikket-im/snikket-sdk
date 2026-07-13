@@ -596,7 +596,7 @@ class OMEMO {
 		var identifier = contact.asBare().asString();
 		var chat = client.getDirectChat(identifier);
 		var devices = deviceIdsFromPubsubItems(items);
-		if(devices != null) {
+		if(devices != null && (chat.omemoContactDeviceIDs == null || chat.omemoContactDeviceIDs.length < 1 || devices.length > 0)) {
 			chat.omemoContactDeviceIDs = devices;
 			chat.omemoDeviceListRefreshed = true;
 			persistence.storeChats(client.accountId(), [chat]);
@@ -1062,11 +1062,11 @@ class OMEMO {
 			deviceListGet.onFinished(() -> {
 				final devices = deviceIdsFromPubsubItems(deviceListGet.getResult());
 				chat.omemoDeviceListRefreshed = true;
-				if(devices != null) {
+				if(devices != null && (chat.omemoContactDeviceIDs == null || chat.omemoContactDeviceIDs.length < 1 || devices.length > 0)) {
 					chat.omemoContactDeviceIDs = devices;
 					resolve(devices.map(rid -> new SignalProtocolAddress(jidBareStr, rid)));
 				} else {
-					chat.omemoContactDeviceIDs = [];
+					chat.omemoContactDeviceIDs = null;
 					reject("no-devices");
 				}
 			});
