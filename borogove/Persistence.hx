@@ -224,10 +224,10 @@ interface Persistence {
 		Store media bytes and any metadata needed to retrieve them later
 
 		@param mime MIME type of the media
-		@param bytes raw media bytes
-		@returns Promise resolving to true when storage succeeded
+		@param source raw media bytes
+		@returns Promise resolving to an ID for the stored media
 	**/
-	public function storeMedia(mime:String, bytes:BytesData): Promise<Bool>;
+	public function storeMedia(mime:String, source:Source): Promise<String>;
 
 	/**
 		Delete previously stored media

@@ -1,6 +1,5 @@
 package borogove;
 
-import haxe.crypto.Sha1;
 import haxe.crypto.Sha256;
 import haxe.crypto.Base64;
 import haxe.io.Bytes;
@@ -71,13 +70,30 @@ class Hash {
 	}
 
 	@:allow(borogove)
+	private static function mk(algorithm: String, bytes: Bytes): Null<Hash> {
+		if (algorithm == "sha-1" || algorithm == "sha1") return sha1(bytes);
+		if (algorithm == "sha-256") return sha256(bytes);
+		return null;
+	}
+
+	@:allow(borogove)
 	private static function sha1(bytes: Bytes) {
 		return new Hash("sha-1", Sha1.make(bytes).getData());
 	}
 
 	@:allow(borogove)
+	private static function sha1incr() {
+		return new IncrementalHash("sha-1", new Sha1());
+	}
+
+	@:allow(borogove)
 	private static function sha256(bytes: Bytes) {
 		return new Hash("sha-256", Sha256.make(bytes).getData());
+	}
+
+	@:allow(borogove)
+	private static function sha256incr() {
+		return new IncrementalHash("sha-256", new Sha256());
 	}
 
 	/**
@@ -128,5 +144,32 @@ class Hash {
 	**/
 	public function toBase64Url() {
 		return Base64.urlEncode(Bytes.ofData(hash));
+	}
+
+	public function equals(other: Hash) {
+		return serializeUri() == other.serializeUri();
+	}
+}
+
+typedef IncrHash = {
+	function update(b: Bytes): Void;
+	function digest(): Bytes;
+};
+
+class IncrementalHash {
+	public final algorithm: String;
+	public final hash: IncrHash;
+
+	public function new(algorithm: String, hash: IncrHash) {
+		this.algorithm = algorithm;
+		this.hash = hash;
+	}
+
+	public function update(bytes: BytesData) {
+		hash.update(Bytes.ofData(bytes));
+	}
+
+	public function digest() {
+		return new Hash(algorithm, hash.digest().getData());
 	}
 }

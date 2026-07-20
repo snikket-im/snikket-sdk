@@ -56,6 +56,11 @@ class LinkMetadata {
 #end
 class ChatAttachment {
 	/**
+		Location of the data in cache, if present
+	**/
+	@:allow(borogove)
+	public var cachedAt(default, null): Null<String>;
+	/**
 		Filename
 	**/
 	public final name: Null<String>;

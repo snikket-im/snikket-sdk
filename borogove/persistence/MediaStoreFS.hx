@@ -7,6 +7,8 @@ import haxe.io.Bytes;
 import haxe.io.BytesData;
 import sys.FileSystem;
 import sys.io.File;
+import tink.io.Source;
+import tink.io.Sink;
 import thenshim.Promise;
 
 #if cpp
@@ -76,15 +78,33 @@ class MediaStoreFS implements MediaStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeMedia(mime: String, bd: BytesData): Promise<Bool> {
-		final bytes = Bytes.ofData(bd);
-		final sha1 = Hash.sha1(bytes);
-		final sha256 = Hash.sha256(bytes);
-		File.saveBytes(blobpath + "/f" + sha256.toHex(), bytes);
-		return thenshim.PromiseTools.all([
-			set(sha1.serializeUri(), sha256.serializeUri()),
-			set(sha256.serializeUri() + "#contentType", mime)
-		]).then(_ -> true);
+	public function storeMedia(mime: String, source: borogove.Source): Promise<String> {
+		final sha1 = Hash.sha1incr();
+		final sha256 = Hash.sha256incr();
+		final tmpPath = blobpath + "/tmp" + ID.unique();
+		final tmpFile = File.write(tmpPath);
+
+		return new Promise((resolve, reject) -> {
+			((source : RealSource).chunked().map((chunk) -> {
+				sha1.update((chunk : Bytes).getData());
+				sha256.update((chunk : Bytes).getData());
+				return chunk;
+			}) : RealSource).pipeTo(Sink.ofOutput("tmpPath", tmpFile)).handle(o -> switch o {
+				case AllWritten:
+					tmpFile.close();
+					resolve(null);
+				default: reject(o);
+			});
+		}).then(_ -> {
+			final sha1h = sha1.digest();
+			final sha256h = sha256.digest();
+			final path = blobpath + "/f" + sha256h.toHex();
+			sys.FileSystem.rename(tmpPath, path);
+			return thenshim.PromiseTools.all([
+				set(sha1h.serializeUri(), sha256h.serializeUri()),
+				set(sha256h.serializeUri() + "#contentType", mime)
+			]).then(_ -> path);
+		});
 	}
 
 	private function set(k: String, v: Null<String>) {

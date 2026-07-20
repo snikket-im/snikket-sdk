@@ -415,7 +415,7 @@ class Client extends EventEmitter {
 									brokenAvatars[avatarSha1.toHex()] = from;
 									return;
 								}
-								persistence.storeMedia(vcard.photo.mime ?? "image/png", vcard.photo.data.getData()).then(_ -> {
+								persistence.storeMedia(vcard.photo.mime ?? "image/png", vcard.photo.data).then(_ -> {
 									this.trigger("chats/update", [chat]);
 								});
 							});
@@ -697,7 +697,7 @@ class Client extends EventEmitter {
 							if (item == null) return;
 							final dataNode = item.getChild("data", "urn:xmpp:avatar:data");
 							if (dataNode == null) return;
-							persistence.storeMedia(mime, Base64.decode(StringTools.replace(dataNode.getText(), "\n", "")).getData()).then(_ -> {
+							persistence.storeMedia(mime, Base64.decode(StringTools.replace(dataNode.getText(), "\n", ""))).then(_ -> {
 								this.trigger("chats/update", [chat]);
 							});
 						});
@@ -1106,6 +1106,64 @@ class Client extends EventEmitter {
 		this.trigger("session-started", {});
 
 		return EventHandled;
+	}
+
+	/**
+		Fetch data for a ChatAttachment into local media cache
+
+		If cachedAt is already filled in for this ChatAttachment, it is simply returned.
+
+		@param attachment ChatAttachment to fetch
+		@returns Promise resolving to a ChatAttachment with cachedAt filled in
+	**/
+	public function fetchAttachment(attachment: ChatAttachment): Promise<ChatAttachment> {
+		// We already have it
+		if (attachment.cachedAt != null) return Promise.resolve(attachment);
+
+		return fetchUris(
+			attachment.uris.copy(),
+			attachment.hashes.find(h -> h.algorithm == "sha-256") ?? attachment.hashes[0]
+		).then(id -> {
+			attachment.cachedAt = id;
+			return attachment;
+		});
+	}
+
+	private function fetchUris(uris: Array<String>, hash: Null<Hash>): Promise<Null<String>> {
+		if (uris.length < 1) return Promise.resolve(null);
+
+		final uri = uris.shift();
+		final aesgcm = XEP0454.parse(uri);
+		if (aesgcm != null) {
+			return XEP0454.fetch(aesgcm, hash).then(
+				data -> persistence.storeMedia(aesgcm.mime, data),
+				e -> fetchUris(uris, hash)
+			);
+		}
+
+		if (uri.startsWith("http://") || uri.startsWith("https://")) {
+			return new Promise((resolve, reject) -> {
+				tink.http.Client.fetch(uri).handle((rOrErr) -> switch (rOrErr) {
+				case Success(r):
+					if (r.header.statusCode != 200) {
+						reject(r.header.statusCode);
+					} else {
+						final mime = switch r.header.contentType() {
+							case Success(ct): ct.toString();
+							default: "application/octet-stream";
+						};
+						resolve({ mime: mime, body: r.body });
+					}
+				case Failure(e):
+					reject(e);
+				});
+			}).then(
+				r -> persistence.storeMedia(r.mime, r.body),
+				e -> fetchUris(uris, hash)
+			);
+		}
+
+		return fetchUris(uris, hash);
 	}
 
 	/**
@@ -1691,7 +1749,7 @@ class Client extends EventEmitter {
 					if (r == null) {
 						reject("bad or no result from BoB query");
 					} else {
-						persistence.storeMedia(r.type, r.bytes.getData()).then(_ -> resolve(null));
+						persistence.storeMedia(r.type, (r.bytes : Bytes)).then(_ -> resolve(null));
 					}
 				});
 				sendQueryLazy(q);

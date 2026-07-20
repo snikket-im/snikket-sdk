@@ -1004,8 +1004,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeMedia(mime: String, bd: BytesData): Promise<Bool> {
-		return media.storeMedia(mime, bd);
+	public function storeMedia(mime: String, source: Source): Promise<String> {
+		return media.storeMedia(mime, source);
 	}
 
 	@HaxeCBridge.noemit

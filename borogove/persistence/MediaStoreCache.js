@@ -1,6 +1,8 @@
 // This example MediaStore is written in JavaScript
 // so that SDK users can easily see how to write their own
 
+import { borogove_Hash } from "./borogove.js";
+
 export default (cacheName, { routeHashPath } = { routeHashPath: null }) => {
 	let cache = null; // Allow the definitions to be sync
 
@@ -14,13 +16,29 @@ export default (cacheName, { routeHashPath } = { routeHashPath: null }) => {
 			this.kv = kv;
 		},
 
-		async storeMedia(mime, buffer) {
-			const sha256 = await crypto.subtle.digest("SHA-256", buffer);
-			const sha1 = await crypto.subtle.digest("SHA-1", buffer);
-			const sha256NiUrl = mkNiUrl("sha-256", sha256);
-			await cache.put(sha256NiUrl, new Response(buffer, { headers: { "Content-Type": mime } }));
-			if (this.kv) await this.kv.set(mkNiUrl("sha-1", sha1), sha256NiUrl);
-			return true;
+		async storeMedia(mime, source) {
+			const sha256 = borogove_Hash.sha256incr();
+			const sha1 = borogove_Hash.sha1incr();
+			const tmpPath = "/tmp/" + crypto.randomUUID();
+			await cache.put(
+				tmpPath,
+				new Response(source.pipeThrough(new TransformStream({
+					start(controller) {},
+					flush(controller) {},
+					transform(chunk, controller) {
+						sha256.update(chunk);
+						sha1.update(chunk);
+						controller.enqueue(chunk);
+					}
+				})), { headers: { "Content-Type": mime } })
+			);
+			const sha256NiUrl = mkNiUrl("sha-256", sha256.digest().hash);
+			if (this.kv) await this.kv.set(mkNiUrl("sha-1", sha1.digest().hash), sha256NiUrl);
+			// Copy then delete because move is not supported
+			const written = await cache.match(tmpPath);
+			await cache.put(sha256NiUrl, written);
+			await cache.delete(tmpPath);
+			return sha256NiUrl;
 		},
 
 		async removeMedia(hashAlgorithm, hash) {

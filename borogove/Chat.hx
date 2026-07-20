@@ -1971,7 +1971,7 @@ class Channel extends Chat {
 						vcardGet.onFinished(() -> {
 							final vcard = vcardGet.getResult();
 							if (vcard.photo == null) return;
-							persistence.storeMedia(vcard.photo.mime, vcard.photo.data.getData()).then(_ -> {
+							persistence.storeMedia(vcard.photo.mime, vcard.photo.data).then(_ -> {
 								client.trigger("chats/update", [this]);
 							});
 						});
