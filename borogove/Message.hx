@@ -255,6 +255,12 @@ class Message {
 			msg.attachSims(sims);
 		}
 
+		final aesgcmBody = XEP0454.parse(msg.text ?? "");
+		if (aesgcmBody != null && msg.text != null) {
+			msg.addAttachment(new ChatAttachment(null, aesgcmBody.mime, null, [msg.text], []));
+			msg.text = null;
+		}
+
 		final jmi = stanza.getChild(null, "urn:xmpp:jingle-message:0");
 		if (jmi != null && jmi.name != "accept") {
 			msg.type = MessageCall;
