@@ -214,11 +214,10 @@ interface Persistence {
 	/**
 		Check whether a media blob is already stored
 
-		@param hashAlgorithm hash algorithm for the content ID
-		@param hash raw hash bytes
-		@returns Promise resolving to true when the media exists
+		@param hash hash of the media we're looking for
+		@returns Promise resolving to an ID when the media exists, null when it does not
 	**/
-	public function hasMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool>;
+	public function hasMedia(hash: Hash): Promise<Null<String>>;
 
 	/**
 		Store media bytes and any metadata needed to retrieve them later

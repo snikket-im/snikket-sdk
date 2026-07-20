@@ -63,9 +63,8 @@ class MediaStoreFS implements MediaStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function hasMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool> {
-		final hash = new Hash(hashAlgorithm, hash);
-		return getMediaPath(hash.toUri()).then(path -> path != null);
+	public function hasMedia(hash: Hash): Promise<Null<String>> {
+		return getMediaPath(hash.toUri());
 	}
 
 	@HaxeCBridge.noemit

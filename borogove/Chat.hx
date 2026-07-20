@@ -1965,8 +1965,8 @@ class Channel extends Chat {
 			if (avatarSha1Hex != null && avatarSha1Hex != "") {
 				final hash = Hash.fromHex("sha-1", avatarSha1Hex);
 				avatarSha1 = hash.hash;
-				persistence.hasMedia("sha-1", avatarSha1).then((has) -> {
-					if (!has) {
+				persistence.hasMedia(hash).then((has) -> {
+					if (has == null) {
 						final vcardGet = new VcardTempGet(JID.parse(chatId));
 						vcardGet.onFinished(() -> {
 							final vcard = vcardGet.getResult();

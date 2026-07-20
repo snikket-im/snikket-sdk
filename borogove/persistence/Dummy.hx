@@ -122,8 +122,8 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function hasMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool> {
-		return Promise.resolve(false);
+	public function hasMedia(hash: Hash): Promise<Null<String>> {
+		return Promise.resolve(null);
 	}
 
 	@HaxeCBridge.noemit

@@ -12,7 +12,7 @@ import HaxeCBridge;
 @:build(HaxeSwiftBridge.expose())
 #end
 interface MediaStore {
-	public function hasMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool>;
+	public function hasMedia(hash: Hash): Promise<Null<String>>;
 	public function removeMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool>;
 	public function storeMedia(mime:String, source:Source): Promise<String>;
 	@:allow(borogove)

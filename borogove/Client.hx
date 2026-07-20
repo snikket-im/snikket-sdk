@@ -404,8 +404,8 @@ class Client extends EventEmitter {
 						chat.setAvatarSha1(avatarSha1.hash);
 						persistence.storeChats(this.accountId(), [chat]);
 					}
-					persistence.hasMedia("sha-1", avatarSha1.hash).then((has) -> {
-						if (has) {
+					persistence.hasMedia(avatarSha1).then((has) -> {
+						if (has != null) {
 							if (chat.livePresence()) this.trigger("chats/update", [chat]);
 						} else {
 							final vcardGet = new VcardTempGet(from);
@@ -674,7 +674,7 @@ class Client extends EventEmitter {
 		if (pubsubEvent != null && pubsubEvent.getFrom() != null && pubsubEvent.getNode() == "urn:xmpp:avatar:metadata" && pubsubEvent.getItems().length > 0) {
 			final item = pubsubEvent.getItems()[0];
 			final avatarSha1Hex = pubsubEvent.getItems()[0].attr.get("id");
-			final avatarSha1 = Hash.fromHex("sha-1", avatarSha1Hex)?.hash;
+			final avatarSha1 = Hash.fromHex("sha-1", avatarSha1Hex);
 			final metadata = item.getChild("metadata", "urn:xmpp:avatar:metadata");
 			var mime = "image/png";
 			if (metadata != null) {
@@ -685,10 +685,10 @@ class Client extends EventEmitter {
 			}
 			if (avatarSha1 != null) {
 				final chat = this.getDirectChat(JID.parse(pubsubEvent.getFrom()).asBare().asString(), false);
-				chat.setAvatarSha1(avatarSha1);
+				chat.setAvatarSha1(avatarSha1.hash);
 				persistence.storeChats(accountId(), [chat]);
-				persistence.hasMedia("sha-1", avatarSha1).then((has) -> {
-					if (has) {
+				persistence.hasMedia(avatarSha1).then((has) -> {
+					if (has != null) {
 						this.trigger("chats/update", [chat]);
 					} else {
 						final pubsubGet = new PubsubGet(pubsubEvent.getFrom(), "urn:xmpp:avatar:data", avatarSha1Hex);
@@ -1114,7 +1114,7 @@ class Client extends EventEmitter {
 		If cachedAt is already filled in for this ChatAttachment, it is simply returned.
 
 		@param attachment ChatAttachment to fetch
-		@returns Promise resolving to a ChatAttachment with cachedAt filled in
+		@returns Promise resolving to a ChatAttachment with cachedAt filled in, if possible
 	**/
 	public function fetchAttachment(attachment: ChatAttachment): Promise<ChatAttachment> {
 		// We already have it
@@ -1739,8 +1739,8 @@ class Client extends EventEmitter {
 	private function fetchMediaByHashOneCounterpart(hashes: Array<Hash>, counterpart: JID) {
 		if (hashes.length < 1) return thenshim.Promise.reject("no hashes left");
 
-		return persistence.hasMedia(hashes[0].algorithm, hashes[0].hash).then (has -> {
-			if (has) return Promise.resolve(null);
+		return persistence.hasMedia(hashes[0]).then (has -> {
+			if (has != null) return Promise.resolve(null);
 
 			return new Promise((resolve, reject) -> {
 				final q = BoB.forHash(counterpart.asString(), hashes[0]);

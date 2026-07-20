@@ -909,13 +909,17 @@ class Sqlite implements Persistence implements KeyValueStore {
 			if (op == "<" || op == "<=") {
 				messages.reverse();
 			}
+			final ps = [];
 			final replyTos = [];
 			for (message in messages) {
 				if (message.replyToMessage != null && message.replyToMessage.stanza == null) {
 					replyTos.push({ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId });
 				}
+				for (attachment in message.attachments) {
+					ps.push(attachment.lookup(this));
+				}
 			}
-			return hydrateReplyTo(accountId, messages, replyTos);
+			return thenshim.PromiseTools.all(ps).then(_ -> hydrateReplyTo(accountId, messages, replyTos));
 		}).then(messages -> hydrateReactions(accountId, messages));
 	}
 
@@ -994,8 +998,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function hasMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool> {
-		return media.hasMedia(hashAlgorithm, hash);
+	public function hasMedia(hash: Hash): Promise<Null<String>> {
+		return media.hasMedia(hash);
 	}
 
 	@HaxeCBridge.noemit

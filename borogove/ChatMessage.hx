@@ -6,6 +6,7 @@ import haxe.crypto.Base64;
 import haxe.ds.ReadOnlyArray;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
+import thenshim.Promise;
 using Lambda;
 using StringTools;
 
@@ -108,6 +109,27 @@ class ChatAttachment {
 		return new ChatAttachment(name, mime, size > 0 ? size : null, [uri], []);
 	}
 	#end
+
+	@:allow(borogove)
+	private function lookup(persistence: Persistence): Promise<ChatAttachment> {
+		if (cachedAt != null) return Promise.resolve(this);
+
+		return lookupHashes(persistence, hashes.copy()).then(id -> {
+			cachedAt = id;
+			return this;
+		});
+	}
+
+	private function lookupHashes(persistence: Persistence, hashes: Array<Hash>): Promise<Null<String>> {
+		final hash = hashes.shift();
+		if (hash == null) return Promise.resolve(cast null);
+
+		return persistence.hasMedia(hash).then(id -> {
+			if (id == null) return lookupHashes(persistence, hashes);
+
+			return Promise.resolve(id);
+		});
+	}
 }
 
 @:expose

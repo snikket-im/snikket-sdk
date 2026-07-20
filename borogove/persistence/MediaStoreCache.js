@@ -69,9 +69,12 @@ export default (cacheName, { routeHashPath } = { routeHashPath: null }) => {
 			return await cache.match(niUrl);
 		},
 
-		async hasMedia(hashAlgorithm, hash) {
-			const response = await this.getMediaResponse(mkNiUrl(hashAlgorithm, hash));
-			return !!response;
+		async hasMedia(hash) {
+			const niUrl = mkNiUrl(hash.algorithm, hash.hash);
+			const response = await this.getMediaResponse(niUrl);
+			if (!response) return null;
+
+			return niUrl;
 		}
 	};
 

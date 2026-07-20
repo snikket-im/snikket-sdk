@@ -6,6 +6,7 @@ import {
 	borogove_AvailableChat,
 	borogove_Caps,
 	borogove_Channel,
+	borogove_ChatAttachment,
 	borogove_ChatMessageBuilder,
 	borogove_CustomEmojiReaction,
 	borogove_DirectChat,
@@ -336,7 +337,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 		message.to = value.to ? borogove_JID.parse(value.to) : message.recipients[0];
 		message.replyTo = value.replyTo.map((r) => borogove_JID.parse(r));
 		message.threadId = value.threadId;
-		message.attachments = value.attachments;
+		message.attachments = (value.attachments ?? []).map(a => new borogove_ChatAttachment(a.name, a.mime, a.size, a.uris, a.hashes));
 		message.linkMetadata = value.linkMetadata ?? [];
 		message.reactions = hydrateReactions(value.reactions, message.timestamp);
 		message.text = value.text;
@@ -368,6 +369,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 			v.versions = []; // No need for nested versions...
 			return hydrateMessage(v, store);
 		}));
+
+		await Promise.all(message.attachments.map(a => a.lookup(obj)));
+
 		return message;
 	}
 
@@ -1073,8 +1077,8 @@ tx.onerror = console.error;
 			return result.sort((a, b) => a.timestamp < b.timestamp ? -1 : (a.timestamp > b.timestamp ? 1 : 0));
 		},
 
-		hasMedia: function(hashAlgorithm, hash) {
-			return media.hasMedia(hashAlgorithm, hash);
+		hasMedia: function(hash) {
+			return media.hasMedia(hash);
 		},
 
 		removeMedia: function(hashAlgorithm, hash) {
