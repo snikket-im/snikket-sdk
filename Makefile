@@ -42,7 +42,7 @@ npm/borogove-browser.js:
 	mv npm/browser-no-sqlite.js npm/borogove-browser.js
 	awk -f optional-sqlite-types.awk npm/borogove-browser.d.ts
 	mv npm/no-sqlite.d.ts npm/borogove-browser.d.ts
-	echo "export class borogove_Presence {}" >> npm/borogove-browser.d.ts
+	printf "\nexport class borogove_Presence {}\n" >> npm/borogove-browser.d.ts
 
 npm/borogove.js:
 	haxe nodejs.hxml
@@ -53,7 +53,7 @@ npm/borogove.js:
 	sed -i 's/"\[Symbol.asyncIterator\]"() {/[Symbol.asyncIterator]() {/g' npm/borogove.js
 	echo "export { FractionalIndexing_between, FractionalIndexing_BASE_95_DIGITS }" >> npm/borogove.js
 	cd npm && npx cjstoesm borogove.js
-	echo "export class borogove_Presence {}" >> npm/borogove.d.ts
+	printf "\nexport class borogove_Presence {}\n" >> npm/borogove.d.ts
 
 npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogove/persistence/MediaStoreCache.js borogove/persistence/sqlite-worker1.mjs
 	cp borogove/persistence/IDB.js npm
