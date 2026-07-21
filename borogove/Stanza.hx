@@ -347,7 +347,8 @@ class Stanza {
 					}
 					return CData(new TextNode(text));
 				}
-				return Element(cursor.getChild(name, xmlns));
+				final got = cursor.getChild(name, xmlns);
+				return got == null ? null : Element(got);
 			}
 			cursor = cursor.getChild(name, xmlns);
 		} while (cursor != null);

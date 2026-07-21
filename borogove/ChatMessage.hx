@@ -80,7 +80,7 @@ class ChatAttachment {
 	/**
 		Hashes of data
 	**/
-	public final hashes: ReadOnlyArray<Hash>;
+	public final hashes: Array<Hash>;
 
 	#if cpp
 	@:allow(borogove)
@@ -129,6 +129,30 @@ class ChatAttachment {
 
 			return Promise.resolve(id);
 		});
+	}
+
+	@:allow(borogove)
+	private function sims() {
+		final stanza = new Stanza("reference", { xmlns: "urn:xmpp:reference:0", type: "data" })
+			.tag("media-sharing", { xmlns: "urn:xmpp:sims:1" });
+
+		stanza.tag("file", { xmlns: "urn:xmpp:jingle:apps:file-transfer:5" });
+		if (name != null) stanza.textTag("name", name);
+		stanza.textTag("media-type", mime);
+		if (size != null) stanza.textTag("size", Std.string(size));
+		for (hash in hashes) {
+			stanza.textTag("hash", Base64.encode(Bytes.ofData(hash.hash)), { xmlns: "urn:xmpp:hashes:2", algo: hash.algorithm });
+		}
+		stanza.up();
+
+		stanza.tag("sources");
+		for (uri in uris) {
+			stanza.tag("reference", { xmlns: "urn:xmpp:reference:0", type: "data", uri: uri }).up();
+		}
+
+		stanza.up().up().up();
+
+		return stanza;
 	}
 }
 
@@ -547,6 +571,33 @@ class ChatMessage {
 		}
 	}
 
+	/**
+		Fetch data for a ChatAttachment into local media cache
+
+		If cachedAt is already filled in for this ChatAttachment, it is simply returned.
+
+		@param attachment ChatAttachment to fetch
+		@param client Client to use when fetching
+		@returns Promise resolving to a ChatAttachment with cachedAt filled in, if possible
+	**/
+	public function fetchAttachment(attachment: ChatAttachment, client: Client) {
+		final hasNoHashes = attachment.hashes.length < 1;
+		return client.fetchAttachment(attachment).then(r -> {
+			if (hasNoHashes && r.hashes.length > 0) {
+				if (stanza != null) {
+					final sims = stanza.allTags().find(child -> switch child.find("{urn:xmpp:sims:1}media-sharing/sources/{urn:xmpp:reference:0}reference@uri") {
+						case CData(txt): txt.content == attachment.uris[0];
+						default: false;
+					});
+					if (sims != null && stanza != null) stanza.removeChild(sims);
+					if (stanza != null) stanza.addChild(r.sims());
+				}
+				return client.storeMessages([this]).then(_ -> r);
+			}
+			return Promise.resolve(r);
+		});
+	}
+
 	@:allow(borogove)
 	private function asStanza():Stanza {
 		if (stanza != null) return stanza;
@@ -613,25 +664,7 @@ class ChatMessage {
 		}
 
 		for (attachment in attachments) {
-			stanza
-				.tag("reference", { xmlns: "urn:xmpp:reference:0", type: "data" })
-				.tag("media-sharing", { xmlns: "urn:xmpp:sims:1" });
-
-			stanza.tag("file", { xmlns: "urn:xmpp:jingle:apps:file-transfer:5" });
-			if (attachment.name != null) stanza.textTag("name", attachment.name);
-			stanza.textTag("media-type", attachment.mime);
-			if (attachment.size != null) stanza.textTag("size", Std.string(attachment.size));
-			for (hash in attachment.hashes) {
-				stanza.textTag("hash", Base64.encode(Bytes.ofData(hash.hash)), { xmlns: "urn:xmpp:hashes:2", algo: hash.algorithm });
-			}
-			stanza.up();
-
-			stanza.tag("sources");
-			for (uri in attachment.uris) {
-				stanza.tag("reference", { xmlns: "urn:xmpp:reference:0", type: "data", uri: uri }).up();
-			}
-
-			stanza.up().up().up();
+			stanza.addChild(attachment.sims());
 
 			if (attachment.uris.length > 0) {
 				stanza.tag("x", { xmlns: "jabber:x:oob" }).textTag("url", attachment.uris[0]).up();

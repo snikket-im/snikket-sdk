@@ -1108,32 +1108,26 @@ class Client extends EventEmitter {
 		return EventHandled;
 	}
 
-	/**
-		Fetch data for a ChatAttachment into local media cache
-
-		If cachedAt is already filled in for this ChatAttachment, it is simply returned.
-
-		@param attachment ChatAttachment to fetch
-		@returns Promise resolving to a ChatAttachment with cachedAt filled in, if possible
-	**/
-	public function fetchAttachment(attachment: ChatAttachment): Promise<ChatAttachment> {
+	@:allow(borogove)
+	private function fetchAttachment(attachment: ChatAttachment): Promise<ChatAttachment> {
 		// We already have it
 		if (attachment.cachedAt != null) return Promise.resolve(attachment);
 
-		return fetchUris( attachment.uris.copy()).then(id -> {
-			attachment.cachedAt = id;
+		return fetchUris( attachment.uris.copy()).then(r -> {
+			attachment.cachedAt = r.id;
+			if (attachment.hashes.length < 1) attachment.hashes.push(r.hash);
 			return attachment;
 		});
 	}
 
-	private function fetchUris(uris: Array<String>): Promise<Null<String>> {
+	private function fetchUris(uris: Array<String>): Promise<Null<{ id: String, hash: Hash }>> {
 		if (uris.length < 1) return Promise.resolve(null);
 
 		final uri = uris.shift();
 		final aesgcm = XEP0454.parse(uri);
 		if (aesgcm != null) {
 			return XEP0454.fetch(aesgcm).then(
-				data -> persistence.storeMedia(aesgcm.mime, data),
+				data -> persistence.storeMedia(aesgcm.mime, data).then(id -> { id: id, hash: Hash.sha256(data) }),
 				e -> {
 					trace("fetchAttachment", e);
 					return fetchUris(uris);
@@ -1142,6 +1136,7 @@ class Client extends EventEmitter {
 		}
 
 		if (uri.startsWith("http://") || uri.startsWith("https://")) {
+			final sha256 = Hash.sha256incr();
 			return new Promise((resolve, reject) -> {
 				tink.http.Client.fetch(uri).handle((rOrErr) -> switch (rOrErr) {
 				case Success(r):
@@ -1152,13 +1147,19 @@ class Client extends EventEmitter {
 							case Success(ct): ct.toString();
 							default: "application/octet-stream";
 						};
-						resolve({ mime: mime, body: r.body });
+						resolve({
+							mime: mime,
+							body: Source.ofTinkSource(r.body.chunked().map(chunk -> {
+								sha256.update((chunk : Bytes).getData());
+								return chunk;
+							}))
+						});
 					}
 				case Failure(e):
 					reject(e);
 				});
 			}).then(
-				r -> persistence.storeMedia(r.mime, r.body),
+				r -> persistence.storeMedia(r.mime, r.body).then(id -> { id: id, hash: sha256.digest() }),
 				e -> fetchUris(uris)
 			);
 		}
