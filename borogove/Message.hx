@@ -256,7 +256,7 @@ class Message {
 		}
 
 		final aesgcmBody = XEP0454.parse(msg.text ?? "");
-		if (aesgcmBody != null && msg.text != null) {
+		if (aesgcmBody != null && msg.text != null && msg.attachments.length < 1) {
 			msg.addAttachment(new ChatAttachment(null, aesgcmBody.mime, null, [msg.text], []));
 			msg.text = null;
 		}
