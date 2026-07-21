@@ -5,7 +5,7 @@ import thenshim.Promise;
 
 using StringTools;
 
-function fetch(aesgcm: AesGcm, hash: Null<Hash> = null): Promise<Bytes> {
+function fetch(aesgcm: AesGcm): Promise<Bytes> {
 	// Fetch all data into memory because AES-GCM APIs really want to verify
 	// everything before giving access to plaintext.
 	// TODO: This means we ought to refuse to download if the size is too big:
@@ -18,13 +18,6 @@ function fetch(aesgcm: AesGcm, hash: Null<Hash> = null): Promise<Bytes> {
 				reject(e);
 		});
 	}).then((encrypted) -> {
-		if (hash != null) {
-			final compare = Hash.mk(hash.algorithm, encrypted);
-			if (compare != null && !hash.equals(compare)) {
-				throw "Hash mismatch: " + hash + " != " + compare;
-			}
-		}
-
 		#if js
 		final subtle: js.html.SubtleCrypto = untyped globalThis.crypto.subtle;
 		return (subtle.importKey("raw", aesgcm.key.getData(), "AES-GCM", false, ["decrypt"]).then(key ->
@@ -34,6 +27,29 @@ function fetch(aesgcm: AesGcm, hash: Null<Hash> = null): Promise<Bytes> {
 		final aes = new haxe.crypto.Aes(aesgcm.key, aesgcm.iv);
 		return aes.decrypt(haxe.crypto.mode.Mode.GCM, encrypted, Bytes.alloc(0));
 		#end
+	});
+}
+
+function put(source: tink.io.Source.RealSource, httpPut: (tink.io.Source.RealSource, Int)->Promise<String>): Promise<{ uri: String, size: Int }> {
+	final iv = haxe.crypto.random.SecureRandom.bytes(12);
+	final key = haxe.crypto.random.SecureRandom.bytes(32);
+
+	return new Promise((resolve, reject) -> {
+		tink.io.Source.RealSourceTools.all(source).handle(o -> switch o {
+			case Success(bytes): resolve((bytes : Bytes));
+			case Failure(e): reject(e);
+		});
+	}).then(bytes -> {
+		#if js
+		final subtle: js.html.SubtleCrypto = untyped globalThis.crypto.subtle;
+		final encryptedP: Promise<Bytes> = subtle.importKey("raw", key.getData(), "AES-GCM", false, ["encrypt"]).then(key ->
+			subtle.encrypt({ name: "AES-GCM", iv: iv.getData() }, key, bytes.getData())
+		).then(encrypted -> Bytes.ofData(encrypted));
+		#else
+		final aes = new haxe.crypto.Aes(key, iv);
+		final encryptedP = Promise.resolve(aes.encrypt(haxe.crypto.mode.Mode.GCM, bytes, Bytes.alloc(0), 16));
+		#end
+		return encryptedP.then(encrypted -> httpPut(encrypted, encrypted.length).then(uri -> ({ uri: ~/^https?:\/\//.map(uri, _ -> "aesgcm://") + "#" + iv.toHex() + key.toHex(), size: encrypted.length })));
 	});
 }
 

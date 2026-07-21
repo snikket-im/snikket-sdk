@@ -1120,24 +1120,24 @@ class Client extends EventEmitter {
 		// We already have it
 		if (attachment.cachedAt != null) return Promise.resolve(attachment);
 
-		return fetchUris(
-			attachment.uris.copy(),
-			attachment.hashes.find(h -> h.algorithm == "sha-256") ?? attachment.hashes[0]
-		).then(id -> {
+		return fetchUris( attachment.uris.copy()).then(id -> {
 			attachment.cachedAt = id;
 			return attachment;
 		});
 	}
 
-	private function fetchUris(uris: Array<String>, hash: Null<Hash>): Promise<Null<String>> {
+	private function fetchUris(uris: Array<String>): Promise<Null<String>> {
 		if (uris.length < 1) return Promise.resolve(null);
 
 		final uri = uris.shift();
 		final aesgcm = XEP0454.parse(uri);
 		if (aesgcm != null) {
-			return XEP0454.fetch(aesgcm, hash).then(
+			return XEP0454.fetch(aesgcm).then(
 				data -> persistence.storeMedia(aesgcm.mime, data),
-				e -> fetchUris(uris, hash)
+				e -> {
+					trace("fetchAttachment", e);
+					return fetchUris(uris);
+				}
 			);
 		}
 
@@ -1159,59 +1159,75 @@ class Client extends EventEmitter {
 				});
 			}).then(
 				r -> persistence.storeMedia(r.mime, r.body),
-				e -> fetchUris(uris, hash)
+				e -> fetchUris(uris)
 			);
 		}
 
-		return fetchUris(uris, hash);
+		return fetchUris(uris);
 	}
 
 	/**
 		Turn a file into a ChatAttachment for attaching to a ChatMessage
 
 		@param source The AttachmentSource to use
-		@returns Promise resolving to a ChatAttachment or null
+		@returns Promise resolving to a ChatAttachment
 	**/
-	public function prepareAttachment(source: AttachmentSource): Promise<Null<ChatAttachment>> {
+	public function prepareAttachment(source: AttachmentSource): Promise<ChatAttachment> {
 		return persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0").then((services) -> {
-			final sha256 = new Sha256();
-			return new Promise((resolve, reject) -> {
-				source.tinkSource().chunked().forEach((chunk) -> {
-					sha256.update(chunk);
-					return tink.streams.Stream.Handled.Resume;
-				}).handle((o) -> switch o {
-					case Depleted:
-						prepareAttachmentFor(source, services, [new Hash("sha-256", sha256.digest().getData())], resolve);
-					default:
-						trace("Error computing attachment hash", o);
-						reject(o);
-				});
+			final sha256 = Hash.sha256incr();
+			final httpPut = (tsource: tink.io.Source.RealSource, size: Int) -> {
+				return prepareAttachmentFor(
+					tsource,
+					source.name,
+					size,
+					source.type,
+					services
+				);
+			};
+
+			final tinkSource = source.tinkSource().chunked().map((chunk) -> {
+				sha256.update((chunk : Bytes).getData());
+				return chunk;
 			});
+
+			// Giant attachments go unencrypted for now...
+			return thenshim.PromiseTools.all(([
+				if (source.size < 1000000000) {
+					XEP0454.put(tinkSource, httpPut).then(o -> new ChatAttachment(source.name, source.type, o.size, [o.uri], [sha256.digest()]));
+				} else {
+					httpPut(tinkSource, source.size).then(uri -> new ChatAttachment(source.name, source.type, source.size, [uri], [sha256.digest()]));
+				},
+				persistence.storeMedia(source.type, Source.ofTinkSource(tinkSource))
+			] : Array<Dynamic>)).then(results -> results[0]);
 		});
 	}
 
-	private function prepareAttachmentFor(source: AttachmentSource, services: Array<{ serviceId: String }>, hashes: Array<Hash>, callback: (Null<ChatAttachment>)->Void) {
+	private function prepareAttachmentFor(source: tink.io.Source.RealSource, name: String, size: Int, mime: String, services: Array<{ serviceId: String }>): Promise<String> {
 		if (services.length < 1) {
 			trace("No HTTP upload service found");
-			callback(null);
-			return;
+			return Promise.reject("failed");
 		}
-		final httpUploadSlot = new HttpUploadSlot(services[0].serviceId, source.name, source.size, source.type, hashes);
-		httpUploadSlot.onFinished(() -> {
-			final slot = httpUploadSlot.getResult();
-			if (slot == null) {
-				prepareAttachmentFor(source, services.slice(1), hashes, callback);
-			} else {
-				tink.http.Client.fetch(slot.put, { method: PUT, headers: slot.putHeaders.concat([new tink.http.Header.HeaderField("Content-Length", source.size)]), body: tink.io.Source.RealSourceTools.idealize(source.tinkSource(), (e) -> { trace("prepareAttachmentFor ERROR", e); throw e; }) }).all()
-					.handle((o) -> switch o {
+		final httpUploadSlot = new HttpUploadSlot(services[0].serviceId, name, size, mime);
+		return new Promise((resolve, reject) -> {
+			httpUploadSlot.onFinished(() -> {
+				final slot = httpUploadSlot.getResult();
+				if (slot == null) {
+					prepareAttachmentFor(source, name, size, mime, services.slice(1)).then(resolve, reject);
+				} else {
+					tink.http.Client.fetch( slot.put, {
+						method: PUT,
+						headers: slot.putHeaders.concat([new tink.http.Header.HeaderField("Content-Length", size)]),
+						body: tink.io.Source.RealSourceTools.idealize(source, (e) -> { reject(e); throw e; })
+					}).all().handle((o) -> switch o {
 						case Success(res) if (res.header.statusCode == 201):
-							callback(new ChatAttachment(source.name, source.type, source.size, [slot.get], hashes));
+							resolve(slot.get);
 						default:
-							prepareAttachmentFor(source, services.slice(1), hashes, callback);
+							prepareAttachmentFor(source, name, size, mime, services.slice(1)).then(resolve, reject);
 					});
-			}
+				}
+			});
+			sendQuery(httpUploadSlot);
 		});
-		sendQuery(httpUploadSlot);
 	}
 
 	/**

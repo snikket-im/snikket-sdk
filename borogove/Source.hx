@@ -29,7 +29,7 @@ abstract Source(UnderlyingSource) {
 		#end
 	}
 
-	@:from static function ofTinkSource(source: RealSource) {
+	@:from public static function ofTinkSource(source: RealSource) {
 		#if js
 		var stream: ReadableStream = null;
 		stream = new ReadableStream({

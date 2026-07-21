@@ -337,7 +337,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 		message.to = value.to ? borogove_JID.parse(value.to) : message.recipients[0];
 		message.replyTo = value.replyTo.map((r) => borogove_JID.parse(r));
 		message.threadId = value.threadId;
-		message.attachments = (value.attachments ?? []).map(a => new borogove_ChatAttachment(a.name, a.mime, a.size, a.uris, a.hashes));
+		message.attachments = (value.attachments ?? []).map(a => new borogove_ChatAttachment(a.name, a.mime, a.size, a.uris, (a.hashes ?? []).map(h => new borogove_Hash(h.algorithm, h.hash))));
 		message.linkMetadata = value.linkMetadata ?? [];
 		message.reactions = hydrateReactions(value.reactions, message.timestamp);
 		message.text = value.text;
@@ -878,6 +878,7 @@ tx.onerror = console.error;
 					} else {
 						store.put(toPut).onerror = console.error;
 					}
+					await Promise.all(message.attachments.map(a => a.lookup(this)));
 					return message;
 				}
 

@@ -732,7 +732,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 			).then(_ ->
 				thenshim.PromiseTools.all(messages.map(m -> fetchFromStub(accountId, m)))
 			).then(ms ->
-				hydrateReplyTo(accountId, ms, replyTos)
+				thenshim.PromiseTools.all(ms.flatMap(m -> m.attachments.map(a -> a.lookup(this)))).then(_ ->
+					hydrateReplyTo(accountId, ms, replyTos)
+				)
 			).then(ms ->
 				hydrateReactions(accountId, ms)
 			)
