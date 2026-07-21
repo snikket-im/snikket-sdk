@@ -1772,11 +1772,15 @@ class Client extends EventEmitter {
 		final ps = [];
 		for (attachment in message.attachments) {
 			if (attachment.uris.find(uri -> uri.split("/")[2].split(":")[0].endsWith(chatDomain)) != null) {
-				attachment.lookup(persistence).then(lookedUp -> {
-					if (lookedUp.cachedAt == null) ps.push(fetchAttachment(attachment));
-				});
+				ps.push(attachment.lookup(persistence).then(lookedUp -> {
+					if (lookedUp.cachedAt != null) return Promise.resolve(lookedUp);
+
+					return message.fetchAttachment(attachment, this, false);
+				}));
 			}
 		}
+
+		if (ps.length < 1) return Promise.resolve(false);
 
 		return thenshim.PromiseTools.all(ps).then(_ -> true);
 	}

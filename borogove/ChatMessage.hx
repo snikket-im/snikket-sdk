@@ -580,7 +580,7 @@ class ChatMessage {
 		@param client Client to use when fetching
 		@returns Promise resolving to a ChatAttachment with cachedAt filled in, if possible
 	**/
-	public function fetchAttachment(attachment: ChatAttachment, client: Client) {
+	public function fetchAttachment(attachment: ChatAttachment, client: Client, storeIfNeeded: Bool = true) {
 		final hasNoHashes = attachment.hashes.length < 1;
 		return client.fetchAttachment(attachment).then(r -> {
 			if (hasNoHashes && r.hashes.length > 0) {
@@ -592,7 +592,7 @@ class ChatMessage {
 					if (sims != null && stanza != null) stanza.removeChild(sims);
 					if (stanza != null) stanza.addChild(r.sims());
 				}
-				return client.storeMessages([this]).then(_ -> r);
+				if (storeIfNeeded) return client.storeMessages([this]).then(_ -> r);
 			}
 			return Promise.resolve(r);
 		});
