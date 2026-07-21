@@ -1771,8 +1771,10 @@ class Client extends EventEmitter {
 		final chatDomain = JID.parse(chat.chatId).domain;
 		final ps = [];
 		for (attachment in message.attachments) {
-			if (attachment.cachedAt != null && attachment.uris.find(uri -> uri.split("/")[2].split(":")[0].endsWith(chatDomain)) != null) {
-				ps.push(fetchAttachment(attachment));
+			if (attachment.uris.find(uri -> uri.split("/")[2].split(":")[0].endsWith(chatDomain)) != null) {
+				attachment.lookup(persistence).then(lookedUp -> {
+					if (lookedUp.cachedAt == null) ps.push(fetchAttachment(attachment));
+				});
 			}
 		}
 
