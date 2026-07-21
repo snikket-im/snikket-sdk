@@ -25,6 +25,7 @@ import borogove.Member;
 import borogove.MemberUpdate;
 import borogove.Role;
 import borogove.Stanza;
+import borogove.Source;
 
 using Lambda;
 using thenshim.PromiseTools;
@@ -58,9 +59,8 @@ class MockMediaStore implements MediaStore {
 		}
 	}
 
-	public function hasMedia(hashAlgorithm:String, hash:BytesData): Promise<Bool> {
-		final hash = new Hash(hashAlgorithm, hash);
-		return getMediaPath(hash.toUri()).then(path -> path != null);
+	public function hasMedia(hash: Hash): Promise<Null<String>> {
+		return getMediaPath(hash.toUri());
 	}
 
 	public function removeMedia(hashAlgorithm: String, hash: BytesData) {
@@ -68,14 +68,20 @@ class MockMediaStore implements MediaStore {
 		return getMediaPath(hash.toUri()).then(p -> kv.set(p, null)).then(_ -> true);
 	}
 
-	public function storeMedia(mime: String, bd: BytesData): Promise<Bool> {
-		final bytes = Bytes.ofData(bd);
-		final sha1 = Hash.sha1(bytes);
-		final sha256 = Hash.sha256(bytes);
-		return thenshim.PromiseTools.all([
-			kv.set(sha1.serializeUri(), sha256.serializeUri()),
-			kv.set(sha256.serializeUri(), mime)
-		]).then(_ -> true);
+	public function storeMedia(mime: String, source: Source): Promise<Null<String>> {
+		return new Promise((resolve, reject) -> {
+			tink.io.Source.RealSourceTools.all(source).handle(o -> switch o {
+				case Success(bytes): resolve((bytes : Bytes));
+				case Failure(e): reject(e);
+			});
+		}).then(bytes -> {
+			final sha1 = Hash.sha1(bytes);
+			final sha256 = Hash.sha256(bytes);
+			return thenshim.PromiseTools.all([
+				kv.set(sha1.serializeUri(), sha256.serializeUri()),
+				kv.set(sha256.serializeUri(), mime)
+			]).then(_ -> "/path");
+		});
 	}
 }
 
@@ -751,16 +757,16 @@ class TestSqlite extends utest.Test {
 
 	@:timeout(3000)
 	public function testMedia(async: Async) {
-		final bytes = haxe.io.Bytes.ofString("hello").getData();
+		final bytes = haxe.io.Bytes.ofString("hello");
 		persistence.storeMedia("image/png", bytes).then(_ -> {
-			return persistence.hasMedia("sha-256", Hash.sha256(haxe.io.Bytes.ofData(bytes)).hash);
+			return persistence.hasMedia(Hash.sha256(bytes));
 		}).then(hasBefore -> {
-			Assert.isTrue(hasBefore);
-			persistence.removeMedia("sha-256", Hash.sha256(haxe.io.Bytes.ofData(bytes)).hash);
+			Assert.equals("ni:///sha-256;LPJNul-wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ", hasBefore);
+			persistence.removeMedia("sha-256", Hash.sha256(bytes).hash);
 		}).then(_ -> {
-			return persistence.hasMedia("sha-256", Hash.sha256(haxe.io.Bytes.ofData(bytes)).hash);
+			return persistence.hasMedia(Hash.sha256(bytes));
 		}).then(hasAfter -> {
-			Assert.isFalse(hasAfter);
+			Assert.isNull(hasAfter);
 			async.done();
 		}).catchError(e -> {
 			Assert.fail(Std.string(e));

@@ -887,18 +887,36 @@ test("media storage functions", async ({ page }) => {
 		const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
 		const persistence = await borogove.persistence.IDB("snikket", mediaStore);
 
-		const buffer = new Uint8Array([1, 2, 3]).buffer;
-		await persistence.storeMedia("image/png", buffer);
-		const sha256 = await crypto.subtle.digest("SHA-256", buffer);
-		const hasBefore = await persistence.hasMedia("sha-256", sha256);
+		function bufferToByteStream(buffer) {
+			let done = false;
+			return new ReadableStream({
+				type: "bytes",
+				async pull(controller) {
+					if (done) {
+						controller.close();
+					} else {
+						controller.enqueue(buffer);
+						done = true;
+					}
+				},
+			});
+		}
+
+		const buffer = new Uint8Array([1, 2, 3]);
+		const sha256 = await crypto.subtle.digest("SHA-256", buffer.buffer);
+		await persistence.storeMedia("image/png", bufferToByteStream(buffer));
+		const hash = new borogove.Hash("sha-256", sha256);
+		const hasBefore = await persistence.hasMedia(hash);
 		await persistence.removeMedia("sha-256", sha256);
-		const hasAfter = await persistence.hasMedia("sha-256", sha256);
+		const hasAfter = await persistence.hasMedia(hash);
 
 		return { hasBefore, hasAfter };
 	}, code);
 
-	expect(result.hasBefore).toBe(true);
-	expect(result.hasAfter).toBe(false);
+	expect(result.hasBefore).toBe(
+		"/.well-known/ni/sha-256/A5BYxvLAy0ksUzsKTRTvd8wPeKvMztUofYShogEc-4E",
+	);
+	expect(result.hasAfter).toBe(null);
 });
 
 test("hydrate message with incomplete replyToMessage keys", async ({
