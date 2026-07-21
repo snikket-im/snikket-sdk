@@ -523,7 +523,9 @@ class Client extends EventEmitter {
 					if (chatMessage.serverId == null) {
 						updateChat(chatMessage);
 					} else {
-						storeMessages([chatMessage]).then((stored) -> updateChat(stored[0]));
+						maybeAutodownloadAttachments(chat, chatMessage).then(_ ->
+							storeMessages([chatMessage]).then((stored) -> updateChat(stored[0]))
+						);
 					}
 				}
 			case ReactionUpdateStanza(update):
@@ -1753,6 +1755,25 @@ class Client extends EventEmitter {
 		return fetchMediaByHashOneCounterpart(hashes, counterparts[0]).then(x -> x, (_) -> fetchMediaByHash(hashes, counterparts.slice(1)));
 	}
 
+	@:allow(borogove)
+	private function maybeAutodownloadAttachments(chat: Null<Chat>, message: ChatMessage) {
+		if (chat == null) return Promise.resolve(false);
+		if (chat.chatId != message.chatId()) throw "Message not in that chat";
+		if (!chat.isTrusted()) return Promise.resolve(false);
+		final channel = Std.downcast(chat, Channel);
+		if (channel != null && !channel.isPrivate()) return Promise.resolve(true); // Don't store public media
+
+		final chatDomain = JID.parse(chat.chatId).domain;
+		final ps = [];
+		for (attachment in message.attachments) {
+			if (attachment.cachedAt != null && attachment.uris.find(uri -> uri.split("/")[2].split(":")[0].endsWith(chatDomain)) != null) {
+				ps.push(fetchAttachment(attachment));
+			}
+		}
+
+		return thenshim.PromiseTools.all(ps).then(_ -> true);
+	}
+
 	private function fetchMediaByHashOneCounterpart(hashes: Array<Hash>, counterpart: JID) {
 		if (hashes.length < 1) return thenshim.Promise.reject("no hashes left");
 
@@ -2197,7 +2218,10 @@ class Client extends EventEmitter {
 								.textTag("text", "E2EE Required", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" })
 							);
 						} else {
-							chatMessages.push(message);
+							for (hash in message.inlineHashReferences()) {
+								fetchMediaByHash([hash], [message.from]);
+							}
+							chatMessages.push(maybeAutodownloadAttachments(getChat(message.chatId()), message).then(_ -> message));
 							if (message.type == MessageChat) chatIds[message.chatId()] = true;
 						}
 					case ReactionUpdateStanza(update):
@@ -2223,7 +2247,7 @@ class Client extends EventEmitter {
 						// ignore
 				}
 			}
-			promises.push(storeMessages(chatMessages));
+			promises.push(thenshim.PromiseTools.all(chatMessages).then(ms -> storeMessages(ms)));
 			trace("SYNC: MAM page wait for writes");
 			thenshim.PromiseTools.all(promises).then((results) -> {
 				for (messages in results) {
