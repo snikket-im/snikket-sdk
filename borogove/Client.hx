@@ -1173,9 +1173,10 @@ class Client extends EventEmitter {
 		Turn a file into a ChatAttachment for attaching to a ChatMessage
 
 		@param source The AttachmentSource to use
+		@param encrypt Should the data be encrypted with a fresh key?
 		@returns Promise resolving to a ChatAttachment
 	**/
-	public function prepareAttachment(source: AttachmentSource): Promise<ChatAttachment> {
+	public function prepareAttachment(source: AttachmentSource, encrypt: Bool = true): Promise<ChatAttachment> {
 		return persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0").then((services) -> {
 			final sha256 = Hash.sha256incr();
 			final httpPut = (tsource: tink.io.Source.RealSource, size: Int) -> {
@@ -1195,8 +1196,12 @@ class Client extends EventEmitter {
 
 			// Giant attachments go unencrypted for now...
 			return thenshim.PromiseTools.all(([
-				if (source.size < 1000000000) {
-					XEP0454.put(tinkSource, httpPut).then(o -> new ChatAttachment(source.name, source.type, o.size, [o.uri], [sha256.digest()]));
+				if (encrypt) {
+					if (source.size < 1000000000) {
+						XEP0454.put(tinkSource, httpPut).then(o -> new ChatAttachment(source.name, source.type, o.size, [o.uri], [sha256.digest()]));
+					} else {
+						Promise.reject("Attachment is too big for current encryption options");
+					}
 				} else {
 					httpPut(tinkSource, source.size).then(uri -> new ChatAttachment(source.name, source.type, source.size, [uri], [sha256.digest()]));
 				},
