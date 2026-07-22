@@ -1112,11 +1112,12 @@ tx.onerror = console.error;
 			return null;
 		},
 
-		async storeLogin(login, clientId, displayName, token) {
+		async storeLogin(login, clientId, displayName, rosterVer, token) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
 			await promisifyRequest(store.put(clientId, "login:clientId:" + login));
 			await promisifyRequest(store.put(displayName, "fn:" + login));
+			await promisifyRequest(store.put(rosterVer, "rosterVer:" + login));
 			if (token != null) {
 				await promisifyRequest(store.put(token, "login:token:" + login));
 				await promisifyRequest(store.put(0, "login:fastCount:" + login));
@@ -1246,7 +1247,7 @@ tx.onerror = console.error;
 			}
 		},
 
-		getLogin: function(login) {
+		getLogin(login) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
 			return Promise.all([
@@ -1254,11 +1255,12 @@ tx.onerror = console.error;
 				promisifyRequest(store.get("login:token:" + login)),
 				promisifyRequest(store.get("login:fastCount:" + login)),
 				promisifyRequest(store.get("fn:" + login)),
+				promisifyRequest(store.get("rosterVer:" + login)),
 			]).then((result) => {
 				if (result[1]) {
 					store.put((result[2] || 0) + 1, "login:fastCount:" + login).onerror = console.error;
 				}
-				return { clientId: result[0], token: result[1], fastCount: result[2] || 0, displayName: result[3] };
+				return { clientId: result[0], token: result[1], fastCount: result[2] || 0, displayName: result[3], rosterVer: result[4] };
 			});
 		},
 

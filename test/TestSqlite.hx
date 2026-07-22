@@ -695,8 +695,8 @@ class TestSqlite extends utest.Test {
 		final account1 = "alice@example.com";
 		final account2 = "bob@example.com";
 
-		persistence.storeLogin(account1, "client1", "Alice", null);
-		persistence.storeLogin(account2, "client2", "Bob", null);
+		persistence.storeLogin(account1, "client1", "Alice", null, null);
+		persistence.storeLogin(account2, "client2", "Bob", null, null);
 
 		persistence.listAccounts().then(accountsBefore -> {
 			Assert.contains(account1, accountsBefore);
@@ -969,7 +969,7 @@ class TestSqlite extends utest.Test {
 
 	@:timeout(3000)
 	public function testStoreStreamManamagementAndGetStreamManagement(async: Async) {
-		persistence.storeLogin("alice@example.com", "", "", null).then(_ ->
+		persistence.storeLogin("alice@example.com", "", "", null, null).then(_ ->
 			persistence.storeStreamManagement("alice@example.com", Bytes.ofHex("01020004").getData(), "ZZ")
 		).then(_ ->
 			persistence.getStreamManagement("alice@example.com")

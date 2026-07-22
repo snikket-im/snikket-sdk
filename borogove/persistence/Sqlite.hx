@@ -262,6 +262,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 12"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 13) {
+						return exec(["ALTER TABLE accounts ADD COLUMN roster_ver TEXT",
+						"PRAGMA user_version = 13"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -1057,14 +1063,14 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeLogin(accountId:String, clientId:String, displayName:String, token:Null<String>): Promise<Bool> {
-		final params = [accountId, clientId, displayName];
+	public function storeLogin(accountId:String, clientId:String, displayName:String, rosterVer:Null<String>, token:Null<String>): Promise<Bool> {
+		final params = [accountId, clientId, displayName, rosterVer];
 		final q = new StringBuf();
-		q.add("INSERT INTO accounts (account_id, client_id, display_name");
+		q.add("INSERT INTO accounts (account_id, client_id, display_name, roster_ver");
 		if (token != null) {
 			q.add(", token, fast_count");
 		}
-		q.add(") VALUES (?,?,?");
+		q.add(") VALUES (?,?,?,?");
 		if (token != null) {
 			q.add(",?");
 			params.push(token);
@@ -1074,6 +1080,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 		params.push(clientId);
 		q.add(", display_name=?");
 		params.push(displayName);
+		q.add(", roster_ver=?");
+		params.push(rosterVer);
 		if (token != null) {
 			q.add(", token=?");
 			params.push(token);
@@ -1083,9 +1091,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function getLogin(accountId: String): Promise<{ clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String> }> {
+	public function getLogin(accountId: String): Promise<{ clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String>, rosterVer: Null<String> }> {
 		return db.exec(
-			"SELECT client_id AS clientId, display_name AS displayName, token, COALESCE(fast_count, 0) AS fastCount FROM accounts WHERE account_id=? LIMIT 1",
+			"SELECT client_id AS clientId, display_name AS displayName, roster_ver AS rosterVer, token, COALESCE(fast_count, 0) AS fastCount FROM accounts WHERE account_id=? LIMIT 1",
 			[accountId]
 		).then(result -> {
 			for (row in result) {
@@ -1096,7 +1104,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				return r;
 			}
 
-			return { clientId: null, token: null, fastCount: 0, displayName: null };
+			return { clientId: null, token: null, fastCount: 0, displayName: null, rosterVer: null };
 		});
 	}
 

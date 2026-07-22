@@ -117,6 +117,7 @@ class Client extends EventEmitter {
 	private var token: Null<String> = null;
 	private var fastCount: Null<Int> = null;
 	private var sortId: String = "a ";
+	private var rosterVer: Null<String> = null;
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
 	private final brokenAvatars: Map<String, JID> = [];
 
@@ -161,7 +162,7 @@ class Client extends EventEmitter {
 
 		stream.on("fast-token", (data) -> {
 			token = data.token;
-			persistence.storeLogin(this.jid.asBare().asString(), stream.clientId ?? this.jid.resource, displayName(), token);
+			persistence.storeLogin(this.jid.asBare().asString(), stream.clientId ?? this.jid.resource, displayName(), rosterVer, token);
 			return EventHandled;
 		});
 
@@ -295,7 +296,11 @@ class Client extends EventEmitter {
 
 			var roster = new RosterGet();
 			roster.handleResponse(stanza);
-			var items = roster.getResult();
+			final items = roster.getResult();
+			if (roster.ver != null) {
+				rosterVer = roster.ver;
+				persistence.storeLogin(this.accountId(), stream.clientId ?? jid.resource, displayName(), rosterVer, null);
+			}
 			if (items.length == 0) return IqNoResult;
 
 			final chatsToUpdate = [];
@@ -808,6 +813,7 @@ class Client extends EventEmitter {
 			return persistence.getLogin(accountId());
 		}).then(login -> {
 			token = login.token;
+			rosterVer = login.rosterVer;
 			fastCount = login.fastCount;
 			stream.clientId = login.clientId ?? ID.unique();
 			jid = jid.withResource(stream.clientId);
@@ -1000,7 +1006,7 @@ class Client extends EventEmitter {
 	private function updateDisplayName(fn: String) {
 		if (fn == null || fn == "" || fn == displayName()) return false;
 		_displayName = fn;
-		persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, fn, null);
+		persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, fn, rosterVer, null);
 		pingAllChannels(false);
 		return true;
 	}
@@ -1029,7 +1035,7 @@ class Client extends EventEmitter {
 	private function onConnected(data) { // Fired on connect or reconnect
 		if (data != null && data.jid != null) {
 			jid = JID.parse(data.jid);
-			if (stream.clientId == null && !jid.isBare()) persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, displayName(), null);
+			if (stream.clientId == null && !jid.isBare()) persistence.storeLogin(jid.asBare().asString(), stream.clientId ?? jid.resource, displayName(), rosterVer, null);
 		}
 
 		if (data.resumed) {
@@ -2017,13 +2023,20 @@ class Client extends EventEmitter {
 	}
 
 	private function rosterGet() {
-		var rosterGet = new RosterGet();
+		var rosterGet = new RosterGet(rosterVer);
 		rosterGet.onFinished(() -> {
 			final chatsToUpdate = [];
+			// TODO: We should update all chats not in this list as not trusted.
+			// Special case for when it is empty but there was no <query/> child
+			// to do nothing is needed also.
 			for (item in rosterGet.getResult()) {
 				var chat = getDirectChat(item.jid, false);
 				chat.updateFromRoster(item);
 				chatsToUpdate.push(cast (chat, Chat));
+			}
+			if (rosterGet.ver != null) {
+				rosterVer = rosterGet.ver;
+				persistence.storeLogin(accountId(), stream.clientId ?? jid.resource, displayName(), rosterVer, null);
 			}
 			persistence.storeChats(accountId(), chatsToUpdate);
 			this.trigger("chats/update", chatsToUpdate);

@@ -260,10 +260,11 @@ interface Persistence {
 		@param accountId the account to store login state for
 		@param clientId negotiated client ID
 		@param displayName last known display name
-		@param token persisted token or null to clear it
+		@param rosterVer roster version string if known
+		@param token persisted token or null to keep the current value
 		@returns Promise resolving to true when store succeeded
 	**/
-	public function storeLogin(accountId:String, clientId:String, displayName:String, token:Null<String>): Promise<Bool>;
+	public function storeLogin(accountId:String, clientId:String, displayName:String, rosterVer: Null<String>, token:Null<String>): Promise<Bool>;
 
 	/**
 		Load persisted login-related state for an account
@@ -272,7 +273,7 @@ interface Persistence {
 		@returns Promise resolving to stored login data
 	**/
 	@HaxeCBridge.noemit
-	public function getLogin(accountId:String): Promise<{ clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String> }>;
+	public function getLogin(accountId:String): Promise<{ clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String>, rosterVer: Null<String> }>;
 
 	/**
 		Remove stored data for an account

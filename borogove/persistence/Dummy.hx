@@ -145,13 +145,13 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeLogin(login:String, clientId:String, displayName:String, token:Null<String>): Promise<Bool> {
+	public function storeLogin(login:String, clientId:String, displayName:String, rosterVer: Null<String>, token:Null<String>): Promise<Bool> {
 		return Promise.resolve(false);
 	}
 
 	@HaxeCBridge.noemit
-	public function getLogin(login:String): Promise<{ clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String> }> {
-		return Promise.resolve({ clientId: null, token: null, fastCount: 0, displayName: null });
+	public function getLogin(login:String): Promise<{ clientId:Null<String>, token:Null<String>, fastCount: Int, displayName:Null<String>, rosterVer: Null<String> }> {
+		return Promise.resolve({ clientId: null, token: null, fastCount: 0, displayName: null, rosterVer: null });
 	}
 
 	@HaxeCBridge.noemit
