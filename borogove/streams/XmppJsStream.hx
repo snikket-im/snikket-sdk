@@ -508,13 +508,17 @@ class XmppJsStream extends GenericStream {
 	}
 
 	private function onError(event: FSMEvent) {
-		final xmppError = Std.downcast(event.toAttr?.error, XmppJsError);
-		if (xmppError?.name == "SASLError") {
-			this.trigger("auth/fail", xmppError);
-		} else {
-			// If everConnected then we are retrying so not fatal
-			if (!everConnected) trigger("status/error", event.toAttr?.error);
-		}
+		// This happens before error FSM has finished
+		// So force follow up triggers to happen after
+		haxe.Timer.delay(() -> {
+			final xmppError = Std.downcast(event.toAttr?.error, XmppJsError);
+			if (xmppError?.name == "SASLError") {
+				this.trigger("auth/fail", xmppError);
+			} else {
+				// If everConnected then we are retrying so not fatal
+				if (!everConnected) trigger("status/error", event.toAttr?.error);
+			}
+		}, 0);
 
 		return true;
 	}
