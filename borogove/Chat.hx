@@ -1772,9 +1772,9 @@ class Channel extends Chat {
 			}
 			if (mav?.attr?.get("until") != null && mavUntil != mav?.attr?.get("until")) {
 				mavUntil = mav?.attr?.get("until");
-				persistence.storeChats(client.accountId(), [this]);
+				if (!noStore) persistence.storeChats(client.accountId(), [this]);
 			}
-			if (mucUser.role != "visitor" && mucUser.jid != null) {
+			if (!noStore && mucUser.role != "visitor" && mucUser.jid != null) {
 				// If they're not a visitor they can't be requesting voice
 				persistence.storeVoiceRequest(client.accountId(), this, mucUser.jid.asBare().asString(), false).then(_ -> {
 					client.trigger("chats/update", [this]);
