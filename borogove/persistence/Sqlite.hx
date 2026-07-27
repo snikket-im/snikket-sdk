@@ -687,7 +687,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 					// FIXME: Empty OMEMO contact device ids hardcoded in next line
 					final derived = chatData[row.chat_id];
-					chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.bookmarked != 0, row.avatar_sha1, derived.presence ?? new Map(), derived?.membersForName, row.fn, row.ui_state, row.blocked != 0, new Status(metaJson.status?.emoji ?? "", metaJson.status?.text ?? ""), row.extensions, row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, threadsMap, row.capsObj, metaJson.mavUntil, [], Reflect.field(row, "class")));
+					chats.push(new SerializedChat(row.chat_id, row.trusted != 0, row.bookmarked != 0, row.avatar_sha1, derived.presence ?? new Map(), derived?.membersForName, row.fn, row.ui_state, row.blocked != 0, new Status(metaJson.status?.emoji ?? "", metaJson.status?.text ?? ""), row.extensions == null ? null : Stanza.parse(row.extensions), row.read_up_to_id, row.read_up_to_by, row.notifications_filtered == null ? null : row.notifications_filtered != 0, row.notify_mention != 0, row.notify_reply != 0, threadsMap, row.capsObj, metaJson.mavUntil, [], Reflect.field(row, "class")));
 				}
 				return chats;
 			});
