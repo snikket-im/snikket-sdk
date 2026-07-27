@@ -5,6 +5,7 @@ import haxe.io.Bytes;
 import haxe.io.BytesData;
 import js.lib.Promise;
 using Lambda;
+using StringTools;
 
 import borogove.FSM;
 import borogove.GenericStream;
@@ -77,7 +78,7 @@ extern class XmppJsXml {
 	function getNS():String;
 	function findNS(prefix:String):String;
 
-	var attrs:Dynamic;
+	var attrs:haxe.DynamicAccess<String>;
 	var children:Array<Dynamic>;
 }
 
@@ -403,13 +404,15 @@ class XmppJsStream extends GenericStream {
 	}
 
 	private static function convertToStanza(el:XmppJsXml):Stanza {
-		var attrs: haxe.DynamicAccess<String> = {};
-		for (attr => val in el.attrs ?? attrs) {
-			final parts = attr.split(":");
-			if (parts.length == 1 || parts[0] == "xml") {
-				attrs.set(attr, val);
-			} else if (parts.length == 2 && parts[0] != "xmlns") {
-				attrs.set("{" + el.findNS(parts[0]) + "}" + parts[1], val);
+		var attrs: haxe.ds.StringMap<String> = new haxe.ds.StringMap();
+		if (el.attrs != null) {
+			for (attr => val in el.attrs) {
+				final colon = attr.indexOf(":");
+				if (colon < 0 || attr.startsWith("xml:")) {
+					attrs.set(attr, val);
+				} else if (!attr.startsWith("xmlns:")) {
+					attrs.set("{" + el.findNS(attr.substring(0, colon)) + "}" + attr.substring(colon + 1), val);
+				}
 			}
 		}
 		final ns = el.getNS();
