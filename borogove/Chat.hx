@@ -2571,7 +2571,7 @@ class SerializedChat {
 	public final uiState:UiState;
 	public final isBlocked:Bool;
 	public final status:Status;
-	public final extensions:String;
+	public final extensions:Stanza;
 	public final readUpToId:Null<String>;
 	public final readUpToBy:Null<String>;
 	public final threads: StringMapNullableKey<String> = new StringMapNullableKey();
@@ -2586,7 +2586,7 @@ class SerializedChat {
 	/**
 		Create a serialized chat snapshot suitable for persistence.
 	**/
-	public function new(chatId: String, trusted: Bool, isBookmarked: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, membersForName: Null<Array<{id: String, displayName: String}>>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, status: Status, extensions: Null<String>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, threads: StringMapNullableKey<String>, disco: Null<Caps>, mavUntil: Null<String>, omemoContactDeviceIDs: Array<Int>, klass: String) {
+	public function new(chatId: String, trusted: Bool, isBookmarked: Bool, avatarSha1: Null<BytesData>, presence: Map<String, Presence>, membersForName: Null<Array<{id: String, displayName: String}>>, displayName: Null<String>, uiState: Null<UiState>, isBlocked: Null<Bool>, status: Status, extensions: Null<Stanza>, readUpToId: Null<String>, readUpToBy: Null<String>, notificationsFiltered: Null<Bool>, notifyMention: Bool, notifyReply: Bool, threads: StringMapNullableKey<String>, disco: Null<Caps>, mavUntil: Null<String>, omemoContactDeviceIDs: Array<Int>, klass: String) {
 		this.chatId = chatId;
 		this.trusted = trusted;
 		this.isBookmarked = isBookmarked;
@@ -2597,7 +2597,7 @@ class SerializedChat {
 		this.uiState = uiState ?? Open;
 		this.isBlocked = isBlocked ?? false;
 		this.status = status;
-		this.extensions = extensions ?? "<extensions xmlns='urn:app:bookmarks:1' />";
+		this.extensions = extensions ?? new Stanza("extensions", [ "xmlns" => "urn:xmpp:bookmarks:1" ]);
 		this.readUpToId = readUpToId;
 		this.readUpToBy = readUpToBy;
 		this.notificationsFiltered = notificationsFiltered;
@@ -2614,7 +2614,6 @@ class SerializedChat {
 		Recreate a live Chat object from this serialized representation.
 	**/
 	public function toChat(client: Client, stream: GenericStream, persistence: Persistence): Promise<Chat> {
-		final extensionsStanza = Stanza.parse(extensions);
 		var filterN = notificationsFiltered ?? false;
 		var mention = notifyMention;
 
@@ -2625,9 +2624,9 @@ class SerializedChat {
 		}
 
 		final chat = if (klass == "DirectChat") {
-			new DirectChat(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensionsStanza, readUpToId, readUpToBy, omemoContactDeviceIDs);
+			new DirectChat(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensions, readUpToId, readUpToBy, omemoContactDeviceIDs);
 		} else if (klass == "Channel") {
-			final channel = new Channel(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensionsStanza, readUpToId, readUpToBy);
+			final channel = new Channel(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensions, readUpToId, readUpToBy);
 			channel.membersForName = membersForName;
 			channel.mavUntil = mavUntil;
 			if (disco != null) channel.disco = client.capsRepo.add(disco, false);
