@@ -81,6 +81,7 @@ class Client extends EventEmitter {
 	private var jid(default,null):JID;
 	@:allow(borogove)
 	private var chats: Array<Chat> = [];
+	private final chatsIndex: Map<String, Chat> = new Map();
 	private final persistence: Persistence;
 	@:allow(borogove)
 	private final capsRepo: CapsRepo;
@@ -829,6 +830,9 @@ class Client extends EventEmitter {
 			}
 			return thenshim.PromiseTools.all(chatPromises).then(theChats -> {
 				chats = theChats;
+				for (chat in chats) {
+					chatsIndex[chat.chatId] = chat;
+				}
 				getDirectChat(accountId()); // Ensure self chat exists
 				getDirectChat(JID.parse(accountId()).domain); // Ensure server chat exists
 				return persistence.getChatsUnreadDetails(accountId(), chats);
@@ -1346,6 +1350,7 @@ class Client extends EventEmitter {
 			final channel = new Channel(this, this.stream, this.persistence, availableChat.chatId, Open, false, false, null, availableChat.caps);
 			channel.setupNotifications();
 			chats.unshift(channel);
+			chatsIndex[channel.chatId] = channel;
 			channel.selfPing(false);
 			channel;
 		} else {
@@ -1365,7 +1370,15 @@ class Client extends EventEmitter {
 		@returns the chat if known, or NULL
 	**/
 	public function getChat(chatId:String):Null<Chat> {
-		return Util.findFast(chats, (chat) -> chat.chatId == chatId);
+		var found = chatsIndex[chatId];
+
+		// Most used by tests which still client.chats.push for setup...
+		if (found == null) {
+			found = Util.findFast(chats, (chat) -> chat.chatId == chatId);
+			if (found != null) chatsIndex[chatId] = found;
+		}
+
+		return found;
 	}
 
 	@:allow(borogove)
@@ -1395,6 +1408,7 @@ class Client extends EventEmitter {
 		final chat = new DirectChat(this, this.stream, this.persistence, chatId);
 		persistence.storeChats(accountId(), [chat]);
 		chats.push(chat);
+		chatsIndex[chat.chatId] = chat;
 		chatActivity(chat, triggerIfNew);
 		return chat;
 	}
@@ -2064,6 +2078,7 @@ class Client extends EventEmitter {
 					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, false, false, null, cachedCaps);
 					chat.setupNotifications();
 					chats.unshift(chat);
+					chatsIndex[chat.chatId] = chat;
 					if (inSync && sendAvailable) chat.selfPing(false);
 					handleChat(chat);
 					persistence.storeChats(accountId(), [chat]);
