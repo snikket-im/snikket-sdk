@@ -1621,7 +1621,7 @@ class Channel extends Chat {
 	override public function invite(chat: Chat, threadId: Null<String> = null) {
 		if (isPrivate()) {
 			client.sendStanza(
-				new Stanza("iq", { to: chatId })
+				new Stanza("iq", { to: chatId, type: "set" })
 					.tag("query", { xmlns: "http://jabber.org/protocol/muc#admin" })
 					.tag("item", { affiliation: "member", jid: chat.chatId })
 					.up().up()
