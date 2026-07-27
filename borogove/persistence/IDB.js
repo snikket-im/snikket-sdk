@@ -641,15 +641,25 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const store = tx.objectStore("members");
 			const range = IDBKeyRange.bound(chatId ? [account, chatId] : [account], chatId ? [account, chatId, []] : [account, []]);
 			const cursor = store.index("chatsWithTrueJid").openCursor(range);
-			while (true) {
-				const cresult = await promisifyRequest(cursor);
-				if (!cresult?.value) break;
+			await new Promise((resolve, reject) => {
+				cursor.onerror = () => reject(cursor.error);
+				cursor.onsuccess = (e) => {
+					const cresult = e.target.result;
+					if (!cresult?.value) {
+						resolve();
+						return;
+					}
 
-				cresult.update({ ...cresult.value, presence: new Map() });
+					if (cresult.value.presence?.size) {
+						cresult.value.presence = new Map();
+						cresult.update(cresult.value);
+					}
 
-				cresult.continue();
-			}
+					cresult.continue();
+				};
+			});
 
+			await promisifyRequest(tx);
 			return true;
 		},
 
