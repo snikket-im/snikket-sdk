@@ -343,9 +343,14 @@ export default async (dbname, media, tokenize, stemmer) => {
 		message.text = value.text;
 		message.lang = value.lang;
 		message.type = value.type || (value.isGroupchat || value.groupchat ? enums.borogove_MessageType.Channel : enums.borogove_MessageType.Chat);
-		message.payloads = (value.payloads || []).map(borogove_Stanza.parse);
-		message.encryption = value.encryption;
 		message.stanza = value.stanza && borogove_Stanza.parse(value.stanza);
+		if (message.stanza) {
+			// Just use children from stanza instead of parsing again
+			message.payloads = message.stanza.allTags();
+		} else {
+			message.payloads = (value.payloads || []).map(borogove_Stanza.parse);
+		}
+		message.encryption = value.encryption;
 		if (!message.localId && !message.serverId) message.localId = "NO_ID"; // bad data
 		return message.build();
 	}
@@ -392,7 +397,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			timestamp: new Date(message.timestamp),
 			replyToMessage: message.replyToMessage && [account, message.replyToMessage.serverId || "", message.replyToMessage.serverIdBy || "", message.replyToMessage.localId || ""],
 			versions: message.versions.map((m) => serializeMessage(account, m)),
-			payloads: message.payloads.map((p) => p.toString()),
+			payloads: message.stanza ? undefined : message.payloads.map((p) => p.toString()),
 			stanza: message.stanza?.toString(),
 			terms: [...new Set(tokenize((message.text || "").replace(/^>.*/mg, "")).map(stemmer))].sort()
 		}

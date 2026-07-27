@@ -312,6 +312,7 @@ class ChatMessageBuilder {
 		@param html rich text body to attach to the message
 	**/
 	public function setBody(html: Null<Html>) {
+		stanza = null;
 		final htmlIdx = payloads.findIndex((p) -> p.attr.get("xmlns") == "http://jabber.org/protocol/xhtml-im" && p.name == "html");
 		if (htmlIdx >= 0) payloads.splice(htmlIdx, 1);
 
@@ -338,6 +339,7 @@ class ChatMessageBuilder {
 		Set subject of this message
 	**/
 	public function setSubject(subject: Null<String>) {
+		stanza = null;
 		final subjectIdx = payloads.findIndex((p) -> p.name == "subject");
 		if (subjectIdx >= 0) payloads.splice(subjectIdx, 1);
 
