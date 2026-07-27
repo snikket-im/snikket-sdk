@@ -2344,10 +2344,10 @@ class Client extends EventEmitter {
 			if (channel != null) {
 				if (channel.disco.identities.length < 1) {
 					channel.refreshDisco(() -> {
-						channel.join();
+						channel.join(true);
 					});
 				} else {
-					channel.join();
+					channel.join(true);
 					haxe.Timer.delay(() -> channel.refreshDisco(), 30000);
 				}
 			}

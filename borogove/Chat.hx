@@ -1519,13 +1519,13 @@ class Channel extends Chat {
 	}
 
 	@:allow(borogove)
-	private function join(): Promise<Any> {
+	private function join(justCleared = false): Promise<Any> {
 		if (uiState == Invited || uiState == Closed) {
 			// Do not join
 			return Promise.resolve(null);
 		}
 
-		return persistence.clearMemberPresence(client.accountId(), chatId).then(_ -> {
+		return (justCleared ?  Promise.resolve(null) : persistence.clearMemberPresence(client.accountId(), chatId)).then(_ -> {
 			joinFailed = null;
 			self = null;
 			outbox.pause();
