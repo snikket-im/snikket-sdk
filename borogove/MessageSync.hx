@@ -108,6 +108,7 @@ class MessageSync {
 				jmi.set(jmiChildren[0].attr.get("id"), originalMessage);
 			}
 
+			final sortId = sortA;
 #if !NO_OMEMO
 			if (originalMessage.hasChild("encrypted", NS.OMEMO)) {
 				trace("MAM: Processing OMEMO message from " + originalMessage.attr.get("from"));
@@ -116,7 +117,7 @@ class MessageSync {
 					trace("MAM: Decrypted stanza: "+decryptedStanza);
 
 					return Message.fromStanza(decryptedStanza, client.jid, (builder, stanza) -> {
-						builder.sortId = sortA;
+						builder.sortId = sortId;
 						builder.serverId = result.attr.get("id");
 						builder.serverIdBy = serviceJID;
 						builder.encryption = decryptionResult.encryptionInfo;
@@ -142,7 +143,7 @@ class MessageSync {
 			trace("MAM: Processing non-OMEMO message from " + originalMessage.attr.get("from"));
 
 			final msg = Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
-				builder.sortId = sortA;
+				builder.sortId = sortId;
 				builder.serverId = result.attr.get("id");
 				builder.serverIdBy = serviceJID;
 				if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
