@@ -2,15 +2,15 @@ package test;
 
 import utest.Assert;
 
-import borogove.Import;
+import borogove.Importer;
 import borogove.Message;
 import borogove.JID;
 
-class TestImport extends utest.Test {
+class TestImporter extends utest.Test {
 	public function testOnAccount() {
 		final accounts = [];
 
-		final i = new Import(null);
+		final i = new Importer(null);
 		i.onAccount = (id) -> {
 			accounts.push(id);
 		};
@@ -31,7 +31,7 @@ class TestImport extends utest.Test {
 	public function testOnChannel() {
 		final channels = [];
 
-		final i = new Import(null);
+		final i = new Importer(null);
 		i.onChannel = (id) -> {
 			channels.push(id);
 		};
@@ -51,7 +51,7 @@ class TestImport extends utest.Test {
 	public function testOnMamItem() {
 		final items = [];
 
-		final i = new Import(null);
+		final i = new Importer(null);
 		i.onMessage = (source, msg) -> {
 			items.push(msg);
 		};
@@ -91,7 +91,7 @@ class TestImport extends utest.Test {
 	public function testTargetAccount() {
 		final items = [];
 
-		final i = new Import("me@example.com");
+		final i = new Importer("me@example.com");
 		i.onMessage = (source, msg) -> {
 			items.push(msg);
 		};
@@ -127,7 +127,7 @@ class TestImport extends utest.Test {
 	public function testTimestampFixing() {
 		final items = [];
 
-		final i = new Import(null);
+		final i = new Importer(null);
 		i.onMessage = (source, msg) -> {
 			items.push(msg);
 		};

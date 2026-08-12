@@ -31,7 +31,7 @@ export {
     borogove_Hash as Hash,
     borogove_Html as Html,
     borogove_Identicon as Identicon,
-    borogove_Import as Import,
+    borogove_Importer as Importer,
     borogove_LinkMetadata as LinkMetadata,
     borogove_Notification as Notification,
     borogove_Member as Member,

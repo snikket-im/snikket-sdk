@@ -18,7 +18,7 @@ borogove.Version
 borogove.persistence.Sqlite
 borogove.persistence.MediaStoreFS
 borogove.Html
-borogove.Import
+borogove.Importer
 
 --macro borogove.Util.DummyRequireMacro.init()
 -D analyzer-optimize

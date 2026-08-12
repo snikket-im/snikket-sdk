@@ -21,7 +21,7 @@ class TestAll {
 			new TestClient(),
 			new TestEmojiUtil(),
 			new TestHtml(),
-			new TestImport(),
+			new TestImporter(),
 			new TestJID(),
 			new TestMember(),
 			new TestMemberUpdate(),

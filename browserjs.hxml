@@ -16,7 +16,7 @@ borogove.Push
 borogove.Version
 borogove.persistence.Sqlite
 borogove.Html
-borogove.Import
+borogove.Importer
 
 -D analyzer-optimize
 -D js-es=6

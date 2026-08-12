@@ -7,7 +7,7 @@ import borogove.Chat;
 
 @:expose
 @:access(Xml)
-class Import {
+class Importer {
 	private final p: Sax;
 	private final targetAccount: Null<String>;
 	private var sortA: String;
