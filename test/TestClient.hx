@@ -761,6 +761,32 @@ class TestClient extends utest.Test {
 		);
 	}
 
+	public function testStartChatWith(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "room@example.com");
+		client.chats.push(chat);
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "get") {
+				final stanza = Stanza.parse('<iq from="room@example.com" type="result" id="${stanza.attr.get("id")}" xmlns="jabber:client">
+					<query xmlns="http://jabber.org/protocol/disco#info">
+						<identity category="conference" type="text" name="Cool chatroom" />
+						<feature var="http://jabber.org/protocol/muc" />
+					</query>
+				</iq>');
+
+				client.stream.onStanza(stanza);
+			}
+			return EventHandled;
+		});
+
+		client.startChatWith("room@example.com", _->Open, _->{
+			Assert.equals(1, client.chats.length);
+			async.done();
+		});
+	}
+
 #if js
 	public function testPreferOMEMO() {
 		final persistence = new Dummy();

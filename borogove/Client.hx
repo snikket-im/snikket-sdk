@@ -2075,11 +2075,17 @@ class Client extends EventEmitter {
 			} else {
 				final cachedCaps = capsRepo.add(resultCaps);
 				if (cachedCaps.isChannel(jid)) {
-					final chat = new Channel(this, this.stream, this.persistence, jid, uiState, false, false, null, cachedCaps);
-					chat.setupNotifications();
-					chats.unshift(chat);
-					chatsIndex[chat.chatId] = chat;
-					if (inSync && sendAvailable) chat.selfPing(false);
+					final existing = getChat(jid);
+					final chat = if (existing == null) {
+						final channel = new Channel(this, this.stream, this.persistence, jid, uiState, false, false, null, cachedCaps);
+						channel.setupNotifications();
+						if (inSync && sendAvailable) channel.selfPing(false);
+						chatsIndex[channel.chatId] = channel;
+						chats.unshift(channel);
+						channel;
+					} else {
+						existing;
+					}
 					handleChat(chat);
 					persistence.storeChats(accountId(), [chat]);
 					this.trigger("chats/update", [chat]);
