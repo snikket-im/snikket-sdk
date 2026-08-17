@@ -755,6 +755,38 @@ class Client extends EventEmitter {
 			}
 			trace("pubsubNode == "+pubsubNode);
 
+			if (isOwnAccount && pubsubNode == "urn:xmpp:bookmarks:1" && pubsubEvent.getItems().length > 0) {
+				final chatsToUpdate = [];
+				for (item in pubsubEvent.getItems()) {
+					if (item.attr.get("id") != null) {
+						final chat = getChat(item.attr.get("id"));
+						if (chat == null) {
+							startChatWith(
+								item.attr.get("id"),
+								(caps) -> {
+									if (caps == null) return Open;
+
+									final identity = caps.identities[0];
+									final conf = item.getChild("conference", "urn:xmpp:bookmarks:1");
+									if (conf.attr.get("name") == null) {
+										conf.attr.set("name", identity?.name);
+									}
+									return (conf.attr.get("autojoin") == "1" || conf.attr.get("autojoin") == "true" || !caps.isChannel(item.attr.get("id"))) ? Open : Closed;
+								},
+								(chat) -> {
+									chat.updateFromBookmark(item);
+								}
+							);
+						} else {
+							chat.updateFromBookmark(item);
+							chatsToUpdate.push(chat);
+						}
+					}
+				}
+				persistence.storeChats(accountId(), chatsToUpdate);
+				this.trigger("chats/update", chatsToUpdate);
+			}
+
 #if !NO_OMEMO
 			if(pubsubNode == "eu.siacs.conversations.axolotl.devicelist" && omemo != null) {
 				if(isOwnAccount) {

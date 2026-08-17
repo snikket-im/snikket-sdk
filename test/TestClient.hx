@@ -215,6 +215,60 @@ class TestClient extends utest.Test {
 		Assert.equals("Test Name", client.displayName());
 	}
 
+	public function testUpdateExistingFromBookmark() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = new borogove.Chat.Channel(
+			client,
+			client.stream,
+			persistence,
+			"room@example.com"
+		);
+		client.chats.push(chat);
+
+		final stanza = new Stanza("message", { xmlns: "jabber:client", from: "test@example.com" })
+				.tag("event", { xmlns: "http://jabber.org/protocol/pubsub#event" })
+				.tag("items", { node: "urn:xmpp:bookmarks:1" })
+				.tag("item", { id: "room@example.com" })
+				.tag("conference", { xmlns: "urn:xmpp:bookmarks:1" })
+				.tag("extensions")
+				.textTag("group", "mboa", { xmlns: "jabber:iq:roster" });
+
+		client.stream.onStanza(stanza);
+
+		Assert.equals(1, client.getChat("room@example.com").getTags().length);
+		Assert.equals("mboa", client.getChat("room@example.com").getTags()[0]);
+	}
+
+	public function testCreateNewFromBookmark(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+
+		final stanza = new Stanza("message", { xmlns: "jabber:client", from: "test@example.com" })
+				.tag("event", { xmlns: "http://jabber.org/protocol/pubsub#event" })
+				.tag("items", { node: "urn:xmpp:bookmarks:1" })
+				.tag("item", { id: "room@example.com" })
+				.tag("conference", { xmlns: "urn:xmpp:bookmarks:1" })
+				.tag("extensions")
+				.textTag("group", "mboa", { xmlns: "jabber:iq:roster" });
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.findChild("{http://jabber.org/protocol/disco#info}query") != null) {
+				client.stream.onStanza(
+					new Stanza("iq", { type: "result", to: "room@example.com", id: stanza.attr.get("id"), from: "stranger@example.com", xmlns: "jabber:client" })
+						.tag("query", { xmlns: "http://jabber.org/protocol/disco#info" })
+						.tag("identity", { category: "conference", type: "text" })
+				);
+			}
+			Assert.equals(1, client.getChat("room@example.com").getTags().length);
+			Assert.equals("mboa", client.getChat("room@example.com").getTags()[0]);
+			async.done();
+			return EventHandled;
+		});
+
+		client.stream.onStanza(stanza);
+	}
+
 	public function testSortAfterDirectChat() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
