@@ -22,5 +22,5 @@
 -w -WDeprecated
 --js .cache/test.js
 
---cmd npx cjstoesm -s true .cache/test.js
+--cmd npx -p typescript@6 -p cjstoesm cjstoesm -s true .cache/test.js
 --cmd nodejs --disable-warning=ExperimentalWarning .cache/test.js

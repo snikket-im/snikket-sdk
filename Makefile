@@ -1,4 +1,5 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
+CJSTOESM=npx -p typescript@6 -p cjstoesm cjstoesm
 
 .PHONY: all test doc hx-build-dep cpp/libborogove.dso npm/borogove-browser.js npm/borogove.js cpp playwright ci
 
@@ -36,7 +37,7 @@ npm/borogove-browser.js:
 	sed -i '/\$$hx_exports.*|| {};/d' npm/borogove-browser.js
 	sed -i 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove-browser.js
 	sed -i 's/"\[Symbol.asyncIterator\]"() {/[Symbol.asyncIterator]() {/g' npm/borogove-browser.js
-	cd npm && npx cjstoesm borogove-browser.js
+	cd npm && $(CJSTOESM) borogove-browser.js
 	sed -i 's/import crypto from "crypto";//g' npm/borogove-browser.js
 	awk -f optional-sqlite.awk npm/borogove-browser.js
 	mv npm/browser-no-sqlite.js npm/borogove-browser.js
@@ -52,7 +53,7 @@ npm/borogove.js:
 	sed -i 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove.js
 	sed -i 's/"\[Symbol.asyncIterator\]"() {/[Symbol.asyncIterator]() {/g' npm/borogove.js
 	echo "export { FractionalIndexing_between, FractionalIndexing_BASE_95_DIGITS }" >> npm/borogove.js
-	cd npm && npx cjstoesm borogove.js
+	cd npm && $(CJSTOESM) borogove.js
 	printf "\nexport class borogove_Presence {}\n" >> npm/borogove.d.ts
 
 npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogove/persistence/MediaStoreCache.js borogove/persistence/sqlite-worker1.mjs
