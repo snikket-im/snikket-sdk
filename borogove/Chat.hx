@@ -699,6 +699,18 @@ abstract class Chat extends EventEmitter {
 		return extensions.allTags("group", "jabber:iq:roster").map(g -> g.getText());
 	}
 
+	/**
+		Set tags on this Chat
+
+		@param tags The tags to set
+	 **/
+	public function setTags(tags: Array<String>) {
+		extensions.removeChildren("group", "jabber:iq:roster");
+		for (tag in tags) {
+			extensions.textTag("group", tag, { xmlns: "jabber:iq:roster" });
+		}
+	}
+
 	@:allow(borogove)
 	private function setThreadSubject(threadId: String, subject: String) {
 		this.threads.set(threadId, subject);
@@ -1394,11 +1406,18 @@ class DirectChat extends Chat {
 		if (displayName != null && displayName != "" && displayName != chatId) {
 			attr["name"] = displayName;
 		}
-		stream.sendIq(
-			new Stanza("iq", { type: "set" })
+		final stanza = new Stanza("iq", { type: "set" })
 				.tag("query", { xmlns: "jabber:iq:roster" })
-				.tag("item", attr)
-				.up().up(),
+				.tag("item", attr);
+
+		for (extension in extensions.allTags()) {
+			if (extension.name == "group" && extension.attr.get("xmlns") == "jabber:iq:roster") {
+				stanza.addChild(extension);
+			}
+		}
+
+		stream.sendIq(
+			stanza,
 			(response) -> {
 				if (response.attr.get("type") == "error") return;
 				stream.sendStanza(new Stanza("presence", { to: chatId, type: "subscribe", id: ID.unique() }));

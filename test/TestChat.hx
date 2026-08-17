@@ -17,6 +17,44 @@ import thenshim.Promise;
 
 @:access(borogove)
 class TestChat extends utest.Test {
+	public function testSetTags() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("friend@example.com");
+
+		chat.setTags(["friends", "work"]);
+		Assert.same(["friends", "work"], chat.getTags());
+
+		chat.setTags(["family"]);
+		Assert.same(["family"], chat.getTags());
+	}
+
+	public function testDirectChatBookmarkIncludesTags(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("friend@example.com");
+		chat.setTags(["friends", "work"]);
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
+				final query = stanza.getChild("query", "jabber:iq:roster");
+				Assert.notNull(query);
+
+				final item = query.getChild("item");
+				Assert.equals("friend@example.com", item.attr.get("jid"));
+				Assert.same(
+					["friends", "work"],
+					item.allTags("group", "jabber:iq:roster").map(group -> group.getText())
+				);
+				async.done();
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		chat.bookmark();
+	}
+
 	public function testGetMessagesBeforeNull(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
