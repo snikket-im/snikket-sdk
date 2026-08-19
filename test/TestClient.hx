@@ -445,8 +445,8 @@ class TestClient extends utest.Test {
 		final client = new Client("test@example.com", persistence);
 		client.getDirectChat("friend@example.com");
 
-		client.addUserStateListener((senderId, chatId, threadId, userState) -> {
-			Assert.equals("friend@example.com", senderId);
+		client.addUserStateListener((member, chatId, threadId, userState) -> {
+			Assert.equals("friend@example.com", member.id);
 			Assert.equals("friend@example.com", chatId);
 			Assert.isNull(threadId);
 			Assert.equals(UserState.Composing, userState);

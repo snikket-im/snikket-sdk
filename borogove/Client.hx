@@ -649,7 +649,7 @@ class Client extends EventEmitter {
 			chat.getMemberDetails([message.senderId]).then(members -> {
 				if (members.length > 0 && members[0].isSelf) return;
 
-				this.trigger("chat-state/update", { message: message, userState: userState });
+				this.trigger("chat-state/update", { message: message, userState: userState, member: members[0] });
 			});
 		}
 
@@ -1607,13 +1607,13 @@ class Client extends EventEmitter {
 	/**
 		Event fired when another participant changes state (such as typing/not typing)
 
-		@param handler takes sender ID, Chat ID, thread ID, and the new user state
+		@param handler takes sender, Chat ID, thread ID, and the new user state
 		@returns token for use with removeEventListener
 	**/
 	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
-	public function addUserStateListener(handler: (String,String,Null<String>,UserState)->Void):EventHandlerToken {
+	public function addUserStateListener(handler: (Member,String,Null<String>,UserState)->Void):EventHandlerToken {
 		return this.on("chat-state/update", (data) -> {
-			handler(data.message.senderId, data.message.chatId, data.message.threadId, data.userState);
+			handler(data.member, data.message.chatId, data.message.threadId, data.userState);
 			return EventHandled;
 		});
 	}
