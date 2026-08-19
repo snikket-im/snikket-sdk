@@ -982,7 +982,7 @@ class HaxeSwiftBridge {
 		return code('
 			import c_' + libName + '
 
-			public func setup(_ handler: @convention(c) @escaping (UnsafePointer<CChar>?)->Void) {
+			public func setup(_ handler: @convention(c) @escaping @Sendable (UnsafePointer<CChar>?)->Void) {
 				c_' + libName + '.' + libName + '_setup(handler)
 			}
 
