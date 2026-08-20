@@ -32,29 +32,31 @@ hx-build-dep:
 
 npm/borogove-browser.js:
 	haxe browserjs.hxml
-	sed -i 's/ implements haxe_IMap<K,V>//g' npm/borogove-browser.d.ts
-	sed -i '/;var $$hx_exports = typeof exports != "undefined" ? exports : globalThis;/d' npm/borogove-browser.js
-	sed -i '/\$$hx_exports.*|| {};/d' npm/borogove-browser.js
-	sed -i 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove-browser.js
-	sed -i 's/"\[Symbol.asyncIterator\]"() {/[Symbol.asyncIterator]() {/g' npm/borogove-browser.js
+	sed -i.bak 's/ implements haxe_IMap<K,V>//g' npm/borogove-browser.d.ts
+	sed -i.bak '/;var $$hx_exports = typeof exports != "undefined" ? exports : globalThis;/d' npm/borogove-browser.js
+	sed -i.bak '/\$$hx_exports.*|| {};/d' npm/borogove-browser.js
+	sed -i.bak 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove-browser.js
+	sed -i.bak 's/"\[Symbol.asyncIterator\]"() {/[Symbol.asyncIterator]() {/g' npm/borogove-browser.js
 	cd npm && $(CJSTOESM) borogove-browser.js
-	sed -i 's/import crypto from "crypto";//g' npm/borogove-browser.js
+	sed -i.bak 's/import crypto from "crypto";//g' npm/borogove-browser.js
 	awk -f optional-sqlite.awk npm/borogove-browser.js
 	mv npm/browser-no-sqlite.js npm/borogove-browser.js
 	awk -f optional-sqlite-types.awk npm/borogove-browser.d.ts
 	mv npm/no-sqlite.d.ts npm/borogove-browser.d.ts
 	printf "\nexport class borogove_Presence {}\n" >> npm/borogove-browser.d.ts
+	$(RM) npm/*.bak
 
 npm/borogove.js:
 	haxe nodejs.hxml
-	sed -i 's/ implements haxe_IMap<K,V>//g' npm/borogove.d.ts
-	sed -i '/;var $$hx_exports = typeof exports != "undefined" ? exports : globalThis;/d' npm/borogove.js
-	sed -i '/\$$hx_exports.*|| {};/d' npm/borogove.js
-	sed -i 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove.js
-	sed -i 's/"\[Symbol.asyncIterator\]"() {/[Symbol.asyncIterator]() {/g' npm/borogove.js
+	sed -i.bak 's/ implements haxe_IMap<K,V>//g' npm/borogove.d.ts
+	sed -i.bak '/;var $$hx_exports = typeof exports != "undefined" ? exports : globalThis;/d' npm/borogove.js
+	sed -i.bak '/\$$hx_exports.*|| {};/d' npm/borogove.js
+	sed -i.bak 's/^$$hx_exports[^=]*=\(.*\);$$/export {\1 };/g' npm/borogove.js
+	sed -i.bak 's/"\[Symbol.asyncIterator\]"() {/[Symbol.asyncIterator]() {/g' npm/borogove.js
 	echo "export { FractionalIndexing_between, FractionalIndexing_BASE_95_DIGITS }" >> npm/borogove.js
 	cd npm && $(CJSTOESM) borogove.js
 	printf "\nexport class borogove_Presence {}\n" >> npm/borogove.d.ts
+	$(RM) npm/*.bak
 
 npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogove/persistence/MediaStoreCache.js borogove/persistence/sqlite-worker1.mjs
 	cp borogove/persistence/IDB.js npm
@@ -70,14 +72,16 @@ playwright/.cache/borogove.js: npm
 
 playwright/.cache/sqlite-wasm.js: npm
 	cd npm && esbuild sqlite-wasm.js --bundle --format=esm "--alias:node:dns=@xmpp/resolve" "--footer:js=export { borogove_Channel as Channel }"  --outfile=../$@
-	sed -i 's/new URL("sqlite-worker1.mjs", import.meta.url)/window.sqliteWorker1Url/g' $@
+	sed -i.bak 's/new URL("sqlite-worker1.mjs", import.meta.url)/window.sqliteWorker1Url/g' $@
+	$(RM) $@.bak
 
 playwright/.cache/sqlite-worker1.js: npm
 	esbuild npm/sqlite-worker1.mjs --bundle --format=esm --outfile=$@.mjs
-	sed -i '1iimport importedWasm from "@sqlite.org\\/sqlite-wasm/sqlite3.wasm";' $@.mjs
-	sed -i 's/new URL("sqlite3.wasm", import.meta.url).href/importedWasm/' $@.mjs
+	awk 'BEGIN { print "import importedWasm from \"@sqlite.org/sqlite-wasm/sqlite3.wasm\";" } { print }' $@.mjs > $@.mjs.tmp && mv $@.mjs.tmp $@.mjs
+	sed -i.bak 's/new URL("sqlite3.wasm", import.meta.url).href/importedWasm/' $@.mjs
 	esbuild $@.mjs --bundle --format=esm --loader:.wasm=dataurl --outfile=$@
 	$(RM) $@.mjs
+	$(RM) $@.mjs.bak
 
 playwright: playwright/.cache/borogove.js playwright/.cache/sqlite-wasm.js playwright/.cache/sqlite-worker1.js
 	npx playwright test
@@ -145,7 +149,8 @@ doc:
 	npx @microsoft/api-extractor run -c npm/api-extractor.json || true
 	npx @microsoft/api-documenter markdown -i tmp -o docs/js/
 	rm -r tmp
-	find docs/js/ -name '*.md' -exec sed -i 's/<\([[:alpha:]][[:alpha:]]*\)/<\1 markdown="1"/g' \{\} \;
+	find docs/js/ -name '*.md' -exec sed -i.bak 's/<\([[:alpha:]][[:alpha:]]*\)/<\1 markdown="1"/g' \{\} \;
+	find docs/js/ -name '*.bak' -exec $(RM) {} \;
 	git checkout docs/js/index.md
 	mkdocs build
 	haxe haxedoc.hxml
