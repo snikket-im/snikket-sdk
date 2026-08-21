@@ -9,6 +9,7 @@ using StringTools;
 
 import borogove.FSM;
 import borogove.GenericStream;
+import borogove.ID;
 import borogove.Stanza;
 import borogove.Util;
 
@@ -46,7 +47,8 @@ extern class XmppJsClient {
 	};
 	var saslFactory: Dynamic;
 	var fast: {
-		saveToken: ({ token: String, expiry: String, mechanism: String })->Promise<Any>
+		saveToken: ({ token: String, expiry: String, mechanism: String })->Promise<Any>,
+		deleteToken: ()->Promise<Any>
 	};
 }
 
@@ -243,6 +245,7 @@ class XmppJsStream extends GenericStream {
 		});
 
 		final clientId = jid.resource;
+		var credentials: Dynamic = null;
 		final xmpp = new XmppJsClient({
 			service: jid.domain,
 			resource: jid.resource,
@@ -267,12 +270,26 @@ class XmppJsStream extends GenericStream {
 							creds = { password: null, fastCount: null, username: jid.local, token: { token: "fail", mechanism: creds.mechanism }, mechanism: null };
 						}
 					}
+					credentials = creds;
 					return callback(creds, creds.mechanism ?? mech, new XmppJsXml("user-agent", { id: clientId }));
 				});
 			}
 		});
 		new XmppJsScramSha1(xmpp.saslFactory);
 		xmpp.jid = this.jid;
+		// As of writing, xmpp.js will fall back to SASL
+		// even if password is absent or empty, which crashes irrecoverably
+		// when that empty-or-null password is passed to HMAC.
+		// So we set it to some random nonsense, since recovery from a bad
+		// password works.
+		xmpp.fast.deleteToken = () -> {
+			if (credentials.password == null || credentials.password == "") {
+				credentials.password = ID.unique();
+			}
+			credentials.token = null;
+			this.trigger("fast-token", { token: null });
+			return Promise.resolve(null);
+		};
 
 		xmpp.streamFeatures.use("csi", "urn:xmpp:csi:0", (ctx, next, feature) -> {
 			csi = true;
