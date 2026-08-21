@@ -121,7 +121,6 @@ class Client extends EventEmitter {
 	private var rosterVer: Null<String> = null;
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
 	private final brokenAvatars: Map<String, JID> = [];
-
 #if !NO_OMEMO
 	@:allow(borogove)
 	private final omemo: OMEMO;
@@ -1217,6 +1216,9 @@ class Client extends EventEmitter {
 		@param source The AttachmentSource to use
 		@param encrypt Should the data be encrypted with a fresh key?
 		@returns Promise resolving to a ChatAttachment
+		@throws AttachmentUploadError when no upload service is available or all
+			discovered services fail. Inspect `code` and, for
+			`all-services-failed`, the per-service `failures`.
 	**/
 	public function prepareAttachment(source: AttachmentSource, encrypt: Bool = true): Promise<ChatAttachment> {
 		return persistence.findServicesWithFeature(accountId(), "urn:xmpp:http:upload:0").then((services) -> {
@@ -1252,31 +1254,99 @@ class Client extends EventEmitter {
 		});
 	}
 
-	private function prepareAttachmentFor(source: tink.io.Source.RealSource, name: String, size: Int, mime: String, services: Array<{ serviceId: String }>): Promise<String> {
+	private function prepareAttachmentFor(source: tink.io.Source.RealSource, name: String, size: Int, mime: String, services: Array<{ serviceId: String }>, ?httpClient: tink.http.Client.ClientObject): Promise<String> {
 		if (services.length < 1) {
 			trace("No HTTP upload service found");
-			return Promise.reject("failed");
+			return Promise.reject(new AttachmentUploadError(
+				NoService,
+				"No HTTP Upload service was discovered"
+			));
 		}
-		final httpUploadSlot = new HttpUploadSlot(services[0].serviceId, name, size, mime);
+		final serviceId = services[0].serviceId;
+		final httpUploadSlot = new HttpUploadSlot(serviceId, name, size, mime);
 		return new Promise((resolve, reject) -> {
 			httpUploadSlot.onFinished(() -> {
 				final slot = httpUploadSlot.getResult();
 				if (slot == null) {
-					prepareAttachmentFor(source, name, size, mime, services.slice(1)).then(resolve, reject);
+					tryNextAttachmentService(source, name, size, mime, services, new AttachmentUploadError(
+						InvalidSlot,
+						"HTTP Upload service returned an invalid or missing upload slot",
+						serviceId
+					), httpClient).then(resolve, reject);
 				} else {
-					tink.http.Client.fetch( slot.put, {
-						method: PUT,
-						headers: slot.putHeaders.concat([new tink.http.Header.HeaderField("Content-Length", size)]),
-						body: tink.io.Source.RealSourceTools.idealize(source, (e) -> { reject(e); throw e; })
-					}).all().handle((o) -> switch o {
-						case Success(res) if (res.header.statusCode == 201):
+					putAttachment(slot.put, slot.putHeaders, source, size, httpClient).then(statusCode -> {
+						if (statusCode == 201) {
 							resolve(slot.get);
-						default:
-							prepareAttachmentFor(source, name, size, mime, services.slice(1)).then(resolve, reject);
+						} else {
+							tryNextAttachmentService(source, name, size, mime, services, new AttachmentUploadError(
+								HttpFailure,
+								"HTTP Upload PUT failed with status " + statusCode,
+								serviceId,
+								statusCode
+							), httpClient).then(resolve, reject);
+						}
+					}, e -> {
+						tryNextAttachmentService(source, name, size, mime, services, new AttachmentUploadError(
+								NetworkFailure,
+								"HTTP Upload PUT request failed",
+								serviceId,
+								null,
+								e
+							), httpClient).then(resolve, reject);
 					});
 				}
 			});
 			sendQuery(httpUploadSlot);
+		});
+	}
+
+	private function putAttachment(url: String, headers: Array<tink.http.Header.HeaderField>, source: tink.io.Source.RealSource, size: Int, ?httpClient: tink.http.Client.ClientObject): Promise<Int> {
+		return new Promise((resolve, reject) -> {
+			tink.http.Client.fetch(url, {
+				method: PUT,
+				headers: headers.concat([new tink.http.Header.HeaderField("Content-Length", size)]),
+				body: tink.io.Source.RealSourceTools.idealize(source, (e) -> throw e),
+				client: httpClient == null ? null : Custom(httpClient)
+			}).handle(o -> switch o {
+				case Success(res):
+					tink.io.Source.RealSourceTools.all(res.body).handle(body -> switch body {
+						case Success(_): resolve(cast res.header.statusCode);
+						case Failure(e): reject(e);
+					});
+				case Failure(e): reject(e);
+			});
+		});
+	}
+
+	private function tryNextAttachmentService(source: tink.io.Source.RealSource, name: String, size: Int, mime: String, services: Array<{ serviceId: String }>, failure: AttachmentUploadError, ?httpClient: tink.http.Client.ClientObject): Promise<String> {
+		final remaining = services.slice(1);
+		if (remaining.length < 1) {
+			return Promise.reject(new AttachmentUploadError(
+				AllServicesFailed,
+				"All discovered HTTP Upload services failed",
+				null,
+				null,
+				failure.cause,
+				[failure]
+			));
+		}
+
+		return prepareAttachmentFor(source, name, size, mime, remaining, httpClient).then(result -> result, e -> {
+			final next = Std.isOfType(e, AttachmentUploadError) ? cast e : new AttachmentUploadError(
+				NetworkFailure,
+				"HTTP Upload request failed",
+				null,
+				null,
+				e
+			);
+			return Promise.reject(new AttachmentUploadError(
+				AllServicesFailed,
+				"All discovered HTTP Upload services failed",
+				null,
+				null,
+				next.cause,
+				[failure].concat(next.code == AllServicesFailed ? next.failures : [next])
+			));
 		});
 	}
 

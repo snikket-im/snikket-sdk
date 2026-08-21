@@ -12,6 +12,8 @@
 --library uuidv7
 
 borogove.Client
+borogove.AttachmentUploadError
+borogove.AttachmentUploadErrorCode
 borogove.Register
 borogove.Push
 borogove.Version

@@ -1,4 +1,5 @@
 export {
+	borogove_AttachmentUploadErrorCode as AttachmentUploadErrorCode,
 	borogove_ChatMessageEvent as ChatMessageEvent,
 	borogove_EncryptionStatus as EncryptionStatus,
 	borogove_MessageDirection as MessageDirection,
@@ -11,6 +12,7 @@ export {
 } from "./borogove-enums.js";
 export {
     borogove_AvailableChat as AvailableChat,
+    borogove_AttachmentUploadError as AttachmentUploadError,
     borogove_AvailableChatIterator as AvailableChatIterator,
     borogove_Channel as Channel,
     borogove_Chat as Chat,

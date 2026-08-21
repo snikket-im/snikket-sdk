@@ -18,6 +18,11 @@ import borogove.Stanza;
 import borogove.Status;
 import borogove.persistence.Dummy;
 import borogove.Chat.OutgoingE2EEPreference;
+import borogove.AttachmentUploadError;
+import borogove.AttachmentUploadErrorCode;
+#if !NO_OMEMO
+import borogove.XEP0454.put;
+#end
 
 using Lambda;
 
@@ -93,6 +98,130 @@ class TestClient extends utest.Test {
 		final client = new Client("test@example.com", persistence);
 		Assert.equals("test@example.com", client.accountId());
 	}
+
+	@:timeout(3000)
+	public function testPrepareAttachmentNoUploadService(async: Async) {
+		final client = new Client("test@example.com", new Dummy());
+		client.prepareAttachmentFor(("body" : tink.io.Source.RealSource), "file", 4, "text/plain", [])
+			.then(_ -> { Assert.fail("expected upload to fail"); return null; }, e -> {
+				final error: AttachmentUploadError = cast e;
+				Assert.equals(NoService, error.code);
+				async.done();
+				return null;
+			});
+	}
+
+	@:timeout(3000)
+	public function testPrepareAttachmentRejectsMalformedSlot(async: Async) {
+		final client = new Client("test@example.com", new Dummy());
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.getChild("request", "urn:xmpp:http:upload:0") != null) {
+				client.stream.onStanza(new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id") }));
+			}
+			return EventHandled;
+		});
+		client.prepareAttachmentFor(("body" : tink.io.Source.RealSource), "file", 4, "text/plain", [{ serviceId: "upload.example.com" }])
+			.then(_ -> { Assert.fail("expected upload to fail"); return null; }, e -> {
+				final error: AttachmentUploadError = cast e;
+				Assert.equals(AllServicesFailed, error.code);
+				Assert.equals(InvalidSlot, error.failures[0].code);
+				async.done();
+				return null;
+			});
+	}
+
+	@:timeout(3000)
+	public function testPrepareAttachmentFallsBackAfterHttpFailure(async: Async) {
+		var putCount = 0;
+		final http = new FakeHttpClient(_ -> FakeHttpClient.response(++putCount == 1 ? 500 : 201));
+		final client = new Client("test@example.com", new Dummy());
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			final request = stanza.getChild("request", "urn:xmpp:http:upload:0");
+			if (request != null) {
+				final service = stanza.attr.get("to");
+				client.stream.onStanza(new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id") })
+					.tag("slot", { xmlns: "urn:xmpp:http:upload:0" })
+						.tag("put", { url: "http://" + service + "/put" }).up()
+						.tag("get", { url: "https://" + service + "/get" }).up()
+					.up());
+			}
+			return EventHandled;
+		});
+		client.prepareAttachmentFor(("body" : tink.io.Source.RealSource), "file", 4, "text/plain", [{ serviceId: "first" }, { serviceId: "second" }], http)
+			.then(url -> {
+				Assert.equals("https://second/get", url);
+				async.done();
+				return null;
+			}, e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+				return null;
+			});
+	}
+
+	@:timeout(3000)
+	public function testPrepareAttachmentReportsHttpFailure(async: Async) {
+		final http = new FakeHttpClient(_ -> FakeHttpClient.response(503));
+		final client = new Client("test@example.com", new Dummy());
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.getChild("request", "urn:xmpp:http:upload:0") != null) {
+				client.stream.onStanza(new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id") })
+					.tag("slot", { xmlns: "urn:xmpp:http:upload:0" })
+						.tag("put", { url: "http://upload.example.com/put" }).up()
+						.tag("get", { url: "https://upload.example.com/get" }).up()
+					.up());
+			}
+			return EventHandled;
+		});
+		client.prepareAttachmentFor(("body" : tink.io.Source.RealSource), "file", 4, "text/plain", [{ serviceId: "upload.example.com" }], http)
+			.then(_ -> { Assert.fail("expected upload to fail"); return null; }, e -> {
+				final error: AttachmentUploadError = cast e;
+				Assert.equals(AllServicesFailed, error.code);
+				Assert.equals(HttpFailure, error.failures[0].code);
+				Assert.equals(503, error.failures[0].statusCode);
+				async.done();
+				return null;
+			});
+	}
+
+	@:timeout(3000)
+	public function testPrepareAttachmentReportsNetworkFailure(async: Async) {
+		final bodyFailure = new tink.core.Error("body failed");
+		final http = new FakeHttpClient(_ -> FakeHttpClient.bodyFailure(bodyFailure));
+		final client = new Client("test@example.com", new Dummy());
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.getChild("request", "urn:xmpp:http:upload:0") != null) {
+				client.stream.onStanza(new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id") })
+					.tag("slot", { xmlns: "urn:xmpp:http:upload:0" })
+						.tag("put", { url: "http://upload.example.com/put" }).up()
+						.tag("get", { url: "https://upload.example.com/get" }).up()
+					.up());
+			}
+			return EventHandled;
+		});
+		client.prepareAttachmentFor(("body" : tink.io.Source.RealSource), "file", 4, "text/plain", [{ serviceId: "upload.example.com" }], http)
+			.then(_ -> { Assert.fail("expected upload to fail"); return null; }, e -> {
+				final error: AttachmentUploadError = cast e;
+				Assert.equals(AllServicesFailed, error.code);
+				Assert.equals(NetworkFailure, error.failures[0].code);
+				Assert.equals(bodyFailure, error.failures[0].cause);
+				async.done();
+				return null;
+			});
+	}
+
+	#if !NO_OMEMO
+	@:timeout(3000)
+	public function testEncryptedAttachmentPreservesUploadError(async: Async) {
+		final uploadError = new AttachmentUploadError(HttpFailure, "upload failed", "upload.example.com", 503);
+		put(("body" : tink.io.Source.RealSource), (_, _) -> Promise.reject(uploadError))
+			.then(_ -> { Assert.fail("expected encryption upload to fail"); return null; }, e -> {
+				Assert.isTrue(e == uploadError);
+				async.done();
+				return null;
+			});
+	}
+	#end
 
 	public function testModerateMessage(async: Async) {
 		final persistence = new MessageMockPersistence();
