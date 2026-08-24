@@ -14,6 +14,7 @@ ci: test playwright
 	haxe testcpp.hxml
 
 hx-build-dep:
+	haxelib --quiet git crypto https://github.com/HaxeFoundation/crypto
 	haxelib --quiet git hxtsdgen https://github.com/singpolyma/hxtsdgen
 	haxelib --quiet git jsImport https://github.com/back2dos/jsImport
 	haxelib --quiet install HtmlParser
