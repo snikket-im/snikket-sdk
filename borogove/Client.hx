@@ -1081,7 +1081,8 @@ class Client extends EventEmitter {
 				for (chat in getChats()) {
 					final channel = Std.downcast(chat, Channel);
 					if (channel != null) {
-						channel.inSync = true;
+						channel.inSync = channel.self != null;
+						if (!channel.inSync) channel.join();
 					}
 				}
 			}
