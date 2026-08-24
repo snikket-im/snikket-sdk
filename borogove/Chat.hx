@@ -217,6 +217,12 @@ abstract class Chat extends EventEmitter {
 	abstract public function getMessagesAround(around: ChatMessage):Promise<Array<ChatMessage>>;
 
 	private function fetchFromSync(sync: MessageSync): Promise<Array<ChatMessage>> {
+		// If we are already syncing, don't do this
+		// it would cause ordering overlap issues
+		if (inMessageSync()) {
+			return Promise.resolve([]);
+		}
+
 		return new thenshim.Promise((resolve, reject) -> {
 			sync.onMessages((messageList) -> {
 				final chatMessages = [];
@@ -757,6 +763,10 @@ abstract class Chat extends EventEmitter {
 		@returns if this chat is currently syncing with the server
 	**/
 	public function syncing() {
+		return !client.inSync;
+	}
+
+	private function inMessageSync() {
 		return !client.inSync;
 	}
 
@@ -2019,6 +2029,10 @@ class Channel extends Chat {
 		if (joinFailed != null) return false;
 
 		return sync != null || !livePresence();
+	}
+
+	override private function inMessageSync() {
+		return sync != null;
 	}
 
 	override private function setLastMessage(message:Null<ChatMessage>) {

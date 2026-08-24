@@ -58,6 +58,7 @@ class TestChat extends utest.Test {
 	public function testGetMessagesBeforeNull(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
+		client.inSync = true;
 		final chat = client.getDirectChat("friend@example.com");
 
 		client.stream.on("sendStanza", (stanza: Stanza) -> {
@@ -80,6 +81,7 @@ class TestChat extends utest.Test {
 	public function testGetMessagesBefore(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
+		client.inSync = true;
 		final chat = client.getDirectChat("friend@example.com");
 		final builder = new ChatMessageBuilder();
 		builder.serverId = "msg123";
@@ -110,6 +112,7 @@ class TestChat extends utest.Test {
 	public function testGetMessagesAfterNull(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
+		client.inSync = true;
 		final chat = client.getDirectChat("friend@example.com");
 
 		client.stream.on("sendStanza", (stanza: Stanza) -> {
@@ -129,6 +132,7 @@ class TestChat extends utest.Test {
 	public function testGetMessagesAfter(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
+		client.inSync = true;
 		final chat = client.getDirectChat("friend@example.com");
 		final builder = new ChatMessageBuilder();
 		builder.serverId = "msg456";
@@ -159,6 +163,7 @@ class TestChat extends utest.Test {
 	public function testGetMessagesBeforeNullChannel(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
+		client.inSync = true;
 		final chat = new borogove.Chat.Channel(client, client.stream, persistence, "channel@example.com");
 
 		client.stream.on("sendStanza", (stanza: Stanza) -> {
