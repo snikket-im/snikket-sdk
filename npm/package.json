@@ -35,7 +35,7 @@
     }
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
+    "@playwright/test": "1.60.0",
     "@sqlite.org/sqlite-wasm": "^3.53.0-build1",
     "typescript": "^5.4.5"
   }
