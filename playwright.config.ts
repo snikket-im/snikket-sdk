@@ -17,7 +17,6 @@ export default defineConfig({
 	webServer: {
 		command: "node playwright/server.mjs",
 		url: "http://127.0.0.1:49276",
-		reuseExistingServer: !process.env.CI,
 	},
 	/* Run tests in files in parallel */
 	fullyParallel: true,

@@ -25,15 +25,13 @@ export const idbTest = base.extend<BrowserFixtures>({
 	borogove: async ({ page }, use) => {
 		const borogove = await page.evaluateHandle(() => window.borogove);
 		await use(borogove);
-		await borogove.dispose();
 	},
 	persistence: async ({ page, borogove }, use) => {
 		const persistence = await page.evaluateHandle(async (borogove) => {
 			const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
-			return await borogove.persistence.IDB("snikket", mediaStore);
+			return borogove.persistence.IDB("snikket", mediaStore);
 		}, borogove);
 		await use(persistence);
-		await persistence.dispose();
 	},
 });
 
@@ -45,12 +43,10 @@ export const sqliteTest = base.extend<SqliteFixtures>({
 	borogove: async ({ page }, use) => {
 		const borogove = await page.evaluateHandle(() => window.borogove);
 		await use(borogove);
-		await borogove.dispose();
 	},
 	sqlite: async ({ page }, use) => {
 		const sqlite = await page.evaluateHandle(() => window.sqlite);
 		await use(sqlite);
-		await sqlite.dispose();
 	},
 	persistence: async ({ page, borogove, sqlite }, use) => {
 		const persistence = await page.evaluateHandle(
@@ -62,7 +58,6 @@ export const sqliteTest = base.extend<SqliteFixtures>({
 			{ borogove, sqlite },
 		);
 		await use(persistence);
-		await persistence.dispose();
 	},
 });
 
