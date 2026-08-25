@@ -2,4 +2,4 @@ node_modules/
 npm/node_modules/
 site/
 .cache/
-playwright/
+playwright/.cache/
