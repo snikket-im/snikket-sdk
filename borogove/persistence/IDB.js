@@ -481,6 +481,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			cresult.continue();
 		}
 
+		membersForName?.sort((a, b) => a.displayName.localeCompare(b.displayName));
 		return [presence, membersForName];
 	};
 

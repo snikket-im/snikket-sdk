@@ -1,8 +1,11 @@
 import { test as base, expect, type JSHandle } from "@playwright/test";
+import type { borogove_persistence_Sqlite } from "../npm/sqlite-wasm";
 
 type BrowserFixtures = {
 	borogove: JSHandle<any>;
+	createChannel: JSHandle<any>;
 	persistence: JSHandle<any>;
+	storeIncompleteMember: JSHandle<any>;
 };
 
 type SqliteFixtures = BrowserFixtures & {
@@ -26,12 +29,49 @@ export const idbTest = base.extend<BrowserFixtures>({
 		const borogove = await page.evaluateHandle(() => window.borogove);
 		await use(borogove);
 	},
+	createChannel: async ({ page, borogove }, use) => {
+		const createChannel = await page.evaluateHandle(
+			(borogove) => (persistence, chatId) =>
+				new borogove.Channel(null, null, persistence, chatId),
+			borogove,
+		);
+		await use(createChannel);
+	},
 	persistence: async ({ page, borogove }, use) => {
 		const persistence = await page.evaluateHandle(async (borogove) => {
 			const mediaStore = await borogove.persistence.MediaStoreCache("snikket");
 			return borogove.persistence.IDB("snikket", mediaStore);
 		}, borogove);
 		await use(persistence);
+	},
+	storeIncompleteMember: async ({ page }, use) => {
+		const storeIncompleteMember = await page.evaluateHandle(
+			() => async (chatId) => {
+				const request = indexedDB.open("snikket");
+				const db = await new Promise<IDBDatabase>((resolve, reject) => {
+					request.onsuccess = () => resolve(request.result);
+					request.onerror = () => reject(request.error);
+				});
+				const transaction = db.transaction(["members"], "readwrite");
+				transaction.objectStore("members").put({
+					account: "alice@example.com",
+					chatId,
+					id: "room-members-7@example.com/incomplete",
+					displayName: "",
+					photoUri: null,
+					isSelf: 0,
+					chat: "",
+					roles: [],
+					presence: new Map(),
+					jid: "",
+				});
+				await new Promise((resolve, reject) => {
+					transaction.oncomplete = () => resolve(null);
+					transaction.onerror = () => reject(transaction.error);
+				});
+			},
+		);
+		await use(storeIncompleteMember);
 	},
 });
 
@@ -48,6 +88,14 @@ export const sqliteTest = base.extend<SqliteFixtures>({
 		const sqlite = await page.evaluateHandle(() => window.sqlite);
 		await use(sqlite);
 	},
+	createChannel: async ({ page, sqlite }, use) => {
+		const createChannel = await page.evaluateHandle(
+			(sqlite) => (persistence, chatId) =>
+				new sqlite.Channel(null, null, persistence, chatId),
+			sqlite,
+		);
+		await use(createChannel);
+	},
 	persistence: async ({ page, borogove, sqlite }, use) => {
 		const persistence = await page.evaluateHandle(
 			async ({ borogove, sqlite }) => {
@@ -57,7 +105,48 @@ export const sqliteTest = base.extend<SqliteFixtures>({
 			},
 			{ borogove, sqlite },
 		);
+		await page.evaluate((persistence: borogove_persistence_Sqlite) => {
+			// TODO: remove this wrapper
+			//
+			// storeChats is not currently awaitable. The Sqlite tests were adding
+			// manual delays that the IDB tests didn't need. I wanted to share the
+			// tests, so wrapping the implementation with a delay here lets me do
+			// that.
+			//
+			// Changing storeChats to return a Promise that could be awaited would
+			// be the better long term solution, but there's already a debounce
+			// thing in storeChats itself that maybe should be revisited and that
+			// seemed like a riskier change, so I went with this for now.
+			const storeChats = persistence.storeChats.bind(persistence);
+			persistence.storeChats = (...args) => {
+				storeChats(...args);
+				return new Promise((resolve) => setTimeout(resolve, 200));
+			};
+		}, persistence);
 		await use(persistence);
+	},
+	storeIncompleteMember: async ({ page, persistence }, use) => {
+		const storeIncompleteMember = await page.evaluateHandle(
+			(persistence) => async (chatId) => {
+				await persistence.db.exec(
+					"INSERT INTO members(account_id, chat_id, member_id, display_name, photo_uri, is_self, chat, roles, presence, jid) VALUES(?, ?, ?, ?, ?, ?, ?, jsonb(?), jsonb(?), ?)",
+					[
+						"alice@example.com",
+						chatId,
+						"room-members-7@example.com/incomplete",
+						"",
+						null,
+						0,
+						"{}",
+						"[]",
+						"{}",
+						"",
+					],
+				);
+			},
+			persistence,
+		);
+		await use(storeIncompleteMember);
 	},
 });
 
