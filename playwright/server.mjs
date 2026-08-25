@@ -52,4 +52,4 @@ function sendScript(response, asset) {
 	);
 }
 
-server.listen(49276, "127.0.0.1");
+server.listen(49276, ["::1", "127.0.0.1"]);
