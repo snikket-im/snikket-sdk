@@ -1,5 +1,4 @@
-import { test, expect } from "@playwright/test";
-import fs from "fs";
+import { sqliteTest as test, expect } from "./browser-test";
 
 test.describe("not webkit", () => {
 	test.skip(
@@ -7,44 +6,9 @@ test.describe("not webkit", () => {
 		"Skip on webkit because the version in playwright lacks OPFS",
 	);
 
-	test("1:1 come back ordered by sortId", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-				body: "<html></html>",
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("1:1 come back ordered by sortId", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const blob = new Blob([code], { type: "text/javascript" });
-				const borogove = await import(URL.createObjectURL(blob));
-
-				const sqliteBlob = new Blob([sqliteCode], { type: "text/javascript" });
-				const sqlite = await import(URL.createObjectURL(sqliteBlob));
-
-				const worker1Blob = new Blob([worker1Code], {
-					type: "text/javascript",
-				});
-				window.sqliteWorker1Url = new URL(URL.createObjectURL(worker1Blob));
-
-				const mediaStore =
-					await borogove.persistence.MediaStoreCache("snikket");
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					mediaStore,
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					serverId: "1",
 					serverIdBy: "alice@example.com",
@@ -84,7 +48,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.length).toBe(2);
@@ -94,44 +58,11 @@ test.describe("not webkit", () => {
 
 	test("getMessagesBefore the end: MUC come back ordered by sortId, PM by timestamp", async ({
 		page,
+		borogove,
+		persistence,
 	}) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					serverId: "1",
 					serverIdBy: "teaparty@example.com",
@@ -186,7 +117,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.length).toBe(3);
@@ -197,44 +128,11 @@ test.describe("not webkit", () => {
 
 	test("getMessagesBefore some point: MUC come back ordered by sortId, PM by timestamp", async ({
 		page,
+		borogove,
+		persistence,
 	}) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					serverId: "1",
 					serverIdBy: "teaparty@example.com",
@@ -304,7 +202,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.length).toBe(3);
@@ -313,44 +211,9 @@ test.describe("not webkit", () => {
 		expect(result[2].serverId).toBe("3");
 	});
 
-	test("getMessagesBefore a PM", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("getMessagesBefore a PM", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					serverId: "1",
 					serverIdBy: "teaparty@example.com",
@@ -420,7 +283,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.length).toBe(2);
@@ -430,44 +293,11 @@ test.describe("not webkit", () => {
 
 	test("getMessagesAfter the start: MUC come back ordered by sortId, PM by timestamp", async ({
 		page,
+		borogove,
+		persistence,
 	}) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					serverId: "1",
 					serverIdBy: "teaparty@example.com",
@@ -522,7 +352,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.length).toBe(3);
@@ -533,44 +363,11 @@ test.describe("not webkit", () => {
 
 	test("getMessagesAfter some point: MUC come back ordered by sortId, PM by timestamp", async ({
 		page,
+		borogove,
+		persistence,
 	}) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					serverId: "1",
 					serverIdBy: "teaparty@example.com",
@@ -640,7 +437,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.length).toBe(3);
@@ -649,44 +446,9 @@ test.describe("not webkit", () => {
 		expect(result[2].serverId).toBe("4");
 	});
 
-	test("getMessagesAfter a PM", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("getMessagesAfter a PM", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					serverId: "1",
 					serverIdBy: "teaparty@example.com",
@@ -756,51 +518,16 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.length).toBe(1);
 		expect(result[0].serverId).toBe("4");
 	});
 
-	test("storeChats and getChats", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("storeChats and getChats", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const chat = new borogove.DirectChat(
 					null,
 					null,
@@ -832,7 +559,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.length).toBe(1);
@@ -844,44 +571,9 @@ test.describe("not webkit", () => {
 		expect(result.threadSubject).toBe("Introductions");
 	});
 
-	test("getMessage by serverId and localId", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("getMessage by serverId and localId", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					serverId: "srv1",
 					serverIdBy: "hatter@example.com",
@@ -925,7 +617,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.byServerId).not.toBeNull();
@@ -934,44 +626,9 @@ test.describe("not webkit", () => {
 		expect(result.byLocalId.localId).toBe("loc1");
 	});
 
-	test("storeReaction", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("storeReaction", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					serverId: "srv1",
 					serverIdBy: "hatter@example.com",
@@ -1020,7 +677,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.reactions.length).toBe(1);
@@ -1028,44 +685,9 @@ test.describe("not webkit", () => {
 		expect(result.reactions[0].count).toBe(1);
 	});
 
-	test("updateMessageStatus", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("updateMessageStatus", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					localId: "loc1",
 					senderId: "alice@example.com",
@@ -1094,51 +716,16 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.status).toBe(1);
 		expect(result.statusText).toBe("Delivered");
 	});
 
-	test("searchMessages", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("searchMessages", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					serverId: "srv1",
 					serverIdBy: "hatter@example.com",
@@ -1181,51 +768,16 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.length).toBe(1);
 		expect(result[0]).toBe("Hello world");
 	});
 
-	test("removeAccount and listAccounts", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("removeAccount and listAccounts", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				try {
 					await persistence.storeLogin(
 						"alice@example.com",
@@ -1248,7 +800,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.accountsBefore).toContain("alice@example.com");
@@ -1257,44 +809,9 @@ test.describe("not webkit", () => {
 		expect(result.accountsAfter).toContain("bob@example.com");
 	});
 
-	test("getChatUnreadDetails", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("getChatUnreadDetails", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const chat = Object.create(borogove.DirectChat.prototype);
 				chat.constructor = borogove.DirectChat;
 				chat.chatId = "hatter@example.com";
@@ -1339,51 +856,16 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.unreadCount).toBe(1);
 		expect(result.message.serverId).toBe("srv2");
 	});
 
-	test("media storage functions", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("media storage functions", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				try {
 					function bufferToByteStream(buffer) {
 						let done = false;
@@ -1414,7 +896,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.hasBefore).toBe(
@@ -1423,44 +905,9 @@ test.describe("not webkit", () => {
 		expect(result.hasAfter).toBe(null);
 	});
 
-	test("hydrate message with incomplete replyToMessage", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("hydrate message with incomplete replyToMessage", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
 					serverId: "parent",
 					serverIdBy: "hatter@example.com",
@@ -1503,50 +950,15 @@ test.describe("not webkit", () => {
 
 				return childStored.replyToMessage.body().toPlainText();
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result).toBe("Hello");
 	});
 
-	test("storeChats and getChats with status", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("storeChats and getChats with status", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const chat = new borogove.DirectChat(
 					null,
 					null,
@@ -1572,7 +984,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.length).toBe(1);
@@ -1581,44 +993,9 @@ test.describe("not webkit", () => {
 		expect(result.statusText).toBe("Time for tea!");
 	});
 
-	test("getChats uses member presence for direct chats", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("getChats uses member presence for direct chats", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const chat = new borogove.DirectChat(
 					null,
 					null,
@@ -1652,7 +1029,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result).toEqual(["phone"]);
@@ -1660,44 +1037,12 @@ test.describe("not webkit", () => {
 
 	test("getChats hydrates membersForName and mavUntil from members", async ({
 		page,
+		borogove,
+		persistence,
+		sqlite,
 	}) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence, sqlite }) => {
 				const chat = new sqlite.Channel(
 					null,
 					null,
@@ -1777,7 +1122,7 @@ test.describe("not webkit", () => {
 					presenceKeys: [...stored.presence.keys()].sort(),
 				};
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence, sqlite },
 		);
 
 		expect(result.mavUntil).toBe("2024-05-01T12:00:00Z");
@@ -1785,44 +1130,9 @@ test.describe("not webkit", () => {
 		expect(result.presenceKeys).toEqual(["desk"]);
 	});
 
-	test("storeStreamManamagement and getStreamManagement", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("storeStreamManamagement and getStreamManagement", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				try {
 					await persistence.storeLogin("alice@example.com", "", "", null); // or updating with SM may not work
 					await persistence.storeStreamManagement(
@@ -1844,7 +1154,7 @@ test.describe("not webkit", () => {
 					throw e.result ? JSON.stringify(e.result) : e.message;
 				}
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.smIsEq).toBe(0);
@@ -1852,43 +1162,9 @@ test.describe("not webkit", () => {
 		expect(result.sortId).toBe("ZZ");
 	});
 
-	test("getMembers hydrates persisted member data", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("getMembers hydrates persisted member data", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
+			async ({ borogove, persistence }) => {
 				const chat = new borogove.Channel(
 					null,
 					null,
@@ -1930,7 +1206,7 @@ test.describe("not webkit", () => {
 					showPresence: members[0]?.showPresence,
 				};
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.id).toBe("room-members-1@example.com/occ-1");
@@ -1941,43 +1217,9 @@ test.describe("not webkit", () => {
 		expect(result.showPresence).toBe(1);
 	});
 
-	test("storeMemberUpdates merges existing member data", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("storeMemberUpdates merges existing member data", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
+			async ({ borogove, persistence }) => {
 				const chat = new borogove.Channel(
 					null,
 					null,
@@ -2029,7 +1271,7 @@ test.describe("not webkit", () => {
 						: [],
 				};
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.displayName).toBe("Alice Cooper");
@@ -2039,43 +1281,11 @@ test.describe("not webkit", () => {
 
 	test("storeMemberUpdates clears omitted full-list affiliations", async ({
 		page,
+		borogove,
+		persistence,
 	}) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
+			async ({ borogove, persistence }) => {
 				const chat = new borogove.Channel(
 					null,
 					null,
@@ -2132,7 +1342,7 @@ test.describe("not webkit", () => {
 					.find((m) => m.id.endsWith("occ-2"))
 					?.roles?.map((r) => r.id);
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result).toEqual([]);
@@ -2140,43 +1350,11 @@ test.describe("not webkit", () => {
 
 	test("storeMemberUpdates matches existing member by true JID", async ({
 		page,
+		borogove,
+		persistence,
 	}) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
+			async ({ borogove, persistence }) => {
 				const chat = new borogove.Channel(
 					null,
 					null,
@@ -2221,7 +1399,7 @@ test.describe("not webkit", () => {
 				);
 				return member?.displayName;
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result).toBe("Alice Renamed");
@@ -2229,43 +1407,11 @@ test.describe("not webkit", () => {
 
 	test("clearMemberPresence only clears the targeted chat", async ({
 		page,
+		borogove,
+		persistence,
 	}) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
+			async ({ borogove, persistence }) => {
 				const chat1 = new borogove.Channel(
 					null,
 					null,
@@ -2331,7 +1477,7 @@ test.describe("not webkit", () => {
 					chat2PresenceKeys: member2 ? [...member2.presence.keys()] : [],
 				};
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.chat1PresenceKeys).toEqual([]);
@@ -2340,43 +1486,11 @@ test.describe("not webkit", () => {
 
 	test("getMembers filters hidden rows for non-moderators", async ({
 		page,
+		borogove,
+		persistence,
 	}) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
+			async ({ borogove, persistence }) => {
 				const chat = new borogove.Channel(
 					null,
 					null,
@@ -2447,49 +1561,15 @@ test.describe("not webkit", () => {
 				);
 				return members.map((m) => m.displayName);
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result).toEqual(["Zulu", "Alpha"]);
 	});
 
-	test("getMembers includes moderator-visible rows", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("getMembers includes moderator-visible rows", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
+			async ({ borogove, persistence }) => {
 				const chat = new borogove.Channel(
 					null,
 					null,
@@ -2560,7 +1640,7 @@ test.describe("not webkit", () => {
 				);
 				return members.map((m) => m.displayName);
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result).toEqual(["Zulu", "Alpha", "Banned"]);
@@ -2568,43 +1648,11 @@ test.describe("not webkit", () => {
 
 	test("getMemberDetails returns null for incomplete rows", async ({
 		page,
+		borogove,
+		persistence,
 	}) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
+			async ({ borogove, persistence }) => {
 				const chat = new borogove.Channel(
 					null,
 					null,
@@ -2654,50 +1702,15 @@ test.describe("not webkit", () => {
 				);
 				return details.map((m) => (m ? m.displayName : null));
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result).toEqual(["Alpha", null]);
 	});
 
-	test("storeVoiceRequest and listVoiceRequests", async ({ page }) => {
-		page.route("https://localhost/", (route) =>
-			route.fulfill({
-				body: "<html></html>",
-				headers: {
-					"Cross-Origin-Opener-Policy": "same-origin",
-					"Cross-Origin-Embedder-Policy": "same-origin",
-					"Cross-Origin-Resource-Policy": "same-origin",
-				},
-			}),
-		);
-		const code = fs.readFileSync("playwright/.cache/borogove.js", "utf8");
-		const sqlite = fs.readFileSync("playwright/.cache/sqlite-wasm.js", "utf8");
-		const worker1 = fs.readFileSync(
-			"playwright/.cache/sqlite-worker1.js",
-			"utf8",
-		);
-		await page.goto("https://localhost/");
+	test("storeVoiceRequest and listVoiceRequests", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
-			async ([code, sqliteCode, worker1Code]) => {
-				const borogove = await import(
-					URL.createObjectURL(new Blob([code], { type: "text/javascript" }))
-				);
-				const sqlite = await import(
-					URL.createObjectURL(
-						new Blob([sqliteCode], { type: "text/javascript" }),
-					)
-				);
-				window.sqliteWorker1Url = new URL(
-					URL.createObjectURL(
-						new Blob([worker1Code], { type: "text/javascript" }),
-					),
-				);
-				const persistence = new sqlite.borogove_persistence_Sqlite(
-					"snikket",
-					await borogove.persistence.MediaStoreCache("snikket"),
-				);
-
+			async ({ borogove, persistence }) => {
 				const chat = Object.create(borogove.Channel.prototype);
 				chat.chatId = "room-voice-requests@example.com";
 				chat.getDisplayName = () => "Tea Room";
@@ -2739,7 +1752,7 @@ test.describe("not webkit", () => {
 					requests2: requests2.map((m) => m.displayName).sort(),
 				};
 			},
-			[code, sqlite, worker1],
+			{ borogove, persistence },
 		);
 
 		expect(result.requests1).toEqual(["Bob", "Charlie"]);
