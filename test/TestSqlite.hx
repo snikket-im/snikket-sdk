@@ -1478,6 +1478,40 @@ class TestSqlite extends utest.Test {
 			});
 	}
 
+	public function testGetOmemoContactIdentityKeyNotFound(async: Async) {
+		persistence
+			.getOmemoContactIdentityKey(
+				"contact-notfound@example.com",
+				"contact@example.com/1",
+			)
+			.then(result -> {
+				Assert.equals(null, result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
+	public function testOmemoContactIdentityKey(async: Async) {
+		final account = "contact-existing@example.com";
+		final address = "contact@example.com/1";
+		final identityKey = makeKey();
+
+		persistence
+			.storeOmemoContactIdentityKey(account, address, identityKey)
+			.then(_ -> persistence.getOmemoContactIdentityKey(account, address))
+			.then(result -> {
+				assertKeyMatches(identityKey, result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
 	public function testOmemoSignedPreKey(async: Async) {
 		final login = "signed-prekey@example.com";
 		final signedPreKey = {

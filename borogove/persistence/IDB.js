@@ -1436,23 +1436,22 @@ tx.onerror = console.error;
 			const tx = db.transaction(["omemo_identities"], "readonly");
 			const store = tx.objectStore("omemo_identities");
 			const result = await promisifyRequest(store.get([account, address]));
-			if(!result) {
+			if (!result) {
 				return null;
 			} else {
 				return base64ToArrayBuffer(result.pubKey);
 			}
 		},
 
-		storeOmemoContactIdentityKey(account, address, identityKey) {
+		async storeOmemoContactIdentityKey(account, address, identityKey) {
 			const tx = db.transaction(["omemo_identities"], "readwrite");
 			const store = tx.objectStore("omemo_identities");
-			promisifyRequest(store.put({
+			await promisifyRequest(store.put({
 				account: account,
 				address: address,
 				pubKey: arrayBufferToBase64(identityKey),
-			})).catch((e) => {
-				console.error("Failed to store contact identity key: " + e);
-			});
+			}));
+			return identityKey;
 		},
 
 		async getOmemoSession(account, address) {

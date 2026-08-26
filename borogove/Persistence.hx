@@ -400,12 +400,12 @@ interface Persistence {
 	/**
 		Store a trusted identity key for a remote OMEMO contact
 	**/
-	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Void;
+	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Promise<IdentityPublicKey>;
 
 	/**
 		Load a stored identity key for a remote OMEMO contact
 	**/
-	public function getOmemoContactIdentityKey(account:String, address:String): Promise<IdentityPublicKey>;
+	public function getOmemoContactIdentityKey(account:String, address:String): Promise<Null<IdentityPublicKey>>;
 
 	/**
 		Load a stored OMEMO session for a remote device

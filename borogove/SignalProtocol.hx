@@ -129,7 +129,7 @@ abstract class SignalProtocolStore {
 	// Return a boolean indicating whether we trust this identity
 	abstract public function isTrustedIdentity(identifier: String, identityKey: IdentityPublicKey, _direction: Int):Promise<Bool>;
 
-	abstract public function loadIdentityKey(identifier: SignalProtocolAddress):Promise<IdentityPublicKey>;
+	abstract public function loadIdentityKey(identifier: SignalProtocolAddress):Promise<Null<IdentityPublicKey>>;
 
 	abstract public function saveIdentity(identifier: SignalProtocolAddress, identityKey:IdentityPublicKey):Promise<Bool>;
 

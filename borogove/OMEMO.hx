@@ -119,15 +119,16 @@ class OMEMOStore extends SignalProtocolStore {
 	}
 
 	// Load the identity key of a contact (partners with saveIdentity())
-	public function loadIdentityKey(identifier:SignalProtocolAddress):Promise<IdentityPublicKey> {
+	public function loadIdentityKey(identifier:SignalProtocolAddress):Promise<Null<IdentityPublicKey>> {
 		return persistence.getOmemoContactIdentityKey(accountId, identifier.toString());
 	}
 
 	public function saveIdentity(identifier:SignalProtocolAddress, identityKey:IdentityPublicKey):Promise<Bool> {
 		return persistence.getOmemoContactIdentityKey(accountId, identifier.toString()).then((prevKey) -> {
-			persistence.storeOmemoContactIdentityKey(accountId, identifier.toString(), identityKey);
-			// Return true if the key was updated, false if it matches what we already had stored
-			return prevKey != identityKey;
+			return persistence.storeOmemoContactIdentityKey(accountId, identifier.toString(), identityKey).then(_ -> {
+				// Return true if the key was updated, false if it matches what we already had stored
+				return prevKey != identityKey;
+			});
 		});
 	}
 

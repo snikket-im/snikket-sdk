@@ -244,11 +244,13 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Void { }
+	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Promise<IdentityPublicKey> {
+		return Promise.resolve(identityKey);
+	}
 
 	@HaxeCBridge.noemit
-	public function getOmemoContactIdentityKey(account:String, address:String): Promise<IdentityPublicKey> {
-		return Promise.reject("Not found");
+	public function getOmemoContactIdentityKey(account:String, address:String): Promise<Null<IdentityPublicKey>> {
+		return Promise.resolve(null);
 	}
 
 	@HaxeCBridge.noemit

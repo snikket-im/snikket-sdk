@@ -1747,4 +1747,46 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 
 		expect(result).toBeNull();
 	});
+
+	test("getOmemoContactIdentityKey returns null when none is stored", async ({
+		page,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ persistence }) =>
+				persistence.getOmemoContactIdentityKey(
+					"omemo-contact-not-found@example.com",
+					"contact@example.com/1",
+				),
+			{ persistence },
+		);
+
+		expect(result).toBeNull();
+	});
+
+	test("storeOmemoContactIdentityKey and getOmemoContactIdentityKey", async ({
+		page,
+		persistence,
+	}) => {
+		const account = "omemo-contact-existing@example.com";
+		const address = "contact@example.com/1";
+		const identityKey = [0, 1, 2, 127, 128, 255];
+		const result = await page.evaluate(
+			async ({ persistence, account, address, identityKey }) => {
+				await persistence.storeOmemoContactIdentityKey(
+					account,
+					address,
+					new Uint8Array(identityKey).buffer,
+				);
+				const loaded = await persistence.getOmemoContactIdentityKey(
+					account,
+					address,
+				);
+				return [...new Uint8Array(loaded)];
+			},
+			{ persistence, account, address, identityKey },
+		);
+
+		expect(result).toEqual(identityKey);
+	});
 }

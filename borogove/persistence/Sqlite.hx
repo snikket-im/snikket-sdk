@@ -313,6 +313,17 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 17"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 18) {
+						return exec(["CREATE TABLE omemo_contact_identity_keys (
+							account_id TEXT NOT NULL,
+							address TEXT NOT NULL,
+							identity_key BLOB NOT NULL,
+							PRIMARY KEY (account_id, address)
+						) STRICT",
+						"PRAGMA user_version = 18"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -1560,11 +1571,24 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Void { }
+	public function storeOmemoContactIdentityKey(account:String, address:String, identityKey:IdentityPublicKey):Promise<IdentityPublicKey> {
+		return db.exec(
+			"INSERT OR REPLACE INTO omemo_contact_identity_keys VALUES (?,?,?)",
+			[account, address, identityKey],
+		).then(_ -> identityKey);
+	}
 
 	@HaxeCBridge.noemit
-	public function getOmemoContactIdentityKey(account:String, address:String): Promise<IdentityPublicKey> {
-		return Promise.reject("TODO");
+	public function getOmemoContactIdentityKey(account:String, address:String): Promise<Null<IdentityPublicKey>> {
+		return db.exec(
+			"SELECT identity_key FROM omemo_contact_identity_keys WHERE account_id=? AND address=? LIMIT 1",
+			[account, address],
+		).then(result -> {
+			for (row in result) {
+				return row.identity_key;
+			}
+			return null;
+		});
 	}
 
 	@HaxeCBridge.noemit
