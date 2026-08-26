@@ -1141,10 +1141,12 @@ tx.onerror = console.error;
 			return true;
 		},
 
-		storeOmemoId(account, omemoId) {
+		async storeOmemoId(account, omemoId) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			store.put(omemoId, "omemo:id:" + account).onerror = console.error;
+			await promisifyRequest(store.put(omemoId, "omemo:id:" + account));
+
+			return omemoId;
 		},
 
 		storeOmemoIdentityKey(account, keypair) {
@@ -1283,7 +1285,9 @@ tx.onerror = console.error;
 		getOmemoId(account) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			return promisifyRequest(store.get("omemo:id:"+account));
+			return promisifyRequest(store.get("omemo:id:"+account)).then(
+				(result) => result ?? null,
+			);
 		},
 
 		getOmemoIdentityKey(account) {

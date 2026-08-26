@@ -1463,4 +1463,34 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.requests1).toEqual(["Bob", "Charlie"]);
 		expect(result.requests2).toEqual(["Charlie"]);
 	});
+
+	test("getOmemoId returns no ID when none is stored", async ({
+		page,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async (persistence) =>
+				persistence.getOmemoId("omemo-not-found@example.com"),
+			persistence,
+		);
+
+		expect(result).toBeNull();
+	});
+
+	test("storeOmemoId stores the ID", async ({
+		page,
+		persistence,
+	}) => {
+		const account = "omemo-existing@example.com";
+		const omemoId = 12345;
+		const result = await page.evaluate(
+			async ({ persistence, account, omemoId }) => {
+				await persistence.storeOmemoId(account, omemoId);
+				return persistence.getOmemoId(account);
+			},
+			{ persistence, account, omemoId },
+		);
+
+		expect(result).toBe(omemoId);
+	});
 }

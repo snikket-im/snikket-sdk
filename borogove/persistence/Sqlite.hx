@@ -1373,14 +1373,17 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 #if !NO_OMEMO
 	// OMEMO
-	// TODO
 	@HaxeCBridge.noemit
 	public function getOmemoId(login:String): Promise<Null<Int>> {
-		return Promise.resolve(null);
+		return get("omemo:id:" + login).then(omemoId ->
+			omemoId == null ? null : Std.parseInt(omemoId)
+		);
 	}
 
 	@HaxeCBridge.noemit
-	public function storeOmemoId(login:String, omemoId:Int):Void { }
+	public function storeOmemoId(login:String, omemoId:Int):Promise<Int> {
+		return set("omemo:id:" + login, Std.string(omemoId)).then(_ -> omemoId);
+	}
 
 	@HaxeCBridge.noemit
 	public function storeOmemoIdentityKey(login:String, keypair:IdentityKeyPair):Void { }

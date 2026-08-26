@@ -1301,4 +1301,34 @@ class TestSqlite extends utest.Test {
 			async.done();
 		});
 	}
+
+	public function testGetOmemoIdNotFound(async: Async) {
+		persistence
+			.getOmemoId('notfound@example.com')
+			.then(result -> {
+				Assert.equals(null, result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
+	public function testGetOmemoIdExisting(async: Async) {
+		final login = "existing@example.com";
+		final omemoId = 12345;
+
+		persistence
+			.storeOmemoId(login, omemoId)
+			.then(_ -> persistence.getOmemoId(login))
+			.then(result -> {
+				Assert.equals(omemoId, result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
 }

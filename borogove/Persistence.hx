@@ -341,8 +341,11 @@ interface Persistence {
 
 	/**
 		Store the local OMEMO device ID for an account
+		@param accountId the account to store omemo id for
+		@param omemoId the OMEMO device ID
+		@returns Promise resolving to the stored device ID
 	**/
-	public function storeOmemoId(login:String, omemoId:Int):Void;
+	public function storeOmemoId(login:String, omemoId:Int):Promise<Int>;
 
 	/**
 		Store the local OMEMO identity key pair for an account
