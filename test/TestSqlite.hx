@@ -1212,6 +1212,33 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	public function testGetMembersTreatsEmptyPresenceAsOffline(async: Async) {
+		final account = "alice@example.com";
+		final chat = new Channel(cast null, cast null, persistence, "room-members-empty-presence@example.com");
+		chat.displayName = "A Chat";
+
+		persistence.storeMembers(account, chat.chatId, [
+			new Member(
+				"room-members-empty-presence@example.com/guest",
+				"Guest",
+				null,
+				false,
+				[new Role("none", "Guest")],
+				JID.parse("guest@example.com"),
+				new Map(),
+				new AvailableChat("guest@example.com", "Guest", "", new borogove.Caps("", [], [], []))
+			)
+		]).then(_ ->
+			persistence.getMembers(account, chat, false)
+		).then(result -> {
+			Assert.equals(0, result.length);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
 	public function testGetMembersIncludesModeratorVisibleRows(async: Async) {
 		final account = "alice@example.com";
 		final chat = new Channel(cast null, cast null, persistence, "room-members-6@example.com");

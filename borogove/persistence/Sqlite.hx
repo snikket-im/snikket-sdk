@@ -674,7 +674,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 					(SELECT MAX(CASE value->>'$.id' WHEN 'owner' THEN 4 WHEN 'admin' THEN 3 WHEN 'none' THEN 1 WHEN 'outcast' THEN 0 ELSE 2 END) FROM json_each(roles)),
 					2
 				) AS role_rank,
-				CASE WHEN json(presence) NOT LIKE '% type=\\\"unavailable\\\"%' THEN 1 ELSE 0 END AS is_online
+				CASE WHEN EXISTS (SELECT 1 FROM json_each(presence))
+					AND json(presence) NOT LIKE '% type=\\\"unavailable\\\"%'
+					THEN 1 ELSE 0 END AS is_online
 			FROM members
 			WHERE
 				account_id=? AND chat_id=?
