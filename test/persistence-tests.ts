@@ -2092,6 +2092,59 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.loaded).toEqual(session);
 		expect(result.afterRemove).toBeNull();
 	});
+
+	test("hydrate message with incomplete replyToMessage", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const builder = new borogove.ChatMessageBuilder({
+					serverId: "parent",
+					serverIdBy: "alice@example.com",
+					localId: "loc1",
+					senderId: "hatter@example.com",
+					direction: 0,
+				});
+				builder.sortId = "a0";
+				builder.to = borogove.JID.parse("alice@example.com");
+				builder.from = borogove.JID.parse("hatter@example.com");
+				builder.recipients = [builder.to];
+				builder.replyTo = [builder.from];
+				const parentStub = builder.build();
+
+				builder.setBody(borogove.Html.text("Hello"));
+				const parentMsg = builder.build();
+
+				const builder2 = new borogove.ChatMessageBuilder({
+					serverId: "child",
+					serverIdBy: "alice@example.com",
+					localId: "loc2",
+					senderId: "hatter@example.com",
+					direction: 0,
+				});
+				builder2.sortId = "a1";
+				builder2.to = borogove.JID.parse("alice@example.com");
+				builder2.from = borogove.JID.parse("hatter@example.com");
+				builder2.recipients = [builder2.to];
+				builder2.replyTo = [builder2.from];
+				builder2.replyToMessage = parentStub;
+				const childMsg = builder2.build();
+
+				await persistence.storeMessages("alice@example.com", [parentMsg]);
+				const [childStored] = await persistence.storeMessages(
+					"alice@example.com",
+					[childMsg],
+				);
+
+				return childStored.replyToMessage.body().toPlainText();
+			},
+			{ borogove, persistence },
+		);
+
+		expect(result).toBe("Hello");
+	});
 }
 
 type TestKeyPair = {
