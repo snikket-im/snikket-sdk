@@ -26,6 +26,8 @@ using borogove.SignalProtocol;
 
 using Lambda;
 
+typedef Column = { name:String, sql:String }
+
 @:expose
 #if cpp
 @:build(HaxeCBridge.expose())
@@ -375,7 +377,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 	@HaxeCBridge.noemit
 	public function syncPoint(accountId: String, chatId: Null<String>): Promise<Null<ChatMessage>> {
 		final params = [accountId];
-		var q = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sync_point, sort_id FROM messages WHERE mam_id IS NOT NULL AND mam_id<>'' AND sync_point AND account_id=?";
+		var q = '
+			SELECT
+				${messageColumnsString()}
+			FROM messages
+			WHERE mam_id IS NOT NULL AND mam_id<>\'\' AND sync_point AND account_id=?
+		';
 		if (chatId == null) {
 			q += " AND mam_by=?";
 			params.push(accountId);
@@ -739,7 +746,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function searchMessages(accountId: String, chatId: Null<String>, q: String): Promise<Array<ChatMessage>> {
-		var sql = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sort_id, sync_point FROM messages WHERE account_id=? AND stanza LIKE ?";
+		var sql = '
+			SELECT
+				${messageColumnsString()}
+			FROM messages
+			WHERE account_id=? AND stanza LIKE ?
+		';
 		final params = [accountId, "%" + q + "%"];
 		if (chatId != null) {
 			sql += " AND chat_id=?";
@@ -837,23 +849,16 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	private function fetchFromStub(accountId, stub: ChatMessage) {
-		var q = "SELECT
-			correction_id AS stanza_id,
-			versions.stanza,
-			json_group_object(CASE WHEN versions.mam_id IS NULL OR versions.mam_id='' THEN versions.stanza_id ELSE versions.mam_id END, strftime('%FT%H:%M:%fZ', versions.created_at / 1000.0, 'unixepoch')) AS version_times,
-			json_group_object(CASE WHEN versions.mam_id IS NULL OR versions.mam_id='' THEN versions.stanza_id ELSE versions.mam_id END, versions.stanza) AS versions,
-			messages.direction,
-			messages.type,
-			messages.status,
-			messages.status_text,
-			strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp,
-			messages.sender_id,
-			messages.mam_id,
-			messages.mam_by,
-			messages.sort_id,
-			messages.sync_point,
-			MAX(versions.created_at)
-			FROM messages INNER JOIN messages versions USING (correction_id, sender_id) WHERE messages.account_id=? AND messages.chat_id=? AND (messages.stanza_id IS NULL OR messages.stanza_id='' OR messages.stanza_id=correction_id)";
+		var q = '
+			SELECT
+				$versionedMessageColumns
+			FROM messages
+			INNER JOIN messages versions USING (correction_id, sender_id)
+			WHERE
+				messages.account_id=?
+				AND messages.chat_id=?
+				AND (messages.stanza_id IS NULL OR messages.stanza_id=\'\' OR messages.stanza_id=correction_id)
+		';
 		var params = [accountId, stub.chatId()];
 		if (stub.versions.length > 0 || stub.serverId == null) {
 			q += " AND correction_id=? AND sender_id=?";
@@ -884,7 +889,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 		@returns Promise resolving to the message or null
 	**/
 	public function getMessage(accountId: String, chatId: String, serverId: Null<String>, localId: Null<String>): Promise<Null<ChatMessage>> {
-		var q = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sort_id, sync_point FROM messages WHERE account_id=? AND chat_id=?";
+		var q = '
+			SELECT
+				${messageColumnsString()}
+			FROM messages
+			WHERE account_id=? AND chat_id=?
+		';
 		final params = [accountId, chatId];
 		if (serverId != null) {
 			q += " AND mam_id=?";
@@ -923,23 +933,17 @@ class Sqlite implements Persistence implements KeyValueStore {
 		}
 		if (op == "<" || op == "<=") q += " DESC";
 		q += " LIMIT 50) ";
-		q += "SELECT
-			correction_id AS stanza_id,
-			versions.stanza,
-			json_group_object(CASE WHEN versions.mam_id IS NULL OR versions.mam_id='' THEN versions.stanza_id ELSE versions.mam_id END, strftime('%FT%H:%M:%fZ', versions.created_at / 1000.0, 'unixepoch')) AS version_times,
-			json_group_object(CASE WHEN versions.mam_id IS NULL OR versions.mam_id='' THEN versions.stanza_id ELSE versions.mam_id END, versions.stanza) AS versions,
-			messages.direction,
-			messages.type,
-			messages.status,
-			messages.status_text,
-			strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp,
-			messages.sender_id,
-			messages.mam_id,
-			messages.mam_by,
-			messages.sort_id,
-			messages.sync_point,
-			MAX(versions.created_at)
-			FROM messages INNER JOIN messages versions USING (correction_id, sender_id) WHERE (messages.stanza_id, messages.mam_id) IN (SELECT * FROM page) AND messages.account_id=? AND messages.chat_id=? GROUP BY correction_id, CASE WHEN messages.type=? THEN 'call' ELSE messages.sender_id END";
+		q += '
+			SELECT
+				$versionedMessageColumns
+			FROM messages
+			INNER JOIN messages versions USING (correction_id, sender_id)
+			WHERE
+				(messages.stanza_id, messages.mam_id) IN (SELECT * FROM page)
+				AND messages.account_id=?
+				AND messages.chat_id=?
+				GROUP BY correction_id, CASE WHEN messages.type=? THEN \'call\' ELSE messages.sender_id END
+		';
 		q += " ORDER BY messages.sort_id";
 		if (op == "<" || op == "<=") q += " DESC";
 		q += ", messages.created_at";
@@ -953,7 +957,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 			final messages = hydrateMessages(accountId, result);
 			if (messages.length > 0 && messages[0].serverIdBy == chatId) {
 				final boundary = messages[messages.length - 1].timestamp;
-				var pmQ = "SELECT stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sort_id, sync_point FROM messages WHERE account_id=? AND chat_id=? AND type=?";
+				var pmQ = '
+					SELECT
+						${messageColumnsString()}
+					FROM messages
+					WHERE account_id=? AND chat_id=? AND type=?
+				';
 				final pmParams: Array<Dynamic> = [accountId, chatId, MessageChannelPrivate];
 
 				if (timestamp != null) {
@@ -1034,7 +1043,24 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	private function getChatUnreadDetails(accountId: String, chat: Chat): Promise<{ chatId: String, message: ChatMessage, unreadCount: Int }> {
 		return db.exec(
-			"WITH subq AS (SELECT ROWID AS row, COALESCE(MAX(sort_id), 'a ') AS sort_id FROM messages where account_id=? AND chat_id=? AND type <> ? AND (mam_id=? OR direction=?)) SELECT chat_id AS chatId, stanza, direction, type, status, status_text, sender_id, mam_id, mam_by, MAX(sort_id) AS sort_id, sync_point, CASE WHEN (SELECT row FROM subq) IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount, strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp FROM messages WHERE account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND (messages.sort_id > (SELECT sort_id FROM subq) OR messages.ROWID = (SELECT row FROM subq)) AND type<>?",
+			'
+				WITH subq AS (
+					SELECT ROWID AS row, COALESCE(MAX(sort_id), \'a \') AS sort_id
+					FROM messages
+					WHERE account_id=? AND chat_id=? AND type <> ? AND (mam_id=? OR direction=?)
+				)
+				SELECT
+					chat_id AS chatId,
+					${messageColumnsString([col("sort_id", "MAX(sort_id) AS sort_id")])},
+					CASE WHEN (SELECT row FROM subq) IS NULL THEN COUNT(*) ELSE COUNT(*) - 1 END AS unreadCount
+				FROM messages
+				WHERE
+					account_id=?
+					AND chat_id=?
+					AND (stanza_id IS NULL OR stanza_id=\'\' OR stanza_id=correction_id)
+					AND (messages.sort_id > (SELECT sort_id FROM subq) OR messages.ROWID = (SELECT row FROM subq))
+					AND type<>?
+			',
 			[accountId, chat.chatId, MessageChannelPrivate, chat.readUpToId, MessageSent, accountId, chat.chatId, MessageChannelPrivate]
 		).then(result -> {
 			final row: Dynamic = result.next();
@@ -1070,7 +1096,17 @@ class Sqlite implements Persistence implements KeyValueStore {
 	public function updateMessageStatus(accountId: String, localId: String, status: MessageStatus, statusText: Null<String>): Promise<ChatMessage> {
 		return storeMessagesSerialized.run(() ->
 			db.exec(
-				"UPDATE messages SET status=?, status_text=? WHERE account_id=? AND stanza_id=? AND direction=? AND status <> ? AND status <> ? RETURNING stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, correction_id AS stanza_id, sort_id, mam_id, mam_by, sync_point",
+				'
+					UPDATE messages
+					SET status=?, status_text=?
+					WHERE account_id=?
+						AND stanza_id=?
+						AND direction=?
+						AND status <> ?
+						AND status <> ?
+					RETURNING
+						${messageColumnsString([col("stanza_id", "correction_id AS stanza_id")])}
+				',
 				[status, statusText, accountId, localId, MessageSent, MessageDeliveredToDevice, MessageFailedToSend]
 			).then(result ->
 				thenshim.PromiseTools.all(hydrateMessages(accountId, result).map(message ->{
@@ -1365,7 +1401,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 			final stanzaIds = [];
 			final stanzaIdsS = [];
 			var params = [accountId];
-			final qStart = "SELECT chat_id, stanza_id, stanza, direction, type, status, status_text, strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp, sender_id, mam_id, mam_by, sort_id, sync_point FROM messages WHERE account_id=?";
+			final qStart = '
+				SELECT
+					${messageColumnsString([col("stanza_id"), col("chat_id")])}
+				FROM messages
+				WHERE account_id=?
+			';
 			for (parent in replyTos) {
 				if (parent.serverId != null) {
 					mamIds.push(parent.chatId);
@@ -1671,4 +1712,65 @@ class Sqlite implements Persistence implements KeyValueStore {
 		});
 	}
 #end
+
+	private static function col(name:String, ?sql:String): Column {
+		return { name: name, sql: sql ?? name };
+	}
+
+	private static function messageColumnsString(?customColumns: Array<Column>):String {
+		return messageColumns(customColumns).join(", ");
+	}
+
+	private static function messageColumns(?customColumns: Array<Column>):Array<String> {
+		return [
+			col("stanza"),
+			col("direction"),
+			col("type"),
+			col("status"),
+			col("status_text"),
+			col("timestamp", "strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp"),
+			col("sender_id"),
+			col("mam_id"),
+			col("mam_by"),
+			col("sort_id"),
+			col("sync_point"),
+		]
+		.concat(customColumns ?? [])
+		.fold((column, map:Map<String, Column>) -> {
+			map.set(column.name, column);
+			map;
+		}, new Map<String, Column>())
+		.map(column -> column.sql);
+	}
+
+	private final versionedMessageColumns = '
+		correction_id AS stanza_id,
+		versions.stanza,
+		json_group_object(
+			CASE
+				WHEN versions.mam_id IS NULL OR versions.mam_id=\'\'
+				THEN versions.stanza_id
+				ELSE versions.mam_id
+			END,
+			strftime(\'%FT%H:%M:%fZ\', versions.created_at / 1000.0, \'unixepoch\')
+		) AS version_times,
+		json_group_object(
+			CASE
+				WHEN versions.mam_id IS NULL OR versions.mam_id=\'\'
+				THEN versions.stanza_id
+				ELSE versions.mam_id
+			END,
+			versions.stanza
+		) AS versions,
+		messages.direction,
+		messages.type,
+		messages.status,
+		messages.status_text,
+		strftime(\'%FT%H:%M:%fZ\', messages.created_at / 1000.0, \'unixepoch\') AS timestamp,
+		messages.sender_id,
+		messages.mam_id,
+		messages.mam_by,
+		messages.sort_id,
+		messages.sync_point,
+		MAX(versions.created_at)';
 }

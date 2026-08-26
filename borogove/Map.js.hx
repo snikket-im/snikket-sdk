@@ -36,6 +36,10 @@ abstract Map<K,V>(NativeMap<K,V>) {
 		return new HaxeIterator(this.values());
 	}
 
+	public inline function map<B>(f: V->B):Array<B> {
+		return [for (x in this) f(x)];
+	}
+
 	public inline function keyValueIterator():KeyValueIterator<K, V> {
 		return new HaxeKVIterator(this.entries());
 	}

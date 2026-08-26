@@ -1668,5 +1668,98 @@ class TestSqlite extends utest.Test {
 	private function assertKeyMatches(expected:BytesData, actual:BytesData):Void {
 		Assert.same(Bytes.ofData(expected), Bytes.ofData(actual));
 	}
+
 #end
+
+	public function testColDefaultstoNameForSql() {
+		Assert.same(
+			{
+				name: "stanza_id",
+				sql: "stanza_id",
+			},
+			Sqlite.col("stanza_id"),
+		);
+	}
+
+	public function testColAllowsSpecifyingSql() {
+		Assert.same(
+			{
+				name: "sort_id",
+				sql: "MAX(sort_id) AS sort_id",
+			},
+			Sqlite.col("sort_id", "MAX(sort_id) AS sort_id"),
+		);
+	}
+
+	public function testMessageColumnsDefaults() {
+		final expected = [
+			"stanza",
+			"direction",
+			"type",
+			"status",
+			"status_text",
+			"strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp",
+			"sender_id",
+			"mam_id",
+			"mam_by",
+			"sort_id",
+			"sync_point",
+		];
+		expected.sort(Reflect.compare);
+
+		final actual = Sqlite.messageColumns();
+		actual.sort(Reflect.compare);
+
+		Assert.same(expected, actual);
+	}
+
+	public function testMessageColumnsAllowsAddingColumns() {
+		final defaultColumns = [
+			"stanza",
+			"direction",
+			"type",
+			"status",
+			"status_text",
+			"strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp",
+			"sender_id",
+			"mam_id",
+			"mam_by",
+			"sort_id",
+			"sync_point",
+		];
+
+		final expected = defaultColumns.concat(["stanza_id"]);
+		expected.sort(Reflect.compare);
+
+		final actual = Sqlite.messageColumns([Sqlite.col("stanza_id")]);
+		actual.sort(Reflect.compare);
+
+		Assert.same(expected, actual);
+	}
+
+	public function testMessageColumnsAllowsOverridingColumns() {
+		final columnToReplace = "sort_id";
+		final replacementSql = "MAX(sort_id) AS sort_id";
+		final defaultColumns = [
+			"stanza",
+			"direction",
+			"type",
+			"status",
+			"status_text",
+			"strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp",
+			"sender_id",
+			"mam_id",
+			"mam_by",
+			"sort_id",
+			"sync_point",
+		];
+		final expected = defaultColumns.copy();
+		expected[defaultColumns.indexOf(columnToReplace)] = replacementSql;
+		expected.sort(Reflect.compare);
+
+		final actual = Sqlite.messageColumns([Sqlite.col(columnToReplace, replacementSql)]);
+		actual.sort(Reflect.compare);
+
+		Assert.same(expected, actual);
+	}
 }
