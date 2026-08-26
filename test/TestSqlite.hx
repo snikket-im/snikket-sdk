@@ -1366,4 +1366,42 @@ class TestSqlite extends utest.Test {
 			});
 	}
 
+	public function testGetOmemoDeviceListNotFound(async: Async) {
+		persistence
+			.getOmemoDeviceList("devices-notfound@example.com")
+			.then(result -> {
+				Assert.same([], result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
+	public function testOmemoDeviceList(async: Async) {
+		final identifier = "devices-existing@example.com";
+		persistence
+			.storeOmemoDeviceList(identifier, [1, 2, 3])
+			.then(_ -> persistence.getOmemoDeviceList(identifier))
+			.then(initial -> {
+				Assert.same([1, 2, 3], initial);
+				return persistence.storeOmemoDeviceList(identifier, [4, 5]);
+			})
+			.then(_ -> persistence.getOmemoDeviceList(identifier))
+			.then(replaced -> {
+				Assert.same([4, 5], replaced);
+				return persistence.storeOmemoDeviceList(identifier, []);
+			})
+			.then(_ -> persistence.getOmemoDeviceList(identifier))
+			.then(cleared -> {
+				Assert.same([], cleared);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
 }

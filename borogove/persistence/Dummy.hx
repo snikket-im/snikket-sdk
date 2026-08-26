@@ -209,7 +209,9 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeOmemoDeviceList(identifier:String, deviceIds:Array<Int>):Void { }
+	public function storeOmemoDeviceList(identifier:String, deviceIds:Array<Int>):Promise<Array<Int>> {
+		return Promise.resolve(deviceIds);
+	}
 
 	@HaxeCBridge.noemit
 	public function storeOmemoPreKey(identifier:String, keyId:Int, keyPair:PreKeyPair):Void { }

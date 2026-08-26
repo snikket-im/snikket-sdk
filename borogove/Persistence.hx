@@ -365,7 +365,7 @@ interface Persistence {
 	/**
 		Store the known OMEMO device list for a contact or account
 	**/
-	public function storeOmemoDeviceList(identifier:String, deviceIds:Array<Int>):Void;
+	public function storeOmemoDeviceList(identifier:String, deviceIds:Array<Int>):Promise<Array<Int>>;
 
 	/**
 		Store an OMEMO pre-key

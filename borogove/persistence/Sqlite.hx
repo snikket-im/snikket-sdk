@@ -278,6 +278,16 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 14"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 15) {
+						return exec(["CREATE TABLE omemo_devices (
+							identifier TEXT NOT NULL,
+							device_id INTEGER NOT NULL,
+							PRIMARY KEY (identifier, device_id)
+						) STRICT",
+						"PRAGMA user_version = 15"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -1421,11 +1431,34 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function getOmemoDeviceList(identifier:String): Promise<Array<Int>> {
-		return Promise.resolve([]);
+		return db.exec(
+			"SELECT device_id FROM omemo_devices WHERE identifier=?",
+			[identifier],
+		).then(result -> {
+			return { iterator: () -> result }.map(row -> row.device_id).array();
+		});
 	}
 
 	@HaxeCBridge.noemit
-	public function storeOmemoDeviceList(identifier:String, deviceIds:Array<Int>):Void { }
+	public function storeOmemoDeviceList(identifier:String, deviceIds:Array<Int>):Promise<Array<Int>> {
+		return db.exec(
+			"DELETE FROM omemo_devices WHERE identifier=?",
+			[identifier],
+		).then(_ -> {
+			if (deviceIds.length == 0) {
+				return Promise.resolve(deviceIds);
+			}
+
+			final placeholders = deviceIds.map(_ -> "(?,?)").join(", ");
+			final params = deviceIds.flatMap(
+				(deviceId) -> ([identifier, deviceId] : Array<Dynamic>)
+			);
+			db.exec(
+				"INSERT INTO omemo_devices (identifier, device_id) VALUES " + placeholders,
+				params,
+			).then(_ -> deviceIds);
+		});
+	}
 
 	@HaxeCBridge.noemit
 	public function storeOmemoPreKey(identifier:String, keyId:Int, keyPair:PreKeyPair):Void { }

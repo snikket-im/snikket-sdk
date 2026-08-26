@@ -1542,4 +1542,58 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.loadedPrivKey).toEqual([0, 1, 2, 127, 128, 255]);
 		expect(result.loadedPubKey).toEqual([255, 128, 127, 2, 1, 0]);
 	});
+
+	test("getOmemoDeviceList returns an empty list when none is stored", async ({
+		page,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async (persistence) =>
+				persistence.getOmemoDeviceList(
+					"omemo-devices-not-found@example.com",
+				),
+			persistence,
+		);
+
+		expect(result).toEqual([]);
+	});
+
+	test("storeOmemoDeviceList replaces and clears the device list", async ({
+		page,
+		persistence,
+	}) => {
+		const identifier = "omemo-devices-existing@example.com";
+		const initialDeviceIds = [12345, 67890];
+		const replacementDeviceIds = [24680];
+		const result = await page.evaluate(
+			async ({
+				persistence,
+				identifier,
+				initialDeviceIds,
+				replacementDeviceIds,
+			}) => {
+				await persistence.storeOmemoDeviceList(identifier, initialDeviceIds);
+				const initial = await persistence.getOmemoDeviceList(identifier);
+				await persistence.storeOmemoDeviceList(
+					identifier,
+					replacementDeviceIds,
+				);
+				const afterReplace = await persistence.getOmemoDeviceList(identifier);
+				await persistence.storeOmemoDeviceList(identifier, []);
+				const afterClear = await persistence.getOmemoDeviceList(identifier);
+
+				return { initial, afterReplace, afterClear };
+			},
+			{
+				persistence,
+				identifier,
+				initialDeviceIds,
+				replacementDeviceIds,
+			},
+		);
+
+		expect(result.initial).toEqual(initialDeviceIds);
+		expect(result.afterReplace).toEqual(replacementDeviceIds);
+		expect(result.afterClear).toEqual([]);
+	});
 }

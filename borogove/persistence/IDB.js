@@ -1157,15 +1157,17 @@ tx.onerror = console.error;
 			return keypair;
 		},
 
-		storeOmemoDeviceList(chatId, deviceIds) {
+		async storeOmemoDeviceList(chatId, deviceIds) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
 			const key = "omemo:devices:"+chatId;
 			if(deviceIds.length>0) {
-				store.put(deviceIds, key);
+				await promisifyRequest(store.put(deviceIds, key));
 			} else {
-				store.delete(key);
+				await promisifyRequest(store.delete(key));
 			}
+
+			return deviceIds;
 		},
 
 		async getOmemoDeviceList(chatId) {
