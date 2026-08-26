@@ -51,6 +51,9 @@ export default defineConfig({
 		{
 			name: "webkit",
 			use: { ...devices["Desktop Safari"] },
+			// Skip sqlite tests on webkit because the
+			// version in playwright lacks OPFS
+			testIgnore: "sqlite.spec.ts",
 		},
 	],
 });
