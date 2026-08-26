@@ -1547,7 +1547,16 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function getOmemoPreKeys(login:String): Promise<Array<PreKey>> {
-		return Promise.resolve([]);
+		return db.exec(
+			"SELECT key_id, private_key, public_key FROM omemo_prekeys WHERE account_id=? ORDER BY key_id",
+			[login],
+		).then(result -> { iterator: () -> result }.map(row -> ({
+			keyId: row.key_id,
+			keyPair: {
+				privKey: row.private_key,
+				pubKey: row.public_key,
+			},
+		})));
 	}
 
 	@HaxeCBridge.noemit

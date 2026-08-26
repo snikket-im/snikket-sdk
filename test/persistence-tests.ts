@@ -1649,6 +1649,44 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.afterRemove).toBeNull();
 	});
 
+	test("getOmemoPreKeys lists stored pre-keys", async ({
+		page,
+		persistence,
+	}) => {
+		const identifier = "omemo-prekeys-existing@example.com";
+		const preKeys = [
+			{
+				keyId: 2,
+				privKey: [0, 1, 2],
+				pubKey: [3, 4, 5],
+			},
+			{
+				keyId: 3,
+				privKey: [6, 7, 8],
+				pubKey: [9, 10, 11],
+			},
+		];
+		const result = await page.evaluate(
+			async ({ persistence, identifier, preKeys }) => {
+				for (const preKey of preKeys) {
+					await persistence.storeOmemoPreKey(identifier, preKey.keyId, {
+						privKey: new Uint8Array(preKey.privKey).buffer,
+						pubKey: new Uint8Array(preKey.pubKey).buffer,
+					});
+				}
+				const loaded = await persistence.getOmemoPreKeys(identifier);
+				return loaded.map((preKey) => ({
+					keyId: preKey.keyId,
+					privKey: [...new Uint8Array(preKey.keyPair.privKey)],
+					pubKey: [...new Uint8Array(preKey.keyPair.pubKey)],
+				}));
+			},
+			{ persistence, identifier, preKeys },
+		);
+
+		expect(result).toEqual(preKeys);
+	});
+
 	test("storeOmemoSignedPreKey and getOmemoSignedPreKey", async ({
 		page,
 		persistence,
