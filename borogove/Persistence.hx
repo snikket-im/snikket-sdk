@@ -350,12 +350,12 @@ interface Persistence {
 	/**
 		Store the local OMEMO identity key pair for an account
 	**/
-	public function storeOmemoIdentityKey(login:String, keypair:IdentityKeyPair):Void;
+	public function storeOmemoIdentityKey(login:String, keypair:IdentityKeyPair):Promise<IdentityKeyPair>;
 
 	/**
 		Load the local OMEMO identity key pair for an account
 	**/
-	public function getOmemoIdentityKey(login:String): Promise<IdentityKeyPair>;
+	public function getOmemoIdentityKey(login:String): Promise<Null<IdentityKeyPair>>;
 
 	/**
 		Load the known OMEMO device list for a contact or account

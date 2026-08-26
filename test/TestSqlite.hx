@@ -1331,4 +1331,39 @@ class TestSqlite extends utest.Test {
 				async.done();
 			});
 	}
+
+	public function testGetOmemoIdentityKeyNotFound(async: Async) {
+		persistence
+			.getOmemoIdentityKey("identity-notfound@example.com")
+			.then(result -> {
+				Assert.equals(null, result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
+	public function testOmemoIdentityKey(async: Async) {
+		final login = "identity-existing@example.com";
+		final keyPair = {
+			privKey: Bytes.ofHex("0001027f80ff").getData(),
+			pubKey: Bytes.ofHex("ff807f020100").getData(),
+		};
+
+		persistence
+			.storeOmemoIdentityKey(login, keyPair)
+			.then(_ -> persistence.getOmemoIdentityKey(login))
+			.then(result -> {
+				Assert.equals("0001027f80ff", Bytes.ofData(result.privKey).toHex());
+				Assert.equals("ff807f020100", Bytes.ofData(result.pubKey).toHex());
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
 }

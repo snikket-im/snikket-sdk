@@ -1149,10 +1149,12 @@ tx.onerror = console.error;
 			return omemoId;
 		},
 
-		storeOmemoIdentityKey(account, keypair) {
+		async storeOmemoIdentityKey(account, keypair) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			store.put(keypair, "omemo:key:" + account).onerror = console.error;
+			await promisifyRequest(store.put(keypair, "omemo:key:" + account));
+
+			return keypair;
 		},
 
 		storeOmemoDeviceList(chatId, deviceIds) {
@@ -1293,7 +1295,9 @@ tx.onerror = console.error;
 		getOmemoIdentityKey(account) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			return promisifyRequest(store.get("omemo:key:"+account));
+			return promisifyRequest(store.get("omemo:key:"+account)).then(
+				(result) => result ?? null,
+			);
 		},
 
 		async getOmemoSignedPreKey(account, keyId) {

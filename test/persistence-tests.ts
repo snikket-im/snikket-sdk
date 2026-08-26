@@ -1493,4 +1493,53 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 
 		expect(result).toBe(omemoId);
 	});
+
+	test("getOmemoIdentityKey returns null when none is stored", async ({
+		page,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async (persistence) =>
+				persistence.getOmemoIdentityKey(
+					"omemo-identity-not-found@example.com",
+				),
+			persistence,
+		);
+
+		expect(result).toBeNull();
+	});
+
+	test("storeOmemoIdentityKey stores the key pair", async ({
+		page,
+		persistence,
+	}) => {
+		const keyPair = {
+			privKey: [0, 1, 2, 127, 128, 255],
+			pubKey: [255, 128, 127, 2, 1, 0],
+		};
+
+		const result = await page.evaluate(
+			async ({ persistence, keyPair }) => {
+				await persistence.storeOmemoIdentityKey(
+					"omemo-identity-existing@example.com",
+					{
+						privKey: new Uint8Array(keyPair.privKey).buffer,
+						pubKey: new Uint8Array(keyPair.pubKey).buffer,
+					},
+				);
+				const loadedKeyPair = await persistence.getOmemoIdentityKey(
+					"omemo-identity-existing@example.com",
+				);
+
+				return {
+					loadedPrivKey: [...new Uint8Array(loadedKeyPair.privKey)],
+					loadedPubKey: [...new Uint8Array(loadedKeyPair.pubKey)],
+				};
+			},
+			{ persistence, keyPair },
+		);
+
+		expect(result.loadedPrivKey).toEqual([0, 1, 2, 127, 128, 255]);
+		expect(result.loadedPubKey).toEqual([255, 128, 127, 2, 1, 0]);
+	});
 }
