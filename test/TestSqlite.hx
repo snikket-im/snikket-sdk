@@ -1444,4 +1444,44 @@ class TestSqlite extends utest.Test {
 			});
 	}
 
+	public function testOmemoSignedPreKey(async: Async) {
+		final login = "signed-prekey@example.com";
+		final signedPreKey = {
+			keyId: 42,
+			keyPair: {
+				privKey: Bytes.ofHex("0001027f80ff").getData(),
+				pubKey: Bytes.ofHex("ff807f020100").getData(),
+			},
+			signature: Bytes.ofHex("090807060504").getData(),
+		};
+
+		persistence
+			.storeOmemoSignedPreKey(login, signedPreKey)
+			.then(_ -> persistence.getOmemoSignedPreKey(login, signedPreKey.keyId))
+			.then(result -> {
+				Assert.equals(signedPreKey.keyId, result.keyId);
+				Assert.equals("0001027f80ff", Bytes.ofData(result.keyPair.privKey).toHex());
+				Assert.equals("ff807f020100", Bytes.ofData(result.keyPair.pubKey).toHex());
+				Assert.equals("090807060504", Bytes.ofData(result.signature).toHex());
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
+	public function testGetOmemoSignedPreKeyNotFound(async: Async) {
+		persistence
+			.getOmemoSignedPreKey("signed-prekey-notfound@example.com", 1)
+			.then(result -> {
+				Assert.equals(null, result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
 }

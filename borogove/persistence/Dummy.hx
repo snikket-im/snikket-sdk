@@ -229,11 +229,13 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeOmemoSignedPreKey(login:String, signedPreKey:SignedPreKey):Void { }
+	public function storeOmemoSignedPreKey(login:String, signedPreKey:SignedPreKey):Promise<SignedPreKey> {
+		return Promise.resolve(signedPreKey);
+	}
 
 	@HaxeCBridge.noemit
-	public function getOmemoSignedPreKey(login:String, keyId:Int): Promise<SignedPreKey> {
-		return Promise.reject("Not found");
+	public function getOmemoSignedPreKey(login:String, keyId:Int): Promise<Null<SignedPreKey>> {
+		return Promise.resolve(null);
 	}
 
 	@HaxeCBridge.noemit

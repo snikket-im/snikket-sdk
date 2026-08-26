@@ -300,6 +300,19 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 16"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 17) {
+						return exec(["CREATE TABLE omemo_signed_prekeys (
+							account_id TEXT NOT NULL,
+							key_id INTEGER NOT NULL,
+							private_key BLOB NOT NULL,
+							public_key BLOB NOT NULL,
+							signature BLOB NOT NULL,
+							PRIMARY KEY (account_id, key_id)
+						) STRICT",
+						"PRAGMA user_version = 17"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -1505,11 +1518,31 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeOmemoSignedPreKey(login:String, signedPreKey:SignedPreKey):Void { }
+	public function storeOmemoSignedPreKey(login:String, signedPreKey:SignedPreKey):Promise<SignedPreKey> {
+		return db.exec(
+			"INSERT OR REPLACE INTO omemo_signed_prekeys VALUES (?,?,?,?,?)",
+			[login, signedPreKey.keyId, signedPreKey.keyPair.privKey, signedPreKey.keyPair.pubKey, signedPreKey.signature],
+		).then(_ -> signedPreKey);
+	}
 
 	@HaxeCBridge.noemit
-	public function getOmemoSignedPreKey(login:String, keyId:Int): Promise<SignedPreKey> {
-		return Promise.reject("TODO");
+	public function getOmemoSignedPreKey(login:String, keyId:Int):Promise<Null<SignedPreKey>> {
+		return db.exec(
+			"SELECT private_key, public_key, signature FROM omemo_signed_prekeys WHERE account_id=? AND key_id=? LIMIT 1",
+			[login, keyId],
+		).then(result -> {
+			for (row in result) {
+				return {
+					keyId: keyId,
+					keyPair: {
+						privKey: row.private_key,
+						pubKey: row.public_key,
+					},
+					signature: row.signature,
+				};
+			}
+			return null;
+		});
 	}
 
 	@HaxeCBridge.noemit

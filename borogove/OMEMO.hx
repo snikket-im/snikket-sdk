@@ -157,8 +157,7 @@ class OMEMOStore extends SignalProtocolStore {
 
 	public function storeSignedPreKey(keyId:Int, keyPair:SignedPreKey):Promise<Bool> {
 		trace("OMEMO: Storing signed prekey "+keyId);
-		persistence.storeOmemoSignedPreKey(accountId, keyPair);
-		return Promise.resolve(true);
+		return persistence.storeOmemoSignedPreKey(accountId, keyPair).then(_ -> true);
 	}
 
 	public function removeSignedPreKey(keyId:Int):Promise<Bool> {
@@ -673,9 +672,8 @@ class OMEMO {
 			prekeys = prekeys_;
 
 			return KeyHelper.generateSignedPreKey(identityKeyPair, 0);
-		}).then(cast function (signedPreKey:SignedPreKey):Bool {
+		}).then(signedPreKey -> {
 			trace("OMEMO: Built bundle");
-			persistence.storeOmemoSignedPreKey(client.accountId(), signedPreKey);
 
 			final public_signed_prekey = OMEMOBundleSignedPreKey.fromSignedPreKeyPair(signedPreKey);
 			this.bundle = {
@@ -684,7 +682,7 @@ class OMEMO {
 				prekeys: prekeys,
 				signed_prekey: public_signed_prekey,
 			};
-			return true;
+			return persistence.storeOmemoSignedPreKey(client.accountId(), signedPreKey).then(_ -> true);
 		});
 	}
 

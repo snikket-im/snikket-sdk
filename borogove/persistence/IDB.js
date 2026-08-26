@@ -1325,7 +1325,7 @@ tx.onerror = console.error;
 			}
 		},
 
-		storeOmemoSignedPreKey(account, signedKey) {
+		async storeOmemoSignedPreKey(account, signedKey) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
 			const dbKey = "omemo:signed-prekey:"+account+":"+signedKey.keyId.toString();
@@ -1334,7 +1334,9 @@ tx.onerror = console.error;
 				pubKey: arrayBufferToBase64(signedKey.keyPair.pubKey),
 				signature: arrayBufferToBase64(signedKey.signature),
 			};
-			store.put(storedKey, dbKey);
+			await promisifyRequest(store.put(storedKey, dbKey));
+
+			return signedKey;
 		},
 
 		async removeAccount(account, completely) {

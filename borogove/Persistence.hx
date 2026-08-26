@@ -385,12 +385,12 @@ interface Persistence {
 	/**
 		Store an OMEMO signed pre-key
 	**/
-	public function storeOmemoSignedPreKey(login:String, signedPreKey:SignedPreKey):Void;
+	public function storeOmemoSignedPreKey(login:String, signedPreKey:SignedPreKey):Promise<SignedPreKey>;
 
 	/**
 		Load an OMEMO signed pre-key
 	**/
-	public function getOmemoSignedPreKey(login:String, keyId:Int): Promise<SignedPreKey>;
+	public function getOmemoSignedPreKey(login:String, keyId:Int): Promise<Null<SignedPreKey>>;
 
 	/**
 		List available OMEMO pre-keys for an account

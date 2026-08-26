@@ -1648,4 +1648,65 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.loadedPubKey).toEqual(keyPair.pubKey);
 		expect(result.afterRemove).toBeNull();
 	});
+
+	test("storeOmemoSignedPreKey and getOmemoSignedPreKey", async ({
+		page,
+		persistence,
+	}) => {
+		const identifier = "omemo-signed-prekey-existing@example.com";
+		const keyId = 42;
+		const signedPreKey = {
+			keyId,
+			keyPair: {
+				privKey: [0, 1, 2, 127, 128, 255],
+				pubKey: [255, 128, 127, 2, 1, 0],
+			},
+			signature: [9, 8, 7, 6, 5, 4],
+		};
+		const result = await page.evaluate(
+			async ({ persistence, identifier, signedPreKey }) => {
+				await persistence.storeOmemoSignedPreKey(identifier, {
+					keyId: signedPreKey.keyId,
+					keyPair: {
+						privKey: new Uint8Array(signedPreKey.keyPair.privKey).buffer,
+						pubKey: new Uint8Array(signedPreKey.keyPair.pubKey).buffer,
+					},
+					signature: new Uint8Array(signedPreKey.signature).buffer,
+				});
+				const loaded = await persistence.getOmemoSignedPreKey(
+					identifier,
+					signedPreKey.keyId,
+				);
+
+				return {
+					keyId: loaded.keyId,
+					loadedPrivKey: [...new Uint8Array(loaded.keyPair.privKey)],
+					loadedPubKey: [...new Uint8Array(loaded.keyPair.pubKey)],
+					loadedSignature: [...new Uint8Array(loaded.signature)],
+				};
+			},
+			{ persistence, identifier, signedPreKey },
+		);
+
+		expect(result.keyId).toBe(keyId);
+		expect(result.loadedPrivKey).toEqual(signedPreKey.keyPair.privKey);
+		expect(result.loadedPubKey).toEqual(signedPreKey.keyPair.pubKey);
+		expect(result.loadedSignature).toEqual(signedPreKey.signature);
+	});
+
+	test("getOmemoSignedPreKey returns null when none is stored", async ({
+		page,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ persistence }) =>
+				persistence.getOmemoSignedPreKey(
+					"omemo-signed-prekey-not-found@example.com",
+					1,
+				),
+			{ persistence },
+		);
+
+		expect(result).toBeNull();
+	});
 }
