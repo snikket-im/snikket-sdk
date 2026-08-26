@@ -1,4 +1,5 @@
 import { idbTest, sqliteTest, expect } from "./browser-test";
+import { randomBytes } from "node:crypto";
 
 type PersistenceTest = typeof idbTest | typeof sqliteTest;
 
@@ -1511,36 +1512,26 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 
 	test("storeOmemoIdentityKey stores the key pair", async ({
 		page,
+		pageHelpers,
 		persistence,
 	}) => {
-		const keyPair = {
-			privKey: [0, 1, 2, 127, 128, 255],
-			pubKey: [255, 128, 127, 2, 1, 0],
-		};
+		const account = "omemo-identity-existing@example.com";
+		const keyPair = makeKeyPair();
 
 		const result = await page.evaluate(
-			async ({ persistence, keyPair }) => {
+			async ({ persistence, account, keyPair, pageHelpers }) => {
 				await persistence.storeOmemoIdentityKey(
-					"omemo-identity-existing@example.com",
-					{
-						privKey: new Uint8Array(keyPair.privKey).buffer,
-						pubKey: new Uint8Array(keyPair.pubKey).buffer,
-					},
+					account,
+					pageHelpers.keyPairToBuffers(keyPair),
 				);
-				const loadedKeyPair = await persistence.getOmemoIdentityKey(
-					"omemo-identity-existing@example.com",
-				);
+				const loadedKeyPair = await persistence.getOmemoIdentityKey(account);
 
-				return {
-					loadedPrivKey: [...new Uint8Array(loadedKeyPair.privKey)],
-					loadedPubKey: [...new Uint8Array(loadedKeyPair.pubKey)],
-				};
+				return pageHelpers.buffersToKeyPair(loadedKeyPair);
 			},
-			{ persistence, keyPair },
+			{ persistence, account, keyPair, pageHelpers },
 		);
 
-		expect(result.loadedPrivKey).toEqual([0, 1, 2, 127, 128, 255]);
-		expect(result.loadedPubKey).toEqual([255, 128, 127, 2, 1, 0]);
+		expectKeyPair(result, keyPair);
 	});
 
 	test("getOmemoDeviceList returns an empty list when none is stored", async ({
@@ -1614,19 +1605,16 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 
 	test("storeOmemoPreKey stores a removable pre-key", async ({
 		page,
+		pageHelpers,
 		persistence,
 	}) => {
 		const identifier = "omemo-prekey-existing@example.com";
 		const keyId = 42;
-		const keyPair = {
-			privKey: [0, 1, 2, 127, 128, 255],
-			pubKey: [255, 128, 127, 2, 1, 0],
-		};
+		const keyPair = makeKeyPair();
 		const result = await page.evaluate(
-			async ({ persistence, identifier, keyId, keyPair }) => {
+			async ({ persistence, identifier, keyId, keyPair, pageHelpers }) => {
 				await persistence.storeOmemoPreKey(identifier, keyId, {
-					privKey: new Uint8Array(keyPair.privKey).buffer,
-					pubKey: new Uint8Array(keyPair.pubKey).buffer,
+					...pageHelpers.keyPairToBuffers(keyPair),
 				});
 				const loadedKeyPair = await persistence.getOmemoPreKey(
 					identifier,
@@ -1635,53 +1623,47 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 				await persistence.removeOmemoPreKey(identifier, keyId);
 				const afterRemove = await persistence.getOmemoPreKey(identifier, keyId);
 
-				return {
-					loadedPrivKey: [...new Uint8Array(loadedKeyPair.privKey)],
-					loadedPubKey: [...new Uint8Array(loadedKeyPair.pubKey)],
-					afterRemove,
-				};
+				return { loadedKeyPair: pageHelpers.buffersToKeyPair(loadedKeyPair), afterRemove };
 			},
-			{ persistence, identifier, keyId, keyPair },
+			{ persistence, identifier, keyId, keyPair, pageHelpers },
 		);
 
-		expect(result.loadedPrivKey).toEqual(keyPair.privKey);
-		expect(result.loadedPubKey).toEqual(keyPair.pubKey);
+		expectKeyPair(result.loadedKeyPair, keyPair);
 		expect(result.afterRemove).toBeNull();
 	});
 
 	test("getOmemoPreKeys lists stored pre-keys", async ({
 		page,
+		pageHelpers,
 		persistence,
 	}) => {
 		const identifier = "omemo-prekeys-existing@example.com";
 		const preKeys = [
 			{
 				keyId: 2,
-				privKey: [0, 1, 2],
-				pubKey: [3, 4, 5],
+				keyPair: makeKeyPair(),
 			},
 			{
 				keyId: 3,
-				privKey: [6, 7, 8],
-				pubKey: [9, 10, 11],
+				keyPair: makeKeyPair(),
 			},
 		];
 		const result = await page.evaluate(
-			async ({ persistence, identifier, preKeys }) => {
+			async ({ persistence, identifier, preKeys, pageHelpers }) => {
 				for (const preKey of preKeys) {
-					await persistence.storeOmemoPreKey(identifier, preKey.keyId, {
-						privKey: new Uint8Array(preKey.privKey).buffer,
-						pubKey: new Uint8Array(preKey.pubKey).buffer,
-					});
+					await persistence.storeOmemoPreKey(
+						identifier,
+						preKey.keyId,
+						pageHelpers.keyPairToBuffers(preKey.keyPair),
+					);
 				}
 				const loaded = await persistence.getOmemoPreKeys(identifier);
 				return loaded.map((preKey) => ({
 					keyId: preKey.keyId,
-					privKey: [...new Uint8Array(preKey.keyPair.privKey)],
-					pubKey: [...new Uint8Array(preKey.keyPair.pubKey)],
+					keyPair: pageHelpers.buffersToKeyPair(preKey.keyPair),
 				}));
 			},
-			{ persistence, identifier, preKeys },
+			{ persistence, identifier, preKeys, pageHelpers },
 		);
 
 		expect(result).toEqual(preKeys);
@@ -1689,27 +1671,22 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 
 	test("storeOmemoSignedPreKey and getOmemoSignedPreKey", async ({
 		page,
+		pageHelpers,
 		persistence,
 	}) => {
 		const identifier = "omemo-signed-prekey-existing@example.com";
 		const keyId = 42;
 		const signedPreKey = {
 			keyId,
-			keyPair: {
-				privKey: [0, 1, 2, 127, 128, 255],
-				pubKey: [255, 128, 127, 2, 1, 0],
-			},
-			signature: [9, 8, 7, 6, 5, 4],
+			keyPair: makeKeyPair(),
+			signature: makeKey(),
 		};
 		const result = await page.evaluate(
-			async ({ persistence, identifier, signedPreKey }) => {
+			async ({ persistence, identifier, signedPreKey, pageHelpers }) => {
 				await persistence.storeOmemoSignedPreKey(identifier, {
 					keyId: signedPreKey.keyId,
-					keyPair: {
-						privKey: new Uint8Array(signedPreKey.keyPair.privKey).buffer,
-						pubKey: new Uint8Array(signedPreKey.keyPair.pubKey).buffer,
-					},
-					signature: new Uint8Array(signedPreKey.signature).buffer,
+					keyPair: pageHelpers.keyPairToBuffers(signedPreKey.keyPair),
+					signature: pageHelpers.keyToBuffer(signedPreKey.signature),
 				});
 				const loaded = await persistence.getOmemoSignedPreKey(
 					identifier,
@@ -1718,18 +1695,16 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 
 				return {
 					keyId: loaded.keyId,
-					loadedPrivKey: [...new Uint8Array(loaded.keyPair.privKey)],
-					loadedPubKey: [...new Uint8Array(loaded.keyPair.pubKey)],
-					loadedSignature: [...new Uint8Array(loaded.signature)],
+					keyPair: pageHelpers.buffersToKeyPair(loaded.keyPair),
+					signature: pageHelpers.bufferToKey(loaded.signature),
 				};
 			},
-			{ persistence, identifier, signedPreKey },
+			{ persistence, identifier, signedPreKey, pageHelpers },
 		);
 
 		expect(result.keyId).toBe(keyId);
-		expect(result.loadedPrivKey).toEqual(signedPreKey.keyPair.privKey);
-		expect(result.loadedPubKey).toEqual(signedPreKey.keyPair.pubKey);
-		expect(result.loadedSignature).toEqual(signedPreKey.signature);
+		expectKeyPair(result.keyPair, signedPreKey.keyPair);
+		expectKey(result.signature, signedPreKey.signature);
 	});
 
 	test("getOmemoSignedPreKey returns null when none is stored", async ({
@@ -1766,25 +1741,26 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 
 	test("storeOmemoContactIdentityKey and getOmemoContactIdentityKey", async ({
 		page,
+		pageHelpers,
 		persistence,
 	}) => {
 		const account = "omemo-contact-existing@example.com";
 		const address = "contact@example.com/1";
-		const identityKey = [0, 1, 2, 127, 128, 255];
+		const identityKey = makeKey();
 		const result = await page.evaluate(
-			async ({ persistence, account, address, identityKey }) => {
+			async ({ persistence, account, address, identityKey, pageHelpers }) => {
 				await persistence.storeOmemoContactIdentityKey(
 					account,
 					address,
-					new Uint8Array(identityKey).buffer,
+					pageHelpers.keyToBuffer(identityKey),
 				);
 				const loaded = await persistence.getOmemoContactIdentityKey(
 					account,
 					address,
 				);
-				return [...new Uint8Array(loaded)];
+				return pageHelpers.bufferToKey(loaded);
 			},
-			{ persistence, account, address, identityKey },
+			{ persistence, account, address, identityKey, pageHelpers },
 		);
 
 		expect(result).toEqual(identityKey);
@@ -1831,4 +1807,28 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.loaded).toEqual(session);
 		expect(result.afterRemove).toBeNull();
 	});
+}
+
+type TestKeyPair = {
+	privKey: number[];
+	pubKey: number[];
+};
+
+const makeKey = (): number[] => [...randomBytes(32)];
+
+const makeKeyPair = (): TestKeyPair => ({
+	privKey: makeKey(),
+	pubKey: makeKey().reverse(),
+});
+
+function expectKeyPair(
+	actual: TestKeyPair,
+	expected: TestKeyPair,
+) {
+	expectKey(actual.privKey, expected.privKey);
+	expectKey(actual.pubKey, expected.pubKey);
+}
+
+function expectKey(actual: number[], expected: number[]) {
+	expect(actual).toEqual(expected);
 }

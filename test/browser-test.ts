@@ -1,10 +1,30 @@
-import { test as base, expect, type JSHandle } from "@playwright/test";
+import { test as base, expect, type JSHandle, type Page } from "@playwright/test";
+import type { borogove_Persistence } from "../npm/borogove-browser";
 import type { borogove_persistence_Sqlite } from "../npm/sqlite-wasm";
+
+type PageKeyPair = {
+	privKey: number[];
+	pubKey: number[];
+};
+
+type PageHelpers = {
+	keyToBuffer(key: number[]): ArrayBuffer;
+	bufferToKey(key: ArrayBuffer): number[];
+	keyPairToBuffers(keyPair: PageKeyPair): {
+		privKey: ArrayBuffer;
+		pubKey: ArrayBuffer;
+	};
+	buffersToKeyPair(keyPair: {
+		privKey: ArrayBuffer;
+		pubKey: ArrayBuffer;
+	}): PageKeyPair;
+};
 
 type BrowserFixtures = {
 	borogove: JSHandle<any>;
 	createChannel: JSHandle<any>;
-	persistence: JSHandle<any>;
+	pageHelpers: JSHandle<PageHelpers>;
+	persistence: JSHandle<borogove_Persistence>;
 	storeIncompleteMember: JSHandle<any>;
 };
 
@@ -20,6 +40,28 @@ declare global {
 	}
 }
 
+const pageHelpers = async (
+	{ page }: { page: Page },
+	use: (helpers: JSHandle<PageHelpers>) => Promise<void>,
+) => {
+	const helpers = await page.evaluateHandle(() => ({
+		keyToBuffer: (key: number[]) => new Uint8Array(key).buffer,
+		bufferToKey: (key: ArrayBuffer) => [...new Uint8Array(key)],
+		keyPairToBuffers: (keyPair: PageKeyPair) => ({
+			privKey: new Uint8Array(keyPair.privKey).buffer,
+			pubKey: new Uint8Array(keyPair.pubKey).buffer,
+		}),
+		buffersToKeyPair: (keyPair: {
+			privKey: ArrayBuffer;
+			pubKey: ArrayBuffer;
+		}) => ({
+			privKey: [...new Uint8Array(keyPair.privKey)],
+			pubKey: [...new Uint8Array(keyPair.pubKey)],
+		}),
+	}));
+	await use(helpers);
+};
+
 export const idbTest = base.extend<BrowserFixtures>({
 	page: async ({ page }, use) => {
 		await page.goto("/idb");
@@ -29,6 +71,7 @@ export const idbTest = base.extend<BrowserFixtures>({
 		const borogove = await page.evaluateHandle(() => window.borogove);
 		await use(borogove);
 	},
+	pageHelpers,
 	createChannel: async ({ page, borogove }, use) => {
 		const createChannel = await page.evaluateHandle(
 			(borogove) => (persistence, chatId) =>
@@ -84,6 +127,7 @@ export const sqliteTest = base.extend<SqliteFixtures>({
 		const borogove = await page.evaluateHandle(() => window.borogove);
 		await use(borogove);
 	},
+	pageHelpers,
 	sqlite: async ({ page }, use) => {
 		const sqlite = await page.evaluateHandle(() => window.sqlite);
 		await use(sqlite);
