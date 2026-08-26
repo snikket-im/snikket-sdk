@@ -22,7 +22,7 @@ import {
 	borogove_Stanza,
 	borogove_Status,
 	FractionalIndexing_between,
-	FractionalIndexing_BASE_95_DIGITS
+	FractionalIndexing_BASE_95_DIGITS,
 } from "./borogove.js";
 import * as enums from "./borogove-enums.js";
 
@@ -77,20 +77,32 @@ export default async (dbname, media, tokenize, stemmer) => {
 		"will",
 		"with",
 		"www",
-		"you"
+		"you",
 	];
-	if (!tokenize) tokenize = function(s) {
-		return s.toLowerCase().split(/\s*\b/).filter(w => w.length > 1 && w.match(/\w/) && !stopwords.includes(w));
-	}
-	if (!stemmer) stemmer = function(s) { return s; }
+	if (!tokenize)
+		tokenize = function (s) {
+			return s
+				.toLowerCase()
+				.split(/\s*\b/)
+				.filter((w) => w.length > 1 && w.match(/\w/) && !stopwords.includes(w));
+		};
+	if (!stemmer)
+		stemmer = function (s) {
+			return s;
+		};
 
 	// Helper functions to convert binary data to storage-safe strings
 	// Uint8Array.to/fromBase64() is not yet widely available
-	function arrayBufferToBase64 (ab) {
-		return btoa((new Uint8Array(ab)).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+	function arrayBufferToBase64(ab) {
+		return btoa(
+			new Uint8Array(ab).reduce(
+				(data, byte) => data + String.fromCharCode(byte),
+				"",
+			),
+		);
 	}
 
-	function base64ToArrayBuffer (b64) {
+	function base64ToArrayBuffer(b64) {
 		const binary_string = atob(b64);
 		const len = binary_string.length;
 		const bytes = new Uint8Array(len);
@@ -107,10 +119,14 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const tx = db.transaction(["messages"], "readwrite");
 			const store = tx.objectStore("messages");
 			const count = await promisifyRequest(store.count());
-			var index = FractionalIndexing_between("a ", null, FractionalIndexing_BASE_95_DIGITS);
-			const cursor = store.index("accounts").openCursor(
-				IDBKeyRange.bound([account], [account, []])
+			var index = FractionalIndexing_between(
+				"a ",
+				null,
+				FractionalIndexing_BASE_95_DIGITS,
 			);
+			const cursor = store
+				.index("accounts")
+				.openCursor(IDBKeyRange.bound([account], [account, []]));
 			let i = 0;
 			let updates = [];
 			const flushUpdates = () => {
@@ -125,8 +141,18 @@ export default async (dbname, media, tokenize, stemmer) => {
 					flushUpdates();
 					break;
 				}
-				const sortId = index = FractionalIndexing_between(index, null, FractionalIndexing_BASE_95_DIGITS);
-				const terms = [...new Set(tokenize((cresult.value.text || "").replace(/^>.*/mg, "")).map(stemmer))].sort();
+				const sortId = (index = FractionalIndexing_between(
+					index,
+					null,
+					FractionalIndexing_BASE_95_DIGITS,
+				));
+				const terms = [
+					...new Set(
+						tokenize((cresult.value.text || "").replace(/^>.*/gm, "")).map(
+							stemmer,
+						),
+					),
+				].sort();
 				updates.push({ ...cresult.value, sortId, terms });
 				if (i++ % 1000 === 0) {
 					console.log("Migrating... " + i + " / " + count);
@@ -147,7 +173,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 				const db = event.target.result;
 				const tx = event.target.transaction;
 				if (!db.objectStoreNames.contains("messages")) {
-					const messages = db.createObjectStore("messages", { keyPath: ["account", "serverId", "serverIdBy", "localId"] });
+					const messages = db.createObjectStore("messages", {
+						keyPath: ["account", "serverId", "serverIdBy", "localId"],
+					});
 					messages.createIndex("localId", ["account", "localId", "chatId"]);
 				}
 				if (!db.objectStoreNames.contains("keyvaluepairs")) {
@@ -157,49 +185,89 @@ export default async (dbname, media, tokenize, stemmer) => {
 					db.createObjectStore("chats", { keyPath: ["account", "chatId"] });
 				}
 				if (!db.objectStoreNames.contains("members")) {
-					const members = db.createObjectStore("members", { keyPath: ["account", "id"] });
+					const members = db.createObjectStore("members", {
+						keyPath: ["account", "id"],
+					});
 				}
 				if (tx.objectStore("members").indexNames.contains("chats")) {
 					tx.objectStore("members").deleteIndex("chats");
 				}
-				if (!tx.objectStore("members").indexNames.contains("chatsWithTrueJid")) {
-					tx.objectStore("members").createIndex("chatsWithTrueJid", ["account", "chatId", "isSelf", "chat"]);
+				if (
+					!tx.objectStore("members").indexNames.contains("chatsWithTrueJid")
+				) {
+					tx.objectStore("members").createIndex("chatsWithTrueJid", [
+						"account",
+						"chatId",
+						"isSelf",
+						"chat",
+					]);
 				}
 				if (!db.objectStoreNames.contains("services")) {
-					db.createObjectStore("services", { keyPath: ["account", "serviceId"] });
+					db.createObjectStore("services", {
+						keyPath: ["account", "serviceId"],
+					});
 				}
 				if (!db.objectStoreNames.contains("reactions")) {
-					const reactions = db.createObjectStore("reactions", { keyPath: ["account", "chatId", "senderId", "updateId"] });
-					reactions.createIndex("senders", ["account", "chatId", "messageId", "senderId", "timestamp"]);
+					const reactions = db.createObjectStore("reactions", {
+						keyPath: ["account", "chatId", "senderId", "updateId"],
+					});
+					reactions.createIndex("senders", [
+						"account",
+						"chatId",
+						"messageId",
+						"senderId",
+						"timestamp",
+					]);
 				}
 				if (!db.objectStoreNames.contains("omemo_identities")) {
-					db.createObjectStore("omemo_identities", { keyPath: ["account", "address"] });
+					db.createObjectStore("omemo_identities", {
+						keyPath: ["account", "address"],
+					});
 				}
 				if (!db.objectStoreNames.contains("omemo_prekeys")) {
-					db.createObjectStore("omemo_prekeys", { keyPath: ["account", "keyId"] });
+					db.createObjectStore("omemo_prekeys", {
+						keyPath: ["account", "keyId"],
+					});
 				}
 				if (!db.objectStoreNames.contains("omemo_sessions")) {
-					db.createObjectStore("omemo_sessions", { keyPath: ["account", "address"] });
+					db.createObjectStore("omemo_sessions", {
+						keyPath: ["account", "address"],
+					});
 				}
 				if (!db.objectStoreNames.contains("omemo_sessions_meta")) {
-					db.createObjectStore("omemo_sessions_meta", { keyPath: ["account", "address"] });
+					db.createObjectStore("omemo_sessions_meta", {
+						keyPath: ["account", "address"],
+					});
 				}
 
 				const messagesIndexNames = tx.objectStore("messages").indexNames;
 				if (!messagesIndexNames.contains("chatsBySortId")) {
-					tx.objectStore("messages").createIndex("chatsBySortId", ["account", "chatId", "sortId"]);
+					tx.objectStore("messages").createIndex("chatsBySortId", [
+						"account",
+						"chatId",
+						"sortId",
+					]);
 				}
 				if (!messagesIndexNames.contains("accountsBySortId")) {
-					tx.objectStore("messages").createIndex("accountsBySortId", ["account", "sortId"]);
+					tx.objectStore("messages").createIndex("accountsBySortId", [
+						"account",
+						"sortId",
+					]);
 				}
 				if (!messagesIndexNames.contains("terms")) {
-					tx.objectStore("messages").createIndex("terms", "terms", { multiEntry: true });
+					tx.objectStore("messages").createIndex("terms", "terms", {
+						multiEntry: true,
+					});
 				}
 				if (messagesIndexNames.contains("accounts")) {
 					tx.objectStore("messages").deleteIndex("accounts");
 				}
 				if (!messagesIndexNames.contains("chats")) {
-					tx.objectStore("messages").createIndex("chats", ["account", "chatId", "timestamp"]);
+					tx.objectStore("messages").createIndex("chats", [
+						"account",
+						"chatId",
+						"timestamp",
+					]);
 				}
 			};
 			dbOpenReq.onsuccess = (event) => {
@@ -215,25 +283,35 @@ export default async (dbname, media, tokenize, stemmer) => {
 					"reactions",
 					"services",
 				];
-				for(const storeName of storeNames) {
-					if(!db.objectStoreNames.contains(storeName)) {
+				for (const storeName of storeNames) {
+					if (!db.objectStoreNames.contains(storeName)) {
 						db.close();
 						openDb(db.version + 1).then(resolve, reject);
 						return;
 					}
 				}
-				const tx = db.transaction(["messages", "members", "keyvaluepairs"], "readonly");
+				const tx = db.transaction(
+					["messages", "members", "keyvaluepairs"],
+					"readonly",
+				);
 				const messagesIndexNames = tx.objectStore("messages").indexNames;
-				const wantIndexNames = ["chatsBySortId", "accountsBySortId", "terms", "chats"];
-				for(const indexName of wantIndexNames) {
-					if(!messagesIndexNames.contains(indexName)) {
+				const wantIndexNames = [
+					"chatsBySortId",
+					"accountsBySortId",
+					"terms",
+					"chats",
+				];
+				for (const indexName of wantIndexNames) {
+					if (!messagesIndexNames.contains(indexName)) {
 						db.close();
 						openDb(db.version + 1).then(resolve, reject);
 						return;
 					}
 				}
 
-				if (!tx.objectStore("members").indexNames.contains("chatsWithTrueJid")) {
+				if (
+					!tx.objectStore("members").indexNames.contains("chatsWithTrueJid")
+				) {
 					db.close();
 					openDb(db.version + 1).then(resolve, reject);
 					return;
@@ -241,14 +319,27 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 				(async () => {
 					const kv = tx.objectStore("keyvaluepairs");
-					const ranMigrationAddSortIdAndTerms = await promisifyRequest(kv.get("__migrationAddSortIdAndTerms"));
-					if (!ranMigrationAddSortIdAndTerms && messagesIndexNames.contains("accounts")) {
-						const keys = await promisifyRequest(kv.getAllKeys(IDBKeyRange.bound("login:clientId:", "login:clientId:\uffff")));
-						const accountIds = keys.map(k => k.substring(15));
+					const ranMigrationAddSortIdAndTerms = await promisifyRequest(
+						kv.get("__migrationAddSortIdAndTerms"),
+					);
+					if (
+						!ranMigrationAddSortIdAndTerms &&
+						messagesIndexNames.contains("accounts")
+					) {
+						const keys = await promisifyRequest(
+							kv.getAllKeys(
+								IDBKeyRange.bound("login:clientId:", "login:clientId:\uffff"),
+							),
+						);
+						const accountIds = keys.map((k) => k.substring(15));
 						await migrationAddSortIdAndTerms(db, accountIds);
 
 						const writeKV = db.transaction(["keyvaluepairs"], "readwrite");
-						await promisifyRequest(writeKV.objectStore("keyvaluepairs").put(new Date(), "__migrationAddSortIdAndTerms"));
+						await promisifyRequest(
+							writeKV
+								.objectStore("keyvaluepairs")
+								.put(new Date(), "__migrationAddSortIdAndTerms"),
+						);
 					}
 
 					if (messagesIndexNames.contains("accounts")) {
@@ -279,15 +370,27 @@ export default async (dbname, media, tokenize, stemmer) => {
 			raw.displayName,
 			raw.photoUri,
 			raw.isSelf ? true : false,
-			raw.roles.map(role => new borogove_Role(role.id, role.title)),
+			raw.roles.map((role) => new borogove_Role(role.id, role.title)),
 			raw.jid instanceof borogove_JID ? raw.jid : borogove_JID.parse(raw.jid),
-			new Map((raw.presence?.entries() ?? []).map(([k, p]) => [k, p instanceof borogove_Stanza ? p : borogove_Stanza.parse(p)])),
-			raw.chat ? new borogove_AvailableChat(raw.chat, raw.displayName, raw.chat + (chat ? " (via " + chat.getDisplayName() + ")" : ""), new borogove_Caps("", [], [], [])) : null
+			new Map(
+				(raw.presence?.entries() ?? []).map(([k, p]) => [
+					k,
+					p instanceof borogove_Stanza ? p : borogove_Stanza.parse(p),
+				]),
+			),
+			raw.chat
+				? new borogove_AvailableChat(
+						raw.chat,
+						raw.displayName,
+						raw.chat + (chat ? " (via " + chat.getDisplayName() + ")" : ""),
+						new borogove_Caps("", [], [], []),
+					)
+				: null,
 		);
 	}
 
 	function hydrateStringReaction(r, senderId, timestamp) {
-		if (r.startsWith("ni://")){
+		if (r.startsWith("ni://")) {
 			return new borogove_CustomEmojiReaction(senderId, timestamp, "", r);
 		} else {
 			return new borogove_Reaction(senderId, timestamp, r);
@@ -296,22 +399,45 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 	function hydrateObjectReaction(r) {
 		if (r.uri) {
-			return new borogove_CustomEmojiReaction(r.senderId, r.timestamp, r.text, r.uri, r.envelopeId);
+			return new borogove_CustomEmojiReaction(
+				r.senderId,
+				r.timestamp,
+				r.text,
+				r.uri,
+				r.envelopeId,
+			);
 		} else {
-			return new borogove_Reaction(r.senderId, r.timestamp, r.text, r.envelopeId, r.key);
+			return new borogove_Reaction(
+				r.senderId,
+				r.timestamp,
+				r.text,
+				r.envelopeId,
+				r.key,
+			);
 		}
 	}
 
 	function hydrateReactionsArray(reacts, senderId, timestamp) {
 		if (!reacts) return reacts;
-		return reacts.map(r => typeof r === "string" ? hydrateStringReaction(r, senderId, timestamp) : hydrateObjectReaction(r));
+		return reacts.map((r) =>
+			typeof r === "string"
+				? hydrateStringReaction(r, senderId, timestamp)
+				: hydrateObjectReaction(r),
+		);
 	}
 
 	function hydrateReactions(map, timestamp) {
 		if (!map) return new Map();
 		const newMap = new Map();
 		for (const [k, reacts] of map) {
-			newMap.set(k, reacts.map(reactOrSender => typeof reactOrSender === "string" ? hydrateStringReaction(k, reactOrSender, timestamp) : hydrateObjectReaction(reactOrSender)));
+			newMap.set(
+				k,
+				reacts.map((reactOrSender) =>
+					typeof reactOrSender === "string"
+						? hydrateStringReaction(k, reactOrSender, timestamp)
+						: hydrateObjectReaction(reactOrSender),
+				),
+			);
 		}
 		return newMap;
 	}
@@ -334,15 +460,30 @@ export default async (dbname, media, tokenize, stemmer) => {
 		message.sender = value.sender && borogove_JID.parse(value.sender);
 		message.senderId = value.senderId;
 		message.recipients = value.recipients.map((r) => borogove_JID.parse(r));
-		message.to = value.to ? borogove_JID.parse(value.to) : message.recipients[0];
+		message.to = value.to
+			? borogove_JID.parse(value.to)
+			: message.recipients[0];
 		message.replyTo = value.replyTo.map((r) => borogove_JID.parse(r));
 		message.threadId = value.threadId;
-		message.attachments = (value.attachments ?? []).map(a => new borogove_ChatAttachment(a.name, a.mime, a.size, a.uris, (a.hashes ?? []).map(h => new borogove_Hash(h.algorithm, h.hash))));
+		message.attachments = (value.attachments ?? []).map(
+			(a) =>
+				new borogove_ChatAttachment(
+					a.name,
+					a.mime,
+					a.size,
+					a.uris,
+					(a.hashes ?? []).map((h) => new borogove_Hash(h.algorithm, h.hash)),
+				),
+		);
 		message.linkMetadata = value.linkMetadata ?? [];
 		message.reactions = hydrateReactions(value.reactions, message.timestamp);
 		message.text = value.text;
 		message.lang = value.lang;
-		message.type = value.type || (value.isGroupchat || value.groupchat ? enums.borogove_MessageType.Channel : enums.borogove_MessageType.Chat);
+		message.type =
+			value.type ||
+			(value.isGroupchat || value.groupchat
+				? enums.borogove_MessageType.Channel
+				: enums.borogove_MessageType.Chat);
 		message.stanza = value.stanza && borogove_Stanza.parse(value.stanza);
 		if (message.stanza) {
 			// Just use children from stanza instead of parsing again
@@ -363,19 +504,34 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const tx = db.transaction(["messages"], "readonly");
 			store = tx.objectStore("messages");
 		}
-		if (value.replyToMessage && !value.replyToMessage[2]) value.replyToMessage[2] = value.serverIdBy ?? value.chatId;
-		const range = value.replyToMessage && value.replyToMessage[1] !== message.serverId && value.replyToMessage[3] !== message.localId && (!value.replyToMessage[3] ?
-			IDBKeyRange.bound(value.replyToMessage.slice(0, 3), [...value.replyToMessage.slice(0, 3), []])
-			: IDBKeyRange.only(value.replyToMessage));
-		const replyToMessage = range && await hydrateMessage((await promisifyRequest(store.openCursor(range)))?.value, store);
+		if (value.replyToMessage && !value.replyToMessage[2])
+			value.replyToMessage[2] = value.serverIdBy ?? value.chatId;
+		const range =
+			value.replyToMessage &&
+			value.replyToMessage[1] !== message.serverId &&
+			value.replyToMessage[3] !== message.localId &&
+			(!value.replyToMessage[3]
+				? IDBKeyRange.bound(value.replyToMessage.slice(0, 3), [
+						...value.replyToMessage.slice(0, 3),
+						[],
+					])
+				: IDBKeyRange.only(value.replyToMessage));
+		const replyToMessage =
+			range &&
+			(await hydrateMessage(
+				(await promisifyRequest(store.openCursor(range)))?.value,
+				store,
+			));
 
 		message.replyToMessage = replyToMessage;
-		message.versions = await Promise.all((value.versions || []).map(v => {
-			v.versions = []; // No need for nested versions...
-			return hydrateMessage(v, store);
-		}));
+		message.versions = await Promise.all(
+			(value.versions || []).map((v) => {
+				v.versions = []; // No need for nested versions...
+				return hydrateMessage(v, store);
+			}),
+		);
 
-		await Promise.all(message.attachments.map(a => a.lookup(obj)));
+		await Promise.all(message.attachments.map((a) => a.lookup(obj)));
 
 		return message;
 	}
@@ -395,21 +551,43 @@ export default async (dbname, media, tokenize, stemmer) => {
 			recipients: message.recipients.map((r) => r.asString()),
 			replyTo: message.replyTo.map((r) => r.asString()),
 			timestamp: new Date(message.timestamp),
-			replyToMessage: message.replyToMessage && [account, message.replyToMessage.serverId || "", message.replyToMessage.serverIdBy || "", message.replyToMessage.localId || ""],
+			replyToMessage: message.replyToMessage && [
+				account,
+				message.replyToMessage.serverId || "",
+				message.replyToMessage.serverIdBy || "",
+				message.replyToMessage.localId || "",
+			],
 			versions: message.versions.map((m) => serializeMessage(account, m)),
-			payloads: message.stanza ? undefined : message.payloads.map((p) => p.toString()),
+			payloads: message.stanza
+				? undefined
+				: message.payloads.map((p) => p.toString()),
 			stanza: message.stanza?.toString(),
-			terms: [...new Set(tokenize((message.text || "").replace(/^>.*/mg, "")).map(stemmer))].sort()
-		}
+			terms: [
+				...new Set(
+					tokenize((message.text || "").replace(/^>.*/gm, "")).map(stemmer),
+				),
+			].sort(),
+		};
 	}
 
 	function correctMessage(account, message, result) {
 		// Newest (by timestamp) version wins for head
-		const newVersions = message.versions.length < 1 ? [message] : message.versions;
+		const newVersions =
+			message.versions.length < 1 ? [message] : message.versions;
 		const storedVersions = result.value.versions || [];
 		// TODO: dedupe? There shouldn't be dupes...
-		const versions = (storedVersions.length < 1 ? [result.value] : storedVersions).concat(newVersions.filter(nv => !storedVersions.find(sv => nv.serverId === sv.serverId)).map((nv) => serializeMessage(account, nv))).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-		const head = {...versions[0]};
+		const versions = (
+			storedVersions.length < 1 ? [result.value] : storedVersions
+		)
+			.concat(
+				newVersions
+					.filter(
+						(nv) => !storedVersions.find((sv) => nv.serverId === sv.serverId),
+					)
+					.map((nv) => serializeMessage(account, nv)),
+			)
+			.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+		const head = { ...versions[0] };
 		// Can't change primary key
 		head.serverIdBy = result.value.serverIdBy;
 		head.serverId = result.value.serverId;
@@ -448,17 +626,32 @@ export default async (dbname, media, tokenize, stemmer) => {
 			}
 		}
 		for (const reaction of reactions) {
-			reactionsMap.set(reaction.key, [...reactionsMap.get(reaction.key) || [], reaction]);
+			reactionsMap.set(reaction.key, [
+				...(reactionsMap.get(reaction.key) || []),
+				reaction,
+			]);
 		}
 		return reactionsMap;
 	}
 
 	async function chatPresenceAndMembersForName(account, store, rawChat) {
 		if (rawChat.class == "DirectChat") {
-			return [new Map(((await promisifyRequest(store.get([account, rawChat.chatId])))?.presence?.entries() ?? []).map(([k, p]) => [k, borogove_Stanza.parse(p)])), null];
+			return [
+				new Map(
+					(
+						(
+							await promisifyRequest(store.get([account, rawChat.chatId]))
+						)?.presence?.entries() ?? []
+					).map(([k, p]) => [k, borogove_Stanza.parse(p)]),
+				),
+				null,
+			];
 		}
 
-		const range = IDBKeyRange.bound([account, rawChat.chatId], [account, rawChat.chatId, []]);
+		const range = IDBKeyRange.bound(
+			[account, rawChat.chatId],
+			[account, rawChat.chatId, []],
+		);
 		const cursor = store.index("chatsWithTrueJid").openCursor(range, "prev");
 		let membersForName = [];
 		let presence = new Map();
@@ -467,9 +660,20 @@ export default async (dbname, media, tokenize, stemmer) => {
 			if (!cresult?.value) break;
 
 			if (cresult.value.isSelf) {
-				presence = new Map((cresult.value.presence?.entries() ?? []).map(([k, p]) => [k, borogove_Stanza.parse(p)]));
-			} else if (!cresult.value.roles.find(r => ["none", "outcast"].includes(r.id)) && cresult.value.id !== rawChat.chatId) {
-				membersForName.push({ id: cresult.value.id, displayName: cresult.value.displayName });
+				presence = new Map(
+					(cresult.value.presence?.entries() ?? []).map(([k, p]) => [
+						k,
+						borogove_Stanza.parse(p),
+					]),
+				);
+			} else if (
+				!cresult.value.roles.find((r) => ["none", "outcast"].includes(r.id)) &&
+				cresult.value.id !== rawChat.chatId
+			) {
+				membersForName.push({
+					id: cresult.value.id,
+					displayName: cresult.value.displayName,
+				});
 			}
 
 			// In big rooms we don't make a name from the members
@@ -483,27 +687,34 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 		membersForName?.sort((a, b) => a.displayName.localeCompare(b.displayName));
 		return [presence, membersForName];
-	};
+	}
 
 	const obj = {
-		syncPoint: async function(account, chatId) {
+		syncPoint: async function (account, chatId) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 			var cursor = null;
 			if (chatId === null) {
-				cursor = store.index("accountsBySortId").openCursor(
-					IDBKeyRange.bound([account], [account, []]),
-					"prev"
-				);
+				cursor = store
+					.index("accountsBySortId")
+					.openCursor(IDBKeyRange.bound([account], [account, []]), "prev");
 			} else {
-				cursor = store.index("chatsBySortId").openCursor(
-					IDBKeyRange.bound([account, chatId], [account, chatId, []]),
-					"prev"
-				);
+				cursor = store
+					.index("chatsBySortId")
+					.openCursor(
+						IDBKeyRange.bound([account, chatId], [account, chatId, []]),
+						"prev",
+					);
 			}
 			while (true) {
 				const result = await promisifyRequest(cursor);
-				if (!result || (result.value.syncPoint && result.value.serverId && ((chatId && result.value.serverIdBy == chatId) || result.value.serverIdBy === account))) {
+				if (
+					!result ||
+					(result.value.syncPoint &&
+						result.value.serverId &&
+						((chatId && result.value.serverIdBy == chatId) ||
+							result.value.serverIdBy === account))
+				) {
 					if (!result?.value) return null;
 
 					return await hydrateMessage(result.value);
@@ -513,7 +724,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			}
 		},
 
-		storeChats: function(account, chats) {
+		storeChats: function (account, chats) {
 			const tx = db.transaction(["chats"], "readwrite");
 			const store = tx.objectStore("chats");
 
@@ -528,70 +739,114 @@ export default async (dbname, media, tokenize, stemmer) => {
 					displayName: chat.displayName,
 					uiState: chat.uiState,
 					isBlocked: chat.isBlocked,
-					extensions: chat.extensions && chat.extensions.children.length < 1 ? null : chat.extensions?.toString(),
+					extensions:
+						chat.extensions && chat.extensions.children.length < 1
+							? null
+							: chat.extensions?.toString(),
 					readUpToId: chat.readUpToId,
 					readUpToBy: chat.readUpToBy,
-					notificationSettings: chat.notificationsFiltered() ? { mention: chat.notifyMention(), reply: chat.notifyReply() } : null,
+					notificationSettings: chat.notificationsFiltered()
+						? { mention: chat.notifyMention(), reply: chat.notifyReply() }
+						: null,
 					threads: chat.threads,
 					mavUntil: chat.mavUntil,
-					disco: { ...chat.disco, data: chat.disco?.data?.map(d => d.toString()) },
+					disco: {
+						...chat.disco,
+						data: chat.disco?.data?.map((d) => d.toString()),
+					},
 					omemoDevices: chat.omemoContactDeviceIDs,
-					class: chat instanceof borogove_DirectChat ? "DirectChat" : (chat instanceof borogove_Channel ? "Channel" : "Chat")
+					class:
+						chat instanceof borogove_DirectChat
+							? "DirectChat"
+							: chat instanceof borogove_Channel
+								? "Channel"
+								: "Chat",
 				});
 			}
 		},
 
-		getChats: async function(account) {
+		getChats: async function (account) {
 			const tx = db.transaction(["chats", "members"], "readonly");
 			const store = tx.objectStore("chats");
 			const membersStore = tx.objectStore("members");
 			const range = IDBKeyRange.bound([account], [account, []]);
 			const result = await promisifyRequest(store.getAll(range));
-			return await Promise.all(result.map(async (r) => new borogove_SerializedChat(
-				r.chatId,
-				r.trusted,
-				r.isBookmarked,
-				r.avatarSha1,
-				...await chatPresenceAndMembersForName(account, membersStore, r),
-				r.displayName,
-				r.uiState,
-				r.isBlocked,
-				new borogove_Status(r.status?.emoji ?? "", r.status?.text ?? ""),
-				r.extensions ? borogove_Stanza.parse(r.extensions) : null,
-				r.readUpToId,
-				r.readUpToBy,
-				r.notificationSettings === undefined ? null : r.notificationSettings != null,
-				r.notificationSettings?.mention,
-				r.notificationSettings?.reply,
-				r.threads || new Map(),
-				r.disco ? new borogove_Caps(
-					r.disco.node,
-					(r.disco.identities || []).map((identity) => new borogove_Identity(identity.category, identity.type, identity.name)),
-					r.disco.features || [],
-					(r.disco.data || []).map(s => borogove_Stanza.parse(s))
-				) : null,
-				r.mavUntil,
-				r.omemoDevices || [],
-				r.class
-			)));
+			return await Promise.all(
+				result.map(
+					async (r) =>
+						new borogove_SerializedChat(
+							r.chatId,
+							r.trusted,
+							r.isBookmarked,
+							r.avatarSha1,
+							...(await chatPresenceAndMembersForName(
+								account,
+								membersStore,
+								r,
+							)),
+							r.displayName,
+							r.uiState,
+							r.isBlocked,
+							new borogove_Status(r.status?.emoji ?? "", r.status?.text ?? ""),
+							r.extensions ? borogove_Stanza.parse(r.extensions) : null,
+							r.readUpToId,
+							r.readUpToBy,
+							r.notificationSettings === undefined
+								? null
+								: r.notificationSettings != null,
+							r.notificationSettings?.mention,
+							r.notificationSettings?.reply,
+							r.threads || new Map(),
+							r.disco
+								? new borogove_Caps(
+										r.disco.node,
+										(r.disco.identities || []).map(
+											(identity) =>
+												new borogove_Identity(
+													identity.category,
+													identity.type,
+													identity.name,
+												),
+										),
+										r.disco.features || [],
+										(r.disco.data || []).map((s) => borogove_Stanza.parse(s)),
+									)
+								: null,
+							r.mavUntil,
+							r.omemoDevices || [],
+							r.class,
+						),
+				),
+			);
 		},
 
 		async storeMembers(account, chatId, members) {
 			const tx = db.transaction(["members"], "readwrite");
 			const store = tx.objectStore("members");
 
-			await Promise.all(members.map(member => promisifyRequest(store.put({
-				account,
-				chatId,
-				id: member.id,
-				displayName: member.displayName,
-				photoUri: member.photoUri,
-				isSelf: member.isSelf ? 1 : 0, // Can't index on boolean
-				chat: member.chat?.chatId ?? "",
-				roles: member.roles,
-				presence: new Map([...member.presence.entries()].map(([k, p]) => [k, p.toString()])),
-				jid: member.jid?.asString(),
-			}))));
+			await Promise.all(
+				members.map((member) =>
+					promisifyRequest(
+						store.put({
+							account,
+							chatId,
+							id: member.id,
+							displayName: member.displayName,
+							photoUri: member.photoUri,
+							isSelf: member.isSelf ? 1 : 0, // Can't index on boolean
+							chat: member.chat?.chatId ?? "",
+							roles: member.roles,
+							presence: new Map(
+								[...member.presence.entries()].map(([k, p]) => [
+									k,
+									p.toString(),
+								]),
+							),
+							jid: member.jid?.asString(),
+						}),
+					),
+				),
+			);
 
 			return true;
 		},
@@ -601,24 +856,42 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const store = tx.objectStore("members");
 			const updatesFor = new Set();
 
-			const pseudoMembers = await Promise.all(updates.map(async (update) => {
-				let member = null;
-				if (update.id) {
-					member = await promisifyRequest(store.get([account, update.id]));
-				}
-				if (update.jid && !member) {
-					member = await promisifyRequest(store.index("chatsWithTrueJid").get([account, chat.chatId, update.isSelf ? 1 : 0, update.jid.asString()]));
-				}
-				if (member?.id || update.id) updatesFor.add(update.id ?? member?.id);
-				return update.applyTo(member ? hydrateMember(chat, member) : null);
-			}));
+			const pseudoMembers = await Promise.all(
+				updates.map(async (update) => {
+					let member = null;
+					if (update.id) {
+						member = await promisifyRequest(store.get([account, update.id]));
+					}
+					if (update.jid && !member) {
+						member = await promisifyRequest(
+							store
+								.index("chatsWithTrueJid")
+								.get([
+									account,
+									chat.chatId,
+									update.isSelf ? 1 : 0,
+									update.jid.asString(),
+								]),
+						);
+					}
+					if (member?.id || update.id) updatesFor.add(update.id ?? member?.id);
+					return update.applyTo(member ? hydrateMember(chat, member) : null);
+				}),
+			);
 
-			await this.storeMembers(account, chat.chatId, pseudoMembers.filter(m => m?.id));
+			await this.storeMembers(
+				account,
+				chat.chatId,
+				pseudoMembers.filter((m) => m?.id),
+			);
 
 			if (isFullList) {
 				const txW = db.transaction(["members"], "readwrite");
 				const storeW = txW.objectStore("members");
-				const range = IDBKeyRange.bound([account, chat.chatId], [account, chat.chatId, []]);
+				const range = IDBKeyRange.bound(
+					[account, chat.chatId],
+					[account, chat.chatId, []],
+				);
 				const cursor = storeW.index("chatsWithTrueJid").openCursor(range);
 				while (true) {
 					const cresult = await promisifyRequest(cursor);
@@ -634,13 +907,18 @@ export default async (dbname, media, tokenize, stemmer) => {
 				}
 			}
 
-			return pseudoMembers.filter(m => m?.id && m?.displayName && m?.jid).map(m => hydrateMember(chat, {...m, chat: m.chat?.chatId }));
+			return pseudoMembers
+				.filter((m) => m?.id && m?.displayName && m?.jid)
+				.map((m) => hydrateMember(chat, { ...m, chat: m.chat?.chatId }));
 		},
 
 		async clearMemberPresence(account, chatId) {
 			const tx = db.transaction(["members"], "readwrite");
 			const store = tx.objectStore("members");
-			const range = IDBKeyRange.bound(chatId ? [account, chatId] : [account], chatId ? [account, chatId, []] : [account, []]);
+			const range = IDBKeyRange.bound(
+				chatId ? [account, chatId] : [account],
+				chatId ? [account, chatId, []] : [account, []],
+			);
 			const cursor = store.index("chatsWithTrueJid").openCursor(range);
 			await new Promise((resolve, reject) => {
 				cursor.onerror = () => reject(cursor.error);
@@ -668,24 +946,32 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const roleSort = { owner: 4, admin: 3, none: 1, outcast: 0 };
 			const tx = db.transaction(["members"], "readonly");
 			const store = tx.objectStore("members");
-			const range = IDBKeyRange.bound([account, chat.chatId], [account, chat.chatId, []]);
+			const range = IDBKeyRange.bound(
+				[account, chat.chatId],
+				[account, chat.chatId, []],
+			);
 			// getAll is much faster than openCursor,
 			// but if the room has more than 20k members this will miss people
 			// at which point we need paging
-			const allMembers = await promisifyRequest(store.index("chatsWithTrueJid").getAll(range, 20000));
+			const allMembers = await promisifyRequest(
+				store.index("chatsWithTrueJid").getAll(range, 20000),
+			);
 			let clearedOffline = false;
 			let result = [];
 			let member = null;
 			while ((member = allMembers.pop())) {
 				if (!member.id || !member.displayName || !member.jid) continue;
-				if (!forModerator && member.roles.find(r => r.id == "outcast")) continue;
+				if (!forModerator && member.roles.find((r) => r.id == "outcast"))
+					continue;
 
 				const presenceKey = member.presence.keys().next()?.value;
-				const isOnline = presenceKey && !member.presence.get(presenceKey).includes('type="unavailable"');
-				if (member.roles.find(r => r.id == "none") && !isOnline) continue;
+				const isOnline =
+					presenceKey &&
+					!member.presence.get(presenceKey).includes('type="unavailable"');
+				if (member.roles.find((r) => r.id == "none") && !isOnline) continue;
 
 				if (!forModerator && !clearedOffline && result.length >= 1000) {
-					result = result.filter(m => m.__isOnline);
+					result = result.filter((m) => m.__isOnline);
 					clearedOffline = true;
 				}
 
@@ -693,8 +979,17 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 				const hydrated = hydrateMember(chat, member);
 				hydrated.__isOnline = isOnline;
-				hydrated.__roleSort = hydrated.roles.length < 1 ? 2 : Math.max(...hydrated.roles.map(r => roleSort[r.id] ?? 2));
-				hydrated.__sortKey = hydrated.roles.map(r => r.title).sort().join(" ") + " " + hydrated.displayName;
+				hydrated.__roleSort =
+					hydrated.roles.length < 1
+						? 2
+						: Math.max(...hydrated.roles.map((r) => roleSort[r.id] ?? 2));
+				hydrated.__sortKey =
+					hydrated.roles
+						.map((r) => r.title)
+						.sort()
+						.join(" ") +
+					" " +
+					hydrated.displayName;
 				result.push(hydrated);
 
 				if (!forModerator && result.length >= 2000) break;
@@ -714,29 +1009,43 @@ export default async (dbname, media, tokenize, stemmer) => {
 		async getMemberDetails(account, chat, ids) {
 			const tx = db.transaction(["members"], "readonly");
 			const store = tx.objectStore("members");
-			return await Promise.all(ids.map(async (id) => {
-				const raw = await promisifyRequest(store.get([account, id]));
-				if (!raw?.id || !raw?.displayName || !raw?.jid) return null;
+			return await Promise.all(
+				ids.map(async (id) => {
+					const raw = await promisifyRequest(store.get([account, id]));
+					if (!raw?.id || !raw?.displayName || !raw?.jid) return null;
 
-				return hydrateMember(chat, raw);
-			}));
+					return hydrateMember(chat, raw);
+				}),
+			);
 		},
 
 		async storeVoiceRequest(account, chat, jid, requesting) {
-			await this.set(`voiceRequest:${account}\n${chat.chatId}\n${jid}`, requesting ? true : undefined);
+			await this.set(
+				`voiceRequest:${account}\n${chat.chatId}\n${jid}`,
+				requesting ? true : undefined,
+			);
 			return true;
 		},
 
 		async listVoiceRequests(account, chat) {
 			const tx = db.transaction(["keyvaluepairs", "members"], "readonly");
 			const kvStore = tx.objectStore("keyvaluepairs");
-			const keys = await promisifyRequest(kvStore.getAllKeys(IDBKeyRange.bound(`voiceRequest:${account}\n${chat.chatId}\n`, `voiceRequest:${account}\n${chat.chatId}\n\uffff`)));
-			const jids = keys.map(k => k.split(/\n/)[2]);
+			const keys = await promisifyRequest(
+				kvStore.getAllKeys(
+					IDBKeyRange.bound(
+						`voiceRequest:${account}\n${chat.chatId}\n`,
+						`voiceRequest:${account}\n${chat.chatId}\n\uffff`,
+					),
+				),
+			);
+			const jids = keys.map((k) => k.split(/\n/)[2]);
 
 			const result = [];
 			const store = tx.objectStore("members");
 			for (const jid of jids) {
-				const raw = await promisifyRequest(store.index("chatsWithTrueJid").get([account, chat.chatId, 0, jid]));
+				const raw = await promisifyRequest(
+					store.index("chatsWithTrueJid").get([account, chat.chatId, 0, jid]),
+				);
 				if (!raw?.id || !raw?.displayName || !raw?.jid) continue;
 
 				result.push(hydrateMember(chat, raw));
@@ -745,14 +1054,16 @@ export default async (dbname, media, tokenize, stemmer) => {
 			return result;
 		},
 
-		getChatUnreadDetails: async function(account, chat) {
+		getChatUnreadDetails: async function (account, chat) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
 
-			const cursor = store.index("chatsBySortId").openCursor(
-				IDBKeyRange.bound([account, chat.chatId], [account, chat.chatId, []]),
-				"prev"
-			);
+			const cursor = store
+				.index("chatsBySortId")
+				.openCursor(
+					IDBKeyRange.bound([account, chat.chatId], [account, chat.chatId, []]),
+					"prev",
+				);
 			let rowCount = 0;
 			let unreadCount = 0;
 			let lastMessage = null;
@@ -763,7 +1074,10 @@ export default async (dbname, media, tokenize, stemmer) => {
 				rowCount++;
 				const value = cresult.value;
 				if (!lastMessage) lastMessage = hydrateMessage(value);
-				if (chat.readUpToId === value.serverId || value.direction == enums.borogove_MessageDirection.MessageSent) {
+				if (
+					chat.readUpToId === value.serverId ||
+					value.direction == enums.borogove_MessageDirection.MessageSent
+				) {
 					break;
 				} else {
 					unreadCount++;
@@ -775,14 +1089,22 @@ export default async (dbname, media, tokenize, stemmer) => {
 			return { message, unreadCount };
 		},
 
-		getChatsUnreadDetails: function(account, chatsArray) {
-			return Promise.all(chatsArray.map(async chat => {
-				const details = await this.getChatUnreadDetails(account, chat);
-				return { chatId: chat.chatId, ...details };
-			}));
+		getChatsUnreadDetails: function (account, chatsArray) {
+			return Promise.all(
+				chatsArray.map(async (chat) => {
+					const details = await this.getChatUnreadDetails(account, chat);
+					return { chatId: chat.chatId, ...details };
+				}),
+			);
 		},
 
-		getMessage: async function(account, chatId, serverId, localId, store = null) {
+		getMessage: async function (
+			account,
+			chatId,
+			serverId,
+			localId,
+			store = null,
+		) {
 			if (!serverId && !localId) throw "Can't getMessage by no id";
 
 			if (!store) {
@@ -791,7 +1113,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 			}
 			let result = null;
 			if (serverId) {
-				const cursor = store.openCursor(IDBKeyRange.bound([account, serverId], [account, serverId, []]));
+				const cursor = store.openCursor(
+					IDBKeyRange.bound([account, serverId], [account, serverId, []]),
+				);
 				while (true) {
 					const cresult = await promisifyRequest(cursor);
 					if (!cresult) break;
@@ -802,7 +1126,11 @@ export default async (dbname, media, tokenize, stemmer) => {
 					cresult.continue();
 				}
 			} else {
-				result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, localId, chatId])));
+				result = await promisifyRequest(
+					store
+						.index("localId")
+						.openCursor(IDBKeyRange.only([account, localId, chatId])),
+				);
 			}
 			if (!result || !result.value) return null;
 			const message = result.value;
@@ -817,18 +1145,67 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const reactionStore = tx.objectStore("reactions");
 			let result;
 			if (update.serverId) {
-				result = await promisifyRequest(store.openCursor(IDBKeyRange.bound([account, update.serverId, update.serverIdBy], [account, update.serverId, update.serverIdBy, []])));
+				result = await promisifyRequest(
+					store.openCursor(
+						IDBKeyRange.bound(
+							[account, update.serverId, update.serverIdBy],
+							[account, update.serverId, update.serverIdBy, []],
+						),
+					),
+				);
 			} else {
-				result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, update.localId, update.chatId])));
+				result = await promisifyRequest(
+					store
+						.index("localId")
+						.openCursor(
+							IDBKeyRange.only([account, update.localId, update.chatId]),
+						),
+				);
 			}
-			const lastFromSender = await promisifyRequest(reactionStore.index("senders").openCursor(IDBKeyRange.bound(
-				[account, update.chatId, update.serverId || update.localId, update.senderId],
-				[account, update.chatId, update.serverId || update.localId, update.senderId, []]
-			), "prev"));
-			const reactions = update.getReactions(hydrateReactionsArray(lastFromSender?.value?.reactions));
-			await promisifyRequest(reactionStore.put({...update, reactions: reactions, append: (update.kind === enums.borogove_ReactionUpdateKind.AppendReactions ? update.reactions : null), messageId: update.serverId || update.localId, timestamp: new Date(update.timestamp), account: account}));
+			const lastFromSender = await promisifyRequest(
+				reactionStore
+					.index("senders")
+					.openCursor(
+						IDBKeyRange.bound(
+							[
+								account,
+								update.chatId,
+								update.serverId || update.localId,
+								update.senderId,
+							],
+							[
+								account,
+								update.chatId,
+								update.serverId || update.localId,
+								update.senderId,
+								[],
+							],
+						),
+						"prev",
+					),
+			);
+			const reactions = update.getReactions(
+				hydrateReactionsArray(lastFromSender?.value?.reactions),
+			);
+			await promisifyRequest(
+				reactionStore.put({
+					...update,
+					reactions: reactions,
+					append:
+						update.kind === enums.borogove_ReactionUpdateKind.AppendReactions
+							? update.reactions
+							: null,
+					messageId: update.serverId || update.localId,
+					timestamp: new Date(update.timestamp),
+					account: account,
+				}),
+			);
 			if (!result || !result.value) return null;
-			if (lastFromSender?.value && lastFromSender.value.timestamp > new Date(update.timestamp)) return;
+			if (
+				lastFromSender?.value &&
+				lastFromSender.value.timestamp > new Date(update.timestamp)
+			)
+				return;
 			const message = result.value;
 			setReactions(message.reactions, update.senderId, reactions);
 			store.put(message);
@@ -839,7 +1216,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const tx = db.transaction(["messages", "reactions"], "readwrite");
 			const store = tx.objectStore("messages");
 			const promises = [];
-tx.onerror = console.error;
+			tx.onerror = console.error;
 			for (const [index, m] of messages.entries()) {
 				const isLast = index + 1 >= messages.length;
 				promises.push(this.storeMessage(tx, store, account, m, isLast));
@@ -851,37 +1228,120 @@ tx.onerror = console.error;
 		async storeMessage(tx, store, account, message, wait) {
 			if (!message.chatId()) throw "Cannot store a message with no chatId";
 			if (!message.sortId) throw "Cannot store a message with no sortId";
-			if (!message.serverId && !message.localId) throw "Cannot store a message with no id";
-			if (!message.serverId && message.isIncoming()) throw "Cannot store an incoming message with no server id";
-			if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";
+			if (!message.serverId && !message.localId)
+				throw "Cannot store a message with no id";
+			if (!message.serverId && message.isIncoming())
+				throw "Cannot store an incoming message with no server id";
+			if (message.serverId && !message.serverIdBy)
+				throw "Cannot store a message with a server id and no by";
 
 			// Hydrate reply stubs
-			const replyToMessage = message.replyToMessage && !message.replyToMessage.stanza ?
-				await this.getMessage(account, message.chatId(), message.replyToMessage.serverId, message.replyToMessage.localId, store) :
-				message.replyToMessage;
+			const replyToMessage =
+				message.replyToMessage && !message.replyToMessage.stanza
+					? await this.getMessage(
+							account,
+							message.chatId(),
+							message.replyToMessage.serverId,
+							message.replyToMessage.localId,
+							store,
+						)
+					: message.replyToMessage;
 			message.replyToMessage = replyToMessage ?? message.replyToMessage;
 
-			const result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.only([account, message.localId || [], message.chatId()])));
-			const reactionResult = await promisifyRequest(tx.objectStore("reactions").openCursor(IDBKeyRange.only([account, message.chatId(), message.senderId, message.localId || ""])));
+			const result = await promisifyRequest(
+				store
+					.index("localId")
+					.openCursor(
+						IDBKeyRange.only([
+							account,
+							message.localId || [],
+							message.chatId(),
+						]),
+					),
+			);
+			const reactionResult = await promisifyRequest(
+				tx
+					.objectStore("reactions")
+					.openCursor(
+						IDBKeyRange.only([
+							account,
+							message.chatId(),
+							message.senderId,
+							message.localId || "",
+						]),
+					),
+			);
 			if (reactionResult?.value?.append && message.html().trim() == "") {
-				const reactToMesssage = await this.getMessage(account, message.chatId(), reactionResult.value.serverId, reactionResult.value.localId, store);
-				const previouslyAppended = hydrateReactionsArray(reactionResult.value.append, reactionResult.value.senderId, reactionResult.value.timestamp).map(r => r.key);
+				const reactToMesssage = await this.getMessage(
+					account,
+					message.chatId(),
+					reactionResult.value.serverId,
+					reactionResult.value.localId,
+					store,
+				);
+				const previouslyAppended = hydrateReactionsArray(
+					reactionResult.value.append,
+					reactionResult.value.senderId,
+					reactionResult.value.timestamp,
+				).map((r) => r.key);
 				const reactions = [];
 				for (const [k, reacts] of reactToMessage?.reactions || []) {
 					for (const react of reacts) {
-						if (react.senderId === message.senderId && !previouslyAppended.includes(k)) reactions.push(react);
+						if (
+							react.senderId === message.senderId &&
+							!previouslyAppended.includes(k)
+						)
+							reactions.push(react);
 					}
 				}
-				return await this.storeReaction(account, new borogove_ReactionUpdate(message.localId, reactionResult.value.serverId, reactionResult.value.serverIdBy, reactionResult.value.localId, message.chatId(), message.senderId, message.timestamp, reactions, enums.borogove_ReactionUpdateKind.CompleteReactions), tx);
-			} else if (result?.value && !message.isIncoming() && result?.value.direction === enums.borogove_MessageDirection.MessageSent && message.versions.length < 1) {
+				return await this.storeReaction(
+					account,
+					new borogove_ReactionUpdate(
+						message.localId,
+						reactionResult.value.serverId,
+						reactionResult.value.serverIdBy,
+						reactionResult.value.localId,
+						message.chatId(),
+						message.senderId,
+						message.timestamp,
+						reactions,
+						enums.borogove_ReactionUpdateKind.CompleteReactions,
+					),
+					tx,
+				);
+			} else if (
+				result?.value &&
+				!message.isIncoming() &&
+				result?.value.direction ===
+					enums.borogove_MessageDirection.MessageSent &&
+				message.versions.length < 1
+			) {
 				// Duplicate, we trust our own sent ids
 				await promisifyRequest(result.delete());
-			} else if (result?.value && (result.value.senderId == message.senderId || result.value.type == enums.borogove_MessageType.MessageCall) && (message.versions.length > 0 || (result.value.versions || []).length > 0)) {
-				return await hydrateMessage(correctMessage(account, message, result), store);
+			} else if (
+				result?.value &&
+				(result.value.senderId == message.senderId ||
+					result.value.type == enums.borogove_MessageType.MessageCall) &&
+				(message.versions.length > 0 ||
+					(result.value.versions || []).length > 0)
+			) {
+				return await hydrateMessage(
+					correctMessage(account, message, result),
+					store,
+				);
 			}
 
 			// There may be reactions already if we are paging backwards
-			const cursor = tx.objectStore("reactions").index("senders").openCursor(IDBKeyRange.bound([account, message.chatId(), message.getReplyId() || ""], [account, message.chatId(), message.getReplyId() || "", []]), "prev");
+			const cursor = tx
+				.objectStore("reactions")
+				.index("senders")
+				.openCursor(
+					IDBKeyRange.bound(
+						[account, message.chatId(), message.getReplyId() || ""],
+						[account, message.chatId(), message.getReplyId() || "", []],
+					),
+					"prev",
+				);
 			const reactions = new Map();
 			const reactionTimes = new Map();
 			while (true) {
@@ -894,13 +1354,21 @@ tx.onerror = console.error;
 					} else {
 						store.put(toPut).onerror = console.error;
 					}
-					await Promise.all(message.attachments.map(a => a.lookup(this)));
+					await Promise.all(message.attachments.map((a) => a.lookup(this)));
 					return message;
 				}
 
 				const time = reactionTimes.get(cresult.value.senderId);
 				if (!time || time < cresult.value.timestamp) {
-					setReactions(reactions, cresult.value.senderId, hydrateReactionsArray(cresult.value.reactions, cresult.senderId, cresult.timestamp));
+					setReactions(
+						reactions,
+						cresult.value.senderId,
+						hydrateReactionsArray(
+							cresult.value.reactions,
+							cresult.senderId,
+							cresult.timestamp,
+						),
+					);
 					reactionTimes.set(cresult.value.senderId, cresult.value.timestamp);
 				}
 
@@ -908,28 +1376,53 @@ tx.onerror = console.error;
 			}
 		},
 
-		updateMessage: function(account, message) {
+		updateMessage: function (account, message) {
 			if (!message.chatId()) throw "Cannot store a message with no chatId";
 			if (!message.sortId) throw "Cannot store a message with no sortId";
-			if (!message.serverId && !message.localId) throw "Cannot store a message with no id";
-			if (!message.serverId && message.isIncoming()) throw "Cannot store an incoming message with no server id";
-			if (message.serverId && !message.serverIdBy) throw "Cannot store a message with a server id and no by";
+			if (!message.serverId && !message.localId)
+				throw "Cannot store a message with no id";
+			if (!message.serverId && message.isIncoming())
+				throw "Cannot store an incoming message with no server id";
+			if (message.serverId && !message.serverIdBy)
+				throw "Cannot store a message with a server id and no by";
 
 			const tx = db.transaction(["messages"], "readwrite");
 			const store = tx.objectStore("messages");
 			store.put(serializeMessage(account, message));
 		},
 
-		updateMessageStatus: async function(account, localId, status, statusText) {
+		updateMessageStatus: async function (account, localId, status, statusText) {
 			const idToLookup = recentCorrections[localId] ?? localId;
 			const tx = db.transaction(["messages"], "readwrite");
 			const store = tx.objectStore("messages");
-			const result = await promisifyRequest(store.index("localId").openCursor(IDBKeyRange.bound([account, idToLookup], [account, idToLookup, []])));
+			const result = await promisifyRequest(
+				store
+					.index("localId")
+					.openCursor(
+						IDBKeyRange.bound([account, idToLookup], [account, idToLookup, []]),
+					),
+			);
 			const value = result?.value;
-			if (value && value.direction === enums.borogove_MessageDirection.MessageSent && ![enums.borogove_MessageStatus.MessageDeliveredToDevice, enums.borogove_MessageStatus.MessageFailedToSend].includes(value.status)) {
-				const newStatus = (value.versions?.length || 0) > 0 ?
-					{ ...result.value, versions: [{ ...value.versions[0], status, statusText }, ...value.versions.slice(1)], status, statusText } :
-					{ ...value, status, statusText };
+			if (
+				value &&
+				value.direction === enums.borogove_MessageDirection.MessageSent &&
+				![
+					enums.borogove_MessageStatus.MessageDeliveredToDevice,
+					enums.borogove_MessageStatus.MessageFailedToSend,
+				].includes(value.status)
+			) {
+				const newStatus =
+					(value.versions?.length || 0) > 0
+						? {
+								...result.value,
+								versions: [
+									{ ...value.versions[0], status, statusText },
+									...value.versions.slice(1),
+								],
+								status,
+								statusText,
+							}
+						: { ...value, status, statusText };
 				result.update(newStatus);
 				return await hydrateMessage(newStatus);
 			}
@@ -937,33 +1430,58 @@ tx.onerror = console.error;
 			throw "Message not found: " + localId;
 		},
 
-		getMessagesBefore: async function(account, chatId, before) {
+		getMessagesBefore: async function (account, chatId, before) {
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
-			const cursor = before?.type === enums.borogove_MessageType.MessageChannelPrivate ?
-				store.index("chats").openCursor(
-					IDBKeyRange.bound([account, chatId], [account, chatId, new Date(before.timestamp)]),
-					"prev"
-				) : store.index("chatsBySortId").openCursor(
-					IDBKeyRange.bound([account, chatId], [account, chatId, before?.sortId || []]),
-					"prev"
-				);
-			const messages = await this.getMessagesFromCursor(cursor, before, m => m.type === enums.borogove_MessageType.MessageChannelPrivate);
+			const cursor =
+				before?.type === enums.borogove_MessageType.MessageChannelPrivate
+					? store
+							.index("chats")
+							.openCursor(
+								IDBKeyRange.bound(
+									[account, chatId],
+									[account, chatId, new Date(before.timestamp)],
+								),
+								"prev",
+							)
+					: store
+							.index("chatsBySortId")
+							.openCursor(
+								IDBKeyRange.bound(
+									[account, chatId],
+									[account, chatId, before?.sortId || []],
+								),
+								"prev",
+							);
+			const messages = await this.getMessagesFromCursor(
+				cursor,
+				before,
+				(m) => m.type === enums.borogove_MessageType.MessageChannelPrivate,
+			);
 
 			if (messages.length > 0 && messages[0].serverIdBy === chatId) {
 				const earliest = new Date(messages[messages.length - 1].timestamp);
 				const tx = db.transaction(["messages"], "readonly");
 				const store = tx.objectStore("messages");
-				const pmCursor = store.index("chats").openCursor(
-					IDBKeyRange.bound([account, chatId], [account, chatId, before ? new Date(before.timestamp) : []]),
-					"prev"
-				);
+				const pmCursor = store
+					.index("chats")
+					.openCursor(
+						IDBKeyRange.bound(
+							[account, chatId],
+							[account, chatId, before ? new Date(before.timestamp) : []],
+						),
+						"prev",
+					);
 				const promisePMs = [];
 				while (true) {
 					const cresult = await promisifyRequest(pmCursor);
 					if (!cresult?.value || cresult.value.timestamp < earliest) break;
 
-					if (cresult.value.type === enums.borogove_MessageType.MessageChannelPrivate && (!before || before.serverId !== cresult.value.serverId)) {
+					if (
+						cresult.value.type ===
+							enums.borogove_MessageType.MessageChannelPrivate &&
+						(!before || before.serverId !== cresult.value.serverId)
+					) {
 						promisePMs.push(hydrateMessage(cresult.value));
 					}
 
@@ -972,7 +1490,7 @@ tx.onerror = console.error;
 
 				const pms = await Promise.all(promisePMs);
 				for (const pm of pms) {
-					const idx = messages.findIndex(m => m.timestamp <= pm.timestamp);
+					const idx = messages.findIndex((m) => m.timestamp <= pm.timestamp);
 					if (idx >= 0) messages.splice(idx, 0, pm);
 				}
 			}
@@ -980,31 +1498,55 @@ tx.onerror = console.error;
 			return messages.reverse();
 		},
 
-		getMessagesAfter: async function(account, chatId, after) {
-			const index = after?.type === enums.borogove_MessageType.MessageChannelPrivate ? "chats" : "chatsBySortId";
-			const bound = after ? [after?.type === enums.borogove_MessageType.MessageChannelPrivate ? new Date(after.timestamp) : after.sortId] : [];
+		getMessagesAfter: async function (account, chatId, after) {
+			const index =
+				after?.type === enums.borogove_MessageType.MessageChannelPrivate
+					? "chats"
+					: "chatsBySortId";
+			const bound = after
+				? [
+						after?.type === enums.borogove_MessageType.MessageChannelPrivate
+							? new Date(after.timestamp)
+							: after.sortId,
+					]
+				: [];
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
-			const cursor = store.index(index).openCursor(
-				IDBKeyRange.bound([account, chatId, ...bound], [account, chatId, []]),
-				"next"
+			const cursor = store
+				.index(index)
+				.openCursor(
+					IDBKeyRange.bound([account, chatId, ...bound], [account, chatId, []]),
+					"next",
+				);
+			const messages = await this.getMessagesFromCursor(
+				cursor,
+				after,
+				(m) => m.type === enums.borogove_MessageType.MessageChannelPrivate,
 			);
-			const messages = await this.getMessagesFromCursor(cursor, after, m => m.type === enums.borogove_MessageType.MessageChannelPrivate);
 
 			if (messages.length > 0 && messages[0].serverIdBy === chatId) {
 				const latest = new Date(messages[messages.length - 1].timestamp);
 				const tx = db.transaction(["messages"], "readonly");
 				const store = tx.objectStore("messages");
-				const pmCursor = store.index("chats").openCursor(
-					IDBKeyRange.bound([account, chatId, ...(after ? [new Date(after.timestamp)] : [])], [account, chatId, []]),
-					"next"
-				);
+				const pmCursor = store
+					.index("chats")
+					.openCursor(
+						IDBKeyRange.bound(
+							[account, chatId, ...(after ? [new Date(after.timestamp)] : [])],
+							[account, chatId, []],
+						),
+						"next",
+					);
 				const promisePMs = [];
 				while (true) {
 					const cresult = await promisifyRequest(pmCursor);
 					if (!cresult?.value) break;
 
-					if (cresult.value.type === enums.borogove_MessageType.MessageChannelPrivate && (!after || after.serverId !== cresult.value.serverId)) {
+					if (
+						cresult.value.type ===
+							enums.borogove_MessageType.MessageChannelPrivate &&
+						(!after || after.serverId !== cresult.value.serverId)
+					) {
 						promisePMs.push(hydrateMessage(cresult.value));
 					}
 
@@ -1015,39 +1557,54 @@ tx.onerror = console.error;
 
 				const pms = await Promise.all(promisePMs);
 				for (const pm of pms) {
-					const idx = messages.findLastIndex(m => m.timestamp < pm.timestamp);
-					if (idx >= 0) messages.splice(idx+1, 0, pm);
+					const idx = messages.findLastIndex((m) => m.timestamp < pm.timestamp);
+					if (idx >= 0) messages.splice(idx + 1, 0, pm);
 				}
 			}
 
 			return messages;
 		},
 
-		getMessagesAround: async function(account, around) {
+		getMessagesAround: async function (account, around) {
 			if (!around) throw "Cannot look around nothing";
 			if (!around.sortId) throw "Cannot look around no sortId";
-			if (around.type == enums.borogove_MessageType.MessageChannelPrivate) throw "Cannot look around PM";
+			if (around.type == enums.borogove_MessageType.MessageChannelPrivate)
+				throw "Cannot look around PM";
 
 			const chatId = around.chatId();
 			const before = this.getMessagesBefore(account, chatId, around);
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
-			const cursor = store.index("chatsBySortId").openCursor(
-				IDBKeyRange.bound([account, chatId, around.sortId], [account, chatId, []]),
-				"next"
-			);
+			const cursor = store
+				.index("chatsBySortId")
+				.openCursor(
+					IDBKeyRange.bound(
+						[account, chatId, around.sortId],
+						[account, chatId, []],
+					),
+					"next",
+				);
 			const aroundAndAfter = this.getMessagesFromCursor(cursor, null);
 
-			return Promise.all([before, aroundAndAfter]).then(result => result.flat());
+			return Promise.all([before, aroundAndAfter]).then((result) =>
+				result.flat(),
+			);
 		},
 
-		getMessagesFromCursor: async function(cursor, notIncluding, filter) {
+		getMessagesFromCursor: async function (cursor, notIncluding, filter) {
 			const result = [];
 			while (true) {
 				const cresult = await promisifyRequest(cursor);
 				if (cresult && result.length < 50) {
 					const value = cresult.value;
-					if ((notIncluding?.serverId && notIncluding?.serverId === value?.serverId) || (notIncluding?.localId && !value?.serverId && notIncluding?.localId === value?.localId) || (filter && filter(value))) {
+					if (
+						(notIncluding?.serverId &&
+							notIncluding?.serverId === value?.serverId) ||
+						(notIncluding?.localId &&
+							!value?.serverId &&
+							notIncluding?.localId === value?.localId) ||
+						(filter && filter(value))
+					) {
 						cresult.continue();
 						continue;
 					}
@@ -1060,7 +1617,7 @@ tx.onerror = console.error;
 			}
 		},
 
-		searchMessages: async function(account, chatId, q) {
+		searchMessages: async function (account, chatId, q) {
 			const qTerms = new Set(tokenize(q).map(stemmer));
 			const tx = db.transaction(["messages"], "readonly");
 			const store = tx.objectStore("messages");
@@ -1070,7 +1627,9 @@ tx.onerror = console.error;
 			let probeTerm = null;
 			let probeScore = null;
 			for (const term of qTerms) {
-				const score = await promisifyRequest(index.count(IDBKeyRange.only(term)));
+				const score = await promisifyRequest(
+					index.count(IDBKeyRange.only(term)),
+				);
 				if (!probeTerm || score < probeScore) {
 					probeTerm = term;
 					probeScore = score;
@@ -1085,43 +1644,59 @@ tx.onerror = console.error;
 				const cresult = await promisifyRequest(cursor);
 				if (!cresult?.value) break;
 
-				if (cresult.value.account === account && (!chatId || cresult.value.chatId === chatId) && new Set(cresult.value.terms || []).isSupersetOf(qTerms)) {
+				if (
+					cresult.value.account === account &&
+					(!chatId || cresult.value.chatId === chatId) &&
+					new Set(cresult.value.terms || []).isSupersetOf(qTerms)
+				) {
 					result.push(hydrateMessageSync(cresult.value));
 				}
 				cresult.continue();
 			}
 
-			return result.sort((a, b) => a.timestamp < b.timestamp ? -1 : (a.timestamp > b.timestamp ? 1 : 0));
+			return result.sort((a, b) =>
+				a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
+			);
 		},
 
-		hasMedia: function(hash) {
+		hasMedia: function (hash) {
 			return media.hasMedia(hash);
 		},
 
-		removeMedia: function(hashAlgorithm, hash) {
+		removeMedia: function (hashAlgorithm, hash) {
 			return media.removeMedia(hashAlgorithm, hash);
 		},
 
-		storeMedia: function(mime, buffer) {
+		storeMedia: function (mime, buffer) {
 			return media.storeMedia(mime, buffer);
 		},
 
-		storeCaps: function(caps) {
+		storeCaps: function (caps) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			store.put({ ...caps, data: caps.data.map(d => d.toString()) }, "caps:" + caps.ver()).onerror = console.error;
+			store.put(
+				{ ...caps, data: caps.data.map((d) => d.toString()) },
+				"caps:" + caps.ver(),
+			).onerror = console.error;
 		},
 
-		getCaps: async function(ver) {
+		getCaps: async function (ver) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
 			const raw = await promisifyRequest(store.get("caps:" + ver));
 			if (raw) {
 				return new borogove_Caps(
 					raw.node,
-					raw.identities.map((identity) => new borogove_Identity(identity.category, identity.type, identity.name)),
+					raw.identities.map(
+						(identity) =>
+							new borogove_Identity(
+								identity.category,
+								identity.type,
+								identity.name,
+							),
+					),
 					raw.features,
-					(raw.data || []).map(s => borogove_Stanza.parse(s))
+					(raw.data || []).map((s) => borogove_Stanza.parse(s)),
 				);
 			}
 
@@ -1160,8 +1735,8 @@ tx.onerror = console.error;
 		async storeOmemoDeviceList(chatId, deviceIds) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			const key = "omemo:devices:"+chatId;
-			if(deviceIds.length>0) {
+			const key = "omemo:devices:" + chatId;
+			if (deviceIds.length > 0) {
 				await promisifyRequest(store.put(deviceIds, key));
 			} else {
 				await promisifyRequest(store.delete(key));
@@ -1173,7 +1748,9 @@ tx.onerror = console.error;
 		async getOmemoDeviceList(chatId) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			const result = await promisifyRequest(store.get("omemo:devices:"+chatId));
+			const result = await promisifyRequest(
+				store.get("omemo:devices:" + chatId),
+			);
 			return result || [];
 		},
 
@@ -1181,10 +1758,15 @@ tx.onerror = console.error;
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
 			const storedKeyPair = {
-				"privKey": arrayBufferToBase64(keyPair.privKey),
-				"pubKey": arrayBufferToBase64(keyPair.pubKey),
+				privKey: arrayBufferToBase64(keyPair.privKey),
+				pubKey: arrayBufferToBase64(keyPair.pubKey),
 			};
-			await promisifyRequest(store.put(storedKeyPair, "omemo:prekeys:"+account+":"+keyId.toString()));
+			await promisifyRequest(
+				store.put(
+					storedKeyPair,
+					"omemo:prekeys:" + account + ":" + keyId.toString(),
+				),
+			);
 
 			return keyPair;
 		},
@@ -1192,7 +1774,7 @@ tx.onerror = console.error;
 		async removeOmemoPreKey(account, keyId) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			const keyName = "omemo:prekeys:"+account+":"+keyId.toString();
+			const keyName = "omemo:prekeys:" + account + ":" + keyId.toString();
 			await promisifyRequest(store.delete(keyName));
 
 			return true;
@@ -1201,13 +1783,15 @@ tx.onerror = console.error;
 		async getOmemoPreKey(account, keyId) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			const result = await promisifyRequest(store.get("omemo:prekeys:"+account+":"+keyId.toString()));
+			const result = await promisifyRequest(
+				store.get("omemo:prekeys:" + account + ":" + keyId.toString()),
+			);
 			if (!result) {
 				return null;
 			} else {
 				return {
-					"privKey": base64ToArrayBuffer(result.privKey),
-					"pubKey": base64ToArrayBuffer(result.pubKey),
+					privKey: base64ToArrayBuffer(result.privKey),
+					pubKey: base64ToArrayBuffer(result.pubKey),
 				};
 			}
 		},
@@ -1215,8 +1799,8 @@ tx.onerror = console.error;
 		getOmemoPreKeys(account) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			const prefix = "omemo:prekeys:"+account+":";
-			const keyRange = IDBKeyRange.bound(prefix, prefix + '\uffff');
+			const prefix = "omemo:prekeys:" + account + ":";
+			const keyRange = IDBKeyRange.bound(prefix, prefix + "\uffff");
 
 			const prekeys = [];
 			const req = store.openCursor(keyRange);
@@ -1224,21 +1808,21 @@ tx.onerror = console.error;
 			return new Promise((resolve, reject) => {
 				req.onsuccess = (event) => {
 					const cursor = event.target.result;
-					if(cursor) {
+					if (cursor) {
 						const splitDbKey = cursor.key.split(":");
 						const keyId = parseInt(splitDbKey[splitDbKey.length - 1], 10);
 						prekeys.push({
 							keyId: keyId,
 							keyPair: {
-								"privKey": base64ToArrayBuffer(cursor.value.privKey),
-								"pubKey": base64ToArrayBuffer(cursor.value.pubKey),
+								privKey: base64ToArrayBuffer(cursor.value.privKey),
+								pubKey: base64ToArrayBuffer(cursor.value.pubKey),
 							},
 						});
 						cursor.continue();
 					} else {
 						resolve(prekeys);
 					}
-				}
+				};
 
 				req.onerror = (e) => {
 					console.error(e);
@@ -1256,7 +1840,7 @@ tx.onerror = console.error;
 			const store = tx.objectStore("keyvaluepairs");
 			await Promise.all([
 				await promisifyRequest(store.put(sm, "sm:" + account)),
-				await promisifyRequest(store.put(sortId, "sortId:" + account))
+				await promisifyRequest(store.put(sortId, "sortId:" + account)),
 			]);
 			return true;
 		},
@@ -1264,12 +1848,18 @@ tx.onerror = console.error;
 		async getStreamManagement(account) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			const sm = await promisifyRequest(store.get("sm:" + account)) || null;
-			const sortId = await promisifyRequest(store.get("sortId:" + account)) ?? "a ";
+			const sm = (await promisifyRequest(store.get("sm:" + account))) || null;
+			const sortId =
+				(await promisifyRequest(store.get("sortId:" + account))) ?? "a ";
 			if (sm instanceof ArrayBuffer || !sm) {
 				return { sm, sortId };
 			} else {
-				return { sm: new Blob([JSON.stringify(sm)], {type: "text/plain; charset=utf-8"}).arrayBuffer(), sortId };
+				return {
+					sm: new Blob([JSON.stringify(sm)], {
+						type: "text/plain; charset=utf-8",
+					}).arrayBuffer(),
+					sortId,
+				};
 			}
 		},
 
@@ -1284,16 +1874,23 @@ tx.onerror = console.error;
 				promisifyRequest(store.get("rosterVer:" + login)),
 			]).then((result) => {
 				if (result[1]) {
-					store.put((result[2] || 0) + 1, "login:fastCount:" + login).onerror = console.error;
+					store.put((result[2] || 0) + 1, "login:fastCount:" + login).onerror =
+						console.error;
 				}
-				return { clientId: result[0], token: result[1], fastCount: result[2] || 0, displayName: result[3], rosterVer: result[4] };
+				return {
+					clientId: result[0],
+					token: result[1],
+					fastCount: result[2] || 0,
+					displayName: result[3],
+					rosterVer: result[4],
+				};
 			});
 		},
 
 		getOmemoId(account) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			return promisifyRequest(store.get("omemo:id:"+account)).then(
+			return promisifyRequest(store.get("omemo:id:" + account)).then(
 				(result) => result ?? null,
 			);
 		},
@@ -1301,7 +1898,7 @@ tx.onerror = console.error;
 		getOmemoIdentityKey(account) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			return promisifyRequest(store.get("omemo:key:"+account)).then(
+			return promisifyRequest(store.get("omemo:key:" + account)).then(
 				(result) => result ?? null,
 			);
 		},
@@ -1309,9 +1906,9 @@ tx.onerror = console.error;
 		async getOmemoSignedPreKey(account, keyId) {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			const dbKey = "omemo:signed-prekey:"+account+":"+keyId.toString();
+			const dbKey = "omemo:signed-prekey:" + account + ":" + keyId.toString();
 			const result = await promisifyRequest(store.get(dbKey));
-			if(!result) {
+			if (!result) {
 				return null;
 			} else {
 				return {
@@ -1328,7 +1925,8 @@ tx.onerror = console.error;
 		async storeOmemoSignedPreKey(account, signedKey) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			const dbKey = "omemo:signed-prekey:"+account+":"+signedKey.keyId.toString();
+			const dbKey =
+				"omemo:signed-prekey:" + account + ":" + signedKey.keyId.toString();
 			const storedKey = {
 				privKey: arrayBufferToBase64(signedKey.keyPair.privKey),
 				pubKey: arrayBufferToBase64(signedKey.keyPair.pubKey),
@@ -1340,7 +1938,10 @@ tx.onerror = console.error;
 		},
 
 		async removeAccount(account, completely) {
-			const tx = db.transaction(["keyvaluepairs", "services", "messages", "chats", "reactions"], "readwrite");
+			const tx = db.transaction(
+				["keyvaluepairs", "services", "messages", "chats", "reactions"],
+				"readwrite",
+			);
 			const store = tx.objectStore("keyvaluepairs");
 			store.delete("login:clientId:" + account);
 			store.delete("login:token:" + account);
@@ -1351,7 +1952,9 @@ tx.onerror = console.error;
 			if (!completely) return true;
 
 			const servicesStore = tx.objectStore("services");
-			const servicesCursor = servicesStore.openCursor(IDBKeyRange.bound([account], [account, []]));
+			const servicesCursor = servicesStore.openCursor(
+				IDBKeyRange.bound([account], [account, []]),
+			);
 			servicesCursor.onsuccess = (event) => {
 				if (event.target.result) {
 					event.target.result.delete();
@@ -1360,7 +1963,9 @@ tx.onerror = console.error;
 			};
 
 			const messagesStore = tx.objectStore("messages");
-			const messagesCursor = messagesStore.openCursor(IDBKeyRange.bound([account], [account, []]));
+			const messagesCursor = messagesStore.openCursor(
+				IDBKeyRange.bound([account], [account, []]),
+			);
 			messagesCursor.onsuccess = (event) => {
 				if (event.target.result) {
 					event.target.result.delete();
@@ -1369,7 +1974,9 @@ tx.onerror = console.error;
 			};
 
 			const chatsStore = tx.objectStore("chats");
-			const chatsCursor = chatsStore.openCursor(IDBKeyRange.bound([account], [account, []]));
+			const chatsCursor = chatsStore.openCursor(
+				IDBKeyRange.bound([account], [account, []]),
+			);
 			chatsCursor.onsuccess = (event) => {
 				if (event.target.result) {
 					event.target.result.delete();
@@ -1378,7 +1985,9 @@ tx.onerror = console.error;
 			};
 
 			const reactionsStore = tx.objectStore("reactions");
-			const reactionsCursor = reactionsStore.openCursor(IDBKeyRange.bound([account], [account, []]));
+			const reactionsCursor = reactionsStore.openCursor(
+				IDBKeyRange.bound([account], [account, []]),
+			);
 			reactionsCursor.onsuccess = (event) => {
 				if (event.target.result) {
 					event.target.result.delete();
@@ -1392,8 +2001,12 @@ tx.onerror = console.error;
 		async listAccounts() {
 			const tx = db.transaction(["keyvaluepairs"], "readonly");
 			const store = tx.objectStore("keyvaluepairs");
-			const keys = await promisifyRequest(store.getAllKeys(IDBKeyRange.bound("login:clientId:", "login:clientId:\uffff")));
-			return keys.map(k => k.substring(15));
+			const keys = await promisifyRequest(
+				store.getAllKeys(
+					IDBKeyRange.bound("login:clientId:", "login:clientId:\uffff"),
+				),
+			);
+			return keys.map((k) => k.substring(15));
 		},
 
 		storeService(account, serviceId, name, node, caps) {
@@ -1416,16 +2029,24 @@ tx.onerror = console.error;
 			const store = tx.objectStore("services");
 
 			// Almost full scan shouldn't be too expensive, how many services are we aware of?
-			const cursor = store.openCursor(IDBKeyRange.bound([account], [account, []]));
+			const cursor = store.openCursor(
+				IDBKeyRange.bound([account], [account, []]),
+			);
 			const result = [];
 			while (true) {
 				const cresult = await promisifyRequest(cursor);
 				if (cresult) {
 					const value = cresult.value;
-					result.push(this.getCaps(value.caps).then((caps) => ({ ...value, caps: caps })));
+					result.push(
+						this.getCaps(value.caps).then((caps) => ({ ...value, caps: caps })),
+					);
 					cresult.continue();
 				} else {
-					return await Promise.all(result).then((items) => items.filter((item) => item.caps && item.caps.features.includes(feature)));
+					return await Promise.all(result).then((items) =>
+						items.filter(
+							(item) => item.caps && item.caps.features.includes(feature),
+						),
+					);
 				}
 			}
 		},
@@ -1446,11 +2067,13 @@ tx.onerror = console.error;
 		async storeOmemoContactIdentityKey(account, address, identityKey) {
 			const tx = db.transaction(["omemo_identities"], "readwrite");
 			const store = tx.objectStore("omemo_identities");
-			await promisifyRequest(store.put({
-				account: account,
-				address: address,
-				pubKey: arrayBufferToBase64(identityKey),
-			}));
+			await promisifyRequest(
+				store.put({
+					account: account,
+					address: address,
+					pubKey: arrayBufferToBase64(identityKey),
+				}),
+			);
 			return identityKey;
 		},
 
@@ -1464,22 +2087,26 @@ tx.onerror = console.error;
 		async storeOmemoSession(account, address, session) {
 			const tx = db.transaction(["omemo_sessions"], "readwrite");
 			const store = tx.objectStore("omemo_sessions");
-			await promisifyRequest(store.put({
-				account: account,
-				address: address,
-				session: session,
-			}));
+			await promisifyRequest(
+				store.put({
+					account: account,
+					address: address,
+					session: session,
+				}),
+			);
 			return session;
 		},
 
 		async storeOmemoMetadata(account, address, metadata) {
 			const tx = db.transaction(["omemo_sessions_meta"], "readwrite");
 			const store = tx.objectStore("omemo_sessions_meta");
-			await promisifyRequest(store.put({
-				account: account,
-				address: address,
-				metadata: metadata,
-			}));
+			await promisifyRequest(
+				store.put({
+					account: account,
+					address: address,
+					metadata: metadata,
+				}),
+			);
 			return metadata;
 		},
 
@@ -1492,7 +2119,10 @@ tx.onerror = console.error;
 
 		async removeOmemoSession(account, address) {
 			// Remove session and any stored metadata
-			const tx = db.transaction(["omemo_sessions", "omemo_sessions_meta"], "readwrite");
+			const tx = db.transaction(
+				["omemo_sessions", "omemo_sessions_meta"],
+				"readwrite",
+			);
 			const path = [account, address];
 			tx.objectStore("omemo_sessions").delete(path);
 			tx.objectStore("omemo_sessions_meta").delete(path);
@@ -1509,12 +2139,12 @@ tx.onerror = console.error;
 		set(k, v) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
-			if (typeof(v) === "undefined") {
+			if (typeof v === "undefined") {
 				return promisifyRequest(store.delete(k));
 			} else {
 				return promisifyRequest(store.put(v, k));
 			}
-		}
+		},
 	};
 
 	media.setKV(obj);

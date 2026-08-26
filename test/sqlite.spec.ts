@@ -91,5 +91,4 @@ test.describe("not webkit", () => {
 
 		expect(result).toEqual(["Zulu", "Alpha"]);
 	});
-
 });

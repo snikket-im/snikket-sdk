@@ -7,7 +7,14 @@ export default (cacheName, { routeHashPath } = { routeHashPath: null }) => {
 	let cache = null; // Allow the definitions to be sync
 
 	function mkNiUrl(hashAlgorithm, hashBytes) {
-		const b64url = btoa(Array.from(new Uint8Array(hashBytes), (x) => String.fromCodePoint(x)).join("")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+		const b64url = btoa(
+			Array.from(new Uint8Array(hashBytes), (x) =>
+				String.fromCodePoint(x),
+			).join(""),
+		)
+			.replace(/\+/g, "-")
+			.replace(/\//g, "_")
+			.replace(/=/g, "");
 		return "/.well-known/ni/" + hashAlgorithm + "/" + b64url;
 	}
 
@@ -22,18 +29,24 @@ export default (cacheName, { routeHashPath } = { routeHashPath: null }) => {
 			const tmpPath = "/tmp/" + crypto.randomUUID();
 			await cache.put(
 				tmpPath,
-				new Response(source.pipeThrough(new TransformStream({
-					start(controller) {},
-					flush(controller) {},
-					transform(chunk, controller) {
-						sha256.update(chunk);
-						sha1.update(chunk);
-						controller.enqueue(chunk);
-					}
-				})), { headers: { "Content-Type": mime } })
+				new Response(
+					source.pipeThrough(
+						new TransformStream({
+							start(controller) {},
+							flush(controller) {},
+							transform(chunk, controller) {
+								sha256.update(chunk);
+								sha1.update(chunk);
+								controller.enqueue(chunk);
+							},
+						}),
+					),
+					{ headers: { "Content-Type": mime } },
+				),
 			);
 			const sha256NiUrl = mkNiUrl("sha-256", sha256.digest().hash);
-			if (this.kv) await this.kv.set(mkNiUrl("sha-1", sha1.digest().hash), sha256NiUrl);
+			if (this.kv)
+				await this.kv.set(mkNiUrl("sha-1", sha1.digest().hash), sha256NiUrl);
 			// Copy then delete because move is not supported
 			const written = await cache.match(tmpPath);
 			await cache.put(sha256NiUrl, written);
@@ -46,7 +59,7 @@ export default (cacheName, { routeHashPath } = { routeHashPath: null }) => {
 			if (hashAlgorithm === "sha-256") {
 				niUrl = mkNiUrl(hashAlgorithm, hash);
 			} else {
-				niUrl = this.kv && await this.kv.get(mkNiUrl(hashAlgorithm, hash));
+				niUrl = this.kv && (await this.kv.get(mkNiUrl(hashAlgorithm, hash)));
 				if (!niUrl) return;
 			}
 
@@ -60,7 +73,7 @@ export default (cacheName, { routeHashPath } = { routeHashPath: null }) => {
 			if (uri.split("/")[3] === "sha-256") {
 				niUrl = uri;
 			} else {
-				niUrl = this.kv && await this.kv.get(uri);
+				niUrl = this.kv && (await this.kv.get(uri));
 				if (!niUrl) {
 					return null;
 				}
@@ -75,7 +88,7 @@ export default (cacheName, { routeHashPath } = { routeHashPath: null }) => {
 			if (!response) return null;
 
 			return niUrl;
-		}
+		},
 	};
 
 	if (routeHashPath) {
@@ -84,19 +97,22 @@ export default (cacheName, { routeHashPath } = { routeHashPath: null }) => {
 				const r = await o.getMediaResponse(uri);
 				if (r) return r;
 			}
-			await new Promise(resolve => setTimeout(resolve, 5000));
+			await new Promise((resolve) => setTimeout(resolve, 5000));
 			return await waitForMedia(uri);
 		};
 
 		self.addEventListener("fetch", (event) => {
 			const url = new URL(event.request.url);
-			if (url.origin === self.location.origin && url.pathname.startsWith("/.well-known/ni/")) {
+			if (
+				url.origin === self.location.origin &&
+				url.pathname.startsWith("/.well-known/ni/")
+			) {
 				event.respondWith(waitForMedia(url.pathname));
 			}
 		});
 	}
 
-	return caches.open(cacheName).then(c => {
+	return caches.open(cacheName).then((c) => {
 		cache = c;
 		return o;
 	});

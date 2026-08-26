@@ -137,10 +137,7 @@ test("a rejected unexpired FAST token uses a non-empty password before reconnect
 			});
 			persistence.getChats = async () => [];
 			persistence.getChatsUnreadDetails = async () => [];
-			const client = new borogove.Client(
-				"tester@127.0.0.1",
-				persistence,
-			);
+			const client = new borogove.Client("tester@127.0.0.1", persistence);
 			client.stream.debug = false;
 			const passwordRequested = Promise.withResolvers<void>();
 			client.addPasswordNeededListener(() => {

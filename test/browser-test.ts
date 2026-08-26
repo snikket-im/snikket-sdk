@@ -1,4 +1,9 @@
-import { test as base, expect, type JSHandle, type Page } from "@playwright/test";
+import {
+	test as base,
+	expect,
+	type JSHandle,
+	type Page,
+} from "@playwright/test";
 import type { borogove_Persistence } from "../npm/borogove-browser";
 import type { borogove_persistence_Sqlite } from "../npm/sqlite-wasm";
 

@@ -44,7 +44,11 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.threadSubject).toBe("Introductions");
 	});
 
-	test("storeChats and getChats with status", async ({ page, borogove, persistence }) => {
+	test("storeChats and getChats with status", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
 		const result = await page.evaluate(
 			async ({ borogove, persistence }) => {
 				const chat = new borogove.DirectChat(
@@ -75,7 +79,11 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.statusText).toBe("Time for tea!");
 	});
 
-	test("getChats uses member presence for direct chats", async ({ page, borogove, persistence }) => {
+	test("getChats uses member presence for direct chats", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
 		const result = await page.evaluate(
 			async ({ borogove, persistence }) => {
 				const chat = new borogove.DirectChat(
@@ -203,8 +211,11 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.presenceKeys).toEqual(["desk"]);
 	});
 
-
-	test("hydrate replyToMessage for groupchats", async ({ page, borogove, persistence }) => {
+	test("hydrate replyToMessage for groupchats", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
 		const result = await page.evaluate(
 			async ({ borogove, persistence }) => {
 				const builder = new borogove.ChatMessageBuilder({
@@ -407,40 +418,47 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result[0]).toBe("Hello world");
 	});
 
-	test("1:1 come back ordered by sortId", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const builder = new borogove.ChatMessageBuilder({
-				serverId: "1",
-				serverIdBy: "alice@example.com",
-				senderId: "hatter@example.com",
-				direction: 0,
-			});
-			builder.sortId = "a0";
-			builder.to = borogove.JID.parse("alice@example.com");
-			builder.from = borogove.JID.parse("hatter@example.com");
-			builder.replyTo = [builder.from];
+	test("1:1 come back ordered by sortId", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const builder = new borogove.ChatMessageBuilder({
+					serverId: "1",
+					serverIdBy: "alice@example.com",
+					senderId: "hatter@example.com",
+					direction: 0,
+				});
+				builder.sortId = "a0";
+				builder.to = borogove.JID.parse("alice@example.com");
+				builder.from = borogove.JID.parse("hatter@example.com");
+				builder.replyTo = [builder.from];
 
-			const builder2 = new borogove.ChatMessageBuilder({
-				serverId: "2",
-				serverIdBy: "alice@example.com",
-				senderId: "hatter@example.com",
-				direction: 0,
-			});
-			builder2.sortId = "b0";
-			builder2.to = borogove.JID.parse("alice@example.com");
-			builder2.from = borogove.JID.parse("hatter@example.com");
-			builder2.replyTo = [builder.from];
+				const builder2 = new borogove.ChatMessageBuilder({
+					serverId: "2",
+					serverIdBy: "alice@example.com",
+					senderId: "hatter@example.com",
+					direction: 0,
+				});
+				builder2.sortId = "b0";
+				builder2.to = borogove.JID.parse("alice@example.com");
+				builder2.from = borogove.JID.parse("hatter@example.com");
+				builder2.replyTo = [builder.from];
 
-			await persistence.storeMessages("alice@example.com", [
-				builder2.build(),
-				builder.build(),
-			]);
+				await persistence.storeMessages("alice@example.com", [
+					builder2.build(),
+					builder.build(),
+				]);
 
-			return await persistence.getMessagesBefore(
-				"alice@example.com",
-				"hatter@example.com",
-			);
-		}, { borogove, persistence });
+				return await persistence.getMessagesBefore(
+					"alice@example.com",
+					"hatter@example.com",
+				);
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.length).toBe(2);
 		expect(result[0].serverId).toBe("1");
@@ -452,57 +470,60 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		borogove,
 		persistence,
 	}) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const builder = new borogove.ChatMessageBuilder({
-				serverId: "1",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:01Z",
-			});
-			builder.sortId = "a0";
-			builder.to = borogove.JID.parse("alice@example.com");
-			builder.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder.replyTo = [builder.from.asBare()];
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const builder = new borogove.ChatMessageBuilder({
+					serverId: "1",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:01Z",
+				});
+				builder.sortId = "a0";
+				builder.to = borogove.JID.parse("alice@example.com");
+				builder.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder.replyTo = [builder.from.asBare()];
 
-			const builder2 = new borogove.ChatMessageBuilder({
-				serverId: "2",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:00Z",
-			});
-			builder2.sortId = "b0";
-			builder2.to = borogove.JID.parse("alice@example.com");
-			builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder2.replyTo = [builder.from.asBare()];
+				const builder2 = new borogove.ChatMessageBuilder({
+					serverId: "2",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:00Z",
+				});
+				builder2.sortId = "b0";
+				builder2.to = borogove.JID.parse("alice@example.com");
+				builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder2.replyTo = [builder.from.asBare()];
 
-			const builder3 = new borogove.ChatMessageBuilder({
-				serverId: "3",
-				serverIdBy: "alice@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannelPrivate,
-				timestamp: "2020-01-01T00:00:03Z",
-			});
-			builder3.sortId = "a0";
-			builder3.to = borogove.JID.parse("alice@example.com");
-			builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder3.replyTo = [builder.from.asBare()];
+				const builder3 = new borogove.ChatMessageBuilder({
+					serverId: "3",
+					serverIdBy: "alice@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannelPrivate,
+					timestamp: "2020-01-01T00:00:03Z",
+				});
+				builder3.sortId = "a0";
+				builder3.to = borogove.JID.parse("alice@example.com");
+				builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder3.replyTo = [builder.from.asBare()];
 
-			await persistence.storeMessages("alice@example.com", [
-				builder2.build(),
-				builder3.build(),
-				builder.build(),
-			]);
+				await persistence.storeMessages("alice@example.com", [
+					builder2.build(),
+					builder3.build(),
+					builder.build(),
+				]);
 
-			return await persistence.getMessagesBefore(
-				"alice@example.com",
-				"teaparty@example.com",
-			);
-		}, { borogove, persistence });
+				return await persistence.getMessagesBefore(
+					"alice@example.com",
+					"teaparty@example.com",
+				);
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.length).toBe(3);
 		expect(result[0].serverId).toBe("1");
@@ -515,72 +536,75 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		borogove,
 		persistence,
 	}) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const builder = new borogove.ChatMessageBuilder({
-				serverId: "1",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:01Z",
-			});
-			builder.sortId = "a0";
-			builder.to = borogove.JID.parse("alice@example.com");
-			builder.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder.replyTo = [builder.from.asBare()];
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const builder = new borogove.ChatMessageBuilder({
+					serverId: "1",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:01Z",
+				});
+				builder.sortId = "a0";
+				builder.to = borogove.JID.parse("alice@example.com");
+				builder.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder.replyTo = [builder.from.asBare()];
 
-			const builder2 = new borogove.ChatMessageBuilder({
-				serverId: "2",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:00Z",
-			});
-			builder2.sortId = "b0";
-			builder2.to = borogove.JID.parse("alice@example.com");
-			builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder2.replyTo = [builder.from.asBare()];
+				const builder2 = new borogove.ChatMessageBuilder({
+					serverId: "2",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:00Z",
+				});
+				builder2.sortId = "b0";
+				builder2.to = borogove.JID.parse("alice@example.com");
+				builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder2.replyTo = [builder.from.asBare()];
 
-			const builder3 = new borogove.ChatMessageBuilder({
-				serverId: "3",
-				serverIdBy: "alice@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannelPrivate,
-				timestamp: "2020-01-01T00:00:03Z",
-			});
-			builder3.sortId = "Z~";
-			builder3.to = borogove.JID.parse("alice@example.com");
-			builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder3.replyTo = [builder.from.asBare()];
+				const builder3 = new borogove.ChatMessageBuilder({
+					serverId: "3",
+					serverIdBy: "alice@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannelPrivate,
+					timestamp: "2020-01-01T00:00:03Z",
+				});
+				builder3.sortId = "Z~";
+				builder3.to = borogove.JID.parse("alice@example.com");
+				builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder3.replyTo = [builder.from.asBare()];
 
-			const builder4 = new borogove.ChatMessageBuilder({
-				serverId: "4",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:04Z",
-			});
-			builder4.sortId = "c0";
-			builder4.to = borogove.JID.parse("alice@example.com");
-			builder4.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder4.replyTo = [builder.from.asBare()];
+				const builder4 = new borogove.ChatMessageBuilder({
+					serverId: "4",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:04Z",
+				});
+				builder4.sortId = "c0";
+				builder4.to = borogove.JID.parse("alice@example.com");
+				builder4.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder4.replyTo = [builder.from.asBare()];
 
-			await persistence.storeMessages("alice@example.com", [
-				builder2.build(),
-				builder4.build(),
-				builder3.build(),
-				builder.build(),
-			]);
+				await persistence.storeMessages("alice@example.com", [
+					builder2.build(),
+					builder4.build(),
+					builder3.build(),
+					builder.build(),
+				]);
 
-			return await persistence.getMessagesBefore(
-				"alice@example.com",
-				"teaparty@example.com",
-				builder4.build(),
-			);
-		}, { borogove, persistence });
+				return await persistence.getMessagesBefore(
+					"alice@example.com",
+					"teaparty@example.com",
+					builder4.build(),
+				);
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.length).toBe(3);
 		expect(result[0].serverId).toBe("1");
@@ -589,72 +613,75 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 	});
 
 	test("getMessagesBefore a PM", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const builder = new borogove.ChatMessageBuilder({
-				serverId: "1",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:00Z",
-			});
-			builder.sortId = "a0";
-			builder.to = borogove.JID.parse("alice@example.com");
-			builder.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder.replyTo = [builder.from.asBare()];
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const builder = new borogove.ChatMessageBuilder({
+					serverId: "1",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:00Z",
+				});
+				builder.sortId = "a0";
+				builder.to = borogove.JID.parse("alice@example.com");
+				builder.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder.replyTo = [builder.from.asBare()];
 
-			const builder2 = new borogove.ChatMessageBuilder({
-				serverId: "2",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:01Z",
-			});
-			builder2.sortId = "b0";
-			builder2.to = borogove.JID.parse("alice@example.com");
-			builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder2.replyTo = [builder.from.asBare()];
+				const builder2 = new borogove.ChatMessageBuilder({
+					serverId: "2",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:01Z",
+				});
+				builder2.sortId = "b0";
+				builder2.to = borogove.JID.parse("alice@example.com");
+				builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder2.replyTo = [builder.from.asBare()];
 
-			const builder3 = new borogove.ChatMessageBuilder({
-				serverId: "3",
-				serverIdBy: "alice@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannelPrivate,
-				timestamp: "2020-01-01T00:00:03Z",
-			});
-			builder3.sortId = "Z~";
-			builder3.to = borogove.JID.parse("alice@example.com");
-			builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder3.replyTo = [builder.from.asBare()];
+				const builder3 = new borogove.ChatMessageBuilder({
+					serverId: "3",
+					serverIdBy: "alice@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannelPrivate,
+					timestamp: "2020-01-01T00:00:03Z",
+				});
+				builder3.sortId = "Z~";
+				builder3.to = borogove.JID.parse("alice@example.com");
+				builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder3.replyTo = [builder.from.asBare()];
 
-			const builder4 = new borogove.ChatMessageBuilder({
-				serverId: "4",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:04Z",
-			});
-			builder4.sortId = "c0";
-			builder4.to = borogove.JID.parse("alice@example.com");
-			builder4.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder4.replyTo = [builder.from.asBare()];
+				const builder4 = new borogove.ChatMessageBuilder({
+					serverId: "4",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:04Z",
+				});
+				builder4.sortId = "c0";
+				builder4.to = borogove.JID.parse("alice@example.com");
+				builder4.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder4.replyTo = [builder.from.asBare()];
 
-			await persistence.storeMessages("alice@example.com", [
-				builder2.build(),
-				builder4.build(),
-				builder3.build(),
-				builder.build(),
-			]);
+				await persistence.storeMessages("alice@example.com", [
+					builder2.build(),
+					builder4.build(),
+					builder3.build(),
+					builder.build(),
+				]);
 
-			return await persistence.getMessagesBefore(
-				"alice@example.com",
-				"teaparty@example.com",
-				builder3.build(),
-			);
-		}, { borogove, persistence });
+				return await persistence.getMessagesBefore(
+					"alice@example.com",
+					"teaparty@example.com",
+					builder3.build(),
+				);
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.length).toBe(2);
 		expect(result[0].serverId).toBe("1");
@@ -666,57 +693,60 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		borogove,
 		persistence,
 	}) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const builder = new borogove.ChatMessageBuilder({
-				serverId: "1",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:00Z",
-			});
-			builder.sortId = "a0";
-			builder.to = borogove.JID.parse("alice@example.com");
-			builder.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder.replyTo = [builder.from.asBare()];
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const builder = new borogove.ChatMessageBuilder({
+					serverId: "1",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:00Z",
+				});
+				builder.sortId = "a0";
+				builder.to = borogove.JID.parse("alice@example.com");
+				builder.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder.replyTo = [builder.from.asBare()];
 
-			const builder2 = new borogove.ChatMessageBuilder({
-				serverId: "2",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:01Z",
-			});
-			builder2.sortId = "b0";
-			builder2.to = borogove.JID.parse("alice@example.com");
-			builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder2.replyTo = [builder.from.asBare()];
+				const builder2 = new borogove.ChatMessageBuilder({
+					serverId: "2",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:01Z",
+				});
+				builder2.sortId = "b0";
+				builder2.to = borogove.JID.parse("alice@example.com");
+				builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder2.replyTo = [builder.from.asBare()];
 
-			const builder3 = new borogove.ChatMessageBuilder({
-				serverId: "3",
-				serverIdBy: "alice@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannelPrivate,
-				timestamp: "2020-01-01T00:00:03Z",
-			});
-			builder3.sortId = "a1";
-			builder3.to = borogove.JID.parse("alice@example.com");
-			builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder3.replyTo = [builder.from.asBare()];
+				const builder3 = new borogove.ChatMessageBuilder({
+					serverId: "3",
+					serverIdBy: "alice@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannelPrivate,
+					timestamp: "2020-01-01T00:00:03Z",
+				});
+				builder3.sortId = "a1";
+				builder3.to = borogove.JID.parse("alice@example.com");
+				builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder3.replyTo = [builder.from.asBare()];
 
-			await persistence.storeMessages("alice@example.com", [
-				builder2.build(),
-				builder3.build(),
-				builder.build(),
-			]);
+				await persistence.storeMessages("alice@example.com", [
+					builder2.build(),
+					builder3.build(),
+					builder.build(),
+				]);
 
-			return await persistence.getMessagesAfter(
-				"alice@example.com",
-				"teaparty@example.com",
-			);
-		}, { borogove, persistence });
+				return await persistence.getMessagesAfter(
+					"alice@example.com",
+					"teaparty@example.com",
+				);
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.length).toBe(3);
 		expect(result[0].serverId).toBe("1");
@@ -729,72 +759,75 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		borogove,
 		persistence,
 	}) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const builder = new borogove.ChatMessageBuilder({
-				serverId: "1",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:01Z",
-			});
-			builder.sortId = "a0";
-			builder.to = borogove.JID.parse("alice@example.com");
-			builder.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder.replyTo = [builder.from.asBare()];
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const builder = new borogove.ChatMessageBuilder({
+					serverId: "1",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:01Z",
+				});
+				builder.sortId = "a0";
+				builder.to = borogove.JID.parse("alice@example.com");
+				builder.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder.replyTo = [builder.from.asBare()];
 
-			const builder2 = new borogove.ChatMessageBuilder({
-				serverId: "2",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:00Z",
-			});
-			builder2.sortId = "b0";
-			builder2.to = borogove.JID.parse("alice@example.com");
-			builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder2.replyTo = [builder.from.asBare()];
+				const builder2 = new borogove.ChatMessageBuilder({
+					serverId: "2",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:00Z",
+				});
+				builder2.sortId = "b0";
+				builder2.to = borogove.JID.parse("alice@example.com");
+				builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder2.replyTo = [builder.from.asBare()];
 
-			const builder3 = new borogove.ChatMessageBuilder({
-				serverId: "3",
-				serverIdBy: "alice@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannelPrivate,
-				timestamp: "2020-01-01T00:00:03Z",
-			});
-			builder3.sortId = "Z~";
-			builder3.to = borogove.JID.parse("alice@example.com");
-			builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder3.replyTo = [builder.from.asBare()];
+				const builder3 = new borogove.ChatMessageBuilder({
+					serverId: "3",
+					serverIdBy: "alice@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannelPrivate,
+					timestamp: "2020-01-01T00:00:03Z",
+				});
+				builder3.sortId = "Z~";
+				builder3.to = borogove.JID.parse("alice@example.com");
+				builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder3.replyTo = [builder.from.asBare()];
 
-			const builder4 = new borogove.ChatMessageBuilder({
-				serverId: "4",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:04Z",
-			});
-			builder4.sortId = "c0";
-			builder4.to = borogove.JID.parse("alice@example.com");
-			builder4.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder4.replyTo = [builder.from.asBare()];
+				const builder4 = new borogove.ChatMessageBuilder({
+					serverId: "4",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:04Z",
+				});
+				builder4.sortId = "c0";
+				builder4.to = borogove.JID.parse("alice@example.com");
+				builder4.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder4.replyTo = [builder.from.asBare()];
 
-			await persistence.storeMessages("alice@example.com", [
-				builder2.build(),
-				builder4.build(),
-				builder3.build(),
-				builder.build(),
-			]);
+				await persistence.storeMessages("alice@example.com", [
+					builder2.build(),
+					builder4.build(),
+					builder3.build(),
+					builder.build(),
+				]);
 
-			return await persistence.getMessagesAfter(
-				"alice@example.com",
-				"teaparty@example.com",
-				builder.build(),
-			);
-		}, { borogove, persistence });
+				return await persistence.getMessagesAfter(
+					"alice@example.com",
+					"teaparty@example.com",
+					builder.build(),
+				);
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.length).toBe(3);
 		expect(result[0].serverId).toBe("2");
@@ -803,115 +836,133 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 	});
 
 	test("getMessagesAfter a PM", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const builder = new borogove.ChatMessageBuilder({
-				serverId: "1",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:00Z",
-			});
-			builder.sortId = "a0";
-			builder.to = borogove.JID.parse("alice@example.com");
-			builder.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder.replyTo = [builder.from.asBare()];
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const builder = new borogove.ChatMessageBuilder({
+					serverId: "1",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:00Z",
+				});
+				builder.sortId = "a0";
+				builder.to = borogove.JID.parse("alice@example.com");
+				builder.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder.replyTo = [builder.from.asBare()];
 
-			const builder2 = new borogove.ChatMessageBuilder({
-				serverId: "2",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:01Z",
-			});
-			builder2.sortId = "b0";
-			builder2.to = borogove.JID.parse("alice@example.com");
-			builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder2.replyTo = [builder.from.asBare()];
+				const builder2 = new borogove.ChatMessageBuilder({
+					serverId: "2",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:01Z",
+				});
+				builder2.sortId = "b0";
+				builder2.to = borogove.JID.parse("alice@example.com");
+				builder2.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder2.replyTo = [builder.from.asBare()];
 
-			const builder3 = new borogove.ChatMessageBuilder({
-				serverId: "3",
-				serverIdBy: "alice@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannelPrivate,
-				timestamp: "2020-01-01T00:00:03Z",
-			});
-			builder3.sortId = "Z~";
-			builder3.to = borogove.JID.parse("alice@example.com");
-			builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder3.replyTo = [builder.from.asBare()];
+				const builder3 = new borogove.ChatMessageBuilder({
+					serverId: "3",
+					serverIdBy: "alice@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannelPrivate,
+					timestamp: "2020-01-01T00:00:03Z",
+				});
+				builder3.sortId = "Z~";
+				builder3.to = borogove.JID.parse("alice@example.com");
+				builder3.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder3.replyTo = [builder.from.asBare()];
 
-			const builder4 = new borogove.ChatMessageBuilder({
-				serverId: "4",
-				serverIdBy: "teaparty@example.com",
-				senderId: "teaparty@example.com/hatter",
-				direction: 0,
-				type: borogove.MessageType.MessageChannel,
-				timestamp: "2020-01-01T00:00:04Z",
-			});
-			builder4.sortId = "c0";
-			builder4.to = borogove.JID.parse("alice@example.com");
-			builder4.from = borogove.JID.parse("teaparty@example.com/hatter");
-			builder4.replyTo = [builder.from.asBare()];
+				const builder4 = new borogove.ChatMessageBuilder({
+					serverId: "4",
+					serverIdBy: "teaparty@example.com",
+					senderId: "teaparty@example.com/hatter",
+					direction: 0,
+					type: borogove.MessageType.MessageChannel,
+					timestamp: "2020-01-01T00:00:04Z",
+				});
+				builder4.sortId = "c0";
+				builder4.to = borogove.JID.parse("alice@example.com");
+				builder4.from = borogove.JID.parse("teaparty@example.com/hatter");
+				builder4.replyTo = [builder.from.asBare()];
 
-			await persistence.storeMessages("alice@example.com", [
-				builder2.build(),
-				builder4.build(),
-				builder3.build(),
-				builder.build(),
-			]);
+				await persistence.storeMessages("alice@example.com", [
+					builder2.build(),
+					builder4.build(),
+					builder3.build(),
+					builder.build(),
+				]);
 
-			return await persistence.getMessagesAfter(
-				"alice@example.com",
-				"teaparty@example.com",
-				builder3.build(),
-			);
-		}, { borogove, persistence });
+				return await persistence.getMessagesAfter(
+					"alice@example.com",
+					"teaparty@example.com",
+					builder3.build(),
+				);
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.length).toBe(1);
 		expect(result[0].serverId).toBe("4");
 	});
 
 	test("updateMessageStatus", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const builder = new borogove.ChatMessageBuilder({
-				localId: "loc1",
-				senderId: "alice@example.com",
-				direction: 1, // MessageSent
-			});
-			builder.sortId = "a0";
-			builder.to = borogove.JID.parse("hatter@example.com");
-			builder.from = borogove.JID.parse("alice@example.com");
-			builder.recipients = [builder.to];
-			builder.replyTo = [builder.from];
-			await persistence.storeMessages("alice@example.com", [builder.build()]);
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const builder = new borogove.ChatMessageBuilder({
+					localId: "loc1",
+					senderId: "alice@example.com",
+					direction: 1, // MessageSent
+				});
+				builder.sortId = "a0";
+				builder.to = borogove.JID.parse("hatter@example.com");
+				builder.from = borogove.JID.parse("alice@example.com");
+				builder.recipients = [builder.to];
+				builder.replyTo = [builder.from];
+				await persistence.storeMessages("alice@example.com", [builder.build()]);
 
-			const updated = await persistence.updateMessageStatus(
-				"alice@example.com",
-				"loc1",
-				1,
-				"Delivered",
-			); // MessageDelivered
-			return { status: updated.status, statusText: updated.statusText };
-		}, { borogove, persistence });
+				const updated = await persistence.updateMessageStatus(
+					"alice@example.com",
+					"loc1",
+					1,
+					"Delivered",
+				); // MessageDelivered
+				return { status: updated.status, statusText: updated.statusText };
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.status).toBe(1);
 		expect(result.statusText).toBe("Delivered");
 	});
 
-	test("removeAccount and listAccounts", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			await persistence.storeLogin("alice@example.com", "client1", "Alice", null);
-			await persistence.storeLogin("bob@example.com", "client2", "Bob", null);
+	test("removeAccount and listAccounts", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				await persistence.storeLogin(
+					"alice@example.com",
+					"client1",
+					"Alice",
+					null,
+				);
+				await persistence.storeLogin("bob@example.com", "client2", "Bob", null);
 
-			const accountsBefore = await persistence.listAccounts();
-			await persistence.removeAccount("alice@example.com", true);
-			const accountsAfter = await persistence.listAccounts();
+				const accountsBefore = await persistence.listAccounts();
+				await persistence.removeAccount("alice@example.com", true);
+				const accountsAfter = await persistence.listAccounts();
 
-			return { accountsBefore, accountsAfter };
-		}, { borogove, persistence });
+				return { accountsBefore, accountsAfter };
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.accountsBefore).toContain("alice@example.com");
 		expect(result.accountsBefore).toContain("bob@example.com");
@@ -920,75 +971,84 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 	});
 
 	test("getChatUnreadDetails", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const chat = Object.create(borogove.DirectChat.prototype);
-			chat.chatId = "hatter@example.com";
-			chat.readUpToId = "srv1";
-			chat.notificationsFiltered = () => false;
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const chat = Object.create(borogove.DirectChat.prototype);
+				chat.chatId = "hatter@example.com";
+				chat.readUpToId = "srv1";
+				chat.notificationsFiltered = () => false;
 
-			const builder = new borogove.ChatMessageBuilder({
-				serverId: "srv1",
-				serverIdBy: "hatter@example.com",
-				senderId: "hatter@example.com",
-				direction: 0,
-			});
-			builder.sortId = "a0";
-			builder.to = borogove.JID.parse("alice@example.com");
-			builder.from = borogove.JID.parse("hatter@example.com");
-			builder.recipients = [builder.to];
-			builder.replyTo = [builder.from];
+				const builder = new borogove.ChatMessageBuilder({
+					serverId: "srv1",
+					serverIdBy: "hatter@example.com",
+					senderId: "hatter@example.com",
+					direction: 0,
+				});
+				builder.sortId = "a0";
+				builder.to = borogove.JID.parse("alice@example.com");
+				builder.from = borogove.JID.parse("hatter@example.com");
+				builder.recipients = [builder.to];
+				builder.replyTo = [builder.from];
 
-			const builder2 = new borogove.ChatMessageBuilder({
-				serverId: "srv2",
-				serverIdBy: "hatter@example.com",
-				senderId: "hatter@example.com",
-				direction: 0,
-			});
-			builder2.sortId = "a1";
-			builder2.to = borogove.JID.parse("alice@example.com");
-			builder2.from = borogove.JID.parse("hatter@example.com");
-			builder2.recipients = [builder2.to];
-			builder2.replyTo = [builder2.from];
+				const builder2 = new borogove.ChatMessageBuilder({
+					serverId: "srv2",
+					serverIdBy: "hatter@example.com",
+					senderId: "hatter@example.com",
+					direction: 0,
+				});
+				builder2.sortId = "a1";
+				builder2.to = borogove.JID.parse("alice@example.com");
+				builder2.from = borogove.JID.parse("hatter@example.com");
+				builder2.recipients = [builder2.to];
+				builder2.replyTo = [builder2.from];
 
-			await persistence.storeMessages("alice@example.com", [
-				builder.build(),
-				builder2.build(),
-			]);
+				await persistence.storeMessages("alice@example.com", [
+					builder.build(),
+					builder2.build(),
+				]);
 
-			return await persistence.getChatUnreadDetails("alice@example.com", chat);
-		}, { borogove, persistence });
+				return await persistence.getChatUnreadDetails(
+					"alice@example.com",
+					chat,
+				);
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.unreadCount).toBe(1);
 		expect(result.message.serverId).toBe("srv2");
 	});
 
 	test("media storage functions", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			function bufferToByteStream(buffer) {
-				let done = false;
-				return new ReadableStream({
-					type: "bytes",
-					async pull(controller) {
-						if (done) {
-							controller.close();
-						} else {
-							controller.enqueue(buffer);
-							done = true;
-						}
-					},
-				});
-			}
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				function bufferToByteStream(buffer) {
+					let done = false;
+					return new ReadableStream({
+						type: "bytes",
+						async pull(controller) {
+							if (done) {
+								controller.close();
+							} else {
+								controller.enqueue(buffer);
+								done = true;
+							}
+						},
+					});
+				}
 
-			const buffer = new Uint8Array([1, 2, 3]);
-			const sha256 = await crypto.subtle.digest("SHA-256", buffer.buffer);
-			await persistence.storeMedia("image/png", bufferToByteStream(buffer));
-			const hash = new borogove.Hash("sha-256", sha256);
-			const hasBefore = await persistence.hasMedia(hash);
-			await persistence.removeMedia("sha-256", sha256);
-			const hasAfter = await persistence.hasMedia(hash);
+				const buffer = new Uint8Array([1, 2, 3]);
+				const sha256 = await crypto.subtle.digest("SHA-256", buffer.buffer);
+				await persistence.storeMedia("image/png", bufferToByteStream(buffer));
+				const hash = new borogove.Hash("sha-256", sha256);
+				const hasBefore = await persistence.hasMedia(hash);
+				await persistence.removeMedia("sha-256", sha256);
+				const hasAfter = await persistence.hasMedia(hash);
 
-			return { hasBefore, hasAfter };
-		}, { borogove, persistence });
+				return { hasBefore, hasAfter };
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.hasBefore).toBe(
 			"/.well-known/ni/sha-256/A5BYxvLAy0ksUzsKTRTvd8wPeKvMztUofYShogEc-4E",
@@ -996,67 +1056,84 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.hasAfter).toBe(null);
 	});
 
-	test("storeStreamManamagement and getStreamManagement", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			await persistence.storeLogin("alice@example.com", "", "", null); // or updating with SM may not work
-			await persistence.storeStreamManagement(
-				"alice@example.com",
-				new Uint8Array([1, 2, 0, 4]).buffer,
-				"ZZ",
-			);
-			const result = await persistence.getStreamManagement("alice@example.com");
-			return {
-				smIsArrayBuffer: result.sm instanceof ArrayBuffer,
-				smIsEq: result.sm
-					? indexedDB.cmp(result.sm, new Uint8Array([1, 2, 0, 4]).buffer)
-					: "null",
-				sortId: result.sortId,
-			};
-		}, { borogove, persistence });
+	test("storeStreamManamagement and getStreamManagement", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				await persistence.storeLogin("alice@example.com", "", "", null); // or updating with SM may not work
+				await persistence.storeStreamManagement(
+					"alice@example.com",
+					new Uint8Array([1, 2, 0, 4]).buffer,
+					"ZZ",
+				);
+				const result =
+					await persistence.getStreamManagement("alice@example.com");
+				return {
+					smIsArrayBuffer: result.sm instanceof ArrayBuffer,
+					smIsEq: result.sm
+						? indexedDB.cmp(result.sm, new Uint8Array([1, 2, 0, 4]).buffer)
+						: "null",
+					sortId: result.sortId,
+				};
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.smIsEq).toBe(0);
 		expect(result.smIsArrayBuffer).toBe(true);
 		expect(result.sortId).toBe("ZZ");
 	});
 
-	test("getMembers hydrates persisted member data", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const chat = Object.create(borogove.Channel.prototype);
-			chat.chatId = "room-members-1@example.com";
-			chat.getDisplayName = () => "Tea Room";
+	test("getMembers hydrates persisted member data", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const chat = Object.create(borogove.Channel.prototype);
+				chat.chatId = "room-members-1@example.com";
+				chat.getDisplayName = () => "Tea Room";
 
-			const member = {
-				id: "room-members-1@example.com/occ-1",
-				displayName: "Alice",
-				photoUri: "photo:alice",
-				isSelf: false,
-				roles: [{ id: "admin", title: "Admin" }],
-				jid: borogove.JID.parse("alice@example.com"),
-				presence: new Map([
-					[
-						"laptop",
-						borogove.Stanza.parse("<presence><show>away</show></presence>"),
-					],
-				]),
-				chat: { chatId: "alice@example.com" },
-			};
+				const member = {
+					id: "room-members-1@example.com/occ-1",
+					displayName: "Alice",
+					photoUri: "photo:alice",
+					isSelf: false,
+					roles: [{ id: "admin", title: "Admin" }],
+					jid: borogove.JID.parse("alice@example.com"),
+					presence: new Map([
+						[
+							"laptop",
+							borogove.Stanza.parse("<presence><show>away</show></presence>"),
+						],
+					]),
+					chat: { chatId: "alice@example.com" },
+				};
 
-			await persistence.storeMembers("alice@example.com", chat.chatId, [member]);
-			const [stored] = await persistence.getMembers(
-				"alice@example.com",
-				chat,
-				false,
-			);
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					member,
+				]);
+				const [stored] = await persistence.getMembers(
+					"alice@example.com",
+					chat,
+					false,
+				);
 
-			return {
-				id: stored.id,
-				displayName: stored.displayName,
-				chatId: stored.chat?.chatId,
-				roleIds: stored.roles.map((r) => r.id),
-				presenceKeys: [...stored.presence.keys()],
-				showPresence: stored.showPresence,
-			};
-		}, { borogove, persistence });
+				return {
+					id: stored.id,
+					displayName: stored.displayName,
+					chatId: stored.chat?.chatId,
+					roleIds: stored.roles.map((r) => r.id),
+					presenceKeys: [...stored.presence.keys()],
+					showPresence: stored.showPresence,
+				};
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.id).toBe("room-members-1@example.com/occ-1");
 		expect(result.displayName).toBe("Alice");
@@ -1080,10 +1157,7 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 				persistence,
 				storeIncompleteMember,
 			}) => {
-				const chat = createChannel(
-					persistence,
-					"room-members-7@example.com",
-				);
+				const chat = createChannel(persistence, "room-members-7@example.com");
 				chat.displayName = "A Chat";
 				chat.trusted = true;
 
@@ -1124,52 +1198,61 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result).toEqual(["Alpha", null]);
 	});
 
-	test("storeMemberUpdates merges existing member data", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const chat = Object.create(borogove.Channel.prototype);
-			chat.chatId = "room-members-2@example.com";
-			chat.getDisplayName = () => "Tea Room";
+	test("storeMemberUpdates merges existing member data", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const chat = Object.create(borogove.Channel.prototype);
+				chat.chatId = "room-members-2@example.com";
+				chat.getDisplayName = () => "Tea Room";
 
-			await persistence.storeMembers("alice@example.com", chat.chatId, [
-				{
-					id: "room-members-2@example.com/occ-1",
-					displayName: "Alice",
-					photoUri: null,
-					isSelf: false,
-					roles: [
-						{ id: "admin", title: "Admin" },
-						{ id: "urn:xmpp:hats:test", title: "Tea Host" },
-					],
-					jid: borogove.JID.parse("alice@example.com"),
-					presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
-					chat: { chatId: "alice@example.com" },
-				},
-			]);
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-members-2@example.com/occ-1",
+						displayName: "Alice",
+						photoUri: null,
+						isSelf: false,
+						roles: [
+							{ id: "admin", title: "Admin" },
+							{ id: "urn:xmpp:hats:test", title: "Tea Host" },
+						],
+						jid: borogove.JID.parse("alice@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "alice@example.com" },
+					},
+				]);
 
-			const updates = [
-				new borogove.MemberUpdate(
-					"room-members-2@example.com/occ-1",
-					borogove.JID.parse("alice@example.com"),
-					"Alice Cooper",
+				const updates = [
+					new borogove.MemberUpdate(
+						"room-members-2@example.com/occ-1",
+						borogove.JID.parse("alice@example.com"),
+						"Alice Cooper",
+						false,
+						null,
+						new Map([["mobile", borogove.Stanza.parse("<presence />")]]),
+					),
+				];
+
+				const updated = await persistence.storeMemberUpdates(
+					"alice@example.com",
+					chat,
+					updates,
 					false,
-					null,
-					new Map([["mobile", borogove.Stanza.parse("<presence />")]]),
-				),
-			];
+				);
 
-			const updated = await persistence.storeMemberUpdates(
-				"alice@example.com",
-				chat,
-				updates,
-				false,
-			);
-
-			return {
-				updatedRoleIds: updated[0].roles.map((r) => r.id),
-				updatedPresenceKeys: [...updated[0].presence.keys()].sort(),
-				updatedDisplayName: updated[0].displayName,
-			};
-		}, { borogove, persistence });
+				return {
+					updatedRoleIds: updated[0].roles.map((r) => r.id),
+					updatedPresenceKeys: [...updated[0].presence.keys()].sort(),
+					updatedDisplayName: updated[0].displayName,
+				};
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.updatedRoleIds).toEqual(["urn:xmpp:hats:test"]);
 		expect(result.updatedPresenceKeys).toEqual(["desk", "mobile"]);
@@ -1181,57 +1264,62 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		borogove,
 		persistence,
 	}) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const chat = Object.create(borogove.Channel.prototype);
-			chat.chatId = "room-members-2b@example.com";
-			chat.getDisplayName = () => "Tea Room";
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const chat = Object.create(borogove.Channel.prototype);
+				chat.chatId = "room-members-2b@example.com";
+				chat.getDisplayName = () => "Tea Room";
 
-			await persistence.storeMembers("alice@example.com", chat.chatId, [
-				{
-					id: "room-members-2b@example.com/occ-1",
-					displayName: "Alice",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "admin", title: "Admin" }],
-					jid: borogove.JID.parse("alice@example.com"),
-					presence: new Map(),
-					chat: { chatId: "alice@example.com" },
-				},
-				{
-					id: "room-members-2b@example.com/occ-2",
-					displayName: "Bob",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "owner", title: "Owner" }],
-					jid: borogove.JID.parse("bob@example.com"),
-					presence: new Map(),
-					chat: { chatId: "bob@example.com" },
-				},
-			]);
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-members-2b@example.com/occ-1",
+						displayName: "Alice",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("alice@example.com"),
+						presence: new Map(),
+						chat: { chatId: "alice@example.com" },
+					},
+					{
+						id: "room-members-2b@example.com/occ-2",
+						displayName: "Bob",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "owner", title: "Owner" }],
+						jid: borogove.JID.parse("bob@example.com"),
+						presence: new Map(),
+						chat: { chatId: "bob@example.com" },
+					},
+				]);
 
-			await persistence.storeMemberUpdates(
-				"alice@example.com",
-				chat,
-				[
-					new borogove.MemberUpdate(
-						"room-members-2b@example.com/occ-1",
-						borogove.JID.parse("alice@example.com"),
-						"Alice",
-						false,
-						null,
-						new Map(),
-					),
-				],
-				true,
-			);
-			const members = await persistence.getMembers(
-				"alice@example.com",
-				chat,
-				true,
-			);
+				await persistence.storeMemberUpdates(
+					"alice@example.com",
+					chat,
+					[
+						new borogove.MemberUpdate(
+							"room-members-2b@example.com/occ-1",
+							borogove.JID.parse("alice@example.com"),
+							"Alice",
+							false,
+							null,
+							new Map(),
+						),
+					],
+					true,
+				);
+				const members = await persistence.getMembers(
+					"alice@example.com",
+					chat,
+					true,
+				);
 
-			return members.find((m) => m.id.endsWith("occ-2")).roles.map((r) => r.id);
-		}, { borogove, persistence });
+				return members
+					.find((m) => m.id.endsWith("occ-2"))
+					.roles.map((r) => r.id);
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result).toEqual([]);
 	});
@@ -1241,225 +1329,294 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		borogove,
 		persistence,
 	}) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const chat1 = Object.create(borogove.Channel.prototype);
-			chat1.chatId = "room-members-3@example.com";
-			chat1.getDisplayName = () => "Tea Room";
-			const chat2 = Object.create(borogove.Channel.prototype);
-			chat2.chatId = "room-members-4@example.com";
-			chat2.getDisplayName = () => "Other Room";
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const chat1 = Object.create(borogove.Channel.prototype);
+				chat1.chatId = "room-members-3@example.com";
+				chat1.getDisplayName = () => "Tea Room";
+				const chat2 = Object.create(borogove.Channel.prototype);
+				chat2.chatId = "room-members-4@example.com";
+				chat2.getDisplayName = () => "Other Room";
 
-			await persistence.storeMembers("alice@example.com", chat1.chatId, [
-				{
-					id: "room-members-3@example.com/occ-1",
-					displayName: "Alice",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "admin", title: "Admin" }],
-					jid: borogove.JID.parse("alice@example.com"),
-					presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
-					chat: { chatId: "alice@example.com" },
-				},
-				{
-					id: "room-members-4@example.com/occ-1",
-					displayName: "Bob",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "admin", title: "Admin" }],
-					jid: borogove.JID.parse("bob@example.com"),
-					presence: new Map([["phone", borogove.Stanza.parse("<presence />")]]),
-					chat: { chatId: "bob@example.com" },
-				},
-			]);
+				await persistence.storeMembers("alice@example.com", chat1.chatId, [
+					{
+						id: "room-members-3@example.com/occ-1",
+						displayName: "Alice",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("alice@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "alice@example.com" },
+					},
+					{
+						id: "room-members-4@example.com/occ-1",
+						displayName: "Bob",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("bob@example.com"),
+						presence: new Map([
+							["phone", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "bob@example.com" },
+					},
+				]);
 
-			await persistence.storeMemberUpdates(
-				"alice@example.com",
-				chat1,
-				[
-					new borogove.MemberUpdate(
-						null,
-						borogove.JID.parse("alice@example.com"),
-						"Alice Renamed",
-						false,
-						null,
-						new Map(),
-					),
-				],
-				false,
-			);
-			const [chat1Member] = await persistence.getMemberDetails(
-				"alice@example.com",
-				chat1,
-				["room-members-3@example.com/occ-1"],
-			);
+				await persistence.storeMemberUpdates(
+					"alice@example.com",
+					chat1,
+					[
+						new borogove.MemberUpdate(
+							null,
+							borogove.JID.parse("alice@example.com"),
+							"Alice Renamed",
+							false,
+							null,
+							new Map(),
+						),
+					],
+					false,
+				);
+				const [chat1Member] = await persistence.getMemberDetails(
+					"alice@example.com",
+					chat1,
+					["room-members-3@example.com/occ-1"],
+				);
 
-			return chat1Member.displayName;
-		}, { borogove, persistence });
+				return chat1Member.displayName;
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result).toBe("Alice Renamed");
 	});
 
-	test("clearMemberPresence only clears the targeted chat", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const chat1 = Object.create(borogove.Channel.prototype);
-			chat1.chatId = "room-members-4a@example.com";
-			chat1.getDisplayName = () => "Tea Room";
-			const chat2 = Object.create(borogove.Channel.prototype);
-			chat2.chatId = "room-members-4b@example.com";
-			chat2.getDisplayName = () => "Other Room";
+	test("clearMemberPresence only clears the targeted chat", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const chat1 = Object.create(borogove.Channel.prototype);
+				chat1.chatId = "room-members-4a@example.com";
+				chat1.getDisplayName = () => "Tea Room";
+				const chat2 = Object.create(borogove.Channel.prototype);
+				chat2.chatId = "room-members-4b@example.com";
+				chat2.getDisplayName = () => "Other Room";
 
-			await persistence.storeMembers("alice@example.com", chat1.chatId, [
-				{
-					id: "room-members-4a@example.com/occ-1",
-					displayName: "Alice",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "admin", title: "Admin" }],
-					jid: borogove.JID.parse("alice@example.com"),
-					presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
-					chat: { chatId: "alice@example.com" },
-				},
-			]);
-			await persistence.storeMembers("alice@example.com", chat2.chatId, [
-				{
-					id: "room-members-4b@example.com/occ-1",
-					displayName: "Bob",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "admin", title: "Admin" }],
-					jid: borogove.JID.parse("bob@example.com"),
-					presence: new Map([["phone", borogove.Stanza.parse("<presence />")]]),
-					chat: { chatId: "bob@example.com" },
-				},
-			]);
+				await persistence.storeMembers("alice@example.com", chat1.chatId, [
+					{
+						id: "room-members-4a@example.com/occ-1",
+						displayName: "Alice",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("alice@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "alice@example.com" },
+					},
+				]);
+				await persistence.storeMembers("alice@example.com", chat2.chatId, [
+					{
+						id: "room-members-4b@example.com/occ-1",
+						displayName: "Bob",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("bob@example.com"),
+						presence: new Map([
+							["phone", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "bob@example.com" },
+					},
+				]);
 
-			await persistence.clearMemberPresence("alice@example.com", chat1.chatId);
-			const [chat1Member] = await persistence.getMemberDetails(
-				"alice@example.com",
-				chat1,
-				["room-members-4a@example.com/occ-1"],
-			);
-			const [chat2Member] = await persistence.getMemberDetails(
-				"alice@example.com",
-				chat2,
-				["room-members-4b@example.com/occ-1"],
-			);
+				await persistence.clearMemberPresence(
+					"alice@example.com",
+					chat1.chatId,
+				);
+				const [chat1Member] = await persistence.getMemberDetails(
+					"alice@example.com",
+					chat1,
+					["room-members-4a@example.com/occ-1"],
+				);
+				const [chat2Member] = await persistence.getMemberDetails(
+					"alice@example.com",
+					chat2,
+					["room-members-4b@example.com/occ-1"],
+				);
 
-			return {
-				chat1PresenceKeys: [...chat1Member.presence.keys()],
-				chat2PresenceKeys: [...chat2Member.presence.keys()],
-			};
-		}, { borogove, persistence });
+				return {
+					chat1PresenceKeys: [...chat1Member.presence.keys()],
+					chat2PresenceKeys: [...chat2Member.presence.keys()],
+				};
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.chat1PresenceKeys).toEqual([]);
 		expect(result.chat2PresenceKeys).toEqual(["phone"]);
 	});
 
-	test("getMembers includes moderator-visible rows", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const chat = Object.create(borogove.Channel.prototype);
-			chat.chatId = "room-members-6@example.com";
-			chat.getDisplayName = () => "Tea Room";
+	test("getMembers includes moderator-visible rows", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const chat = Object.create(borogove.Channel.prototype);
+				chat.chatId = "room-members-6@example.com";
+				chat.getDisplayName = () => "Tea Room";
 
-			await persistence.storeMembers("alice@example.com", chat.chatId, [
-				{
-					id: "room-members-6@example.com/owner",
-					displayName: "Zulu",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "owner", title: "Owner" }],
-					jid: borogove.JID.parse("zulu@example.com"),
-					presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
-					chat: { chatId: "zulu@example.com" },
-				},
-				{
-					id: "room-members-6@example.com/outcast",
-					displayName: "Banned",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "outcast", title: "Banned" }],
-					jid: borogove.JID.parse("banned@example.com"),
-					presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
-					chat: { chatId: "banned@example.com" },
-				},
-				{
-					id: "room-members-6@example.com/guest-offline",
-					displayName: "Guest",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "none", title: "Guest" }],
-					jid: borogove.JID.parse("guest@example.com"),
-					presence: new Map([
-						["desk", borogove.Stanza.parse('<presence type="unavailable" />')],
-					]),
-					chat: { chatId: "guest@example.com" },
-				},
-				{
-					id: "room-members-6@example.com/admin",
-					displayName: "Alpha",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "admin", title: "Admin" }],
-					jid: borogove.JID.parse("alpha@example.com"),
-					presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
-					chat: { chatId: "alpha@example.com" },
-				},
-			]);
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-members-6@example.com/owner",
+						displayName: "Zulu",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "owner", title: "Owner" }],
+						jid: borogove.JID.parse("zulu@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "zulu@example.com" },
+					},
+					{
+						id: "room-members-6@example.com/outcast",
+						displayName: "Banned",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "outcast", title: "Banned" }],
+						jid: borogove.JID.parse("banned@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "banned@example.com" },
+					},
+					{
+						id: "room-members-6@example.com/guest-offline",
+						displayName: "Guest",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "none", title: "Guest" }],
+						jid: borogove.JID.parse("guest@example.com"),
+						presence: new Map([
+							[
+								"desk",
+								borogove.Stanza.parse('<presence type="unavailable" />'),
+							],
+						]),
+						chat: { chatId: "guest@example.com" },
+					},
+					{
+						id: "room-members-6@example.com/admin",
+						displayName: "Alpha",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "admin", title: "Admin" }],
+						jid: borogove.JID.parse("alpha@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "alpha@example.com" },
+					},
+				]);
 
-			const moderator = await persistence.getMembers(
-				"alice@example.com",
-				chat,
-				true,
-			);
-			return moderator.map((m) => m.displayName);
-		}, { borogove, persistence });
+				const moderator = await persistence.getMembers(
+					"alice@example.com",
+					chat,
+					true,
+				);
+				return moderator.map((m) => m.displayName);
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result).toEqual(["Zulu", "Alpha", "Banned"]);
 	});
 
-	test("storeVoiceRequest and listVoiceRequests", async ({ page, borogove, persistence }) => {
-		const result = await page.evaluate(async ({ borogove, persistence }) => {
-			const chat = Object.create(borogove.Channel.prototype);
-			chat.chatId = "room-voice-requests@example.com";
-			chat.getDisplayName = () => "Tea Room";
+	test("storeVoiceRequest and listVoiceRequests", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const chat = Object.create(borogove.Channel.prototype);
+				chat.chatId = "room-voice-requests@example.com";
+				chat.getDisplayName = () => "Tea Room";
 
-			await persistence.storeMembers("alice@example.com", chat.chatId, [
-				{
-					id: "room-voice-requests@example.com/occ-1",
-					displayName: "Bob",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "none", title: "Participant" }],
-					jid: borogove.JID.parse("bob@example.com"),
-					presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
-					chat: { chatId: "bob@example.com" },
-				},
-				{
-					id: "room-voice-requests@example.com/occ-2",
-					displayName: "Charlie",
-					photoUri: null,
-					isSelf: false,
-					roles: [{ id: "none", title: "Participant" }],
-					jid: borogove.JID.parse("charlie@example.com"),
-					presence: new Map([["desk", borogove.Stanza.parse("<presence />")]]),
-					chat: { chatId: "charlie@example.com" },
-				}
-			]);
+				await persistence.storeMembers("alice@example.com", chat.chatId, [
+					{
+						id: "room-voice-requests@example.com/occ-1",
+						displayName: "Bob",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "none", title: "Participant" }],
+						jid: borogove.JID.parse("bob@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "bob@example.com" },
+					},
+					{
+						id: "room-voice-requests@example.com/occ-2",
+						displayName: "Charlie",
+						photoUri: null,
+						isSelf: false,
+						roles: [{ id: "none", title: "Participant" }],
+						jid: borogove.JID.parse("charlie@example.com"),
+						presence: new Map([
+							["desk", borogove.Stanza.parse("<presence />")],
+						]),
+						chat: { chatId: "charlie@example.com" },
+					},
+				]);
 
-			await persistence.storeVoiceRequest("alice@example.com", chat, "bob@example.com", true);
-			await persistence.storeVoiceRequest("alice@example.com", chat, "charlie@example.com", true);
+				await persistence.storeVoiceRequest(
+					"alice@example.com",
+					chat,
+					"bob@example.com",
+					true,
+				);
+				await persistence.storeVoiceRequest(
+					"alice@example.com",
+					chat,
+					"charlie@example.com",
+					true,
+				);
 
-			const requests1 = await persistence.listVoiceRequests("alice@example.com", chat);
+				const requests1 = await persistence.listVoiceRequests(
+					"alice@example.com",
+					chat,
+				);
 
-			await persistence.storeVoiceRequest("alice@example.com", chat, "bob@example.com", false);
+				await persistence.storeVoiceRequest(
+					"alice@example.com",
+					chat,
+					"bob@example.com",
+					false,
+				);
 
-			const requests2 = await persistence.listVoiceRequests("alice@example.com", chat);
+				const requests2 = await persistence.listVoiceRequests(
+					"alice@example.com",
+					chat,
+				);
 
-			return {
-				requests1: requests1.map((m) => m.displayName).sort(),
-				requests2: requests2.map((m) => m.displayName).sort(),
-			};
-		}, { borogove, persistence });
+				return {
+					requests1: requests1.map((m) => m.displayName).sort(),
+					requests2: requests2.map((m) => m.displayName).sort(),
+				};
+			},
+			{ borogove, persistence },
+		);
 
 		expect(result.requests1).toEqual(["Bob", "Charlie"]);
 		expect(result.requests2).toEqual(["Charlie"]);
@@ -1478,10 +1635,7 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result).toBeNull();
 	});
 
-	test("storeOmemoId stores the ID", async ({
-		page,
-		persistence,
-	}) => {
+	test("storeOmemoId stores the ID", async ({ page, persistence }) => {
 		const account = "omemo-existing@example.com";
 		const omemoId = 12345;
 		const result = await page.evaluate(
@@ -1501,9 +1655,7 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 	}) => {
 		const result = await page.evaluate(
 			async (persistence) =>
-				persistence.getOmemoIdentityKey(
-					"omemo-identity-not-found@example.com",
-				),
+				persistence.getOmemoIdentityKey("omemo-identity-not-found@example.com"),
 			persistence,
 		);
 
@@ -1540,9 +1692,7 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 	}) => {
 		const result = await page.evaluate(
 			async (persistence) =>
-				persistence.getOmemoDeviceList(
-					"omemo-devices-not-found@example.com",
-				),
+				persistence.getOmemoDeviceList("omemo-devices-not-found@example.com"),
 			persistence,
 		);
 
@@ -1623,7 +1773,10 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 				await persistence.removeOmemoPreKey(identifier, keyId);
 				const afterRemove = await persistence.getOmemoPreKey(identifier, keyId);
 
-				return { loadedKeyPair: pageHelpers.buffersToKeyPair(loadedKeyPair), afterRemove };
+				return {
+					loadedKeyPair: pageHelpers.buffersToKeyPair(loadedKeyPair),
+					afterRemove,
+				};
 			},
 			{ persistence, identifier, keyId, keyPair, pageHelpers },
 		);
@@ -1859,10 +2012,7 @@ const makeKeyPair = (): TestKeyPair => ({
 	pubKey: makeKey().reverse(),
 });
 
-function expectKeyPair(
-	actual: TestKeyPair,
-	expected: TestKeyPair,
-) {
+function expectKeyPair(actual: TestKeyPair, expected: TestKeyPair) {
 	expectKey(actual.privKey, expected.privKey);
 	expectKey(actual.pubKey, expected.pubKey);
 }
