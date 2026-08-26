@@ -1596,4 +1596,56 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.afterReplace).toEqual(replacementDeviceIds);
 		expect(result.afterClear).toEqual([]);
 	});
+
+	test("getOmemoPreKey returns null when none is stored", async ({
+		page,
+		persistence,
+	}) => {
+		const identifier = "omemo-prekey-not-found@example.com";
+		const keyId = 1;
+		const result = await page.evaluate(
+			async ({ persistence, identifier, keyId }) =>
+				persistence.getOmemoPreKey(identifier, keyId),
+			{ persistence, identifier, keyId },
+		);
+
+		expect(result).toBeNull();
+	});
+
+	test("storeOmemoPreKey stores a removable pre-key", async ({
+		page,
+		persistence,
+	}) => {
+		const identifier = "omemo-prekey-existing@example.com";
+		const keyId = 42;
+		const keyPair = {
+			privKey: [0, 1, 2, 127, 128, 255],
+			pubKey: [255, 128, 127, 2, 1, 0],
+		};
+		const result = await page.evaluate(
+			async ({ persistence, identifier, keyId, keyPair }) => {
+				await persistence.storeOmemoPreKey(identifier, keyId, {
+					privKey: new Uint8Array(keyPair.privKey).buffer,
+					pubKey: new Uint8Array(keyPair.pubKey).buffer,
+				});
+				const loadedKeyPair = await persistence.getOmemoPreKey(
+					identifier,
+					keyId,
+				);
+				await persistence.removeOmemoPreKey(identifier, keyId);
+				const afterRemove = await persistence.getOmemoPreKey(identifier, keyId);
+
+				return {
+					loadedPrivKey: [...new Uint8Array(loadedKeyPair.privKey)],
+					loadedPubKey: [...new Uint8Array(loadedKeyPair.pubKey)],
+					afterRemove,
+				};
+			},
+			{ persistence, identifier, keyId, keyPair },
+		);
+
+		expect(result.loadedPrivKey).toEqual(keyPair.privKey);
+		expect(result.loadedPubKey).toEqual(keyPair.pubKey);
+		expect(result.afterRemove).toBeNull();
+	});
 }

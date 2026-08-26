@@ -1404,4 +1404,44 @@ class TestSqlite extends utest.Test {
 			});
 	}
 
+	public function testGetOmemoPreKeyNotFound(async: Async) {
+		persistence
+			.getOmemoPreKey("prekey-notfound@example.com", 1)
+			.then(result -> {
+				Assert.equals(null, result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
+	public function testOmemoPreKey(async: Async) {
+		final login = "prekey-existing@example.com";
+		final keyId = 42;
+		final keyPair = {
+			privKey: Bytes.ofHex("0001027f80ff").getData(),
+			pubKey: Bytes.ofHex("ff807f020100").getData(),
+		};
+
+		persistence
+			.storeOmemoPreKey(login, keyId, keyPair)
+			.then(_ -> persistence.getOmemoPreKey(login, keyId))
+			.then(result -> {
+				Assert.equals("0001027f80ff", Bytes.ofData(result.privKey).toHex());
+				Assert.equals("ff807f020100", Bytes.ofData(result.pubKey).toHex());
+				return persistence.removeOmemoPreKey(login, keyId);
+			})
+			.then(_ -> persistence.getOmemoPreKey(login, keyId))
+			.then(result -> {
+				Assert.equals(null, result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
 }

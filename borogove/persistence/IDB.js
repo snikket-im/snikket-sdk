@@ -1177,21 +1177,25 @@ tx.onerror = console.error;
 			return result || [];
 		},
 
-		storeOmemoPreKey(account, keyId, keyPair) {
+		async storeOmemoPreKey(account, keyId, keyPair) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
 			const storedKeyPair = {
 				"privKey": arrayBufferToBase64(keyPair.privKey),
 				"pubKey": arrayBufferToBase64(keyPair.pubKey),
 			};
-			store.put(storedKeyPair, "omemo:prekeys:"+account+":"+keyId.toString());
+			await promisifyRequest(store.put(storedKeyPair, "omemo:prekeys:"+account+":"+keyId.toString()));
+
+			return keyPair;
 		},
 
-		removeOmemoPreKey(account, keyId) {
+		async removeOmemoPreKey(account, keyId) {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
 			const keyName = "omemo:prekeys:"+account+":"+keyId.toString();
-			store.delete(keyName);
+			await promisifyRequest(store.delete(keyName));
+
+			return true;
 		},
 
 		async getOmemoPreKey(account, keyId) {

@@ -370,17 +370,17 @@ interface Persistence {
 	/**
 		Store an OMEMO pre-key
 	**/
-	public function storeOmemoPreKey(identifier:String, keyId:Int, keyPair:PreKeyPair):Void;
+	public function storeOmemoPreKey(accountId:String, keyId:Int, keyPair:PreKeyPair):Promise<PreKeyPair>;
 
 	/**
 		Load an OMEMO pre-key
 	**/
-	public function getOmemoPreKey(identifier:String, keyId:Int): Promise<PreKeyPair>;
+	public function getOmemoPreKey(accountId:String, keyId:Int): Promise<Null<PreKeyPair>>;
 
 	/**
 		Remove an OMEMO pre-key
 	**/
-	public function removeOmemoPreKey(identifier:String, keyId:Int):Void;
+	public function removeOmemoPreKey(accountId:String, keyId:Int):Promise<Bool>;
 
 	/**
 		Store an OMEMO signed pre-key
