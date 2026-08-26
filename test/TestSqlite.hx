@@ -27,9 +27,11 @@ import borogove.MemberUpdate;
 import borogove.Role;
 import borogove.Stanza;
 import borogove.Source;
+#if !NO_OMEMO
 import borogove.SignalProtocol.PreKeyPair;
 import borogove.SignalProtocol.SignalSession;
 import borogove.OMEMO.OMEMOSessionMetadata;
+#end
 
 using Lambda;
 using thenshim.PromiseTools;
@@ -1306,6 +1308,7 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+#if !NO_OMEMO
 	public function testGetOmemoIdNotFound(async: Async) {
 		persistence
 			.getOmemoId('notfound@example.com')
@@ -1638,5 +1641,5 @@ class TestSqlite extends utest.Test {
 	private function assertKeyMatches(expected:BytesData, actual:BytesData):Void {
 		Assert.same(Bytes.ofData(expected), Bytes.ofData(actual));
 	}
-
+#end
 }
