@@ -1527,6 +1527,39 @@ class TestSqlite extends utest.Test {
 			});
 	}
 
+	public function testGetOmemoMetadataNotFound(async: Async) {
+		persistence
+			.getOmemoMetadata("metadata-notfound@example.com", "contact@example.com/1")
+			.then(result -> {
+				Assert.equals(null, result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
+	public function testOmemoMetadata(async: Async) {
+		final account = "metadata-existing@example.com";
+		final address = "contact@example.com/1";
+		final metadata = new OMEMOSessionMetadata(true, false, true);
+
+		persistence
+			.storeOmemoMetadata(account, address, metadata)
+			.then(_ -> persistence.getOmemoMetadata(account, address))
+			.then(result -> {
+				Assert.equals(metadata.receivedSessionMessageOk, result.receivedSessionMessageOk);
+				Assert.equals(metadata.lastMessageDecryptedOk, result.lastMessageDecryptedOk);
+				Assert.equals(metadata.sentKeyExchange, result.sentKeyExchange);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
 	public function testOmemoSession(async: Async) {
 		final account = "session-existing@example.com";
 		final address = "contact@example.com/1";

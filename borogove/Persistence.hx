@@ -425,11 +425,11 @@ interface Persistence {
 	/**
 		Store extra metadata associated with an OMEMO session
 	**/
-	public function storeOmemoMetadata(account:String, address:String, metadata:OMEMOSessionMetadata):Void;
+	public function storeOmemoMetadata(account:String, address:String, metadata:OMEMOSessionMetadata):Promise<OMEMOSessionMetadata>;
 
 	/**
 		Load stored metadata associated with an OMEMO session
 	**/
-	public function getOmemoMetadata(account:String, address:String): Promise<OMEMOSessionMetadata>;
+	public function getOmemoMetadata(account:String, address:String): Promise<Null<OMEMOSessionMetadata>>;
 #end
 }

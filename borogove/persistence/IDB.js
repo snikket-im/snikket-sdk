@@ -1472,23 +1472,22 @@ tx.onerror = console.error;
 			return session;
 		},
 
-		storeOmemoMetadata(account, address, metadata) {
+		async storeOmemoMetadata(account, address, metadata) {
 			const tx = db.transaction(["omemo_sessions_meta"], "readwrite");
 			const store = tx.objectStore("omemo_sessions_meta");
-			promisifyRequest(store.put({
+			await promisifyRequest(store.put({
 				account: account,
 				address: address,
 				metadata: metadata,
-			})).catch((e) => {
-				console.error("Failed to store OMEMO session metadata: " + e);
-			});
+			}));
+			return metadata;
 		},
 
 		async getOmemoMetadata(account, address) {
 			const tx = db.transaction(["omemo_sessions_meta"], "readonly");
 			const store = tx.objectStore("omemo_sessions_meta");
 			const result = await promisifyRequest(store.get([account, address]));
-			return result?.metadata;
+			return result?.metadata ?? null;
 		},
 
 		async removeOmemoSession(account, address) {

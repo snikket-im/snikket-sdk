@@ -313,6 +313,7 @@ class OMEMODecryptionResult {
 	}
 }
 
+@:expose
 class OMEMOSessionMetadata {
 	// True when we have successfully received and decrypted any
 	// non-prekey message from this session

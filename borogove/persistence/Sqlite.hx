@@ -335,6 +335,19 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 19"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 20) {
+						return exec(["CREATE TABLE omemo_sessions_meta (
+							account_id TEXT NOT NULL,
+							address TEXT NOT NULL,
+							received_session_message_ok INTEGER NOT NULL,
+							last_message_decrypted_ok INTEGER NOT NULL,
+							sent_key_exchange INTEGER NOT NULL,
+							PRIMARY KEY (account_id, address)
+						) STRICT",
+						"PRAGMA user_version = 20"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -1632,11 +1645,28 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function storeOmemoMetadata(account:String, address:String, metadata:OMEMOSessionMetadata):Void { }
+	public function storeOmemoMetadata(account:String, address:String, metadata:OMEMOSessionMetadata):Promise<OMEMOSessionMetadata> {
+		return db.exec(
+			"INSERT OR REPLACE INTO omemo_sessions_meta VALUES (?,?,?,?,?)",
+			[account, address, metadata.receivedSessionMessageOk, metadata.lastMessageDecryptedOk, metadata.sentKeyExchange],
+		).then(_ -> metadata);
+	}
 
 	@HaxeCBridge.noemit
-	public function getOmemoMetadata(account:String, address:String): Promise<OMEMOSessionMetadata> {
-		return Promise.reject("TODO");
+	public function getOmemoMetadata(account:String, address:String): Promise<Null<OMEMOSessionMetadata>> {
+		return db.exec(
+			"SELECT received_session_message_ok, last_message_decrypted_ok, sent_key_exchange FROM omemo_sessions_meta WHERE account_id=? AND address=? LIMIT 1",
+			[account, address],
+		).then(result -> {
+			for (row in result) {
+				return new OMEMOSessionMetadata(
+					row.received_session_message_ok == 1,
+					row.last_message_decrypted_ok == 1,
+					row.sent_key_exchange == 1,
+				);
+			}
+			return null;
+		});
 	}
 #end
 }

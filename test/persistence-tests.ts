@@ -1782,6 +1782,44 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result).toBeNull();
 	});
 
+	test("getOmemoMetadata returns null when none is stored", async ({
+		page,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ persistence }) =>
+				persistence.getOmemoMetadata(
+					"omemo-metadata-not-found@example.com",
+					"contact@example.com/1",
+				),
+			{ persistence },
+		);
+
+		expect(result).toBeNull();
+	});
+
+	test("storeOmemoMetadata and getOmemoMetadata", async ({
+		page,
+		persistence,
+	}) => {
+		const account = "omemo-metadata-existing@example.com";
+		const address = "contact@example.com/1";
+		const metadata = {
+			receivedSessionMessageOk: true,
+			lastMessageDecryptedOk: false,
+			sentKeyExchange: true,
+		};
+		const result = await page.evaluate(
+			async ({ persistence, account, address, metadata }) => {
+				await persistence.storeOmemoMetadata(account, address, metadata);
+				return persistence.getOmemoMetadata(account, address);
+			},
+			{ persistence, account, address, metadata },
+		);
+
+		expect(result).toEqual(metadata);
+	});
+
 	test("storeOmemoSession, getOmemoSession, and removeOmemoSession", async ({
 		page,
 		persistence,
