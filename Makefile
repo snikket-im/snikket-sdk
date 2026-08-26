@@ -1,14 +1,14 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 CJSTOESM=npx -p typescript@6 -p cjstoesm cjstoesm
 
-.PHONY: all test doc hx-build-dep cpp/libborogove.dso npm/borogove-browser.js npm/borogove.js cpp playwright ci
+.PHONY: all test doc format format-check hx-build-dep cpp/libborogove.dso npm/borogove-browser.js npm/borogove.js cpp playwright ci
 
 all: npm libborogove.batteriesincluded.so .WAIT libborogove.so libborogove.a
 
 test:
 	haxe test.hxml
 
-ci: test playwright
+ci: format-check test playwright
 	mkdir -p .cache
 	haxe testjs.hxml
 	haxe testcpp.hxml
@@ -59,7 +59,7 @@ npm/borogove.js:
 	printf "\nexport class borogove_Presence {}\n" >> npm/borogove.d.ts
 	$(RM) npm/*.bak
 
-npm: npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogove/persistence/MediaStoreCache.js borogove/persistence/sqlite-worker1.mjs
+npm: format-check npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogove/persistence/MediaStoreCache.js borogove/persistence/sqlite-worker1.mjs
 	cp borogove/persistence/IDB.js npm
 	cp borogove/persistence/MediaStoreCache.js npm
 	cp borogove/persistence/sqlite-worker1.mjs npm
@@ -160,3 +160,9 @@ doc:
 clean:
 	$(RM) npm/*.js npm/*.mjs npm/*.d.ts npm/*.map npm/borogove-enums.ts npm/borogove-browser-enums.ts
 	$(RM) -r cpp/src cpp/include cpp/obj cpp/*.h cpp/*.dso.hash cpp/Build.xml cpp/Options.txt cpp/Borogove.swift libborogove.so
+
+format:
+	npx --no-install prettier --w '**/*.{ts,js}' --ignore-path .gitignore
+
+format-check:
+	npx --no-install prettier --c '**/*.{ts,js}' --ignore-path .gitignore

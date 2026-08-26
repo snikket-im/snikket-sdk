@@ -3,7 +3,10 @@
   "version": "0.0.1",
   "homepage": "https://borogove.dev",
   "description": "An SDK that makes it easy to build your own custom chat experience",
-  "keywords": ["chat", "xmpp"],
+  "keywords": [
+    "chat",
+    "xmpp"
+  ],
   "main": "index.js",
   "type": "module",
   "files": [
@@ -37,6 +40,7 @@
   "devDependencies": {
     "@playwright/test": "1.60.0",
     "@sqlite.org/sqlite-wasm": "^3.53.0-build1",
+    "prettier": "3.3.3",
     "typescript": "^5.4.5"
   }
 }
