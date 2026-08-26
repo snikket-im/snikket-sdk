@@ -137,16 +137,14 @@ class OMEMOStore extends SignalProtocolStore {
 	}
 
 	public function storePreKey(keyId:Int, keyPair:PreKeyPair):Promise<Bool> {
-		persistence.storeOmemoPreKey(accountId, keyId, keyPair);
-		return Promise.resolve(true);
+		return persistence.storeOmemoPreKey(accountId, keyId, keyPair).then(_ -> true);
 	}
 
 	public function removePreKey(keyId:Int):Promise<Bool> {
 		trace("OMEMO: Removing prekey "+keyId);
-		persistence.removeOmemoPreKey(accountId, keyId);
 		// FIXME: Need to signal that we need to generate a replacement
 		// for the consumed prekey and republish our bundle
-		return Promise.resolve(true);
+		return persistence.removeOmemoPreKey(accountId, keyId).then(_ -> true);
 	}
 
 	public function loadSignedPreKey(keyId:Int):Promise<PreKeyPair> {
@@ -667,11 +665,12 @@ class OMEMO {
 
 		final identityKeyPairPromise:Promise<IdentityKeyPair> = KeyHelper.generateIdentityKeyPair();
 
-		final doneIdentityStorage:Promise<Bool> = identityKeyPairPromise.then(function (keypair:IdentityKeyPair):Bool {
+		final doneIdentityStorage:Promise<Bool> = identityKeyPairPromise.then(function (keypair:IdentityKeyPair):Promise<Bool> {
 			identityKeyPair = keypair;
-			persistence.storeOmemoId(client.accountId(), deviceId);
-			persistence.storeOmemoIdentityKey(client.accountId(), keypair);
-			return true;
+			return PromiseTools.all([
+				persistence.storeOmemoId(client.accountId(), deviceId).then(_ -> true),
+				persistence.storeOmemoIdentityKey(client.accountId(), keypair).then(_ -> true),
+			]).then(_ -> true);
 		});
 
 		final preKeysPromise:Promise<Array<PublicPreKey>> = doneIdentityStorage.then(cast generatePreKeys);
@@ -696,11 +695,10 @@ class OMEMO {
 	}
 
 	private function storePreKeys(prekeys:Array<PreKey>):Promise<Array<PublicPreKey>> {
-		for(prekey in prekeys) {
+		return PromiseTools.all(prekeys.map(prekey ->
 			// Store the full keypair
-			persistence.storeOmemoPreKey(client.accountId(), prekey.keyId, prekey.keyPair);
-		}
-		return Promise.resolve([
+			persistence.storeOmemoPreKey(client.accountId(), prekey.keyId, prekey.keyPair)
+		)).then(_ -> [
 			for(prekey in prekeys) {
 				// Emit the base64 public part for the application to publish
 				{
