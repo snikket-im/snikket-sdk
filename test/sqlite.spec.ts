@@ -1,4 +1,4 @@
-import { sqliteTest as test, expect } from "./browser-test";
+import { sqliteTest } from "./browser-test";
 import { sharedPersistenceTests } from "./persistence-tests";
 
-sharedPersistenceTests(test);
+sharedPersistenceTests(sqliteTest);
