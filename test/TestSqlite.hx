@@ -2,6 +2,7 @@ package test;
 
 import haxe.io.Bytes;
 import haxe.io.BytesData;
+import haxe.crypto.random.SecureRandom;
 import thenshim.Promise;
 import thenshim.PromiseTools;
 import utest.Assert;
@@ -26,6 +27,7 @@ import borogove.MemberUpdate;
 import borogove.Role;
 import borogove.Stanza;
 import borogove.Source;
+import borogove.SignalProtocol.PreKeyPair;
 
 using Lambda;
 using thenshim.PromiseTools;
@@ -1347,17 +1349,13 @@ class TestSqlite extends utest.Test {
 
 	public function testOmemoIdentityKey(async: Async) {
 		final login = "identity-existing@example.com";
-		final keyPair = {
-			privKey: Bytes.ofHex("0001027f80ff").getData(),
-			pubKey: Bytes.ofHex("ff807f020100").getData(),
-		};
+		final keyPair = makeKeyPair();
 
 		persistence
 			.storeOmemoIdentityKey(login, keyPair)
 			.then(_ -> persistence.getOmemoIdentityKey(login))
 			.then(result -> {
-				Assert.equals("0001027f80ff", Bytes.ofData(result.privKey).toHex());
-				Assert.equals("ff807f020100", Bytes.ofData(result.pubKey).toHex());
+				assertKeyPairMatches(keyPair, result);
 				async.done();
 			})
 			.catchError(e -> {
@@ -1420,17 +1418,13 @@ class TestSqlite extends utest.Test {
 	public function testOmemoPreKey(async: Async) {
 		final login = "prekey-existing@example.com";
 		final keyId = 42;
-		final keyPair = {
-			privKey: Bytes.ofHex("0001027f80ff").getData(),
-			pubKey: Bytes.ofHex("ff807f020100").getData(),
-		};
+		final keyPair = makeKeyPair();
 
 		persistence
 			.storeOmemoPreKey(login, keyId, keyPair)
 			.then(_ -> persistence.getOmemoPreKey(login, keyId))
 			.then(result -> {
-				Assert.equals("0001027f80ff", Bytes.ofData(result.privKey).toHex());
-				Assert.equals("ff807f020100", Bytes.ofData(result.pubKey).toHex());
+				assertKeyPairMatches(keyPair, result);
 				return persistence.removeOmemoPreKey(login, keyId);
 			})
 			.then(_ -> persistence.getOmemoPreKey(login, keyId))
@@ -1446,27 +1440,36 @@ class TestSqlite extends utest.Test {
 
 	public function testOmemoPreKeys(async: Async) {
 		final login = "prekeys-existing@example.com";
-		final keyPair1 = {
-			privKey: Bytes.ofHex("000102").getData(),
-			pubKey: Bytes.ofHex("030405").getData(),
-		};
-		final keyPair2 = {
-			privKey: Bytes.ofHex("060708").getData(),
-			pubKey: Bytes.ofHex("090a0b").getData(),
-		};
+		final preKeys = [
+			{
+				login: login,
+				keyId: 2,
+				keyPair: makeKeyPair(),
+			},
+			{
+				login: login,
+				keyId: 3,
+				keyPair: makeKeyPair(),
+			},
+		];
 
-		persistence
-			.storeOmemoPreKey(login, 2, keyPair1)
-			.then(_ -> persistence.storeOmemoPreKey(login, 3, keyPair2))
+		PromiseTools.all(preKeys.map(preKey ->
+			persistence.storeOmemoPreKey(
+				preKey.login,
+				preKey.keyId,
+				preKey.keyPair,
+			)
+		))
 			.then(_ -> persistence.getOmemoPreKeys(login))
 			.then(result -> {
-				Assert.equals(2, result.length);
-				Assert.equals(2, result[0].keyId);
-				Assert.equals("000102", Bytes.ofData(result[0].keyPair.privKey).toHex());
-				Assert.equals("030405", Bytes.ofData(result[0].keyPair.pubKey).toHex());
-				Assert.equals(3, result[1].keyId);
-				Assert.equals("060708", Bytes.ofData(result[1].keyPair.privKey).toHex());
-				Assert.equals("090a0b", Bytes.ofData(result[1].keyPair.pubKey).toHex());
+				Assert.equals(preKeys.length, result.length);
+				for (expected in preKeys) {
+					final actual = result.find(preKey -> preKey.keyId == expected.keyId);
+					Assert.notNull(actual, "Can't find preKey with id "+expected.keyId);
+					if (actual != null) {
+						assertKeyPairMatches(expected.keyPair, actual.keyPair);
+					}
+				}
 				async.done();
 			})
 			.catchError(e -> {
@@ -1479,11 +1482,8 @@ class TestSqlite extends utest.Test {
 		final login = "signed-prekey@example.com";
 		final signedPreKey = {
 			keyId: 42,
-			keyPair: {
-				privKey: Bytes.ofHex("0001027f80ff").getData(),
-				pubKey: Bytes.ofHex("ff807f020100").getData(),
-			},
-			signature: Bytes.ofHex("090807060504").getData(),
+			keyPair: makeKeyPair(),
+			signature: makeKey(),
 		};
 
 		persistence
@@ -1491,9 +1491,8 @@ class TestSqlite extends utest.Test {
 			.then(_ -> persistence.getOmemoSignedPreKey(login, signedPreKey.keyId))
 			.then(result -> {
 				Assert.equals(signedPreKey.keyId, result.keyId);
-				Assert.equals("0001027f80ff", Bytes.ofData(result.keyPair.privKey).toHex());
-				Assert.equals("ff807f020100", Bytes.ofData(result.keyPair.pubKey).toHex());
-				Assert.equals("090807060504", Bytes.ofData(result.signature).toHex());
+				assertKeyPairMatches(signedPreKey.keyPair, result.keyPair);
+				assertKeyMatches(signedPreKey.signature, result.signature);
 				async.done();
 			})
 			.catchError(e -> {
@@ -1513,6 +1512,26 @@ class TestSqlite extends utest.Test {
 				Assert.fail(Std.string(e));
 				async.done();
 			});
+	}
+
+	private function makeKey():BytesData {
+		return SecureRandom.bytes(32).getData();
+	}
+
+	private function makeKeyPair():PreKeyPair {
+		return {
+			privKey: makeKey(),
+			pubKey: makeKey(),
+		};
+	}
+
+	private function assertKeyPairMatches(expected:PreKeyPair, actual:PreKeyPair):Void {
+		assertKeyMatches(expected.privKey, actual.privKey);
+		assertKeyMatches(expected.pubKey, actual.pubKey);
+	}
+
+	private function assertKeyMatches(expected:BytesData, actual:BytesData):Void {
+		Assert.same(Bytes.ofData(expected), Bytes.ofData(actual));
 	}
 
 }
