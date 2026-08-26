@@ -254,15 +254,19 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
-	public function getOmemoSession(account:String, address:String): Promise<SignalSession> {
-		return Promise.reject("Not found");
+	public function getOmemoSession(account:String, address:String): Promise<Null<SignalSession>> {
+		return Promise.resolve(null);
 	}
 
 	@HaxeCBridge.noemit
-	public function storeOmemoSession(account:String, address:String, session:SignalSession):Void { }
+	public function storeOmemoSession(account:String, address:String, session:SignalSession):Promise<SignalSession> {
+		return Promise.resolve(session);
+	}
 
 	@HaxeCBridge.noemit
-	public function removeOmemoSession(account:String, address:String):Void { }
+	public function removeOmemoSession(account:String, address:String):Promise<Bool> {
+		return Promise.resolve(true);
+	}
 
 	@HaxeCBridge.noemit
 	public function storeOmemoMetadata(account:String, address:String, metadata:OMEMOSessionMetadata):Void { }

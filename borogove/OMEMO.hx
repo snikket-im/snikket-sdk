@@ -166,12 +166,19 @@ class OMEMOStore extends SignalProtocolStore {
 	}
 
 	public function loadSession(identifier:SignalProtocolAddress):Promise<SignalSession> {
-		return persistence.getOmemoSession(accountId, identifier.toString());
+		return persistence.getOmemoSession(accountId, identifier.toString()).then(session -> {
+			#if js
+				// libsignal assumes a missing session will be undefined rather than null
+				// Passing null makes it try to deserialize null.
+				return session == null ? cast js.Syntax.code("undefined") : session;
+			#else
+				return session;
+			#end
+		});
 	}
 
 	public function storeSession(identifier:SignalProtocolAddress, session:SignalSession):Promise<Bool> {
-		persistence.storeOmemoSession(accountId, identifier.toString(), session);
-		return Promise.resolve(true);
+		return persistence.storeOmemoSession(accountId, identifier.toString(), session).then(_ -> true);
 	}
 
 	public function removeSession(identifier:SignalProtocolAddress):Promise<Bool> {
@@ -1191,7 +1198,7 @@ class OMEMO {
 				trace("OMEMO: No session for "+addr.toString());
 				return buildSession(sid, addr, "new");
 			}
-			return session;
+			return Promise.resolve(session);
 		}).then((session) -> {
 			return new SessionCipher(signalStore, addr);
 		});

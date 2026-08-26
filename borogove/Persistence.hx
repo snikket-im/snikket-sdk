@@ -410,17 +410,17 @@ interface Persistence {
 	/**
 		Load a stored OMEMO session for a remote device
 	**/
-	public function getOmemoSession(account:String, address:String): Promise<SignalSession>;
+	public function getOmemoSession(account:String, address:String): Promise<Null<SignalSession>>;
 
 	/**
 		Store an OMEMO session for a remote device
 	**/
-	public function storeOmemoSession(account:String, address:String, session:SignalSession):Void;
+	public function storeOmemoSession(account:String, address:String, session:SignalSession):Promise<SignalSession>;
 
 	/**
 		Remove a stored OMEMO session for a remote device
 	**/
-	public function removeOmemoSession(account:String, address:String):Void;
+	public function removeOmemoSession(account:String, address:String):Promise<Bool>;
 
 	/**
 		Store extra metadata associated with an OMEMO session

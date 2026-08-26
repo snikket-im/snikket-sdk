@@ -101,8 +101,13 @@ extern class SessionCipher {
 	public function encrypt(plaintext:BytesData):Promise<SignalCipherText>;
 }
 
-// Not sure what the fields are for this one
-typedef SignalSession = Dynamic;
+// libsignal serializes SessionRecord before passing it to the storage API:
+// https://github.com/privacyresearchgroup/libsignal-protocol-typescript/blob/c1a336f/src/session-cipher.ts
+abstract SignalSession(String) {
+	public inline function new(value:String) {
+		this = value;
+	}
+}
 
 @:native("libsignal.KeyHelper")
 extern class KeyHelper {

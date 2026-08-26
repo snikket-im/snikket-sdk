@@ -1458,19 +1458,18 @@ tx.onerror = console.error;
 			const tx = db.transaction(["omemo_sessions"], "readonly");
 			const store = tx.objectStore("omemo_sessions");
 			const result = await promisifyRequest(store.get([account, address]));
-			return result?.session;
+			return result?.session ?? null;
 		},
 
-		storeOmemoSession(account, address, session) {
+		async storeOmemoSession(account, address, session) {
 			const tx = db.transaction(["omemo_sessions"], "readwrite");
 			const store = tx.objectStore("omemo_sessions");
-			promisifyRequest(store.put({
+			await promisifyRequest(store.put({
 				account: account,
 				address: address,
 				session: session,
-			})).catch((e) => {
-				console.error("Failed to store OMEMO session: " + e);
-			});
+			}));
+			return session;
 		},
 
 		storeOmemoMetadata(account, address, metadata) {
@@ -1492,12 +1491,14 @@ tx.onerror = console.error;
 			return result?.metadata;
 		},
 
-		removeOmemoSession(account, address) {
+		async removeOmemoSession(account, address) {
 			// Remove session and any stored metadata
 			const tx = db.transaction(["omemo_sessions", "omemo_sessions_meta"], "readwrite");
 			const path = [account, address];
 			tx.objectStore("omemo_sessions").delete(path);
 			tx.objectStore("omemo_sessions_meta").delete(path);
+			await promisifyRequest(tx);
+			return true;
 		},
 
 		get(k) {

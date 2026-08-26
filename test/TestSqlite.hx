@@ -28,6 +28,8 @@ import borogove.Role;
 import borogove.Stanza;
 import borogove.Source;
 import borogove.SignalProtocol.PreKeyPair;
+import borogove.SignalProtocol.SignalSession;
+import borogove.OMEMO.OMEMOSessionMetadata;
 
 using Lambda;
 using thenshim.PromiseTools;
@@ -1504,6 +1506,42 @@ class TestSqlite extends utest.Test {
 			.then(_ -> persistence.getOmemoContactIdentityKey(account, address))
 			.then(result -> {
 				assertKeyMatches(identityKey, result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
+	public function testGetOmemoSessionNotFound(async: Async) {
+		persistence
+			.getOmemoSession("session-notfound@example.com", "contact@example.com/1")
+			.then(result -> {
+				Assert.equals(null, result);
+				async.done();
+			})
+			.catchError(e -> {
+				Assert.fail(Std.string(e));
+				async.done();
+			});
+	}
+
+	public function testOmemoSession(async: Async) {
+		final account = "session-existing@example.com";
+		final address = "contact@example.com/1";
+		final session = new SignalSession('{"sessions":{},"version":"v1"}');
+
+		persistence
+			.storeOmemoSession(account, address, session)
+			.then(_ -> persistence.getOmemoSession(account, address))
+			.then(result -> {
+				Assert.equals(session, result);
+				return persistence.removeOmemoSession(account, address);
+			})
+			.then(_ -> persistence.getOmemoSession(account, address))
+			.then(result -> {
+				Assert.equals(null, result);
 				async.done();
 			})
 			.catchError(e -> {

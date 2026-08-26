@@ -1789,4 +1789,46 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 
 		expect(result).toEqual(identityKey);
 	});
+
+	test("getOmemoSession returns null when none is stored", async ({
+		page,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ persistence }) =>
+				persistence.getOmemoSession(
+					"omemo-session-not-found@example.com",
+					"contact@example.com/1",
+				),
+			{ persistence },
+		);
+
+		expect(result).toBeNull();
+	});
+
+	test("storeOmemoSession, getOmemoSession, and removeOmemoSession", async ({
+		page,
+		persistence,
+	}) => {
+		const account = "omemo-session-existing@example.com";
+		const address = "contact@example.com/1";
+		const session = '{"sessions":{},"version":"v1"}';
+		const result = await page.evaluate(
+			async ({ persistence, account, address, session }) => {
+				await persistence.storeOmemoSession(account, address, session);
+				const loaded = await persistence.getOmemoSession(account, address);
+				await persistence.removeOmemoSession(account, address);
+				const afterRemove = await persistence.getOmemoSession(account, address);
+
+				return {
+					loaded,
+					afterRemove,
+				};
+			},
+			{ persistence, account, address, session },
+		);
+
+		expect(result.loaded).toEqual(session);
+		expect(result.afterRemove).toBeNull();
+	});
 }

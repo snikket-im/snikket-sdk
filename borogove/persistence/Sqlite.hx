@@ -324,6 +324,17 @@ class Sqlite implements Persistence implements KeyValueStore {
 						"PRAGMA user_version = 18"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 19) {
+						return exec(["CREATE TABLE omemo_sessions (
+							account_id TEXT NOT NULL,
+							address TEXT NOT NULL,
+							session TEXT NOT NULL,
+							PRIMARY KEY (account_id, address)
+						) STRICT",
+						"PRAGMA user_version = 19"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -1592,15 +1603,33 @@ class Sqlite implements Persistence implements KeyValueStore {
 	}
 
 	@HaxeCBridge.noemit
-	public function getOmemoSession(account:String, address:String): Promise<SignalSession> {
-		return Promise.reject("TODO");
+	public function getOmemoSession(account:String, address:String): Promise<Null<SignalSession>> {
+		return db.exec(
+			"SELECT session FROM omemo_sessions WHERE account_id=? AND address=? LIMIT 1",
+			[account, address],
+		).then(result -> {
+			for (row in result) {
+				return row.session;
+			}
+			return null;
+		});
 	}
 
 	@HaxeCBridge.noemit
-	public function storeOmemoSession(account:String, address:String, session:SignalSession):Void { }
+	public function storeOmemoSession(account:String, address:String, session:SignalSession):Promise<SignalSession> {
+		return db.exec(
+			"INSERT OR REPLACE INTO omemo_sessions VALUES (?,?,?)",
+			[account, address, session],
+		).then(_ -> session);
+	}
 
 	@HaxeCBridge.noemit
-	public function removeOmemoSession(account:String, address:String):Void { }
+	public function removeOmemoSession(account:String, address:String):Promise<Bool> {
+		return db.exec(
+			"DELETE FROM omemo_sessions WHERE account_id=? AND address=?",
+			[account, address],
+		).then(_ -> true);
+	}
 
 	@HaxeCBridge.noemit
 	public function storeOmemoMetadata(account:String, address:String, metadata:OMEMOSessionMetadata):Void { }
