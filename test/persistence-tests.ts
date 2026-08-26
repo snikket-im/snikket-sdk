@@ -318,6 +318,230 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		expect(result.byLocalId.localId).toBe("loc1");
 	});
 
+	test("persists message encryption information", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const account = "encryption-alice@example.com";
+				const chatId = "encryption-hatter@example.com";
+				const builder = new borogove.ChatMessageBuilder({
+					serverId: "encrypted-message",
+					serverIdBy: account,
+					senderId: chatId,
+					direction: 0,
+				});
+				builder.sortId = "encrypted-a0";
+				builder.syncPoint = true;
+				builder.text = "Encrypted persistence marker";
+				builder.to = borogove.JID.parse(account);
+				builder.from = borogove.JID.parse(chatId);
+				builder.recipients = [builder.to];
+				builder.replyTo = [builder.from];
+				builder.encryption = {
+					status: borogove.EncryptionStatus.DecryptionFailure,
+					method: "urn:xmpp:omemo:2",
+					methodName: "OMEMO 2",
+					reason: "invalid-key",
+					reasonText: "The sender key was invalid",
+				};
+
+				const [stored] = await persistence.storeMessages(account, [
+					builder.build(),
+				]);
+				const fetched = await persistence.getMessage(
+					account,
+					chatId,
+					"encrypted-message",
+					null,
+				);
+				const [searched] = await persistence.searchMessages(
+					account,
+					chatId,
+					"persistence marker",
+				);
+				const [paged] = await persistence.getMessagesBefore(account, chatId);
+				const syncPoint = await persistence.syncPoint(account, null);
+
+				const fields = (message) => ({
+					status: message?.encryption?.status,
+					method: message?.encryption?.method,
+					methodName: message?.encryption?.methodName,
+					reason: message?.encryption?.reason,
+					reasonText: message?.encryption?.reasonText,
+				});
+				return {
+					stored: fields(stored),
+					fetched: fields(fetched),
+					searched: fields(searched),
+					paged: fields(paged),
+					syncPoint: fields(syncPoint),
+				};
+			},
+			{ borogove, persistence },
+		);
+
+		const expected = {
+			status: 1,
+			method: "urn:xmpp:omemo:2",
+			methodName: "OMEMO 2",
+			reason: "invalid-key",
+			reasonText: "The sender key was invalid",
+		};
+		expect(result.stored).toEqual(expected);
+		expect(result.fetched).toEqual(expected);
+		expect(result.searched).toEqual(expected);
+		expect(result.paged).toEqual(expected);
+		expect(result.syncPoint).toEqual(expected);
+	});
+
+	test("preserves encryption information when updating message status", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const account = "encryption-status-alice@example.com";
+				const builder = new borogove.ChatMessageBuilder({
+					localId: "encrypted-outgoing",
+					senderId: account,
+					direction: 1,
+				});
+				builder.sortId = "encrypted-b0";
+				builder.to = borogove.JID.parse("encryption-hatter@example.com");
+				builder.from = borogove.JID.parse(account);
+				builder.recipients = [builder.to];
+				builder.replyTo = [builder.from];
+				builder.encryption = {
+					status: borogove.EncryptionStatus.DecryptionSuccess,
+					method: "eu.siacs.conversations.axolotl",
+					methodName: "OMEMO",
+					reason: null,
+					reasonText: null,
+				};
+
+				await persistence.storeMessages(account, [builder.build()]);
+				const updated = await persistence.updateMessageStatus(
+					account,
+					"encrypted-outgoing",
+					1,
+					"Delivered",
+				);
+				return {
+					status: updated.encryption?.status,
+					method: updated.encryption?.method,
+					methodName: updated.encryption?.methodName,
+					reason: updated.encryption?.reason,
+					reasonText: updated.encryption?.reasonText,
+				};
+			},
+			{ borogove, persistence },
+		);
+
+		expect(result).toEqual({
+			status: 0,
+			method: "eu.siacs.conversations.axolotl",
+			methodName: "OMEMO",
+			reason: null,
+			reasonText: null,
+		});
+	});
+
+	test("preserves encryption information for corrected message versions", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const account = "encryption-correction-alice@example.com";
+				const chatId = "encryption-correction-hatter@example.com";
+				const originalBuilder = new borogove.ChatMessageBuilder({
+					localId: "encrypted-original",
+					senderId: account,
+					direction: 1,
+					timestamp: "2026-08-26T12:00:00Z",
+				});
+				originalBuilder.sortId = "encrypted-c0";
+				originalBuilder.text = "Original encrypted text";
+				originalBuilder.to = borogove.JID.parse(chatId);
+				originalBuilder.from = borogove.JID.parse(account);
+				originalBuilder.recipients = [originalBuilder.to];
+				originalBuilder.replyTo = [originalBuilder.from];
+				originalBuilder.encryption = {
+					status: borogove.EncryptionStatus.DecryptionSuccess,
+					method: "urn:xmpp:omemo:1",
+					methodName: "OMEMO 1",
+					reason: null,
+					reasonText: null,
+				};
+				const original = originalBuilder.build();
+				await persistence.storeMessages(account, [original]);
+
+				const correctionBuilder = new borogove.ChatMessageBuilder({
+					localId: "encrypted-correction",
+					senderId: account,
+					direction: 1,
+					timestamp: "2026-08-26T12:01:00Z",
+				});
+				correctionBuilder.sortId = "encrypted-c0";
+				correctionBuilder.text = "Corrected encrypted text";
+				correctionBuilder.to = borogove.JID.parse(chatId);
+				correctionBuilder.from = borogove.JID.parse(account);
+				correctionBuilder.recipients = [correctionBuilder.to];
+				correctionBuilder.replyTo = [correctionBuilder.from];
+				correctionBuilder.encryption = {
+					status: borogove.EncryptionStatus.DecryptionFailure,
+					method: "urn:xmpp:omemo:2",
+					methodName: "OMEMO 2",
+					reason: "invalid-key",
+					reasonText: "Correction could not be decrypted",
+				};
+				const correctionVersion = correctionBuilder.build();
+				correctionBuilder.versions = [correctionVersion];
+				correctionBuilder.localId = original.localId;
+
+				const [stored] = await persistence.storeMessages(account, [
+					correctionBuilder.build(),
+				]);
+				const [fetched] = await persistence.getMessagesBefore(account, chatId);
+				const summarize = (message) => ({
+					text: message.text,
+					method: message.encryption?.method,
+					reason: message.encryption?.reason,
+					versions: message.versions.map((version) => ({
+						text: version.text,
+						method: version.encryption?.method,
+						reason: version.encryption?.reason,
+					})),
+				});
+				return { stored: summarize(stored), fetched: summarize(fetched) };
+			},
+			{ borogove, persistence },
+		);
+
+		for (const message of [result.stored, result.fetched]) {
+			expect(message.text).toBe("Corrected encrypted text");
+			expect(message.method).toBe("urn:xmpp:omemo:2");
+			expect(message.reason).toBe("invalid-key");
+			expect(message.versions).toEqual([
+				{
+					text: "Corrected encrypted text",
+					method: "urn:xmpp:omemo:2",
+					reason: "invalid-key",
+				},
+				{
+					text: "Original encrypted text",
+					method: "urn:xmpp:omemo:1",
+					reason: null,
+				},
+			]);
+		}
+	});
+
 	test("storeReaction", async ({ page, borogove, persistence }) => {
 		const result = await page.evaluate(
 			async ({ borogove, persistence }) => {

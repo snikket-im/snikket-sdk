@@ -13,6 +13,7 @@ import borogove.persistence.MediaStore;
 import borogove.persistence.KeyValueStore;
 import borogove.ChatMessageBuilder;
 import borogove.ChatMessage;
+import borogove.EncryptionInfo;
 import borogove.JID;
 import borogove.ID;
 import borogove.Message;
@@ -719,24 +720,31 @@ class TestSqlite extends utest.Test {
 		timestamp: String,
 		?localId: String,
 		?serverId: String,
+		?serverIdBy: String,
 		?senderId: String,
 		?chatId: String,
 		?versions: Array<ChatMessage>,
 		?callSid: String,
-		?syncPoint: Bool
+		?syncPoint: Bool,
+		?sortId: String,
+		?encryption: EncryptionInfo,
+		?body: String,
+		?received: Bool
 	}):ChatMessage {
 		final senderId = params.senderId ?? "version@example.com";
 		final chatId = params.chatId ?? "chat@example.com";
 		final builder = new ChatMessageBuilder();
 		builder.localId = params.localId;
 		builder.serverId = params.serverId;
-		builder.serverIdBy = params.serverId == null ? null : "server.example.com";
+		builder.serverIdBy = params.serverId == null ? null : params.serverIdBy ?? "server.example.com";
 		builder.senderId = senderId;
-		builder.direction = MessageSent;
-		builder.sortId = params.localId ?? params.serverId ?? "message";
+		builder.direction = params.received ?? false ? MessageReceived : MessageSent;
+		builder.sortId = params.sortId ?? params.localId ?? params.serverId ?? "message";
 		builder.timestamp = params.timestamp;
 		builder.syncPoint = params.syncPoint ?? false;
 		builder.versions = params.versions ?? [];
+		builder.encryption = params.encryption;
+		if (params.body != null) builder.setBody(Html.text(params.body));
 		builder.to = JID.parse(chatId);
 		builder.from = JID.parse(senderId);
 		builder.recipients = [builder.to];
@@ -745,6 +753,137 @@ class TestSqlite extends utest.Test {
 			builder.payloads = [new Stanza("propose", { xmlns: "urn:xmpp:jingle-message:0", id: params.callSid })];
 		}
 		return builder.build();
+	}
+
+	public function testMessageEncryption(async: Async) {
+		final account = "encryption-alice@example.com";
+		final chatId = "encryption-hatter@example.com";
+		final expectedEncryption = new EncryptionInfo(
+			DecryptionFailure,
+			"urn:xmpp:omemo:2",
+			"invalid-key",
+			"The sender key was invalid",
+			"OMEMO 2"
+		);
+		final message = makeMessage({
+			timestamp: "2026-08-26T12:00:00Z",
+			serverId: "encrypted-message",
+			serverIdBy: account,
+			senderId: chatId,
+			chatId: account,
+			received: true,
+			sortId: "encrypted-a0",
+			syncPoint: true,
+			body: "Encrypted persistence marker",
+			encryption: expectedEncryption
+		});
+
+		persistence.storeMessages(account, [message]).then(stored -> {
+			assertEncryption(stored[0], expectedEncryption);
+			return persistence.getMessage(account, chatId, "encrypted-message", null);
+		}).then(fetched -> {
+			assertEncryption(fetched, expectedEncryption);
+			return persistence.searchMessages(account, chatId, "persistence marker");
+		}).then(searched -> {
+			Assert.equals(1, searched.length);
+			assertEncryption(searched[0], expectedEncryption);
+			return persistence.getMessagesBefore(account, chatId, null);
+		}).then(paged -> {
+			Assert.equals(1, paged.length);
+			assertEncryption(paged[0], expectedEncryption);
+			return persistence.syncPoint(account, null);
+		}).then(syncPoint -> {
+			assertEncryption(syncPoint, expectedEncryption);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testCorrectedMessageEncryption(async: Async) {
+		final account = "encryption-correction-alice@example.com";
+		final chatId = "encryption-correction-hatter@example.com";
+		final originalExpected = {
+			text: "Original encrypted text",
+			encryption: new EncryptionInfo(DecryptionSuccess, "urn:xmpp:omemo:1", null, null, "OMEMO 1")
+		};
+		final original = makeMessage({
+			timestamp: "2026-08-26T12:00:00Z",
+			localId: "encrypted-original",
+			senderId: account,
+			chatId: chatId,
+			sortId: "encrypted-c0",
+			body: originalExpected.text,
+			encryption: originalExpected.encryption
+		});
+		final correctionExpected = {
+			text: "Corrected encrypted text",
+			encryption: new EncryptionInfo(
+				DecryptionFailure,
+				"urn:xmpp:omemo:2",
+				"invalid-key",
+				"Correction could not be decrypted",
+				"OMEMO 2"
+			)
+		};
+		final correctionVersion = makeMessage({
+			timestamp: "2026-08-26T12:01:00Z",
+			localId: "encrypted-correction",
+			senderId: account,
+			chatId: chatId,
+			sortId: "encrypted-c0",
+			body: correctionExpected.text,
+			encryption: correctionExpected.encryption
+		});
+		final correctable = makeMessage({
+			timestamp: "2026-08-26T12:01:00Z",
+			localId: original.localId,
+			senderId: account,
+			chatId: chatId,
+			sortId: "encrypted-c0",
+			versions: [correctionVersion]
+		});
+
+		persistence.storeMessages(account, [original]).then(_ -> {
+			return persistence.storeMessages(account, [correctable]);
+		}).then(stored -> {
+			final corrected = stored[0];
+			Assert.equals(correctionExpected.text, corrected.text);
+			assertEncryption(corrected, correctionExpected.encryption);
+
+			final storedCorrection = corrected.versions.find(version -> version.localId == correctionVersion.localId);
+			Assert.notNull(storedCorrection);
+			Assert.equals(correctionExpected.text, storedCorrection.text);
+			assertEncryption(storedCorrection, correctionExpected.encryption);
+
+			final storedOriginal = corrected.versions.find(version -> version.localId == original.localId);
+			Assert.notNull(storedOriginal);
+			Assert.equals(originalExpected.text, storedOriginal.text);
+			assertEncryption(storedOriginal, originalExpected.encryption);
+
+			return persistence.getMessagesBefore(account, chatId, null);
+		}).then(fetched -> {
+			Assert.equals(1, fetched.length);
+			final corrected = fetched[0];
+			Assert.equals(correctionExpected.text, corrected.text);
+			assertEncryption(corrected, correctionExpected.encryption);
+
+			final fetchedCorrection = corrected.versions.find(version -> version.localId == correctionVersion.localId);
+			Assert.notNull(fetchedCorrection);
+			Assert.equals(correctionExpected.text, fetchedCorrection.text);
+			assertEncryption(fetchedCorrection, correctionExpected.encryption);
+
+			final fetchedOriginal = corrected.versions.find(version -> version.localId == original.localId);
+			Assert.notNull(fetchedOriginal);
+			Assert.equals(originalExpected.text, fetchedOriginal.text);
+			assertEncryption(fetchedOriginal, originalExpected.encryption);
+
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
 	}
 
 	public function testStoreReaction(async: Async) {
@@ -791,6 +930,7 @@ class TestSqlite extends utest.Test {
 
 	public function testUpdateMessageStatus(async: Async) {
 		final account = "alice@example.com";
+		final expectedEncryption = new EncryptionInfo(DecryptionSuccess, "eu.siacs.conversations.axolotl", null, null, "OMEMO");
 		final builder = new ChatMessageBuilder();
 		builder.localId = "loc1";
 		builder.senderId = "alice@example.com";
@@ -800,17 +940,29 @@ class TestSqlite extends utest.Test {
 		builder.from = JID.parse("alice@example.com");
 		builder.recipients = [builder.to];
 		builder.replyTo = [builder.from];
+		builder.encryption = expectedEncryption;
 
 		persistence.storeMessages(account, [builder.build()]).then(_ -> {
 			return persistence.updateMessageStatus(account, "loc1", MessageDeliveredToServer, "Delivered");
 		}).then(updated -> {
 			Assert.equals(MessageDeliveredToServer, updated.status);
 			Assert.equals("Delivered", updated.statusText);
+			assertEncryption(updated, expectedEncryption);
 			async.done();
 		}).catchError(e -> {
 			Assert.fail(Std.string(e));
 			async.done();
 		});
+	}
+
+	private function assertEncryption(message: Null<ChatMessage>, expected: EncryptionInfo) {
+		Assert.notNull(message);
+		Assert.notNull(message.encryption);
+		Assert.equals(expected.status, message.encryption.status);
+		Assert.equals(expected.method, message.encryption.method);
+		Assert.equals(expected.methodName, message.encryption.methodName);
+		Assert.equals(expected.reason, message.encryption.reason);
+		Assert.equals(expected.reasonText, message.encryption.reasonText);
 	}
 
 	public function testSearchMessages(async: Async) {
@@ -1868,6 +2020,7 @@ class TestSqlite extends utest.Test {
 			"mam_by",
 			"sort_id",
 			"sync_point",
+			"json(encryption) AS encryption"
 		];
 		expected.sort(Reflect.compare);
 
@@ -1890,6 +2043,7 @@ class TestSqlite extends utest.Test {
 			"mam_by",
 			"sort_id",
 			"sync_point",
+			"json(encryption) AS encryption"
 		];
 
 		final expected = defaultColumns.concat(["stanza_id"]);
@@ -1916,6 +2070,7 @@ class TestSqlite extends utest.Test {
 			"mam_by",
 			"sort_id",
 			"sync_point",
+			"json(encryption) AS encryption"
 		];
 		final expected = defaultColumns.copy();
 		expected[defaultColumns.indexOf(columnToReplace)] = replacementSql;
