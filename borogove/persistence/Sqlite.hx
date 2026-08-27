@@ -27,6 +27,11 @@ using borogove.SignalProtocol;
 using Lambda;
 
 typedef Column = { name:String, sql:String }
+typedef InsertColumn = {
+	name:String,
+	valueSql:String,
+	value:(ChatMessage)->Dynamic
+}
 
 @:expose
 #if cpp
@@ -816,20 +821,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 		return storeMessagesSerialized.run(() ->
 			// Hmm, if there is an existing one this loses the original timestamp though
-			db.exec(
-				"INSERT OR REPLACE INTO messages VALUES " + messages.map(_ -> "(?,?,?,?,?,?,?,?,CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER),?,?,?,?,?,?)").join(","),
-				messages.flatMap(m -> {
-					final correctable = m;
-					final message = m.versions.length == 1 ? m.versions[0] : m; // TODO: storing multiple versions at once? We never do that right now
-					([
-						accountId, message.serverId ?? "", message.serverIdBy ?? "",
-						message.localId ?? "", correctable.callSid() ?? correctable.localId ?? correctable.serverId, correctable.syncPoint,
-						correctable.chatId(), correctable.senderId,
-						message.timestamp, message.status, message.direction, message.type,
-						message.asStanza().toString(), message.statusText, message.sortId
-					] : Array<Dynamic>);
-				})
-			).then(_ ->
+			insertMessages(accountId, messages).then(_ ->
 				thenshim.PromiseTools.all(messages.map(m -> fetchFromStub(accountId, m)))
 			).then(ms ->
 				thenshim.PromiseTools.all(ms.flatMap(m -> m.attachments.map(a -> a.lookup(this)))).then(_ ->
@@ -1773,4 +1765,43 @@ class Sqlite implements Persistence implements KeyValueStore {
 		messages.sort_id,
 		messages.sync_point,
 		MAX(versions.created_at)';
+
+	private static function insertCol(
+		name:String,
+		value:(ChatMessage)->Dynamic,
+		?valueSql:String
+	):InsertColumn {
+		return { name: name, valueSql: valueSql ?? "?", value: value };
+	}
+
+	private static function originalMessage(message: ChatMessage) {
+		return message.versions.length == 1 ? message.versions[0] : message;
+	}
+
+	private function insertMessages(accountId:String, messages:Array<ChatMessage>) {
+		final columns = [
+			insertCol("account_id", (_) -> accountId),
+			insertCol("mam_id", (m) -> originalMessage(m).serverId ?? ""),
+			insertCol("mam_by", (m) -> originalMessage(m).serverIdBy ?? ""),
+			insertCol("stanza_id", (m) -> originalMessage(m).localId ?? ""),
+			insertCol("correction_id", (m) -> m.callSid() ?? m.localId ?? m.serverId),
+			insertCol("sync_point", (m) -> m.syncPoint),
+			insertCol("chat_id", (m) -> m.chatId()),
+			insertCol("sender_id", (m) -> m.senderId),
+			insertCol("created_at", (m) -> originalMessage(m).timestamp, "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)"),
+			insertCol("status", (m) -> originalMessage(m).status),
+			insertCol("direction", (m) -> originalMessage(m).direction),
+			insertCol("type", (m) -> originalMessage(m).type),
+			insertCol("stanza", (m) -> originalMessage(m).asStanza().toString()),
+			insertCol("status_text", (m) -> originalMessage(m).statusText),
+			insertCol("sort_id", (m) -> originalMessage(m).sortId),
+		];
+		final values = messages.map(_ -> '(${columns.map(c -> c.valueSql).join(",")})').join(",");
+
+		return db.exec(
+			// Hmm, if there is an existing one this loses the original timestamp though
+			'INSERT OR REPLACE INTO messages (${columns.map(c -> c.name).join(", ")}) VALUES $values',
+			messages.flatMap(m -> columns.map(c -> c.value(m))),
+		);
+	}
 }
