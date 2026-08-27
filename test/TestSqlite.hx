@@ -12,6 +12,7 @@ import borogove.persistence.Sqlite;
 import borogove.persistence.MediaStore;
 import borogove.persistence.KeyValueStore;
 import borogove.ChatMessageBuilder;
+import borogove.ChatMessage;
 import borogove.JID;
 import borogove.ID;
 import borogove.Message;
@@ -581,6 +582,169 @@ class TestSqlite extends utest.Test {
 			Assert.fail(Std.string(e));
 			async.done();
 		});
+	}
+
+	public function testCorrectableMessageStorageUsesCallSidForCorrectionId(async: Async) {
+		final account = "alice@example.com";
+		final version = makeMessage({
+			timestamp: "2020-01-01T00:00:00Z",
+			localId: "version-call-local",
+			serverId: "version-call-server"
+		});
+		final correctable = makeMessage({
+			timestamp: "2020-01-01T00:00:01Z",
+			localId: "correctable-call-local",
+			serverId: "correctable-call-server",
+			versions: [version],
+			callSid: "call-sid",
+			syncPoint: true,
+			senderId: "correctable@example.com",
+			chatId: "correctable-chat@example.com"
+		});
+
+		persistence.storeMessages(account, [correctable]).then(_ -> {
+			return persistence.db.exec("SELECT correction_id FROM messages WHERE mam_id=?", [version.serverId]);
+		}).then(rows -> {
+			final row = rows.next();
+			Assert.equals("call-sid", row.correction_id);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testCorrectableMessageStorageUsesCorrectableFields(async: Async) {
+		final account = "alice@example.com";
+		final version = makeMessage({
+			timestamp: "2020-01-01T00:00:00Z",
+			localId: "version-local",
+			serverId: "version-server",
+			senderId: "version@example.com",
+			chatId: "version-chat@example.com"
+		});
+		final correctable = makeMessage({
+			timestamp: "2020-01-01T00:00:01Z",
+			localId: "correctable-local",
+			serverId: "correctable-server",
+			versions: [version],
+			syncPoint: true,
+			senderId: "correctable@example.com",
+			chatId: "correctable-chat@example.com"
+		});
+
+		persistence.storeMessages(account, [correctable]).then(_ -> {
+			return persistence.db.exec("SELECT sync_point, chat_id, sender_id FROM messages WHERE mam_id=?", [version.serverId]);
+		}).then(rows -> {
+			final row = rows.next();
+			Assert.equals(1, row.sync_point);
+			Assert.equals("correctable-chat@example.com", row.chat_id);
+			Assert.equals("correctable@example.com", row.sender_id);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testCorrectableMessageStorageFallsBackToLocalIdForCorrectionId(async: Async) {
+		final account = "alice@example.com";
+		final version = makeMessage({
+			timestamp: "2020-01-01T00:00:00Z",
+			localId: "version-local-local",
+			serverId: "version-local-server"
+		});
+		final correctable = makeMessage({
+			timestamp: "2020-01-01T00:00:01Z",
+			localId: "correctable-local-local",
+			serverId: "correctable-local-server",
+			versions: [version]
+		});
+
+		persistence.storeMessages(account, [correctable]).then(_ -> {
+			return persistence.db.exec("SELECT correction_id FROM messages WHERE mam_id=?", [version.serverId]);
+		}).then(rows -> {
+			Assert.equals("correctable-local-local", rows.next().correction_id);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testCorrectableMessageStorageFallsBackToServerIdForCorrectionId(async: Async) {
+		final account = "alice@example.com";
+		final version = makeMessage({
+			timestamp: "2020-01-01T00:00:00Z",
+			localId: "version-server-local",
+			serverId: "version-server-server"
+		});
+		final correctable = makeMessage({
+			timestamp: "2020-01-01T00:00:01Z",
+			serverId: "correctable-server-server",
+			versions: [version]
+		});
+
+		persistence.storeMessages(account, [correctable]).then(_ -> {
+			return persistence.db.exec("SELECT correction_id FROM messages WHERE mam_id=?", [version.serverId]);
+		}).then(rows -> {
+			Assert.equals("correctable-server-server", rows.next().correction_id);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	public function testMessageTimestampFormatting(async: Async) {
+		final account = "alice@example.com";
+		final message = makeMessage({
+			timestamp: "2020-01-01T00:00:00.123Z",
+			localId: "timestamp-local",
+			serverId: "timestamp-server"
+		});
+
+		persistence.storeMessages(account, [message]).then(_ -> {
+			return persistence.db.exec("SELECT strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp FROM messages WHERE mam_id=?", [message.serverId]);
+		}).then(rows -> {
+			Assert.equals("2020-01-01T00:00:00.123Z", rows.next().timestamp);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
+	private function makeMessage(params: {
+		timestamp: String,
+		?localId: String,
+		?serverId: String,
+		?senderId: String,
+		?chatId: String,
+		?versions: Array<ChatMessage>,
+		?callSid: String,
+		?syncPoint: Bool
+	}):ChatMessage {
+		final senderId = params.senderId ?? "version@example.com";
+		final chatId = params.chatId ?? "chat@example.com";
+		final builder = new ChatMessageBuilder();
+		builder.localId = params.localId;
+		builder.serverId = params.serverId;
+		builder.serverIdBy = params.serverId == null ? null : "server.example.com";
+		builder.senderId = senderId;
+		builder.direction = MessageSent;
+		builder.sortId = params.localId ?? params.serverId ?? "message";
+		builder.timestamp = params.timestamp;
+		builder.syncPoint = params.syncPoint ?? false;
+		builder.versions = params.versions ?? [];
+		builder.to = JID.parse(chatId);
+		builder.from = JID.parse(senderId);
+		builder.recipients = [builder.to];
+		builder.replyTo = [builder.from];
+		if (params.callSid != null) {
+			builder.payloads = [new Stanza("propose", { xmlns: "urn:xmpp:jingle-message:0", id: params.callSid })];
+		}
+		return builder.build();
 	}
 
 	public function testStoreReaction(async: Async) {
