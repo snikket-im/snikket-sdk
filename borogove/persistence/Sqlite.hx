@@ -1434,7 +1434,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		});
 	}
 
-	private function hydrateMessages(accountId: String, rows: Iterator<{ stanza: String, timestamp: String, direction: MessageDirection, type: MessageType, status: MessageStatus, status_text: Null<String>, mam_id: String, mam_by: String, sort_id: String, sync_point: Int, sender_id: String, ?stanza_id: String, ?versions: String, ?version_times: String }>): Array<ChatMessage> {
+	private function hydrateMessages(accountId: String, rows: Iterator<{ stanza: String, timestamp: String, direction: MessageDirection, type: MessageType, status: MessageStatus, status_text: Null<String>, mam_id: String, mam_by: String, sort_id: String, sync_point: Int, sender_id: String, ?stanza_id: String, ?versions: String }>): Array<ChatMessage> {
 		// TODO: Calls can "edit" from multiple senders, but the original direction and sender holds
 		final accountJid = JID.parse(accountId);
 		return { iterator: () -> rows }.map(row -> ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid, (builder, _) -> {
@@ -1455,13 +1455,16 @@ class Sqlite implements Persistence implements KeyValueStore {
 			}
 			if (row.stanza_id != null && row.stanza_id != "") builder.localId = row.stanza_id;
 			if (row.versions != null) {
-				final versionTimes: DynamicAccess<String> = Json.parse(row.version_times);
-				final versions: DynamicAccess<String> =  Json.parse(row.versions);
+				final versions: DynamicAccess<{
+					timestamp: String,
+					stanza: String,
+				}> = Json.parse(row.versions);
+
 				if (versions.keys().length > 1) {
 					for (versionId => version in versions) {
-						final versionM = ChatMessage.fromStanza(Stanza.parse(version), accountJid, (toPushB, _) -> {
-							if (toPushB.serverId == null && versionId != toPushB.localId)toPushB.serverId = versionId;
-							toPushB.timestamp = versionTimes[versionId];
+						final versionM = ChatMessage.fromStanza(Stanza.parse(version.stanza), accountJid, (toPushB, _) -> {
+							if (toPushB.serverId == null && versionId != toPushB.localId) toPushB.serverId = versionId;
+							toPushB.timestamp = version.timestamp;
 							return toPushB;
 						});
 						final toPush = versionM == null || versionM.versions.length < 1 ? versionM : versionM.versions[0];
@@ -1735,36 +1738,31 @@ class Sqlite implements Persistence implements KeyValueStore {
 		.map(column -> column.sql);
 	}
 
-	private final versionedMessageColumns = '
+	private final versionedMessageColumns = "
 		correction_id AS stanza_id,
 		versions.stanza,
 		json_group_object(
 			CASE
-				WHEN versions.mam_id IS NULL OR versions.mam_id=\'\'
+				WHEN versions.mam_id IS NULL OR versions.mam_id=''
 				THEN versions.stanza_id
 				ELSE versions.mam_id
 			END,
-			strftime(\'%FT%H:%M:%fZ\', versions.created_at / 1000.0, \'unixepoch\')
-		) AS version_times,
-		json_group_object(
-			CASE
-				WHEN versions.mam_id IS NULL OR versions.mam_id=\'\'
-				THEN versions.stanza_id
-				ELSE versions.mam_id
-			END,
-			versions.stanza
+			json_object(
+				'timestamp', strftime('%FT%H:%M:%fZ', versions.created_at / 1000.0, 'unixepoch'),
+				'stanza', versions.stanza
+			)
 		) AS versions,
 		messages.direction,
 		messages.type,
 		messages.status,
 		messages.status_text,
-		strftime(\'%FT%H:%M:%fZ\', messages.created_at / 1000.0, \'unixepoch\') AS timestamp,
+		strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp,
 		messages.sender_id,
 		messages.mam_id,
 		messages.mam_by,
 		messages.sort_id,
 		messages.sync_point,
-		MAX(versions.created_at)';
+		MAX(versions.created_at)";
 
 	private static function insertCol(
 		name:String,
