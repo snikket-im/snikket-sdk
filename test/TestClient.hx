@@ -638,6 +638,29 @@ class TestClient extends utest.Test {
 		client.getDirectChat("friend@example.com");
 	}
 
+	public function testChatsUpdateOnCorrection(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.getDirectChat("friend@example.com");
+
+		final originalStanza = new Stanza("message", { xmlns: "jabber:client", from: "friend@example.com", id: "msg1" }).textTag("body", "hello");
+		client.stream.onStanza(originalStanza);
+
+		haxe.Timer.delay(() -> {
+			client.addChatsUpdatedListener(chats -> {
+				final c = chats.find(x -> x.chatId == "friend@example.com");
+				Assert.notNull(c?.lastMessage);
+				Assert.equals("corrected", c.lastMessage.text);
+				async.done();
+			});
+
+			final correctionStanza = new Stanza("message", { xmlns: "jabber:client", from: "friend@example.com", id: "msg2" })
+					.textTag("body", "corrected")
+					.tag("replace", { id: "msg1", xmlns: "urn:xmpp:message-correct:0" }).up();
+			client.stream.onStanza(correctionStanza);
+		}, 1);
+	}
+
 	public function testPresenceSubscription(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
