@@ -290,6 +290,46 @@ class TestClient extends utest.Test {
 		});
 	}
 
+	public function testChatsUpdateOnModerate(async: Async) {
+		final persistence = new MessageMockPersistence();
+		final client = new Client("test@example.com", persistence);
+		final chatId = "room@example.com";
+		final serverId = "msg1";
+
+		final chat = new borogove.Chat.Channel(client, client.stream, persistence, chatId);
+		client.chats.push(chat);
+
+		final builder = new ChatMessageBuilder();
+		builder.serverId = serverId;
+		builder.from = JID.parse(chatId + "/alice");
+		builder.replyTo = [builder.from];
+		builder.to = JID.parse("test@example.com");
+		builder.senderId = "alice@example.com";
+		builder.text = "hello";
+		builder.timestamp = "2023-01-01T00:00:00Z";
+		builder.sortId = "1";
+		builder.direction = MessageReceived;
+		final originalMessage = builder.build();
+		chat.setLastMessage(originalMessage);
+
+		persistence.storeMessages(client.accountId(), [originalMessage]).then((_) -> {
+			Assert.isNull(chat.lastMessage.moderationReason());
+
+			client.addChatsUpdatedListener(chats -> {
+				final c = chats.find(x -> x.chatId == chatId);
+				Assert.notNull(c?.lastMessage);
+				Assert.equals("Spam", c.lastMessage.moderationReason());
+				async.done();
+			});
+
+			final moderateStanza = new Stanza("message", { xmlns: "jabber:client", from: chatId, type: "groupchat" })
+				.tag("apply-to", { xmlns: "urn:xmpp:fasten:0", id: serverId })
+					.tag("moderated", { xmlns: "urn:xmpp:message-moderate:0", by: "mod@example.com" })
+						.textTag("reason", "Spam");
+			client.stream.onStanza(moderateStanza);
+		});
+	}
+
 	public function testDecryptionFailurePreservesLocalMessage(async: Async) {
 		final persistence = new MessageMockPersistence();
 		final client = new Client("test@example.com", persistence);

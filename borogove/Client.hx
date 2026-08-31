@@ -542,7 +542,16 @@ class Client extends EventEmitter {
 				persistence.storeReaction(accountId(), update).then((stored) -> if (stored != null) notifyMessageHandlers(stored, ReactionEvent));
 				if (newChat != null) this.trigger("chats/update", [newChat]);
 			case ModerateMessageStanza(action):
-				moderateMessage(action).then((stored) -> if (stored != null) notifyMessageHandlers(stored, CorrectionEvent));
+				moderateMessage(action).then((stored) -> if (stored != null) {
+					final chat = getChat(stored.chatId());
+					if (chat != null) {
+						if (stored.canReplace(chat.lastMessage)) {
+							chat.setLastMessage(stored);
+							this.trigger("chats/update", [chat]);
+						}
+					}
+					notifyMessageHandlers(stored, CorrectionEvent);
+				});
 				if (newChat != null) this.trigger("chats/update", [newChat]);
 			case ErrorMessageStanza(localId, stanza):
 				persistence.updateMessageStatus(
