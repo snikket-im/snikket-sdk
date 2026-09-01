@@ -511,7 +511,8 @@ class Client extends EventEmitter {
 				if (chat != null) {
 					final updateChat = (chatMessage: ChatMessage) -> {
 						final eventType = chatMessage.versions.length > 1 ? CorrectionEvent : DeliveryEvent;
-						((chat.lastMessage == null || eventType == DeliveryEvent || chatMessage.canReplace(chat.lastMessage)) ?
+						final canReplaceLast = chat.lastMessage == null || chatMessage.canReplace(chat.lastMessage);
+						((eventType == DeliveryEvent || canReplaceLast) ?
 							chat.setLastMessage(chatMessage) :
 							Promise.resolve(null)
 						).then(_ -> {
@@ -520,8 +521,9 @@ class Client extends EventEmitter {
 							if (eventType == DeliveryEvent) {
 								chat.setUnreadCount(chatMessage.isIncoming() ? chat.unreadCount() + 1 : 0);
 								chatActivity(chat);
-							} else if (newChat != null) {
-								this.trigger("chats/update", [newChat]);
+							} else if (canReplaceLast || newChat != null) {
+								// chat and newChat are the same when both present
+								this.trigger("chats/update", [chat]);
 							}
 						});
 					};
@@ -540,7 +542,16 @@ class Client extends EventEmitter {
 				persistence.storeReaction(accountId(), update).then((stored) -> if (stored != null) notifyMessageHandlers(stored, ReactionEvent));
 				if (newChat != null) this.trigger("chats/update", [newChat]);
 			case ModerateMessageStanza(action):
-				moderateMessage(action).then((stored) -> if (stored != null) notifyMessageHandlers(stored, CorrectionEvent));
+				moderateMessage(action).then((stored) -> if (stored != null) {
+					final chat = getChat(stored.chatId());
+					if (chat != null) {
+						if (stored.canReplace(chat.lastMessage)) {
+							chat.setLastMessage(stored);
+							this.trigger("chats/update", [chat]);
+						}
+					}
+					notifyMessageHandlers(stored, CorrectionEvent);
+				});
 				if (newChat != null) this.trigger("chats/update", [newChat]);
 			case ErrorMessageStanza(localId, stanza):
 				persistence.updateMessageStatus(
