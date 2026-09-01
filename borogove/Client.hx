@@ -657,7 +657,8 @@ class Client extends EventEmitter {
 		};
 		if (userState != null && chat != null) {
 			chat.getMemberDetails([message.senderId]).then(members -> {
-				if (members.length > 0 && members[0].isSelf) return;
+				if (members.length < 1 || members[0] == null) return;
+				if (members[0].isSelf) return;
 
 				this.trigger("chat-state/update", { message: message, userState: userState, member: members[0] });
 			});
