@@ -1157,9 +1157,11 @@ class Client extends EventEmitter {
 		// We already have it
 		if (attachment.cachedAt != null) return Promise.resolve(attachment);
 
-		return fetchUris( attachment.uris.copy()).then(r -> {
-			attachment.cachedAt = r.id;
-			if (attachment.hashes.length < 1) attachment.hashes.push(r.hash);
+		return fetchUris(attachment.uris.copy()).then(r -> {
+			if (r != null) {
+				attachment.cachedAt = r.id;
+				if (attachment.hashes.length < 1) attachment.hashes.push(r.hash);
+			}
 			return attachment;
 		});
 	}

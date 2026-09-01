@@ -210,6 +210,21 @@ class TestClient extends utest.Test {
 			});
 	}
 
+	public function testFetchAttachmentNullResult(async: Async) {
+		final client = new Client("test@example.com", new Dummy());
+		final attachment = new borogove.ChatMessage.ChatAttachment("file.txt", "text/plain", 10, [], []);
+		client.fetchAttachment(attachment).then(r -> {
+			Assert.equals(attachment, r);
+			Assert.isNull(r.cachedAt);
+			async.done();
+			return null;
+		}, e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+			return null;
+		});
+	}
+
 	#if !NO_OMEMO
 	@:timeout(3000)
 	public function testEncryptedAttachmentPreservesUploadError(async: Async) {
