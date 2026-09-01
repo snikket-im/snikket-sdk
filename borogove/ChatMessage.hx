@@ -630,18 +630,22 @@ class ChatMessage {
 			final replyId = replyToM.getReplyId();
 			if (body != null) {
 				final lines = replyToM.text?.split("\n") ?? [];
+				final reaction = EmojiUtil.isEmoji(StringTools.trim(body)) ? StringTools.trim(body.replace("\u{fe0f}", "")) : null;
 				var quoteText = "";
 				for (line in lines) {
 					if (!~/^(?:> ?){3,}/.match(line)) {
 						if (line.charAt(0) == ">") {
-							quoteText += ">" + line + "\n";
+							if (reaction == null) quoteText += ">" + line + "\n";
 						} else {
-							quoteText += "> " + line + "\n";
+							quoteText += "> " + line;
+							if (reaction != null) break;
+							quoteText += "\n";
 						}
 					}
 				}
+				if (reaction != null && lines.length > 1) quoteText += "…";
+				if (reaction != null) quoteText += "\n";
 				if (quoteText != "") quoteText += "\n";
-				final reaction = EmojiUtil.isEmoji(StringTools.trim(body)) ? StringTools.trim(body.replace("\u{fe0f}", "")) : null;
 				body = quoteText + body;
 				if (replyId != null) {
 					final codepoints = StringUtil.codepointArray(quoteText);
