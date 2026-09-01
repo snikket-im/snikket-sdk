@@ -371,7 +371,11 @@ export default async (dbname, media, tokenize, stemmer) => {
 			raw.photoUri,
 			raw.isSelf ? true : false,
 			raw.roles.map((role) => new borogove_Role(role.id, role.title)),
-			raw.jid instanceof borogove_JID ? raw.jid : borogove_JID.parse(raw.jid),
+			// If raw.jid is undefined this produces an invalid Member
+			// But if all we use that for is applyTo maybe it's ok?
+			!raw.jid || raw.jid instanceof borogove_JID
+				? raw.jid
+				: borogove_JID.parse(raw.jid),
 			new Map(
 				(raw.presence?.entries() ?? []).map(([k, p]) => [
 					k,
