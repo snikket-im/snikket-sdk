@@ -2423,7 +2423,7 @@ class Client extends EventEmitter {
 					if (callback != null) callback(true);
 				}
 			},
-			(e) -> {
+			(e: Dynamic) -> {
 				trace("SYNC: error", e);
 				callback(false);
 			});
