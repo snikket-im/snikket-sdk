@@ -327,7 +327,7 @@ class XmppJsStream extends GenericStream {
 		});
 
 		xmpp.on("offline", function (data) {
-			this.state.event("connection-closed");
+			if (this.state.can("connection-closed")) this.state.event("connection-closed");
 		});
 
 		xmpp.streamManagement.on("resumed", (_) -> {
