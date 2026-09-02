@@ -1818,14 +1818,14 @@ class Channel extends Chat {
 				self = member;
 				outbox.start();
 			}
-			client.trigger("chats/update", [this]);
+			if (!noStore) client.trigger("chats/update", [this]);
 		}
 		if (!member.isSelf && member.id != chatId && membersForName != null) {
 			membersForName = membersForName.filter(m -> m.id != member.id);
 			membersForName.push({ id: member.id, displayName: member.displayName });
 			membersForName.sort((a, b) -> Reflect.compare(a.displayName, b.displayName));
 			if (membersForName.length > 20) membersForName = null;
-			if (displayName == chatId) client.trigger("chats/update", [this]);
+			if (displayName == chatId && !noStore) client.trigger("chats/update", [this]);
 		}
 		final tripleThree = presence?.mucUser?.statusCodes?.find((status) -> status == "333");
 		if (member.isSelf && tripleThree != null) {
