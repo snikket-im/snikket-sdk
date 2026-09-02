@@ -105,6 +105,17 @@ function downcast<T, S>(value: T, c: Class<S>): Null<S> {
 	return cast Std.downcast(cast value, cast c);
 }
 
+inline function assert(cond: Bool, s: String) {
+	if (!cond) {
+		#if cpp
+		trace(s);
+		untyped __cpp__("__builtin_trap()");
+		#else
+		throw s;
+		#end
+	}
+}
+
 function xmlEscape(s: String) {
 	// NOTE: using StringTools.htmlEscape breaks things if this is one half of a surrogate pair in an adjacent cdata
 	return StringTools.replace(StringTools.replace(StringTools.replace(s, "&", "&amp;"), "<", "&lt;"), ">", "&gt;");

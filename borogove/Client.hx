@@ -1757,6 +1757,7 @@ class Client extends EventEmitter {
 				updateChatTimer.stop();
 			}
 			for (chat in data) {
+				assert(getChat(chat.chatId) != null, "chats/update was triggered for a chat not in chats");
 				updateChatBuffer[chat.chatId] = true;
 			}
 			if (lastCall < 0 || now - lastCall >= 500) {
