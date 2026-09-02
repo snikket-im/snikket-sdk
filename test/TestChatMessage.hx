@@ -172,4 +172,76 @@ class TestChatMessage extends utest.Test {
 				Assert.fail("Expected SubjectStanza");
 		}
 	}
+
+	public function testReactionFallbackShorterContext() {
+		// Build a parent message with multiple lines
+		final parentBuilder = new borogove.ChatMessageBuilder();
+		parentBuilder.localId = "parent-id";
+		parentBuilder.from = JID.parse("alice@example.com");
+		parentBuilder.to = JID.parse("bob@example.com");
+		parentBuilder.senderId = "alice@example.com";
+		parentBuilder.setBody(borogove.Html.text("line one\nline two\nline three"));
+		final parent = parentBuilder.build();
+
+		// Reply with an emoji (reaction)
+		final reply = parent.reply();
+		reply.from = JID.parse("bob@example.com");
+		reply.to = JID.parse("alice@example.com");
+		reply.senderId = "bob@example.com";
+		reply.localId = "reply-id";
+		reply.setBody(borogove.Html.text("👍"));
+		final replyMsg = reply.build();
+		final stanza = replyMsg.asStanza();
+		final body = stanza.getChildText("body");
+		// Reaction should only quote the first line
+		Assert.equals("> line one…\n\n👍", body);
+	}
+
+	public function testNormalReplyQuotesAllLines() {
+		// Build a parent message with multiple lines
+		final parentBuilder = new borogove.ChatMessageBuilder();
+		parentBuilder.localId = "parent-id";
+		parentBuilder.from = JID.parse("alice@example.com");
+		parentBuilder.to = JID.parse("bob@example.com");
+		parentBuilder.senderId = "alice@example.com";
+		parentBuilder.setBody(borogove.Html.text("line one\nline two\nline three"));
+		final parent = parentBuilder.build();
+
+		// Reply with normal text
+		final reply = parent.reply();
+		reply.from = JID.parse("bob@example.com");
+		reply.to = JID.parse("alice@example.com");
+		reply.senderId = "bob@example.com";
+		reply.localId = "reply-id";
+		reply.setBody(borogove.Html.text("ok sure"));
+		final replyMsg = reply.build();
+		final stanza = replyMsg.asStanza();
+		final body = stanza.getChildText("body");
+		// Normal reply should quote all lines
+		Assert.equals("> line one\n> line two\n> line three\n\nok sure", body);
+	}
+
+	public function testReactionFallbackSkipsNestedQuotes() {
+		// Build a parent message that itself contains a quote and regular text
+		final parentBuilder = new borogove.ChatMessageBuilder();
+		parentBuilder.localId = "parent-id";
+		parentBuilder.from = JID.parse("alice@example.com");
+		parentBuilder.to = JID.parse("bob@example.com");
+		parentBuilder.senderId = "alice@example.com";
+		parentBuilder.setBody(borogove.Html.text("> quoted line\nactual text\nmore text"));
+		final parent = parentBuilder.build();
+
+		// Reply with an emoji (reaction)
+		final reply = parent.reply();
+		reply.from = JID.parse("bob@example.com");
+		reply.to = JID.parse("alice@example.com");
+		reply.senderId = "bob@example.com";
+		reply.localId = "reply-id";
+		reply.setBody(borogove.Html.text("❤️"));
+		final replyMsg = reply.build();
+		final stanza = replyMsg.asStanza();
+		final body = stanza.getChildText("body");
+		// Reaction should skip the already-quoted line and only quote the first non-quoted line
+		Assert.equals("> actual text…\n\n❤️", body);
+	}
 }
