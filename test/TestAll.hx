@@ -25,6 +25,7 @@ class TestAll {
 			new TestJID(),
 			new TestMember(),
 			new TestMemberUpdate(),
+			new TestChannelPinger(),
 			new TestMucSettingsCommand(),
 			new TestPresence(),
 			new TestReaction(),

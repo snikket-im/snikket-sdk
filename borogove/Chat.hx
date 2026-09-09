@@ -1511,6 +1511,7 @@ class Channel extends Chat {
 		if (uiState == Invited) return;
 
 		if (uiState == Closed) {
+			client.channelPinger.remove(this);
 			client.sendPresence(
 				getFullJid().asString(),
 				(stanza) -> {
@@ -1585,10 +1586,7 @@ class Channel extends Chat {
 			final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
 			client.sendPresence(desiredFullJid.asString());
 		}
-		// We did a self ping to see if we were in the room and found we are
-		// But we may have missed messages if we were disconnected in the middle
-		inSync = false;
-		persistence.syncPoint(client.accountId(), chatId).then(point -> doSync(point));
+		client.channelPinger.schedule(this);
 	}
 
 	override public function getDisplayName() {
@@ -1817,6 +1815,7 @@ class Channel extends Chat {
 			} else {
 				self = member;
 				outbox.start();
+				client.channelPinger.schedule(this);
 			}
 			if (!noStore) client.trigger("chats/update", [this]);
 		}

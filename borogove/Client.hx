@@ -129,6 +129,8 @@ class Client extends EventEmitter {
 	@:allow(borogove)
 	private var inSync(default, null) = false;
 	private var firstSync = true;
+	@:allow(borogove.Channel)
+	private final channelPinger: ChannelPinger;
 
 	/**
 		Create a new Client to connect to a particular account
@@ -155,8 +157,10 @@ class Client extends EventEmitter {
 		if (SignalProtocol.exists()) this.omemo = new OMEMO(this, persistence);
 #end
 		stream = new Stream();
+		channelPinger = new ChannelPinger();
 		stream.on("status/online", this.onConnected);
 		stream.on("status/offline", (data) -> {
+			channelPinger.stopTimer();
 			this.trigger("status/offline", {});
 		});
 
@@ -478,6 +482,10 @@ class Client extends EventEmitter {
 			final chat = getChat(from.asBare().asString());
 			final channel = Std.downcast(chat, Channel);
 			if (channel != null) channel.selfPing(true);
+		}
+		if (stanza.attr.get("type") != "error" && from != null) {
+			final channel = Std.downcast(getChat(from.asBare().asString()), Channel);
+			if (channel != null) channelPinger.schedule(channel);
 		}
 
 		var newChat: Null<Chat> = null;
@@ -900,6 +908,7 @@ class Client extends EventEmitter {
 		@param completely if true chats, messages, etc will be deleted as well
 	**/
 	public function logout(completely: Bool) {
+		channelPinger.stopTimer();
 		persistence.removeAccount(accountId(), completely);
 		final disable = new Push2Disable(jid.asBare().asString());
 		disable.onFinished(() -> {
@@ -1097,6 +1106,7 @@ class Client extends EventEmitter {
 			}
 
 			stream.emitSMupdates = true;
+			channelPinger.startTimer();
 			this.trigger("status/online", {});
 			this.trigger("chats/update", chats);
 			return EventHandled;
@@ -1150,6 +1160,7 @@ class Client extends EventEmitter {
 						sendPresence();
 						joinAllChannels();
 					}
+					channelPinger.startTimer();
 					this.trigger("status/online", {});
 					trace("SYNC: done");
 				});
@@ -2063,6 +2074,7 @@ class Client extends EventEmitter {
 
 	@:allow(borogove)
 	private function sendStanza(stanza:Stanza) {
+		channelPinger.pingDueInWindow();
 		if (stanza.attr.get("id") == null) stanza.attr.set("id", ID.unique());
 		stream.sendStanza(stanza);
 	}

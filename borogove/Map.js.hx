@@ -40,6 +40,10 @@ abstract Map<K,V>(NativeMap<K,V>) {
 		return [for (x in this) f(x)];
 	}
 
+	public inline function filter(f: V->Bool):Array<V> {
+		return [for (x in this) if (f(x)) x];
+	}
+
 	public inline function keyValueIterator():KeyValueIterator<K, V> {
 		return new HaxeKVIterator(this.entries());
 	}

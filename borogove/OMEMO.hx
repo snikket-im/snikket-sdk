@@ -834,7 +834,7 @@ class OMEMO {
 		return promPayload;
 	}
 
-	private function sendKeyExchange(deviceId:Int, addr:SignalProtocolAddress) {
+	private function sendKeyExchange(deviceId:Int, addr:SignalProtocolAddress):Promise<Stanza> {
 		trace("OMEMO: Preparing key exchange stanza...");
 		final emptyPayload = Bytes.alloc(32).toString();
 		final promEncryptedMessage = encryptPayloadWithNewKey(emptyPayload);
