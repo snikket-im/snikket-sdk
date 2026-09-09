@@ -1170,7 +1170,7 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		persistence,
 	}) => {
 		const result = await page.evaluate(
-			async ({ borogove, persistence }) => {
+			async ({ persistence }) => {
 				await persistence.storeLogin(
 					"alice@example.com",
 					"client1",
@@ -1286,7 +1286,7 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 		persistence,
 	}) => {
 		const result = await page.evaluate(
-			async ({ borogove, persistence }) => {
+			async ({ persistence }) => {
 				await persistence.storeLogin("alice@example.com", "", "", null); // or updating with SM may not work
 				await persistence.storeStreamManagement(
 					"alice@example.com",

@@ -15,7 +15,6 @@ import {
 	borogove_Member,
 	borogove_Role,
 	borogove_JID,
-	borogove_Presence,
 	borogove_Reaction,
 	borogove_ReactionUpdate,
 	borogove_SerializedChat,
@@ -185,7 +184,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					db.createObjectStore("chats", { keyPath: ["account", "chatId"] });
 				}
 				if (!db.objectStoreNames.contains("members")) {
-					const members = db.createObjectStore("members", {
+					db.createObjectStore("members", {
 						keyPath: ["account", "id"],
 					});
 				}
@@ -1280,7 +1279,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					),
 			);
 			if (reactionResult?.value?.append && message.html().trim() == "") {
-				const reactToMesssage = await this.getMessage(
+				const reactToMessage = await this.getMessage(
 					account,
 					message.chatId(),
 					reactionResult.value.serverId,
@@ -1812,7 +1811,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const prekeys = [];
 			const req = store.openCursor(keyRange);
 
-			return new Promise((resolve, reject) => {
+			return new Promise((resolve) => {
 				req.onsuccess = (event) => {
 					const cursor = event.target.result;
 					if (cursor) {
@@ -1846,8 +1845,8 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const tx = db.transaction(["keyvaluepairs"], "readwrite");
 			const store = tx.objectStore("keyvaluepairs");
 			await Promise.all([
-				await promisifyRequest(store.put(sm, "sm:" + account)),
-				await promisifyRequest(store.put(sortId, "sortId:" + account)),
+				promisifyRequest(store.put(sm, "sm:" + account)),
+				promisifyRequest(store.put(sortId, "sortId:" + account)),
 			]);
 			return true;
 		},

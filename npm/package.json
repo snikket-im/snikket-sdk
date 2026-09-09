@@ -30,8 +30,7 @@
 	"dependencies": {
 		"@xmpp/client": "^0.14.0",
 		"@xmpp/debug": "^0.14.0",
-		"@xmpp/sasl-scram-sha-1": "^0.14.0",
-		"oxfmt": "^0.67.0"
+		"@xmpp/sasl-scram-sha-1": "^0.14.0"
 	},
 	"peerDependenciesMeta": {
 		"@sqlite.org/sqlite-wasm": {
@@ -41,6 +40,8 @@
 	"devDependencies": {
 		"@playwright/test": "1.60.0",
 		"@sqlite.org/sqlite-wasm": "^3.53.0-build1",
+		"oxlint": "^1.82.0",
+		"oxfmt": "^0.67.0",
 		"typescript": "^5.4.5"
 	}
 }

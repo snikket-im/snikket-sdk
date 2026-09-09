@@ -32,8 +32,8 @@ export default (cacheName, { routeHashPath } = { routeHashPath: null }) => {
 				new Response(
 					source.pipeThrough(
 						new TransformStream({
-							start(controller) {},
-							flush(controller) {},
+							start() {},
+							flush() {},
 							transform(chunk, controller) {
 								sha256.update(chunk);
 								sha1.update(chunk);

@@ -8,7 +8,7 @@ all: npm libborogove.batteriesincluded.so .WAIT libborogove.so libborogove.a
 test:
 	haxe test.hxml
 
-ci: format-check test playwright
+ci: format-check lint test playwright
 	mkdir -p .cache
 	haxe testjs.hxml
 	haxe testcpp.hxml
@@ -59,7 +59,7 @@ npm/borogove.js:
 	printf "\nexport class borogove_Presence {}\n" >> npm/borogove.d.ts
 	$(RM) npm/*.bak
 
-npm: format-check npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogove/persistence/MediaStoreCache.js borogove/persistence/sqlite-worker1.mjs
+npm: format-check lint npm/borogove-browser.js npm/borogove.js borogove/persistence/IDB.js borogove/persistence/MediaStoreCache.js borogove/persistence/sqlite-worker1.mjs
 	cp borogove/persistence/IDB.js npm
 	cp borogove/persistence/MediaStoreCache.js npm
 	cp borogove/persistence/sqlite-worker1.mjs npm
@@ -166,3 +166,9 @@ format:
 
 format-check:
 	npx --no-install oxfmt --check '**/*.{ts,js}' --ignore-path .gitignore
+
+lint:
+	npx --no-install oxlint
+
+lint-fix:
+	npx --no-install oxlint --fix --fix-suggestions
