@@ -1217,6 +1217,10 @@ export default async (dbname, media, tokenize, stemmer) => {
 		},
 
 		async storeMessages(account, messages) {
+			for (const m of messages.values()) {
+				await Promise.all(m.attachments.map((a) => a.lookup(this)));
+			}
+
 			const tx = db.transaction(["messages", "reactions"], "readwrite");
 			const store = tx.objectStore("messages");
 			const promises = [];
@@ -1358,7 +1362,6 @@ export default async (dbname, media, tokenize, stemmer) => {
 					} else {
 						store.put(toPut).onerror = console.error;
 					}
-					await Promise.all(message.attachments.map((a) => a.lookup(this)));
 					return message;
 				}
 
