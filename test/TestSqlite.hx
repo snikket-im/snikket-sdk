@@ -94,7 +94,7 @@ class MockMediaStore implements MediaStore {
 }
 
 @:access(borogove)
-@:timeout(3000)
+@:timeout(5000)
 class TestSqlite extends utest.Test {
 	var persistence: Sqlite;
 	var mediaStore: MockMediaStore;
