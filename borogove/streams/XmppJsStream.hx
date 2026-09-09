@@ -287,7 +287,6 @@ class XmppJsStream extends GenericStream {
 				credentials.password = ID.unique();
 			}
 			credentials.token = null;
-			this.trigger("fast-token", { token: null });
 			return Promise.resolve(null);
 		};
 
