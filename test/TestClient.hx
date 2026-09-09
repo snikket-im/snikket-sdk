@@ -492,6 +492,21 @@ class TestClient extends utest.Test {
 		client.start();
 	}
 
+	public function testGetChannelsReturnsOnlyChannels() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		client.getDirectChat("direct1@example.com");
+		client.getDirectChat("direct2@example.com");
+		client.chats.push(new borogove.Chat.Channel(client, client.stream, persistence, "room1@example.com"));
+		client.chats.push(new borogove.Chat.Channel(client, client.stream, persistence, "room2@example.com"));
+
+		final channels = client.getChannels();
+		Assert.equals(2, channels.length);
+		Assert.isTrue(Std.isOfType(channels[0], borogove.Chat.Channel));
+		Assert.isTrue(Std.isOfType(channels[1], borogove.Chat.Channel));
+		Assert.same(["room1@example.com", "room2@example.com"], channels.map(channel -> channel.chatId));
+	}
+
 	public function testUsePassword(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);

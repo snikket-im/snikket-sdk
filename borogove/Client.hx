@@ -1090,12 +1090,9 @@ class Client extends EventEmitter {
 			if (firstSync) {
 				// We resumed from disk so these must have been synced before
 				// and will get anything since live
-				for (chat in getChats()) {
-					final channel = Std.downcast(chat, Channel);
-					if (channel != null) {
-						channel.inSync = channel.self != null;
-						if (!channel.inSync) channel.join();
-					}
+				for (channel in getChannels()) {
+					channel.inSync = channel.self != null;
+					if (!channel.inSync) channel.join();
 				}
 			}
 
@@ -1370,6 +1367,10 @@ class Client extends EventEmitter {
 	**/
 	public function getChats():Array<Chat> {
 		return chats.filter((chat) -> chat.uiState != Closed);
+	}
+
+	private function getChannels():Array<Channel> {
+		return getChats().map(c -> Std.downcast(c, Channel)).filter(c -> c != null);
 	}
 
 	/**
@@ -2456,24 +2457,20 @@ class Client extends EventEmitter {
 	}
 
 	private function pingAllChannels(refresh: Bool) {
-		for (chat in getChats()) {
-			final channel = Std.downcast(chat, Channel);
-			channel?.selfPing(refresh || channel?.disco == null);
+		for (channel in getChannels()) {
+			channel.selfPing(refresh || channel.disco == null);
 		}
 	}
 
 	private function joinAllChannels() {
-		for (chat in getChats()) {
-			final channel = Std.downcast(chat, Channel);
-			if (channel != null) {
-				if (channel.disco.identities.length < 1) {
-					channel.refreshDisco(() -> {
-						channel.join(true);
-					});
-				} else {
+		for (channel in getChannels()) {
+			if (channel.disco.identities.length < 1) {
+				channel.refreshDisco(() -> {
 					channel.join(true);
-					haxe.Timer.delay(() -> channel.refreshDisco(), 30000);
-				}
+				});
+			} else {
+				channel.join(true);
+				haxe.Timer.delay(() -> channel.refreshDisco(), 30000);
 			}
 		}
 	}
