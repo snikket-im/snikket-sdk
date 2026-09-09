@@ -1278,7 +1278,10 @@ export default async (dbname, media, tokenize, stemmer) => {
 						]),
 					),
 			);
-			if (reactionResult?.value?.append && message.html().trim() == "") {
+			if (
+				reactionResult?.value?.append &&
+				message.body().toPlainText().trim() == ""
+			) {
 				const reactToMessage = await this.getMessage(
 					account,
 					message.chatId(),

@@ -2369,6 +2369,80 @@ export function sharedPersistenceTests(test: PersistenceTest) {
 
 		expect(result).toBe("Hello");
 	});
+
+	test("allows rescinding a custom reaction", async ({
+		page,
+		borogove,
+		persistence,
+	}) => {
+		const result = await page.evaluate(
+			async ({ borogove, persistence }) => {
+				const account = "alice@example.com";
+				const chatId = "hatter@example.com";
+				const targetLocalId = "target-message";
+				const reactionMessageId = "reaction-message";
+				const timestamp = "2026-09-09T12:00:00Z";
+
+				const targetBuilder = new borogove.ChatMessageBuilder({
+					localId: targetLocalId,
+					senderId: account,
+					direction: 1,
+				});
+				targetBuilder.sortId = "a0";
+				targetBuilder.to = borogove.JID.parse(chatId);
+				targetBuilder.from = borogove.JID.parse(account);
+				targetBuilder.recipients = [targetBuilder.to];
+				targetBuilder.replyTo = [targetBuilder.from];
+
+				await persistence.storeMessages(account, [targetBuilder.build()]);
+
+				const reaction = new borogove.CustomEmojiReaction(
+					account,
+					timestamp,
+					"tada",
+					"https://example.com/tada.png",
+					reactionMessageId,
+				);
+				const update = new borogove.ReactionUpdate(
+					reactionMessageId,
+					null,
+					null,
+					targetLocalId,
+					chatId,
+					account,
+					timestamp,
+					[reaction],
+					borogove.ReactionUpdateKind.AppendReactions,
+				);
+
+				const withReaction = await persistence.storeReaction(account, update);
+
+				const emptyBuilder = new borogove.ChatMessageBuilder({
+					localId: reactionMessageId,
+					senderId: account,
+					direction: 1,
+				});
+				emptyBuilder.sortId = "a1";
+				emptyBuilder.to = borogove.JID.parse(chatId);
+				emptyBuilder.from = borogove.JID.parse(account);
+				emptyBuilder.recipients = [emptyBuilder.to];
+				emptyBuilder.replyTo = [emptyBuilder.from];
+
+				const [stored] = await persistence.storeMessages(account, [
+					emptyBuilder.build(),
+				]);
+
+				return {
+					before: [...withReaction!.reactions.keys()],
+					after: [...stored.reactions.keys()],
+				};
+			},
+			{ borogove, persistence },
+		);
+
+		expect(result.before).toEqual(["https://example.com/tada.png"]);
+		expect(result.after).toEqual([]);
+	});
 }
 
 type TestKeyPair = {
