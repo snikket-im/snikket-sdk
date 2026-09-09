@@ -1,46 +1,46 @@
 {
-  "name": "borogove",
-  "version": "0.0.1",
-  "homepage": "https://borogove.dev",
-  "description": "An SDK that makes it easy to build your own custom chat experience",
-  "keywords": [
-    "chat",
-    "xmpp"
-  ],
-  "main": "index.js",
-  "type": "module",
-  "files": [
-    "*.js",
-    "*.mjs",
-    "*.ts"
-  ],
-  "browser": {
-    "./borogove.js": "./borogove-browser.js",
-    "./persistence.js": "./persistence-browser.js"
-  },
-  "exports": {
-    ".": "./index.js",
-    "./sqlite-wasm": "./sqlite-wasm.js"
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "",
-  "license": "Apache-2.0",
-  "dependencies": {
-    "@xmpp/client": "^0.14.0",
-    "@xmpp/debug": "^0.14.0",
-    "@xmpp/sasl-scram-sha-1": "^0.14.0"
-  },
-  "peerDependenciesMeta": {
-    "@sqlite.org/sqlite-wasm": {
-      "optional": true
-    }
-  },
-  "devDependencies": {
-    "@playwright/test": "1.60.0",
-    "@sqlite.org/sqlite-wasm": "^3.53.0-build1",
-    "prettier": "3.3.3",
-    "typescript": "^5.4.5"
-  }
+	"name": "borogove",
+	"version": "0.0.1",
+	"homepage": "https://borogove.dev",
+	"description": "An SDK that makes it easy to build your own custom chat experience",
+	"keywords": [
+		"chat",
+		"xmpp"
+	],
+	"main": "index.js",
+	"type": "module",
+	"files": [
+		"*.js",
+		"*.mjs",
+		"*.ts"
+	],
+	"browser": {
+		"./borogove.js": "./borogove-browser.js",
+		"./persistence.js": "./persistence-browser.js"
+	},
+	"exports": {
+		".": "./index.js",
+		"./sqlite-wasm": "./sqlite-wasm.js"
+	},
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"author": "",
+	"license": "Apache-2.0",
+	"dependencies": {
+		"@xmpp/client": "^0.14.0",
+		"@xmpp/debug": "^0.14.0",
+		"@xmpp/sasl-scram-sha-1": "^0.14.0",
+		"oxfmt": "^0.67.0"
+	},
+	"peerDependenciesMeta": {
+		"@sqlite.org/sqlite-wasm": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@playwright/test": "1.60.0",
+		"@sqlite.org/sqlite-wasm": "^3.53.0-build1",
+		"typescript": "^5.4.5"
+	}
 }

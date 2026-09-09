@@ -162,7 +162,7 @@ clean:
 	$(RM) -r cpp/src cpp/include cpp/obj cpp/*.h cpp/*.dso.hash cpp/Build.xml cpp/Options.txt cpp/Borogove.swift libborogove.so
 
 format:
-	npx --no-install prettier --w '**/*.{ts,js}' --ignore-path .gitignore
+	npx --no-install oxfmt '**/*.{ts,js}' --ignore-path .gitignore
 
 format-check:
-	npx --no-install prettier --c '**/*.{ts,js}' --ignore-path .gitignore
+	npx --no-install oxfmt --check '**/*.{ts,js}' --ignore-path .gitignore
