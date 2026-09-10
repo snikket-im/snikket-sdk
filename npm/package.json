@@ -23,7 +23,7 @@
 		"./sqlite-wasm": "./sqlite-wasm.js"
 	},
 	"scripts": {
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"test:vitest-browser": "vitest run --config ../vitest.config.mts"
 	},
 	"author": "",
 	"license": "Apache-2.0",
@@ -40,8 +40,11 @@
 	"devDependencies": {
 		"@playwright/test": "1.60.0",
 		"@sqlite.org/sqlite-wasm": "^3.53.0-build1",
+		"@vitest/browser": "^5.0.0",
+		"@vitest/browser-playwright": "^5.0.0",
 		"oxlint": "^1.82.0",
 		"oxfmt": "^0.67.0",
-		"typescript": "^5.4.5"
+		"typescript": "^5.4.5",
+		"vitest": "^5.0.0"
 	}
 }

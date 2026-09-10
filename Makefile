@@ -1,14 +1,14 @@
 HAXE_PATH=$$HOME/Software/haxe-4.3.1/hxnodejs/12,1,0/src
 CJSTOESM=npx -p typescript@6 -p cjstoesm cjstoesm
 
-.PHONY: all test doc format format-check hx-build-dep cpp/libborogove.dso npm/borogove-browser.js npm/borogove.js cpp playwright ci
+.PHONY: all test doc format format-check hx-build-dep cpp/libborogove.dso npm/borogove-browser.js npm/borogove.js cpp browser-tests ci
 
 all: npm libborogove.batteriesincluded.so .WAIT libborogove.so libborogove.a
 
 test:
 	haxe test.hxml
 
-ci: format-check lint test playwright
+ci: format-check lint test browser-tests
 	mkdir -p .cache
 	haxe testjs.hxml
 	haxe testcpp.hxml
@@ -64,9 +64,9 @@ npm: format-check lint npm/borogove-browser.js npm/borogove.js borogove/persiste
 	cp borogove/persistence/MediaStoreCache.js npm
 	cp borogove/persistence/sqlite-worker1.mjs npm
 	$(RM) npm/calls.js npm/persistence.js npm/persistence-browser.js npm/borogove-enums.js
-	-cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts > /dev/null
-	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d index.ts
-	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --preserveConstEnums --allowJs --checkJs -d persistence-browser.ts
+	-cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --moduleResolution node --preserveConstEnums --allowJs --checkJs -d index.ts > /dev/null
+	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --moduleResolution node --preserveConstEnums --allowJs --checkJs -d index.ts
+	cd npm && npx tsc --esModuleInterop --lib esnext,dom --target esnext --moduleResolution node --preserveConstEnums --allowJs --checkJs -d persistence-browser.ts
 
 playwright/.cache/borogove.js: npm
 	cd npm && esbuild index.js --bundle --format=esm "--alias:node:dns=./test/no-dns.mjs" "--footer:js=export { borogove_JID as JID, borogove_Stanza as Stanza, borogove_ReactionUpdate as ReactionUpdate, borogove_MemberUpdate as MemberUpdate }" --outfile=../$@
@@ -84,8 +84,9 @@ playwright/.cache/sqlite-worker1.js: npm
 	$(RM) $@.mjs
 	$(RM) $@.mjs.bak
 
-playwright: playwright/.cache/borogove.js playwright/.cache/sqlite-wasm.js playwright/.cache/sqlite-worker1.js
+browser-tests: playwright/.cache/borogove.js playwright/.cache/sqlite-wasm.js playwright/.cache/sqlite-worker1.js
 	npx playwright test
+	cd npm && npm run test:vitest-browser
 
 cpp/libborogove.dso:
 	haxe cpp.hxml

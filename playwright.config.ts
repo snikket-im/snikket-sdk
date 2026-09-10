@@ -14,6 +14,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
 	timeout: 260000,
 	testDir: "./test",
+	testMatch: ["**/fast-auth.spec.ts"],
 	webServer: {
 		command: "node playwright/server.mjs",
 		url: "http://127.0.0.1:49276",
@@ -51,9 +52,6 @@ export default defineConfig({
 		{
 			name: "webkit",
 			use: { ...devices["Desktop Safari"] },
-			// Skip sqlite tests on webkit because the
-			// version in playwright lacks OPFS
-			testIgnore: "sqlite.spec.ts",
 		},
 	],
 });
