@@ -519,6 +519,10 @@ class ChatMessage {
 				((!isIncoming() && !other.isIncoming()) || (senderId == other.senderId && versions.length > 0)));
 	}
 
+	public static function combineCorrections(messages: Array<ChatMessage>): Array<ChatMessage> {
+		return ChatMessageCombiner.combine(messages);
+	}
+
 	/**
 		Is this an incoming message?
 	**/

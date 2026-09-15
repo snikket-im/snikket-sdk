@@ -1977,6 +1977,92 @@ export function sharedPersistenceTests(test) {
 			original.text,
 		]);
 	});
+
+	test("storeMessages properly stores two corrections in the same batch when original is already stored", async ({
+		factories,
+		borogove,
+		persistence,
+	}) => {
+		const account = faker.internet.email();
+		const to = borogove.JID.parse(account);
+		const original = factories.message({ to, text: "Original message" });
+		await persistence.storeMessages(account, [original]);
+
+		const corrections = factories
+			.corrections(original, [
+				{ text: "First correction" },
+				{ text: "Second correction" },
+			])
+			.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+		const [stored, ...restStored] = await persistence.storeMessages(
+			account,
+			corrections,
+		);
+
+		expect(restStored.length).toBe(0);
+		expect(stored.localId).toBe(original.localId);
+		expect(stored.serverId).toBe(original.serverId);
+		expect(stored.text).toBe(corrections[0].text);
+		expect(stored.versions.map((version) => version.text)).toEqual([
+			...corrections.map((c) => c.text),
+			original.text,
+		]);
+
+		const [fetched, ...restFetched] = await persistence.getMessagesBefore(
+			account,
+			original.chatId(),
+		);
+
+		expect(restFetched.length).toBe(0);
+		expect(fetched?.localId).toBe(original.localId);
+		expect(fetched?.serverId).toBe(original.serverId);
+		expect(fetched?.text).toBe(corrections[0].text);
+		expect(fetched?.versions.map((version) => version.text)).toEqual([
+			...corrections.map((c) => c.text),
+			original.text,
+		]);
+	});
+
+	test("storeMessages properly stores corrected messages when original in same batch", async ({
+		factories,
+		borogove,
+		persistence,
+	}) => {
+		const account = faker.internet.email();
+		const to = borogove.JID.parse(account);
+		const original = factories.message({ to, text: "Original message" });
+
+		const [correction] = factories.corrections(original, [
+			{ text: "Corrected message" },
+		]);
+		const [storedCorrected, ...restStored] = await persistence.storeMessages(
+			account,
+			[original, correction],
+		);
+
+		expect(restStored.length).toBe(0);
+		expect(storedCorrected.localId).toBe(original.localId);
+		expect(storedCorrected.serverId).toBe(original.serverId);
+		expect(storedCorrected.text).toBe(correction.text);
+
+		expect(storedCorrected.versions.map((version) => version.text)).toEqual([
+			correction.text,
+			original.text,
+		]);
+
+		const [fetched, ...restFetched] = await persistence.getMessagesBefore(
+			account,
+			original.chatId(),
+		);
+
+		expect(restFetched.length).toBe(0);
+		expect(fetched?.text).toBe(correction.text);
+		expect(fetched?.versions.map((version) => version.text)).toEqual([
+			correction.text,
+			original.text,
+		]);
+	});
 }
 
 type TestKeyPair = {

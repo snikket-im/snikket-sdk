@@ -834,9 +834,13 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 		return storeMessagesSerialized.run(() ->
 			// Hmm, if there is an existing one this loses the original timestamp though
-			insertMessages(accountId, messages).then(_ ->
-				thenshim.PromiseTools.all(messages.map(m -> fetchFromStub(accountId, m)))
-			).then(ms ->
+			insertMessages(accountId, messages).then(_ -> {
+				// Sqlite will store originals and their corrections properly, but
+				// here we just map the messages we received, which means we'll return
+				// both unless we combine them.
+				final combinedMessages = ChatMessageCombiner.combine(messages);
+				thenshim.PromiseTools.all(combinedMessages.map(m -> fetchFromStub(accountId, m)));
+			}).then(ms ->
 				thenshim.PromiseTools.all(ms.flatMap(m -> m.attachments.map(a -> a.lookup(this)))).then(_ ->
 					hydrateReplyTo(accountId, ms, replyTos)
 				)

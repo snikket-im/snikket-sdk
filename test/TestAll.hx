@@ -17,6 +17,7 @@ class TestAll {
 			new TestCapsRepo(),
 			new TestChat(),
 			new TestChatMessage(),
+			new TestChatMessageCombiner(),
 			new TestChatMessageBuilder(),
 			new TestClient(),
 			new TestEmojiUtil(),
