@@ -2261,6 +2261,9 @@ class Channel extends Chat {
 			if (sortId != null && message.type == MessageChannel) {
 				sortId = message.sortId = FractionalIndexing.between(sortId, null, FractionalIndexing.BASE_95_DIGITS);
 			} else {
+				if (message.type == MessageChannel) {
+					throw "Cannot store message before we know sortId";
+				}
 				message.sortId = client.nextSortId();
 			}
 		}

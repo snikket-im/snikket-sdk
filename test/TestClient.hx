@@ -316,6 +316,7 @@ class TestClient extends utest.Test {
 		final serverId = "msg1";
 
 		final chat = new borogove.Chat.Channel(client, client.stream, persistence, chatId);
+		chat.sortId = "a ";
 		client.chats.push(chat);
 
 		final builder = new ChatMessageBuilder();
