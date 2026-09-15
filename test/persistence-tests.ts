@@ -1,3 +1,4 @@
+import { faker } from "@faker-js/faker";
 import { expect } from "vitest";
 
 export function sharedPersistenceTests(test) {
@@ -1936,6 +1937,45 @@ export function sharedPersistenceTests(test) {
 			"https://example.com/tada.png",
 		]);
 		expect([...stored.reactions.keys()]).toEqual([]);
+	});
+
+	test("storeMessages properly stores corrected messages", async ({
+		factories,
+		borogove,
+		persistence,
+	}) => {
+		const account = faker.internet.email();
+		const to = borogove.JID.parse(account);
+		const original = factories.message({ to, text: "Original message" });
+		await persistence.storeMessages(account, [original]);
+
+		const [correction] = factories.corrections(original, [
+			{ text: "Corrected message" },
+		]);
+		const [stored, ...restStored] = await persistence.storeMessages(account, [
+			correction,
+		]);
+
+		expect(restStored.length).toBe(0);
+		expect(stored.localId).toBe(original.localId);
+		expect(stored.serverId).toBe(original.serverId);
+		expect(stored.text).toBe(correction.text);
+
+		expect(stored.versions.map((version) => version.text)).toEqual([
+			correction.text,
+			original.text,
+		]);
+		const [fetched, ...rest] = await persistence.getMessagesBefore(
+			account,
+			original.chatId(),
+		);
+
+		expect(rest.length).toBe(0);
+		expect(fetched?.text).toBe(correction.text);
+		expect(fetched?.versions.map((version) => version.text)).toEqual([
+			correction.text,
+			original.text,
+		]);
 	});
 }
 
