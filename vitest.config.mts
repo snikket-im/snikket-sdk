@@ -1,9 +1,11 @@
 import { defineConfig } from "vitest/config";
-import { playwright } from "@vitest/browser-playwright";
 import { createReadStream } from "node:fs";
+
+import { socketCommands, socketPlaywright } from "./test/socket-bridge.mts";
 
 export default defineConfig({
 	root: "..",
+	optimizeDeps: { include: ["@xmpp/xml", "ltx"] },
 	plugins: [
 		{
 			name: "serve-sqlite-worker",
@@ -18,21 +20,38 @@ export default defineConfig({
 		},
 	],
 	test: {
-		include: ["test/idb.spec.ts", "test/sqlite.spec.ts"],
+		silent: "passed-only",
+		include: [
+			"test/idb.spec.ts",
+			"test/sqlite.spec.ts",
+			"test/fast-auth.spec.ts",
+		],
 		browser: {
 			enabled: true,
-			provider: playwright(),
+			provider: socketPlaywright(),
+			commands: socketCommands,
 			headless: true,
 			instances: [
 				{
 					browser: "chromium",
-					include: ["test/idb.spec.ts", "test/sqlite.spec.ts"],
+					include: [
+						"test/idb.spec.ts",
+						"test/sqlite.spec.ts",
+						"test/fast-auth.spec.ts",
+					],
 				},
 				{
 					browser: "firefox",
-					include: ["test/idb.spec.ts", "test/sqlite.spec.ts"],
+					include: [
+						"test/idb.spec.ts",
+						"test/sqlite.spec.ts",
+						"test/fast-auth.spec.ts",
+					],
 				},
-				{ browser: "webkit", include: ["test/idb.spec.ts"] },
+				{
+					browser: "webkit",
+					include: ["test/idb.spec.ts", "test/fast-auth.spec.ts"],
+				},
 			],
 		},
 	},

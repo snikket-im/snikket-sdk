@@ -85,7 +85,6 @@ playwright/.cache/sqlite-worker1.js: npm
 	$(RM) $@.mjs.bak
 
 browser-tests: playwright/.cache/borogove.js playwright/.cache/sqlite-wasm.js playwright/.cache/sqlite-worker1.js
-	npx playwright test
 	cd npm && npm run test:vitest-browser
 
 cpp/libborogove.dso:

@@ -5,12 +5,4 @@
 	"rules": {
 		"eslint/no-undef": "warn"
 	},
-	"overrides": [
-		{
-			"files": ["playwright.config.ts"],
-			"env": {
-				"node": true,
-			}
-		}
-	]
 }
