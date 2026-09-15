@@ -46,6 +46,25 @@ class TestClient extends utest.Test {
 		client.setStatus(new Status("😊", "feeling good"));
 	}
 
+	public function testPublishWithOptions(async: Async) {
+		final client = new Client("test@example.com", new Dummy());
+		final stanza = new Stanza("iq", { type: "set" })
+			.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
+			.tag("publish", { node: "test-node" })
+			.tag("item");
+		final options = new Stanza("x", { xmlns: "jabber:x:data", type: "submit" });
+
+		client.stream.on("sendStanza", (sent: Stanza) -> {
+			final pubsub = sent.getChild("pubsub", "http://jabber.org/protocol/pubsub");
+			Assert.notNull(pubsub.getChild("publish"));
+			Assert.notNull(pubsub.getChild("publish-options"));
+			async.done();
+			return EventHandled;
+		});
+
+		client.publishWithOptions(stanza, options);
+	}
+
 	public function testReceiveStatusUpdate(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);

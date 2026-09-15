@@ -2047,7 +2047,10 @@ class Client extends EventEmitter {
 	@:allow(borogove)
 	private function publishWithOptions(stanza:Stanza, options:Stanza) {
 		final clone = stanza.clone();
-		clone.findChild("{http://jabber.org/protocol/pubsub}pubsub/publish").tag("publish-options").addChild(options);
+		clone
+			.findChild("{http://jabber.org/protocol/pubsub}pubsub")
+			.tag("publish-options")
+			.addChild(options);
 		stream.sendIq(
 			clone,
 			(response) -> {
