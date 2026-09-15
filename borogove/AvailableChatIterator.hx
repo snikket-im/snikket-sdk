@@ -123,6 +123,8 @@ class AvailableChatIterator {
 									check(new JID(query, bareJid.domain)).then(resolve);
 								} else if (bareJid.isDomain()) {
 									check(new JID(StringTools.replace(query, "@", "%"), bareJid.domain)).then(resolve);
+								} else {
+									resolve([]);
 								}
 							} else {
 								switch (result) {
