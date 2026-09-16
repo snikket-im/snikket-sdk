@@ -1498,6 +1498,7 @@ class Channel extends Chat {
 	private var mavUntil = null;
 	@:allow(borogove.SerializedChat)
 	private var membersForName: Null<Array<{id: String, displayName: String}>> = [];
+	@:allow(borogove)
 	private var sortId = null;
 	private var lastMessageSenderName = null;
 

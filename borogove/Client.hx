@@ -1101,7 +1101,7 @@ class Client extends EventEmitter {
 				// We resumed from disk so these must have been synced before
 				// and will get anything since live
 				for (channel in getChannels()) {
-					channel.inSync = channel.self != null;
+					channel.inSync = channel.self != null && channel.sortId != null;
 					if (!channel.inSync) channel.join();
 				}
 			}
