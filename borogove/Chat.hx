@@ -2044,7 +2044,7 @@ class Channel extends Chat {
 
 	override private function setLastMessage(message:Null<ChatMessage>) {
 		return super.setLastMessage(message).then(_ -> {
-			if (message != null && message.type == MessageChannel && (sortId == null || sortId < message.sortId)) sortId = message.sortId;
+			if (message?.sortId != null && message.type == MessageChannel && (sortId == null || sortId < message.sortId)) sortId = message.sortId;
 			if (message == null) return Promise.resolve(null);
 
 			return getMemberDetails([message.senderId]).then(sender -> {
