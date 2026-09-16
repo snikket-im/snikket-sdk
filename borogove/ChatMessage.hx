@@ -227,7 +227,7 @@ class ChatMessage {
 	public final attachments: ReadOnlyArray<ChatAttachment>;
 
 	@:allow(borogove)
-	private final debug: Null<Dynamic>;
+	private var debug: Null<Dynamic>;
 
 	/**
 		Map of reactions to this message

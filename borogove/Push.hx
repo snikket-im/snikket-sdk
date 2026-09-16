@@ -56,6 +56,7 @@ class Push {
 							return builder;
 						}
 					);
+					toStore.debug = { source: "push", sortId: { method: "between", lower: lower, upper: null } };
 					persistence.storeMessages(message.account(), [toStore]);
 				});
 				return Notification.fromChatMessage(message);

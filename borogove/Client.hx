@@ -1999,6 +1999,7 @@ class Client extends EventEmitter {
 			builder.sortId = nextSortId();
 			builder.debug = {
 				source: "outgoing",
+				path: "Client#storeMessageBuilder",
 				sortId: { method: "between", lower: lower, upper: null },
 			};
 		}

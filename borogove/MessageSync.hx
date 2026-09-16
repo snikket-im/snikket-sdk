@@ -31,6 +31,7 @@ class MessageSync {
 	private var handler:MessageListHandler;
 	private var contextHandler:(ChatMessageBuilder, Stanza)->ChatMessageBuilder = (b,_)->b;
 	private var errorHandler:(Stanza)->Void;
+	private final startSortA:Null<String>;
 	private var sortA:Null<String>;
 	private final sortB:Null<String>;
 	public var lastPage(default, null):ResultSetPageResult;
@@ -43,6 +44,7 @@ class MessageSync {
 		this.stream = stream;
 		this.filter = Reflect.copy(filter);
 		this.sortA = sortA;
+		this.startSortA = sortA;
 		this.sortB = sortB;
 		this.serviceJID = serviceJID != null ? serviceJID : client.accountId();
 	}
@@ -122,7 +124,9 @@ class MessageSync {
 						builder.debug = {
 							source: "mam",
 							serviceJID: serviceJID,
-							sortId: { method: "between", lower: sortLower, upper: sortB },
+							filter: filter,
+							path: "decrypted",
+							sortId: { method: "between", startSortA: startSortA, lower: sortLower, upper: sortB },
 						};
 						builder.serverId = result.attr.get("id");
 						builder.serverIdBy = serviceJID;
@@ -137,7 +141,9 @@ class MessageSync {
 							builder.debug = {
 								source: "mam",
 								serviceJID: serviceJID,
-								sortId: { method: "between", lower: sortLower, upper: sortB },
+								filter: filter,
+								path: "decryption failed",
+								sortId: { method: "between", startSortA: startSortA, lower: sortLower, upper: sortB },
 							};
 							builder.serverId = result.attr.get("id");
 							builder.serverIdBy = serviceJID;
@@ -158,7 +164,9 @@ class MessageSync {
 				builder.debug = {
 					source: "mam",
 					serviceJID: serviceJID,
-					sortId: { method: "between", lower: sortLower, upper: sortB },
+					filter: filter,
+					path: "unencrypted",
+					sortId: { method: "between", startSortA: startSortA, lower: sortLower, upper: sortB },
 				};
 				builder.serverId = result.attr.get("id");
 				builder.serverIdBy = serviceJID;

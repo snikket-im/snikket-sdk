@@ -1231,6 +1231,7 @@ class DirectChat extends Chat {
 			message.sortId = client.nextSortId();
 			message.debug = {
 				source: "live",
+				path: "DirectChat#prepareIncomingMessage",
 				sortId: { method: "between", lower: lower, upper: null },
 			};
 		}
@@ -2270,6 +2271,7 @@ class Channel extends Chat {
 				sortId = message.sortId = FractionalIndexing.between(lower, null, FractionalIndexing.BASE_95_DIGITS);
 				message.debug = {
 					source: "live",
+					path: "Channel#prepareIncomingMessage sortId != null && message.type == MessageChannel",
 					sortId: { method: "between", lower: lower, upper: null },
 				};
 			} else {
@@ -2280,6 +2282,7 @@ class Channel extends Chat {
 				message.sortId = client.nextSortId();
 				message.debug = {
 					source: "live",
+					path: "Channel#prepareIncomingMessage else (probably PM?)",
 					sortId: { method: "between", lower: lower, upper: null },
 				};
 			}
@@ -2308,6 +2311,7 @@ class Channel extends Chat {
 			sortId = message.sortId = FractionalIndexing.between(lower, null, FractionalIndexing.BASE_95_DIGITS);
 			message.debug = {
 				source: "outgoing",
+				path: "Channel#prepareOutgoingMessage",
 				sortId: { method: "between", lower: lower, upper: null },
 			};
 		}
