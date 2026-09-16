@@ -42,12 +42,17 @@ class Push {
 					persistence.syncPoint(message.account(), message.chatId()).then(point -> point?.sortId ?? "a ") :
 					persistence.getStreamManagement(message.account()).then(data -> data.sortId)
 				).then(sortId -> {
-					final sortId = FractionalIndexing.between(sortId, null, FractionalIndexing.BASE_95_DIGITS);
+					final lower = sortId;
+					final sortId = FractionalIndexing.between(lower, null, FractionalIndexing.BASE_95_DIGITS);
 					final toStore = ChatMessage.fromStanza(
 						stanza,
 						JID.parse(stanza.attr.get("to")).asBare(),
 						(builder, stanza) -> {
 							builder.sortId = sortId;
+							builder.debug = {
+								source: "push",
+								sortId: { method: "between", lower: lower, upper: null },
+							};
 							return builder;
 						}
 					);

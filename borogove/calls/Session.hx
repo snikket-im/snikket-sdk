@@ -68,7 +68,12 @@ private function mkCallMessage(to: JID, client: Client, event: Stanza) {
 		m.versions = [m.build()];
 	}
 	m.localId = event.attr.get("id");
+	final lower = client.sortId;
 	m.sortId = client.nextSortId();
+	m.debug = {
+		source: "call",
+		sortId: { method: "between", lower: lower, upper: null },
+	};
 	return m.build();
 }
 

@@ -81,7 +81,8 @@ class MessageSync {
 			if (originalMessage == null) { // No message, nothing for us to do
 				return EventHandled;
 			}
-			sortA = FractionalIndexing.between(sortA, sortB, FractionalIndexing.BASE_95_DIGITS);
+			final sortLower = sortA;
+			sortA = FractionalIndexing.between(sortLower, sortB, FractionalIndexing.BASE_95_DIGITS);
 			var timestamp = result.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
 			if (timestamp == null) {
 				trace("MAM result with no timestamp", result);
@@ -118,6 +119,11 @@ class MessageSync {
 
 					return Message.fromStanza(decryptedStanza, client.jid, (builder, stanza) -> {
 						builder.sortId = sortId;
+						builder.debug = {
+							source: "mam",
+							serviceJID: serviceJID,
+							sortId: { method: "between", lower: sortLower, upper: sortB },
+						};
 						builder.serverId = result.attr.get("id");
 						builder.serverIdBy = serviceJID;
 						builder.encryption = decryptionResult.encryptionInfo;
@@ -128,6 +134,11 @@ class MessageSync {
 					trace("MAM: Decryption failed: "+err);
 					return Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
 							builder.sortId = sortA;
+							builder.debug = {
+								source: "mam",
+								serviceJID: serviceJID,
+								sortId: { method: "between", lower: sortLower, upper: sortB },
+							};
 							builder.serverId = result.attr.get("id");
 							builder.serverIdBy = serviceJID;
 							if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
@@ -144,6 +155,11 @@ class MessageSync {
 
 			final msg = Message.fromStanza(originalMessage, client.jid, (builder, stanza) -> {
 				builder.sortId = sortId;
+				builder.debug = {
+					source: "mam",
+					serviceJID: serviceJID,
+					sortId: { method: "between", lower: sortLower, upper: sortB },
+				};
 				builder.serverId = result.attr.get("id");
 				builder.serverIdBy = serviceJID;
 				if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;

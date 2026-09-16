@@ -6,6 +6,7 @@ import borogove.Importer;
 import borogove.Message;
 import borogove.JID;
 
+@:access(borogove)
 class TestImporter extends utest.Test {
 	public function testOnAccount() {
 		final accounts = [];
@@ -82,6 +83,7 @@ class TestImporter extends utest.Test {
 				Assert.equals("mam-id-1", chatMsg.serverId);
 				Assert.equals("juliet@capulet.com", chatMsg.serverIdBy);
 				Assert.equals("2023-10-27T10:00:00.001Z", chatMsg.timestamp);
+				Assert.equals("import", chatMsg.debug.source);
 				Assert.isFalse(chatMsg.isIncoming());
 			default:
 				Assert.fail("Expected ChatMessageStanza");

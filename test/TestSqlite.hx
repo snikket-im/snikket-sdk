@@ -728,6 +728,7 @@ class TestSqlite extends utest.Test {
 		?syncPoint: Bool,
 		?sortId: String,
 		?encryption: EncryptionInfo,
+		?source: String,
 		?body: String,
 		?received: Bool
 	}):ChatMessage {
@@ -744,6 +745,7 @@ class TestSqlite extends utest.Test {
 		builder.syncPoint = params.syncPoint ?? false;
 		builder.versions = params.versions ?? [];
 		builder.encryption = params.encryption;
+		if (params.source != null) builder.debug = { source: params.source };
 		if (params.body != null) builder.setBody(Html.text(params.body));
 		builder.to = JID.parse(chatId);
 		builder.from = JID.parse(senderId);
@@ -815,6 +817,7 @@ class TestSqlite extends utest.Test {
 			chatId: chatId,
 			sortId: "encrypted-c0",
 			body: originalExpected.text,
+			source: "outgoing",
 			encryption: originalExpected.encryption
 		});
 		final correctionExpected = {
@@ -834,6 +837,7 @@ class TestSqlite extends utest.Test {
 			chatId: chatId,
 			sortId: "encrypted-c0",
 			body: correctionExpected.text,
+			source: "mam",
 			encryption: correctionExpected.encryption
 		});
 		final correctable = makeMessage({
@@ -850,16 +854,19 @@ class TestSqlite extends utest.Test {
 		}).then(stored -> {
 			final corrected = stored[0];
 			Assert.equals(correctionExpected.text, corrected.text);
+			Assert.equals("mam", corrected.debug.source);
 			assertEncryption(corrected, correctionExpected.encryption);
 
 			final storedCorrection = corrected.versions.find(version -> version.localId == correctionVersion.localId);
 			Assert.notNull(storedCorrection);
 			Assert.equals(correctionExpected.text, storedCorrection.text);
+			Assert.equals("mam", storedCorrection.debug.source);
 			assertEncryption(storedCorrection, correctionExpected.encryption);
 
 			final storedOriginal = corrected.versions.find(version -> version.localId == original.localId);
 			Assert.notNull(storedOriginal);
 			Assert.equals(originalExpected.text, storedOriginal.text);
+			Assert.equals("outgoing", storedOriginal.debug.source);
 			assertEncryption(storedOriginal, originalExpected.encryption);
 
 			return persistence.getMessagesBefore(account, chatId, null);
@@ -867,16 +874,19 @@ class TestSqlite extends utest.Test {
 			Assert.equals(1, fetched.length);
 			final corrected = fetched[0];
 			Assert.equals(correctionExpected.text, corrected.text);
+			Assert.equals("mam", corrected.debug.source);
 			assertEncryption(corrected, correctionExpected.encryption);
 
 			final fetchedCorrection = corrected.versions.find(version -> version.localId == correctionVersion.localId);
 			Assert.notNull(fetchedCorrection);
 			Assert.equals(correctionExpected.text, fetchedCorrection.text);
+			Assert.equals("mam", fetchedCorrection.debug.source);
 			assertEncryption(fetchedCorrection, correctionExpected.encryption);
 
 			final fetchedOriginal = corrected.versions.find(version -> version.localId == original.localId);
 			Assert.notNull(fetchedOriginal);
 			Assert.equals(originalExpected.text, fetchedOriginal.text);
+			Assert.equals("outgoing", fetchedOriginal.debug.source);
 			assertEncryption(fetchedOriginal, originalExpected.encryption);
 
 			async.done();
@@ -2020,7 +2030,8 @@ class TestSqlite extends utest.Test {
 			"mam_by",
 			"sort_id",
 			"sync_point",
-			"json(encryption) AS encryption"
+			"json(encryption) AS encryption",
+			"json(debug) AS debug"
 		];
 		expected.sort(Reflect.compare);
 
@@ -2043,7 +2054,8 @@ class TestSqlite extends utest.Test {
 			"mam_by",
 			"sort_id",
 			"sync_point",
-			"json(encryption) AS encryption"
+			"json(encryption) AS encryption",
+			"json(debug) AS debug"
 		];
 
 		final expected = defaultColumns.concat(["stanza_id"]);
@@ -2070,7 +2082,8 @@ class TestSqlite extends utest.Test {
 			"mam_by",
 			"sort_id",
 			"sync_point",
-			"json(encryption) AS encryption"
+			"json(encryption) AS encryption",
+			"json(debug) AS debug"
 		];
 		final expected = defaultColumns.copy();
 		expected[defaultColumns.indexOf(columnToReplace)] = replacementSql;

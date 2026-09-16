@@ -143,7 +143,8 @@ class Importer {
 			}
 		}
 
-		sortA = FractionalIndexing.between(sortA, sortB, FractionalIndexing.BASE_95_DIGITS);
+		final sortLower = sortA;
+		sortA = FractionalIndexing.between(sortLower, sortB, FractionalIndexing.BASE_95_DIGITS);
 		var timestamp = resultStanza.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
 		if (timestamp != null) {
 			// If no subseconds, fix them to at least sort right
@@ -170,6 +171,10 @@ class Importer {
 
 		final msg = Message.fromStanza(originalMessage, targetAccount == null ? new JID(item, host) : JID.parse(targetAccount), (builder, stanza) -> {
 			builder.sortId = sortA;
+			builder.debug = {
+				source: "import",
+				sortId: { method: "between", lower: sortLower, upper: sortB },
+			};
 			builder.serverId = resultStanza.attr.get("id");
 			builder.serverIdBy = source;
 			if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;

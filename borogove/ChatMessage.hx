@@ -226,6 +226,9 @@ class ChatMessage {
 	**/
 	public final attachments: ReadOnlyArray<ChatAttachment>;
 
+	@:allow(borogove)
+	private final debug: Null<Dynamic>;
+
 	/**
 		Map of reactions to this message
 	**/
@@ -317,6 +320,7 @@ class ChatMessage {
 		?replyToMessage: Null<ChatMessage>,
 		?threadId: Null<String>,
 		?attachments: Array<ChatAttachment>,
+		?debug: Null<Dynamic>,
 		?reactions: Map<String, Array<Reaction>>,
 		?text: Null<String>,
 		?lang: Null<String>,
@@ -345,6 +349,7 @@ class ChatMessage {
 		this.replyToMessage = params.replyToMessage;
 		this.threadId = params.threadId;
 		this.attachments = params.attachments ?? [];
+		this.debug = params.debug;
 		this.reactions = params.reactions ?? ([] : Map<String, Array<Reaction>>);
 		this.text = params.text;
 		this.lang = params.lang;

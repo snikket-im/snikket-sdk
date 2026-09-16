@@ -72,6 +72,8 @@ class TestSortId extends utest.Test {
 		var messagesSoFar = 0;
 		var sortIdSoFar = "a ";
 		client.addChatMessageListener((message, event) -> {
+			Assert.equals("live", message.debug.source);
+			Assert.equals("between", message.debug.sortId.method);
 			Assert.isTrue(sortIdSoFar < message.sortId, "sortIdSoFar < message.sortId");
 			sortIdSoFar = message.sortId;
 			messagesSoFar++;
@@ -98,6 +100,7 @@ class TestSortId extends utest.Test {
 		var messagesSoFar = 0;
 		var sortIdSoFar = "a ";
 		client.addChatMessageListener((message, event) -> {
+			Assert.equals("live", message.debug.source);
 			Assert.isTrue(sortIdSoFar < message.sortId, "sortIdSoFar < message.sortId");
 			sortIdSoFar = message.sortId;
 			messagesSoFar++;
@@ -140,6 +143,12 @@ class TestSortId extends utest.Test {
 			Assert.isTrue(m1.sortId < m2.sortId, "m1.sortId < m2.sortId");
 			Assert.isTrue(m2.sortId < "b00", "m2.sortId < \"b00\"");
 			Assert.isTrue(m1.timestamp < m2.timestamp, "m1.timestamp < m2.timestamp"); // fake fractional part
+			Assert.equals("mam", m1.debug.source);
+			Assert.equals("test@example.com", m1.debug.serviceJID);
+			Assert.equals("mam", m2.debug.source);
+			Assert.equals("between", m1.debug.sortId.method);
+			Assert.equals("a ", m1.debug.sortId.lower);
+			Assert.equals("b00", m1.debug.sortId.upper);
 			async.done();
 		});
 
@@ -284,6 +293,8 @@ class TestSortId extends utest.Test {
 		});
 
 		client.addSyncMessageListener((message) -> {
+			Assert.equals("mam", message.debug.source);
+			Assert.equals("syncchannel@example.com", message.debug.serviceJID);
 			Assert.isTrue(syncSortIdSoFar < message.sortId, "syncSortIdSoFar < message.sortId");
 			syncSortIdSoFar = message.sortId;
 			Assert.isTrue(syncSortIdSoFar < sortIdSoFar, "syncSortIdSoFar < sortIdSoFar");

@@ -94,6 +94,9 @@ class ChatMessageBuilder {
 	**/
 	public var attachments (default, null): Array<ChatAttachment> = [];
 
+	@:allow(borogove)
+	private var debug: Null<Dynamic> = null;
+
 	/**
 		Map of reactions to this message
 	**/
@@ -177,6 +180,7 @@ class ChatMessageBuilder {
 		?replyToMessage: Null<ChatMessage>,
 		?threadId: Null<String>,
 		?attachments: Array<ChatAttachment>,
+		?debug: Null<Dynamic>,
 		?reactions: Map<String, Array<Reaction>>,
 		?text: Null<String>,
 		?subject: Null<String>,
@@ -199,6 +203,7 @@ class ChatMessageBuilder {
 		this.replyToMessage = params?.replyToMessage;
 		this.threadId = params?.threadId;
 		this.attachments = params?.attachments ?? [];
+		this.debug = params?.debug;
 		this.reactions = params?.reactions ?? ([] : Map<String, Array<Reaction>>);
 		this.lang = params?.lang;
 		this.direction = params?.direction ?? MessageSent;
@@ -235,6 +240,7 @@ class ChatMessageBuilder {
 		builder.replyToMessage = m.replyToMessage;
 		builder.threadId = m.threadId;
 		builder.attachments = m.attachments.array();
+		builder.debug = m.debug;
 		builder.reactions = m.reactions;
 		builder.direction = m.direction;
 		builder.status = m.status;
@@ -267,6 +273,7 @@ class ChatMessageBuilder {
 		builder.replyTo = m.replyTo.array();
 		builder.replyToMessage = m.replyToMessage;
 		builder.threadId = m.threadId;
+		builder.debug = m.debug;
 		builder.reactions = m.reactions;
 		builder.direction = m.direction;
 		builder.status = m.status;
@@ -406,6 +413,7 @@ class ChatMessageBuilder {
 			replyToMessage: replyToMessage,
 			threadId: threadId,
 			attachments: attachments,
+			debug: debug,
 			reactions: reactions,
 			text: text,
 			lang: lang,

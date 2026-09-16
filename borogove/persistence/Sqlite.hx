@@ -362,6 +362,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 							"PRAGMA user_version = 21"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 22) {
+						return exec(["ALTER TABLE messages ADD COLUMN debug BLOB",
+							"PRAGMA user_version = 22"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -1474,6 +1480,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			sync_point: Int,
 			sender_id: String,
 			encryption: Null<String>,
+			debug: Null<String>,
 			?stanza_id: String,
 			?versions: String
 		}>
@@ -1490,6 +1497,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			builder.serverId = row.mam_id == "" ? null : row.mam_id;
 			builder.serverIdBy = row.mam_by == "" ? null : row.mam_by;
 			builder.sortId = row.sort_id;
+			builder.debug = row.debug == null ? null : Json.parse(row.debug);
 			if (builder.direction != row.direction) {
 				builder.direction = row.direction;
 				final replyTo = builder.replyTo;
@@ -1502,6 +1510,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					timestamp: String,
 					stanza: String,
 					encryption: Dynamic,
+					debug: Dynamic,
 				}> = Json.parse(row.versions);
 
 				if (versions.keys().length > 1) {
@@ -1509,6 +1518,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 						final versionM = ChatMessage.fromStanza(Stanza.parse(version.stanza), accountJid, (toPushB, _) -> {
 							if (toPushB.serverId == null && versionId != toPushB.localId) toPushB.serverId = versionId;
 							toPushB.timestamp = version.timestamp;
+							toPushB.debug = version.debug;
 							return toPushB;
 						}, hydrateEncryption(version.encryption));
 						final toPush = versionM == null || versionM.versions.length < 1 ? versionM : versionM.versions[0];
@@ -1773,7 +1783,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 			col("mam_by"),
 			col("sort_id"),
 			col("sync_point"),
-			col("encryption", "json(encryption) AS encryption")
+			col("encryption", "json(encryption) AS encryption"),
+			col("debug", "json(debug) AS debug")
 		]
 		.concat(customColumns ?? [])
 		.fold((column, map:Map<String, Column>) -> {
@@ -1794,7 +1805,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 			json_object(
 				'timestamp', strftime('%FT%H:%M:%fZ', versions.created_at / 1000.0, 'unixepoch'),
 				'stanza', versions.stanza,
-				'encryption', json(versions.encryption)
+				'encryption', json(versions.encryption),
+				'debug', json(versions.debug)
 			)
 		) AS versions,
 		messages.direction,
@@ -1809,6 +1821,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		messages.sync_point,
 		MAX(versions.created_at),
 		json(versions.encryption) AS encryption,
+		json(versions.debug) AS debug,
 		versions.stanza";
 
 	private static function insertCol(
@@ -1840,6 +1853,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			insertCol("stanza", (m) -> originalMessage(m).asStanza().toString()),
 			insertCol("status_text", (m) -> originalMessage(m).statusText),
 			insertCol("sort_id", (m) -> originalMessage(m).sortId),
+			insertCol("debug", (m) -> originalMessage(m).debug == null ? null : Json.stringify(originalMessage(m).debug), "jsonb(?)"),
 			insertCol("encryption", (m) -> {
 				final message = originalMessage(m);
 				return message.encryption == null ? null : JsonPrinter.print(message.encryption);

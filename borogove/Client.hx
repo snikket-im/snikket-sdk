@@ -117,6 +117,7 @@ class Client extends EventEmitter {
 	private var fastMechanism: Null<String> = null;
 	private var token: Null<String> = null;
 	private var fastCount: Null<Int> = null;
+	@:allow(borogove)
 	private var sortId: String = "a ";
 	private var rosterVer: Null<String> = null;
 	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
@@ -1993,7 +1994,14 @@ class Client extends EventEmitter {
 
 	@:allow(borogove)
 	private function storeMessageBuilder(builder: ChatMessageBuilder): Promise<ChatMessage> {
-		if (builder.sortId == null) builder.sortId = nextSortId();
+		if (builder.sortId == null) {
+			final lower = sortId;
+			builder.sortId = nextSortId();
+			builder.debug = {
+				source: "outgoing",
+				sortId: { method: "between", lower: lower, upper: null },
+			};
+		}
 		return storeMessages([builder.build()]).then(result -> result[0]);
 	}
 

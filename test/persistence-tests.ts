@@ -1,6 +1,40 @@
 import { expect } from "vitest";
 
 export function sharedPersistenceTests(test) {
+	test("message debug metadata round trips", async ({
+		borogove,
+		persistence,
+	}) => {
+		const builder = new borogove.ChatMessageBuilder({
+			serverId: "debug-message",
+			serverIdBy: "alice@example.com",
+			senderId: "hatter@example.com",
+			direction: 0,
+		});
+		builder.sortId = "debug-a0";
+		builder.to = borogove.JID.parse("alice@example.com");
+		builder.from = borogove.JID.parse("hatter@example.com");
+		builder.recipients = [builder.to];
+		builder.replyTo = [builder.from];
+		builder.debug = {
+			source: "push",
+			sortId: {
+				method: "between",
+				lower: "a0",
+				upper: null,
+			},
+		};
+
+		await persistence.storeMessages("alice@example.com", [builder.build()]);
+		const stored = await persistence.getMessage(
+			"alice@example.com",
+			"hatter@example.com",
+			"debug-message",
+			null,
+		);
+		expect(stored.debug).toEqual(builder.debug);
+	});
+
 	test("storeChats and getChats", async ({ borogove, persistence }) => {
 		const chat = new borogove.DirectChat(
 			null,

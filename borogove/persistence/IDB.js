@@ -478,6 +478,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					(a.hashes ?? []).map((h) => new borogove_Hash(h.algorithm, h.hash)),
 				),
 		);
+		message.debug = value.debug ?? null;
 		message.linkMetadata = value.linkMetadata ?? [];
 		message.reactions = hydrateReactions(value.reactions, message.timestamp);
 		message.text = value.text;

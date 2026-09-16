@@ -1226,7 +1226,14 @@ class DirectChat extends Chat {
 	@:allow(borogove)
 	private function prepareIncomingMessage(message:ChatMessageBuilder, stanza:Stanza) {
 		message.syncPoint = !syncing();
-		if (message.sortId == null) message.sortId = client.nextSortId();
+		if (message.sortId == null) {
+			final lower = client.sortId;
+			message.sortId = client.nextSortId();
+			message.debug = {
+				source: "live",
+				sortId: { method: "between", lower: lower, upper: null },
+			};
+		}
 		return message;
 	}
 
@@ -2259,12 +2266,22 @@ class Channel extends Chat {
 		if (message.type == MessageChat) message.type = MessageChannelPrivate;
 		if (message.sortId == null) {
 			if (sortId != null && message.type == MessageChannel) {
-				sortId = message.sortId = FractionalIndexing.between(sortId, null, FractionalIndexing.BASE_95_DIGITS);
+				final lower = sortId;
+				sortId = message.sortId = FractionalIndexing.between(lower, null, FractionalIndexing.BASE_95_DIGITS);
+				message.debug = {
+					source: "live",
+					sortId: { method: "between", lower: lower, upper: null },
+				};
 			} else {
 				if (message.type == MessageChannel) {
 					throw "Cannot store message before we know sortId";
 				}
+				final lower = client.sortId;
 				message.sortId = client.nextSortId();
+				message.debug = {
+					source: "live",
+					sortId: { method: "between", lower: lower, upper: null },
+				};
 			}
 		}
 		final occupantId = stanza.getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
@@ -2286,7 +2303,14 @@ class Channel extends Chat {
 		message.to = JID.parse(chatId);
 		message.recipients = [message.to];
 		if (message.localId == null) message.localId = ID.unique();
-		if (sortId != null && message.sortId == null) sortId = message.sortId = FractionalIndexing.between(sortId, null, FractionalIndexing.BASE_95_DIGITS);
+		if (sortId != null && message.sortId == null) {
+			final lower = sortId;
+			sortId = message.sortId = FractionalIndexing.between(lower, null, FractionalIndexing.BASE_95_DIGITS);
+			message.debug = {
+				source: "outgoing",
+				sortId: { method: "between", lower: lower, upper: null },
+			};
+		}
 		return message;
 	}
 
