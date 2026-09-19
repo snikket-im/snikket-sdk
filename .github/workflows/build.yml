@@ -14,58 +14,26 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: System Dependencies
+    - name: Build and test
+      run: docker build -t borogove-sdk -f build-misc/Containerfile.image .
+
+    - name: Extract artifacts
       run: |
-        sudo sh -c 'echo deb https://www.deb-multimedia.org sid main non-free > /etc/apt/sources.list.d/dm.list'
-        sudo apt-get update -oAcquire::AllowInsecureRepositories=true
-        sudo apt-get install --allow-unauthenticated deb-multimedia-keyring
-        sudo apt-get update
-        sudo apt-get install -y haxe libstrophe-dev libopus-dev libdatachannel-dev libpcre2-dev libmbedtls-dev libsqlite3-dev
-        haxelib setup ~/haxe
-
-    - name: Cache haxelib
-      id: cache-npm
-      uses: actions/cache@v3
-      env:
-        cache-name: cache-haxelib
-      with:
-        path: ~/haxe
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/build.yml') }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
-
-    - name: Haxe Dependencies
-      run: |
-        make hx-build-dep
-
-    - name: NPM Dependencies
-      run: |
-        cd npm
-        npm config set maxsockets 2
-        npm i
-
-    - name: Tests
-      run: make test
-
-    - name: Build
-      run: |
-        make -j$(nproc)
-        cd cpp && make clean
+        mkdir -p artifacts
+        docker run --rm -v "$PWD/artifacts:/output" borogove-sdk
 
     - name: libborogove Artifact
       uses: actions/upload-artifact@v4
       with:
         name: libborogove
         path: |
-          libborogove.so
-          libborogove.a
-          libborogove.batteriesincluded.so
-          cpp/borogove.h
+          artifacts/sdk/libborogove.so
+          artifacts/sdk/libborogove.a
+          artifacts/sdk/libborogove.batteriesincluded.so
+          artifacts/sdk/cpp/borogove.h
 
     - name: cpp Tarball
-      run: tar -cjf cpp.tar.gz cpp/
+      run: tar -C artifacts/sdk -cjf cpp.tar.gz cpp/
 
     - name: cpp Artifact
       uses: actions/upload-artifact@v4
@@ -75,7 +43,7 @@ jobs:
           cpp.tar.gz
 
     - name: NPM Tarball
-      run: tar -cjf npm.tar.gz npm/
+      run: tar -C artifacts/sdk -cjf npm.tar.gz npm/
 
     - name: JS Artifact
       uses: actions/upload-artifact@v4
