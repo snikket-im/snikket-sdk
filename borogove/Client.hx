@@ -1104,6 +1104,7 @@ class Client extends EventEmitter {
 					channel.inSync = channel.self != null && channel.sortId != null;
 					if (!channel.inSync) channel.join();
 				}
+				firstSync = false;
 			}
 
 			stream.emitSMupdates = true;
@@ -1138,6 +1139,7 @@ class Client extends EventEmitter {
 
 				trace("SYNC: details");
 				inSync = true;
+				firstSync = false;
 				persistence.getChatsUnreadDetails(accountId(), chats).then((details) -> {
 					for (detail in details) {
 						var chat = getChat(detail.chatId) ?? getDirectChat(detail.chatId, false);
