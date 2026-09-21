@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import * as borogove from "../playwright/.cache/borogove.js";
+import { createFactories } from "./persistence-factories";
 import { sharedPersistenceTests } from "./persistence-tests";
 
 async function idbFixture() {
@@ -35,6 +36,7 @@ async function idbFixture() {
 		});
 	};
 	return {
+		factories: createFactories(borogove),
 		borogove,
 		persistence,
 		createChannel,

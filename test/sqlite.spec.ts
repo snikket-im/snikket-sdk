@@ -1,6 +1,7 @@
 import { test } from "vitest";
 import * as borogove from "../playwright/.cache/borogove.js";
 import * as sqlite from "../playwright/.cache/sqlite-wasm.js";
+import { createFactories } from "./persistence-factories";
 import { sharedPersistenceTests } from "./persistence-tests";
 
 async function sqliteFixture() {
@@ -48,7 +49,13 @@ async function sqliteFixture() {
 			],
 		);
 	};
-	return { borogove, persistence, createChannel, storeIncompleteMember };
+	return {
+		factories: createFactories(borogove),
+		borogove,
+		persistence,
+		createChannel,
+		storeIncompleteMember,
+	};
 }
 
 const sqlitePersistence = sqliteFixture();

@@ -8,6 +8,7 @@ import {
 	borogove_Channel,
 	borogove_ChatAttachment,
 	borogove_ChatMessageBuilder,
+	borogove_ChatMessageCombiner,
 	borogove_CustomEmojiReaction,
 	borogove_DirectChat,
 	borogove_Hash,
@@ -1221,12 +1222,14 @@ export default async (dbname, media, tokenize, stemmer) => {
 				await Promise.all(m.attachments.map((a) => a.lookup(this)));
 			}
 
+			const combinedMessages =
+				await borogove_ChatMessageCombiner.combine(messages);
 			const tx = db.transaction(["messages", "reactions"], "readwrite");
 			const store = tx.objectStore("messages");
 			const promises = [];
 			tx.onerror = console.error;
-			for (const [index, m] of messages.entries()) {
-				const isLast = index + 1 >= messages.length;
+			for (const [index, m] of combinedMessages.entries()) {
+				const isLast = index + 1 >= combinedMessages.length;
 				promises.push(this.storeMessage(tx, store, account, m, isLast));
 			}
 
