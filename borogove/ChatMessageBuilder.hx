@@ -107,6 +107,7 @@ class ChatMessageBuilder {
 		Body text of this message or NULL
 	**/
 	@:allow(borogove.Message)
+	@:allow(borogove.Channel)
 	private var text: Null<String> = null;
 
 	/**

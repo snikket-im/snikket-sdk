@@ -2266,7 +2266,7 @@ class Channel extends Chat {
 	private function prepareIncomingMessage(message:ChatMessageBuilder, stanza:Stanza) {
 		message.syncPoint = inSync;
 		if (message.type == MessageChat) message.type = MessageChannelPrivate;
-		if (message.sortId == null) {
+		if (message.sortId == null && (message.text != null || message.attachments.length > 0)) {
 			if (sortId != null && message.type == MessageChannel) {
 				final lower = sortId;
 				sortId = message.sortId = FractionalIndexing.between(lower, null, FractionalIndexing.BASE_95_DIGITS);

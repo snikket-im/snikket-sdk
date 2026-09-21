@@ -220,30 +220,6 @@ class Message {
 			return new Message(msg.chatId(), msg.senderId, msg.threadId, UnknownMessageStanza(stanza), encryptionInfo);
 		}
 
-		if (addContext != null) msg = addContext(msg, stanza);
-		final timestamp = msg.timestamp ?? Date.format(std.Date.now());
-		msg.timestamp = timestamp;
-
-		final reactionsEl = stanza.getChild("reactions", "urn:xmpp:reactions:0");
-		if (reactionsEl != null) {
-			// A reaction update is never also a chat message
-			final reactions = reactionsEl.allTags("reaction").map((r) -> r.getText());
-			final reactionId = reactionsEl.attr.get("id");
-			if (reactionId != null) {
-				return new Message(msg.chatId(), msg.senderId, msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
-					stanza.attr.get("id") ?? ID.unique(),
-					isGroupchat ? reactionId : null,
-					isGroupchat ? msg.chatId() : null,
-					isGroupchat ? null : reactionId,
-					msg.chatId(),
-					msg.senderId ?? throw "no sender",
-					timestamp,
-					reactions.map(text -> new Reaction(msg.senderId ?? throw "no sender", timestamp, text, msg.localId)),
-					EmojiReactions
-				)), encryptionInfo);
-			}
-		}
-
 		for (ref in stanza.allTags("reference", "urn:xmpp:reference:0")) {
 			if (ref.attr.get("begin") == null && ref.attr.get("end") == null) {
 				final sims = ref.getChild("media-sharing", "urn:xmpp:sims:1");
@@ -271,6 +247,30 @@ class Message {
 			}
 			// The session id is what really identifies us
 			msg.localId = jmi.attr.get("id");
+		}
+
+		if (addContext != null) msg = addContext(msg, stanza);
+		final timestamp = msg.timestamp ?? Date.format(std.Date.now());
+		msg.timestamp = timestamp;
+
+		final reactionsEl = stanza.getChild("reactions", "urn:xmpp:reactions:0");
+		if (reactionsEl != null) {
+			// A reaction update is never also a chat message
+			final reactions = reactionsEl.allTags("reaction").map((r) -> r.getText());
+			final reactionId = reactionsEl.attr.get("id");
+			if (reactionId != null) {
+				return new Message(msg.chatId(), msg.senderId, msg.threadId, ReactionUpdateStanza(new ReactionUpdate(
+					stanza.attr.get("id") ?? ID.unique(),
+					isGroupchat ? reactionId : null,
+					isGroupchat ? msg.chatId() : null,
+					isGroupchat ? null : reactionId,
+					msg.chatId(),
+					msg.senderId ?? throw "no sender",
+					timestamp,
+					reactions.map(text -> new Reaction(msg.senderId ?? throw "no sender", timestamp, text, msg.localId)),
+					EmojiReactions
+				)), encryptionInfo);
+			}
 		}
 
 		final retract = stanza.getChild("retract", "urn:xmpp:message-retract:1");
