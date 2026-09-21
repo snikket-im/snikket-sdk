@@ -8,6 +8,24 @@ import borogove.Message;
 
 @:access(borogove)
 class TestChatMessageCombiner extends utest.Test {
+	public function testCombineUniqueMessagesKeepsVersionsEmpty() {
+		final input = [
+			message({ localId: "first" }),
+			message({ localId: "second" }),
+			message({ localId: "third" })
+		];
+		for (m in input) Assert.equals(0, m.versions.length);
+
+		final combined = ChatMessageCombiner.combine(input);
+
+		final localIds = combined.map(m -> m.localId);
+		localIds.sort(Reflect.compare);
+		Assert.equals(3, combined.length);
+		Assert.same(["first", "second", "third"], localIds);
+		for (m in combined) Assert.equals(0, m.versions.length);
+		for (m in input) Assert.equals(0, m.versions.length);
+	}
+
 	public function testCombineCorrections() {
 		final original = message({ localId: "original", timestamp: "2024-01-01T00:00:00Z", sortId: "m", body: "old" });
 		final correction = correction(original, "version", "2024-01-02T00:00:00Z", "new");

@@ -26,6 +26,8 @@ class ChatMessageCombiner {
 	}
 
 	private static function combineMessages(messages: Array<ChatMessage>): ChatMessage {
+		if (messages.length == 1) return messages[0];
+
 		final original = messages.find(message -> message.versions.length == 0) ?? messages[0];
 		final combinedVersions = combineVersions(original, messages);
 		final newest = combinedVersions[0];
