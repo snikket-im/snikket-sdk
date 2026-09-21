@@ -716,6 +716,45 @@ class TestSqlite extends utest.Test {
 		});
 	}
 
+	public function testGetMessagesByStatus(async: Async) {
+		final account = "alice@example.com";
+		final pendingOld = makeMessage({
+			timestamp: "2020-01-01T00:00:00Z",
+			localId: "pending-old",
+			status: MessagePending
+		});
+		final delivered = makeMessage({
+			timestamp: "2020-01-01T00:00:01Z",
+			localId: "delivered",
+			status: MessageDeliveredToServer
+		});
+		final pendingNew = makeMessage({
+			timestamp: "2020-01-01T00:00:02Z",
+			localId: "pending-new",
+			status: MessagePending
+		});
+		final otherAccountPending = makeMessage({
+			timestamp: "2020-01-01T00:00:03Z",
+			localId: "other-account-pending",
+			status: MessagePending
+		});
+
+		persistence.storeMessages(account, [pendingNew, delivered, pendingOld]).then(_ -> {
+			return persistence.storeMessages("other@example.com", [otherAccountPending]);
+		}).then(_ -> {
+			return persistence.getMessagesByStatus(account, MessagePending);
+		}).then(messages -> {
+			Assert.equals(2, messages.length);
+			Assert.equals("pending-old", messages[0].localId);
+			Assert.equals("pending-new", messages[1].localId);
+			Assert.equals(MessagePending, messages[0].status);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+
 	private function makeMessage(params: {
 		timestamp: String,
 		?localId: String,
@@ -730,7 +769,8 @@ class TestSqlite extends utest.Test {
 		?encryption: EncryptionInfo,
 		?source: String,
 		?body: String,
-		?received: Bool
+		?received: Bool,
+		?status: MessageStatus
 	}):ChatMessage {
 		final senderId = params.senderId ?? "version@example.com";
 		final chatId = params.chatId ?? "chat@example.com";
@@ -743,6 +783,7 @@ class TestSqlite extends utest.Test {
 		builder.sortId = params.sortId ?? params.localId ?? params.serverId ?? "message";
 		builder.timestamp = params.timestamp;
 		builder.syncPoint = params.syncPoint ?? false;
+		builder.status = params.status ?? MessagePending;
 		builder.versions = params.versions ?? [];
 		builder.encryption = params.encryption;
 		if (params.source != null) builder.debug = { source: params.source };

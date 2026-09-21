@@ -368,6 +368,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 							"PRAGMA user_version = 22"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 23) {
+						return exec(["CREATE INDEX messages_status ON messages (account_id, status, created_at)",
+							"PRAGMA user_version = 23"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -1044,6 +1050,33 @@ class Sqlite implements Persistence implements KeyValueStore {
 			getMessages(accountId, chatId, around.sortId, "<", around?.type == MessageChannelPrivate, around?.timestamp),
 			getMessages(accountId, chatId, around.sortId, ">=", around?.type == MessageChannelPrivate, around?.timestamp)
 		]).then(results -> results.flatten());
+	}
+
+	@HaxeCBridge.noemit
+	public function getMessagesByStatus(accountId: String, status: MessageStatus): Promise<Array<ChatMessage>> {
+		return db.exec(
+			'
+				SELECT
+					${messageColumnsString()}
+				FROM messages
+				WHERE account_id=? AND status=?
+				ORDER BY created_at
+			',
+			[accountId, status]
+		).then(result -> {
+			final messages = hydrateMessages(accountId, result);
+			final replyTos = [];
+			final attachments = [];
+			for (message in messages) {
+				if (message.replyToMessage != null && message.replyToMessage.stanza == null) {
+					replyTos.push({ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId });
+				}
+				for (attachment in message.attachments) {
+					attachments.push(attachment.lookup(this));
+				}
+			}
+			return thenshim.PromiseTools.all(attachments).then(_ -> hydrateReplyTo(accountId, messages, replyTos));
+		}).then(messages -> hydrateReactions(accountId, messages));
 	}
 
 	private function getChatUnreadDetails(accountId: String, chat: Chat): Promise<{ chatId: String, message: ChatMessage, unreadCount: Int }> {

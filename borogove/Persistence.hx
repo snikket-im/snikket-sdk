@@ -212,6 +212,16 @@ interface Persistence {
 	public function getMessagesAround(accountId: String, around: ChatMessage): Promise<Array<ChatMessage>>;
 
 	/**
+		Load messages with a particular delivery status
+
+		@param accountId the account to load messages for
+		@param status delivery status to match
+		@returns Promise resolving to matching messages, oldest first
+	**/
+	@HaxeCBridge.noemit
+	public function getMessagesByStatus(accountId: String, status:borogove.Message.MessageStatus): Promise<Array<ChatMessage>>;
+
+	/**
 		Check whether a media blob is already stored
 
 		@param hash hash of the media we're looking for

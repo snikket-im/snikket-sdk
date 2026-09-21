@@ -107,6 +107,11 @@ class Dummy implements Persistence {
 	}
 
 	@HaxeCBridge.noemit
+	public function getMessagesByStatus(accountId: String, status: MessageStatus): Promise<Array<ChatMessage>> {
+		return Promise.resolve([]);
+	}
+
+	@HaxeCBridge.noemit
 	public function getChatsUnreadDetails(accountId: String, chats: Array<Chat>): Promise<Array<{ chatId: String, message: ChatMessage, unreadCount: Int }>> {
 		return Promise.resolve([]);
 	}

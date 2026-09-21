@@ -268,6 +268,13 @@ export default async (dbname, media, tokenize, stemmer) => {
 						"timestamp",
 					]);
 				}
+				if (!messagesIndexNames.contains("accountsByStatus")) {
+					tx.objectStore("messages").createIndex("accountsByStatus", [
+						"account",
+						"status",
+						"timestamp",
+					]);
+				}
 			};
 			dbOpenReq.onsuccess = (event) => {
 				const db = event.target.result;
@@ -299,6 +306,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					"accountsBySortId",
 					"terms",
 					"chats",
+					"accountsByStatus",
 				];
 				for (const indexName of wantIndexNames) {
 					if (!messagesIndexNames.contains(indexName)) {
@@ -1599,6 +1607,24 @@ export default async (dbname, media, tokenize, stemmer) => {
 			return Promise.all([before, aroundAndAfter]).then((result) =>
 				result.flat(),
 			);
+		},
+
+		getMessagesByStatus: async function (account, status) {
+			const tx = db.transaction(["messages"], "readonly");
+			const cursor = tx
+				.objectStore("messages")
+				.index("accountsByStatus")
+				.openCursor(
+					IDBKeyRange.bound([account, status], [account, status, []]),
+				);
+			const messages = [];
+			while (true) {
+				const result = await promisifyRequest(cursor);
+				if (!result) break;
+				messages.push(hydrateMessage(result.value));
+				result.continue();
+			}
+			return Promise.all(messages);
 		},
 
 		getMessagesFromCursor: async function (cursor, notIncluding, filter) {

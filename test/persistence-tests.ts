@@ -1,6 +1,60 @@
 import { expect } from "vitest";
 
 export function sharedPersistenceTests(test) {
+	test("getMessagesByStatus filters and orders messages", async ({
+		borogove,
+		persistence,
+	}) => {
+		const account = "alice@example.com";
+		const makeMessage = (localId, timestamp, status) => {
+			const builder = new borogove.ChatMessageBuilder({
+				localId,
+				senderId: account,
+				direction: borogove.MessageDirection.MessageSent,
+			});
+			builder.timestamp = timestamp;
+			builder.sortId = localId;
+			builder.status = status;
+			builder.to = borogove.JID.parse("hatter@example.com");
+			builder.from = borogove.JID.parse(account);
+			builder.recipients = [builder.to];
+			builder.replyTo = [builder.from];
+			return builder.build();
+		};
+
+		await persistence.storeMessages(account, [
+			makeMessage(
+				"pending-new",
+				"2020-01-01T00:00:02Z",
+				borogove.MessageStatus.MessagePending,
+			),
+			makeMessage(
+				"delivered",
+				"2020-01-01T00:00:01Z",
+				borogove.MessageStatus.MessageDeliveredToServer,
+			),
+			makeMessage(
+				"pending-old",
+				"2020-01-01T00:00:00Z",
+				borogove.MessageStatus.MessagePending,
+			),
+		]);
+
+		const pending = await persistence.getMessagesByStatus(
+			account,
+			borogove.MessageStatus.MessagePending,
+		);
+		expect(pending.map((message) => message.localId)).toEqual([
+			"pending-old",
+			"pending-new",
+		]);
+		expect(
+			pending.every(
+				(message) => message.status === borogove.MessageStatus.MessagePending,
+			),
+		).toBe(true);
+	});
+
 	test("message debug metadata round trips", async ({
 		borogove,
 		persistence,
