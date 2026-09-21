@@ -71,6 +71,7 @@ RUN printf '#!/bin/bash\nexec /usr/local/bin/nodejs --tls-max-v1.2 "$@"' > /usr/
 	&& chmod a+x /usr/local/bin/node
 
 RUN rm /etc/apt/sources.list.d/dmo.sources
+RUN npx playwright@1.60.0 install --with-deps
 
 COPY Makefile *.hxml /usr/src/sdk/
 
@@ -81,7 +82,6 @@ RUN make hx-build-dep
 COPY npm /usr/src/sdk/npm
 RUN cd npm && npm install
 RUN ln -s npm/node_modules node_modules
-RUN npx --no-install playwright install --with-deps
 
 COPY . /usr/src/sdk/
 RUN git fetch --tags
