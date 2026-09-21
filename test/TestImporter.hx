@@ -64,6 +64,7 @@ class TestImporter extends utest.Test {
 		i.write("<forwarded xmlns='urn:xmpp:forward:0'>");
 		i.write("<delay xmlns='urn:xmpp:delay' stamp='2023-10-27T10:00:00Z' />");
 		i.write("<message xmlns='jabber:client' from='juliet@capulet.com/balcony' to='romeo@montague.net' id='msg-id-1'>");
+		i.write("<delay xmlns='urn:xmpp:delay' stamp='2023-10-26T09:00:00Z' />");
 		i.write("<body>Hello Romeo</body>");
 		i.write("</message>");
 		i.write("</forwarded>");
@@ -82,7 +83,8 @@ class TestImporter extends utest.Test {
 				Assert.equals("Hello Romeo", chatMsg.body().toPlainText());
 				Assert.equals("mam-id-1", chatMsg.serverId);
 				Assert.equals("juliet@capulet.com", chatMsg.serverIdBy);
-				Assert.equals("2023-10-27T10:00:00.001Z", chatMsg.timestamp);
+				Assert.equals("2023-10-26T09:00:00Z", chatMsg.timestamp);
+				Assert.equals("2023-10-27T10:00:00Z", chatMsg.debug.serverReceivedAt);
 				Assert.equals("import", chatMsg.debug.source);
 				Assert.isFalse(chatMsg.isIncoming());
 			default:

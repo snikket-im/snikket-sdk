@@ -145,7 +145,8 @@ class Importer {
 
 		final sortLower = sortA;
 		sortA = FractionalIndexing.between(sortLower, sortB, FractionalIndexing.BASE_95_DIGITS);
-		var timestamp = resultStanza.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
+		final serverReceivedAt = resultStanza.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
+		var timestamp = serverReceivedAt;
 		if (timestamp != null) {
 			// If no subseconds, fix them to at least sort right
 			timestamp = ~/([0-9][0-9]:[0-9][0-9]:[0-9][0-9])(\.[0-9][0-9][0-9])?/.map(timestamp, (ereg) -> {
@@ -173,6 +174,7 @@ class Importer {
 			builder.sortId = sortA;
 			builder.debug = {
 				source: "import",
+				serverReceivedAt: serverReceivedAt,
 				sortId: { method: "between", lower: sortLower, upper: sortB },
 			};
 			builder.serverId = resultStanza.attr.get("id");

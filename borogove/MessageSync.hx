@@ -85,7 +85,8 @@ class MessageSync {
 			}
 			final sortLower = sortA;
 			sortA = FractionalIndexing.between(sortLower, sortB, FractionalIndexing.BASE_95_DIGITS);
-			var timestamp = result.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
+			final serverReceivedAt = result.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
+			var timestamp = serverReceivedAt;
 			if (timestamp == null) {
 				trace("MAM result with no timestamp", result);
 			} else {
@@ -123,6 +124,7 @@ class MessageSync {
 						builder.sortId = sortId;
 						builder.debug = {
 							source: "mam",
+							serverReceivedAt: serverReceivedAt,
 							serviceJID: serviceJID,
 							filter: filter,
 							path: "decrypted",
@@ -140,6 +142,7 @@ class MessageSync {
 							builder.sortId = sortA;
 							builder.debug = {
 								source: "mam",
+								serverReceivedAt: serverReceivedAt,
 								serviceJID: serviceJID,
 								filter: filter,
 								path: "decryption failed",
@@ -163,6 +166,7 @@ class MessageSync {
 				builder.sortId = sortId;
 				builder.debug = {
 					source: "mam",
+					serverReceivedAt: serverReceivedAt,
 					serviceJID: serviceJID,
 					filter: filter,
 					path: "unencrypted",
