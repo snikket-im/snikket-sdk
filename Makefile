@@ -150,7 +150,8 @@ doc:
 	npx @microsoft/api-extractor run -c npm/api-extractor.json || true
 	npx @microsoft/api-documenter markdown -i tmp -o docs/js/
 	rm -r tmp
-	find docs/js/ -name '*.md' -exec sed -i.bak 's/<\([[:alpha:]][[:alpha:]]*\)/<\1 markdown="1"/g' \{\} \;
+	# Enable Markdown in HTML tags without modifying fenced code (e.g. TypeScript generics).
+	find docs/js/ -name '*.md' -exec sed -i.bak '/^```/,/^```/!s/<\([[:alpha:]][[:alnum:]]*\)\([[:space:]>]\)/<\1 markdown="1"\2/g' \{\} \;
 	find docs/js/ -name '*.bak' -exec $(RM) {} \;
 	git checkout docs/js/index.md
 	mkdocs build
