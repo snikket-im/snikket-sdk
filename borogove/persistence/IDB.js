@@ -536,7 +536,16 @@ export default async (dbname, media, tokenize, stemmer) => {
 			}),
 		);
 
-		await Promise.all(message.attachments.map((a) => a.lookup(obj)));
+		const attachmentPromise = Promise.all(
+			message.attachments.map((a) => a.lookup(obj)),
+		);
+		if (!store) {
+			// If there is a store then we are mid-transaction
+			// So we can't safely await non-IDB work in that context
+			// But that could result in a race condition if the UI gets this
+			// hydrated message before the lookup is done
+			await attachmentPromise;
+		}
 
 		return message;
 	}
