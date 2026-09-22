@@ -186,7 +186,7 @@ class MessageSync {
 			stream.removeEventListener(eventToken);
 			var result = query.getResult();
 			if (result == null) {
-				trace("Error from MAM, stopping sync");
+				trace("Error from MAM, stopping sync", query.responseStanza);
 				complete = true;
 				if (errorHandler != null)
 					errorHandler(query.responseStanza);
