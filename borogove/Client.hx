@@ -2002,6 +2002,7 @@ class Client extends EventEmitter {
 			builder.debug = {
 				source: "outgoing",
 				path: "Client#storeMessageBuilder",
+				now: Date.format(std.Date.now()),
 				sortId: { method: "between", lower: lower, upper: null },
 			};
 		}

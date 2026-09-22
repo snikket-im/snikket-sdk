@@ -1232,6 +1232,7 @@ class DirectChat extends Chat {
 			message.debug = {
 				source: "live",
 				path: "DirectChat#prepareIncomingMessage",
+				now: Date.format(std.Date.now()),
 				sortId: { method: "between", lower: lower, upper: null },
 			};
 		}
@@ -2273,6 +2274,7 @@ class Channel extends Chat {
 				message.debug = {
 					source: "live",
 					path: "Channel#prepareIncomingMessage sortId != null && message.type == MessageChannel",
+					now: Date.format(std.Date.now()),
 					sortId: { method: "between", lower: lower, upper: null },
 				};
 			} else {
@@ -2284,6 +2286,7 @@ class Channel extends Chat {
 				message.debug = {
 					source: "live",
 					path: "Channel#prepareIncomingMessage else (probably PM?)",
+					now: Date.format(std.Date.now()),
 					sortId: { method: "between", lower: lower, upper: null },
 				};
 			}
@@ -2313,6 +2316,7 @@ class Channel extends Chat {
 			message.debug = {
 				source: "outgoing",
 				path: "Channel#prepareOutgoingMessage",
+				now: Date.format(std.Date.now()),
 				sortId: { method: "between", lower: lower, upper: null },
 			};
 		}

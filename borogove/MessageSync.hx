@@ -32,6 +32,7 @@ class MessageSync {
 	private var contextHandler:(ChatMessageBuilder, Stanza)->ChatMessageBuilder = (b,_)->b;
 	private var errorHandler:(Stanza)->Void;
 	private final startSortA:Null<String>;
+	private final startFilter:MessageFilter;
 	private var sortA:Null<String>;
 	private final sortB:Null<String>;
 	public var lastPage(default, null):ResultSetPageResult;
@@ -42,7 +43,7 @@ class MessageSync {
 	public function new(client:Client, stream:GenericStream, filter:MessageFilter, sortA: Null<String>, sortB: Null<String>, ?serviceJID:String) {
 		this.client = client;
 		this.stream = stream;
-		this.filter = Reflect.copy(filter);
+		this.startFilter = this.filter = Reflect.copy(filter);
 		this.sortA = sortA;
 		this.startSortA = sortA;
 		this.sortB = sortB;
@@ -127,6 +128,8 @@ class MessageSync {
 							serverReceivedAt: serverReceivedAt,
 							serviceJID: serviceJID,
 							filter: filter,
+							startFiler: startFilter,
+							now: Date.format(std.Date.now()),
 							path: "decrypted",
 							sortId: { method: "between", startSortA: startSortA, lower: sortLower, upper: sortB },
 						};
@@ -145,6 +148,8 @@ class MessageSync {
 								serverReceivedAt: serverReceivedAt,
 								serviceJID: serviceJID,
 								filter: filter,
+								startFiler: startFilter,
+								now: Date.format(std.Date.now()),
 								path: "decryption failed",
 								sortId: { method: "between", startSortA: startSortA, lower: sortLower, upper: sortB },
 							};
@@ -169,6 +174,8 @@ class MessageSync {
 					serverReceivedAt: serverReceivedAt,
 					serviceJID: serviceJID,
 					filter: filter,
+					startFiler: startFilter,
+					now: Date.format(std.Date.now()),
 					path: "unencrypted",
 					sortId: { method: "between", startSortA: startSortA, lower: sortLower, upper: sortB },
 				};
