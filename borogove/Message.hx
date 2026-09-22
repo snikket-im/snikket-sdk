@@ -242,9 +242,6 @@ class Message {
 			msg.type = MessageCall;
 			msg.payloads.push(jmi);
 			if (msg.text == null) msg.text = "call " + jmi.name;
-			if (jmi.name != "propose") {
-				msg.versions = [msg.build()];
-			}
 			// The session id is what really identifies us
 			msg.localId = jmi.attr.get("id");
 		}
@@ -252,6 +249,10 @@ class Message {
 		if (addContext != null) msg = addContext(msg, stanza);
 		final timestamp = msg.timestamp ?? Date.format(std.Date.now());
 		msg.timestamp = timestamp;
+
+		if (jmi != null && jmi.name != "accept" && jmi.name != "propose") {
+			msg.versions = [msg.build()];
+		}
 
 		final reactionsEl = stanza.getChild("reactions", "urn:xmpp:reactions:0");
 		if (reactionsEl != null) {
