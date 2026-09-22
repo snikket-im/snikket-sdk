@@ -2155,7 +2155,7 @@ class Client extends EventEmitter {
 		final chat = getChat(message.chatId());
 		if (chat != null && chat.isBlocked) return; // Don't notify blocked chats
 
-		if (event == DeliveryEvent && message.type == MessageChat && message.localId != null && chat != null && chat.isTrusted()) {
+		if (event == DeliveryEvent && message.type == MessageChat && message.isIncoming() && message.localId != null && chat != null && chat.isTrusted()) {
 			sendStanza(
 				new Stanza("message", { to: message.from.asString(), type: "chat" })
 					.tag("received", { xmlns: "urn:xmpp:receipts", id: message.localId })
@@ -2171,7 +2171,7 @@ class Client extends EventEmitter {
 		final chat = getChat(message.chatId());
 		if (chat != null && chat.isBlocked) return; // Don't notify blocked chats
 
-		if (message.type == MessageChat && message.localId != null && chat != null && chat.isTrusted()) {
+		if (message.type == MessageChat && message.isIncoming() && message.localId != null && chat != null && chat.isTrusted()) {
 			sendStanza(
 				new Stanza("message", { to: message.from.asString(), type: "chat" })
 					.tag("received", { xmlns: "urn:xmpp:receipts", id: message.localId })
@@ -2341,6 +2341,8 @@ class Client extends EventEmitter {
 	}
 
 	private function checkForReceipts(stanza: Stanza) {
+		// TODO: this receipt should be from someone the message was sent to?
+		// Not eg one of our other devices, or someone who guessed the id?
 		for (receipt in stanza.allTags("received", "urn:xmpp:receipts")) {
 			final id = receipt.attr.get("id");
 			if (id != null) {
