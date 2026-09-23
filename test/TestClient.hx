@@ -8,6 +8,7 @@ import borogove.Chat;
 import borogove.ChatMessage;
 import borogove.ChatMessageBuilder;
 import borogove.Client;
+import borogove.Date;
 import borogove.JID;
 import borogove.Member;
 import borogove.MemberUpdate;
@@ -116,6 +117,43 @@ class TestClient extends utest.Test {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
 		Assert.equals("test@example.com", client.accountId());
+	}
+
+	@:timeout(3000)
+	public function testReconnectResendsRecentPendingMessages(async: Async) {
+		final persistence = new ResendMockPersistence();
+		final client = new Client("test@example.com", persistence);
+		client.getDirectChat("friend@example.com");
+		final now = std.Date.now();
+		persistence.messages = [
+			pendingMessage("recent", Date.format(now)),
+			pendingMessage("stale", Date.format(DateTools.delta(now, DateTools.hours(-4))))
+		];
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.attr.get("id") == "recent") {
+				Assert.equals("Resending after reconnect", stanza?.getChildText("delay", "urn:xmpp:delay"));
+				Assert.equals(MessageFailedToSend, persistence.statusUpdates.get("stale"));
+				async.done();
+			}
+			return EventHandled;
+		});
+
+		client.checkForResends();
+	}
+
+	private function pendingMessage(localId: String, timestamp: String): ChatMessage {
+		final builder = new ChatMessageBuilder();
+		builder.localId = localId;
+		builder.timestamp = timestamp;
+		builder.senderId = "test@example.com";
+		builder.from = JID.parse("test@example.com");
+		builder.to = JID.parse("friend@example.com");
+		builder.recipients = [JID.parse("friend@example.com")];
+		builder.text = "Test message";
+		builder.direction = MessageSent;
+		builder.status = MessagePending;
+		return builder.build();
 	}
 
 	@:timeout(3000)
@@ -1132,6 +1170,26 @@ class MessageMockPersistence extends Dummy {
 
 	override public function updateMessage(accountId: String, message: ChatMessage) {
 		if (message.serverId != null) this.messages.set(message.serverId, message);
+	}
+}
+
+@:access(borogove)
+class ResendMockPersistence extends Dummy {
+	public var messages: Array<ChatMessage> = [];
+	public var statusUpdates: Map<String, MessageStatus> = [];
+
+	override public function getMessagesByStatus(accountId: String, status: MessageStatus): Promise<Array<ChatMessage>> {
+		return Promise.resolve(messages.filter(message -> message.status == status));
+	}
+
+	override public function updateMessageStatus(accountId: String, localId: String, status: MessageStatus, statusText: Null<String>): Promise<ChatMessage> {
+		final message = messages.find(message -> message.localId == localId);
+		Assert.notNull(message);
+		statusUpdates.set(localId, status);
+		final builder = ChatMessageBuilder.fromMessage(message);
+		builder.status = status;
+		builder.statusText = statusText;
+		return Promise.resolve(builder.build());
 	}
 }
 

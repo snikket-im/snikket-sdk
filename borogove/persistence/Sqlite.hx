@@ -368,6 +368,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 							"PRAGMA user_version = 22"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 23) {
+						return exec(["CREATE INDEX messages_status ON messages (account_id, status, created_at)",
+							"PRAGMA user_version = 23"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -775,7 +781,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			sql += " AND chat_id=?";
 			params.push(chatId);
 		}
-		return db.exec(sql, params).then(result -> hydrateMessages(accountId, result));
+		return db.exec(sql, params).then(result -> hydrateMessagesAndLoadMeta(accountId, result));
 	}
 
 	@HaxeCBridge.noemit
@@ -841,11 +847,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				final combinedMessages = ChatMessageCombiner.combine(messages);
 				thenshim.PromiseTools.all(combinedMessages.map(m -> fetchFromStub(accountId, m)));
 			}).then(ms ->
-				thenshim.PromiseTools.all(ms.flatMap(m -> m.attachments.map(a -> a.lookup(this)))).then(_ ->
-					hydrateReplyTo(accountId, ms, replyTos)
-				)
-			).then(ms ->
-				hydrateReactions(accountId, ms)
+				messagesLoadMeta(accountId, ms)
 			)
 		);
 
@@ -913,15 +915,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			params.push(localId);
 		}
 		q += "LIMIT 1";
-		return db.exec(q, params).then(result -> hydrateMessages(accountId, result)).then(messages ->
-			thenshim.PromiseTools.all(messages.map(message ->
-				(if (message.replyToMessage != null) {
-					hydrateReplyTo(accountId, [message], [{ chatId: chatId, serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
-				} else {
-					Promise.resolve([message]);
-				}).then(messages -> hydrateReactions(accountId, messages))
-			)).then(items -> items.flatten()).then(items -> items.length > 0 ? items[0] : null)
-		);
+		return db.exec(q, params).then(result -> hydrateMessagesAndLoadMeta(accountId, result)).then(ms -> ms.length > 0 ? ms[0] : null);
 	}
 
 	private function getMessages(accountId: String, chatId: String, sortId: Null<String>, op: String, useTimestamp: Bool = false, timestamp: Null<String> = null): Promise<Array<ChatMessage>> {
@@ -1017,18 +1011,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 			if (op == "<" || op == "<=") {
 				messages.reverse();
 			}
-			final ps = [];
-			final replyTos = [];
-			for (message in messages) {
-				if (message.replyToMessage != null && message.replyToMessage.stanza == null) {
-					replyTos.push({ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId });
-				}
-				for (attachment in message.attachments) {
-					ps.push(attachment.lookup(this));
-				}
-			}
-			return thenshim.PromiseTools.all(ps).then(_ -> hydrateReplyTo(accountId, messages, replyTos));
-		}).then(messages -> hydrateReactions(accountId, messages));
+			return messagesLoadMeta(accountId, messages);
+		});
 	}
 
 	@HaxeCBridge.noemit
@@ -1048,6 +1032,20 @@ class Sqlite implements Persistence implements KeyValueStore {
 			getMessages(accountId, chatId, around.sortId, "<", around?.type == MessageChannelPrivate, around?.timestamp),
 			getMessages(accountId, chatId, around.sortId, ">=", around?.type == MessageChannelPrivate, around?.timestamp)
 		]).then(results -> results.flatten());
+	}
+
+	@HaxeCBridge.noemit
+	public function getMessagesByStatus(accountId: String, status: MessageStatus): Promise<Array<ChatMessage>> {
+		return db.exec(
+			'
+				SELECT
+					${messageColumnsString()}
+				FROM messages
+				WHERE account_id=? AND status=?
+				ORDER BY created_at
+			',
+			[accountId, status]
+		).then(result -> hydrateMessagesAndLoadMeta(accountId, result));
 	}
 
 	private function getChatUnreadDetails(accountId: String, chat: Chat): Promise<{ chatId: String, message: ChatMessage, unreadCount: Int }> {
@@ -1118,16 +1116,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 				',
 				[status, statusText, accountId, localId, MessageSent, MessageDeliveredToDevice, MessageFailedToSend]
 			).then(result ->
-				thenshim.PromiseTools.all(hydrateMessages(accountId, result).map(message ->{
-					return (if (message.replyToMessage != null) {
-						hydrateReplyTo(accountId, [message], [{ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId }]);
-					} else {
-						Promise.resolve([message]);
-					}).then(messages -> hydrateReactions(accountId, messages));}
-				))
+				hydrateMessagesAndLoadMeta(accountId, result)
 			).then(hydrated -> {
-				final flat = hydrated.flatten();
-				return flat.length > 0 ? Promise.resolve(flat[0]) : Promise.reject("Message not found: " + localId);
+				return hydrated.length > 0 ? Promise.resolve(hydrated[0]) : Promise.reject("Message not found: " + localId);
 			})
 		);
 	}
@@ -1467,6 +1458,45 @@ class Sqlite implements Persistence implements KeyValueStore {
 			encryption.reasonText,
 			encryption.methodName
 		);
+	}
+
+	private function hydrateMessagesAndLoadMeta(
+		accountId: String,
+		rows: Iterator<{
+			stanza: String,
+			timestamp: String,
+			direction: MessageDirection,
+			type: MessageType,
+			status: MessageStatus,
+			status_text: Null<String>,
+			mam_id: String,
+			mam_by: String,
+			sort_id: String,
+			sync_point: Int,
+			sender_id: String,
+			encryption: Null<String>,
+			debug: Null<String>,
+			?stanza_id: String,
+			?versions: String
+		}>
+	) {
+		return messagesLoadMeta(accountId, hydrateMessages(accountId, rows));
+	}
+
+	private function messagesLoadMeta(accountId: String, messages: Array<ChatMessage>) {
+		final replyTos = [];
+		final attachments = [];
+		for (message in messages) {
+			if (message.replyToMessage != null && message.replyToMessage.stanza == null) {
+				replyTos.push({ chatId: message.chatId(), serverId: message.replyToMessage.serverId, localId: message.replyToMessage.localId });
+			}
+			for (attachment in message.attachments) {
+				attachments.push(attachment.lookup(this));
+			}
+		}
+		return thenshim.PromiseTools.all(attachments)
+			.then(_ -> hydrateReplyTo(accountId, messages, replyTos))
+			.then(messages -> hydrateReactions(accountId, messages));
 	}
 
 	private function hydrateMessages(

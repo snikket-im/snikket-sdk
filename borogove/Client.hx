@@ -1105,6 +1105,8 @@ class Client extends EventEmitter {
 					if (!channel.inSync) channel.join();
 				}
 				firstSync = false;
+				// Once everything settles down, check db for resends
+				haxe.Timer.delay(() -> checkForResends(), 5000);
 			}
 
 			stream.emitSMupdates = true;
@@ -1163,6 +1165,8 @@ class Client extends EventEmitter {
 						sendPresence();
 						joinAllChannels();
 					}
+					// Once everything settles down, check db for resends
+					haxe.Timer.delay(() -> checkForResends(), 5000);
 					channelPinger.startTimer();
 					this.trigger("status/online", {});
 					trace("SYNC: done");
@@ -2028,6 +2032,36 @@ class Client extends EventEmitter {
 			}
 			return thenshim.Promise.resolve(m);
 		})).then(updatedMessages -> persistence.storeMessages(accountId(), updatedMessages));
+	}
+
+	private function checkForResends() {
+		var tooOld = Date.format(
+			DateTools.delta(std.Date.now(), DateTools.hours(-3))
+		);
+
+		persistence.getMessagesByStatus(accountId(), MessagePending).then(messages -> {
+			for (m in messages) {
+				if (m.timestamp < tooOld) {
+					persistence.updateMessageStatus(accountId(), m.localId, MessageFailedToSend, "Message too old to auto-resend").then(newM -> {
+						notifyMessageHandlers(newM, StatusEvent);
+					});
+				} else {
+					final chat = getChat(m.chatId());
+					if (chat == null) {
+						trace("Resend chat not found", m.chatId(), m);
+					} else {
+						final stanza = m.asStanza();
+						stanza.textTag("delay", "Resending after reconnect", {
+							xmlns: "urn:xmpp:delay",
+							from: accountId(),
+							stamp: m.timestamp
+						});
+						// TODO: don't know if was originally send with OMEMO
+						chat.sendMessageStanza(stanza);
+					}
+				}
+			}
+		});
 	}
 
 	@:allow(borogove)

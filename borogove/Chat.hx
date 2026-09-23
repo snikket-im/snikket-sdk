@@ -264,9 +264,12 @@ abstract class Chat extends EventEmitter {
 		@param message the ChatMessageBuilder to send
 		@param e2eePreference optional explicit End-to-End Encryption preference for this message. If Default, uses the client's preferred allowed E2EE method.
 	**/
-	abstract public function sendMessage(message:ChatMessageBuilder, e2eePreference:OutgoingE2EEPreference = Default):Void;
+	// Not abstract to work around https://github.com/HaxeFoundation/haxe/issues/11666
+	public function sendMessage(message:ChatMessageBuilder, e2eePreference:OutgoingE2EEPreference = Default):Void { }
 
-	abstract private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem, e2eePreference: OutgoingE2EEPreference = Default):Void;
+	@:allow(borogove)
+	// Not abstract to work around https://github.com/HaxeFoundation/haxe/issues/11666
+	private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem, e2eePreference: OutgoingE2EEPreference = Default):Void { }
 
 	/**
 		Signals that all messages up to and including this one have probably
@@ -1271,8 +1274,7 @@ class DirectChat extends Chat {
 		});
 	}
 
-	@HaxeCBridge.noemit // on superclass as abstract
-	public function sendMessage(message: ChatMessageBuilder, e2eePreference: OutgoingE2EEPreference = Default):Void {
+	override public function sendMessage(message: ChatMessageBuilder, e2eePreference: OutgoingE2EEPreference = Default):Void {
 		if (uiState == Invited) uiState = Open;
 		if (typingTimer != null) typingTimer.stop();
 		client.chatActivity(this);
@@ -1342,7 +1344,7 @@ class DirectChat extends Chat {
 		});
 	}
 
-	private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem, e2eePreference: OutgoingE2EEPreference = Default) {
+	override private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem, e2eePreference: OutgoingE2EEPreference = Default) {
 		if (stanza.name != "message") throw "Can only send message stanza this way";
 
 		if (outboxItem == null) outboxItem = outbox.newItem();
@@ -2343,8 +2345,7 @@ class Channel extends Chat {
 		});
 	}
 
-	@HaxeCBridge.noemit // on superclass as abstract
-	public function sendMessage(message:ChatMessageBuilder, e2eePreference:OutgoingE2EEPreference = Default):Void {
+	override public function sendMessage(message:ChatMessageBuilder, e2eePreference:OutgoingE2EEPreference = Default):Void {
 		if (uiState == Invited) uiState = Open;
 		if (typingTimer != null) typingTimer.stop();
 		client.chatActivity(this);
@@ -2426,7 +2427,7 @@ class Channel extends Chat {
 		return client.outgoingE2EEPreference[0];
 	}
 
-	private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem, e2eePreference: OutgoingE2EEPreference = Default) {
+	override private function sendMessageStanza(stanza: Stanza, ?outboxItem: OutboxItem, e2eePreference: OutgoingE2EEPreference = Default) {
 		if (stanza.name != "message") throw "Can only send message stanza this way";
 
 		if (outboxItem == null) outboxItem = outbox.newItem();
