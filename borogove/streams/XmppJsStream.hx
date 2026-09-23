@@ -24,6 +24,7 @@ extern class XmppJsClient {
 	function new(options:Dynamic);
 	function start():Promise<Dynamic>;
 	function stop():Promise<Dynamic>;
+	function disconnect():Promise<Dynamic>;
 	function on(eventName:String, callback:(Dynamic)->Void):Void;
 	function send(stanza:XmppJsXml):Void;
 	final NS:String;
@@ -144,6 +145,7 @@ extern class XmppJsStreamFeatures {
 }
 
 class XmppJsStream extends GenericStream {
+	private final createClient:Dynamic->XmppJsClient;
 	private var client:XmppJsClient;
 	private var jid:XmppJsJID;
 	private var debug = js.Browser.getLocalStorage()?.getItem("BOROGOVE_XMPP_DEBUG") == "1" || js.Syntax.code("globalThis.process?.env?.BOROGOVE_XMPP_DEBUG") == "1";
@@ -155,8 +157,9 @@ class XmppJsStream extends GenericStream {
 	private var resumed = false;
 	private var everConnected = false;
 
-	override public function new() {
+	override public function new(?createClient:Dynamic->XmppJsClient) {
 		super();
+		this.createClient = createClient ?? (options -> new XmppJsClient(options));
 		state = new FSM({
 			transitions: [
 				{ name: "connect-requested", from: ["offline"], to: "connecting" },
@@ -246,7 +249,7 @@ class XmppJsStream extends GenericStream {
 
 		final clientId = jid.resource;
 		var credentials: Dynamic = null;
-		final xmpp = new XmppJsClient({
+		final xmpp = createClient({
 			service: jid.domain,
 			resource: jid.resource,
 			credentials: (callback, mechanisms: Dynamic, fast: Null<{mechanism: String}>) -> {
@@ -273,7 +276,8 @@ class XmppJsStream extends GenericStream {
 					credentials = creds;
 					return callback(creds, creds.mechanism ?? mech, new XmppJsXml("user-agent", { id: clientId }));
 				});
-			}
+			},
+			timeout: 10_000,
 		});
 		new XmppJsScramSha1(xmpp.saslFactory);
 		xmpp.jid = this.jid;
@@ -381,7 +385,14 @@ class XmppJsStream extends GenericStream {
 
 		resumed = false;
 		xmpp.start().catchError(function (err) {
-			trace(err);
+			if (err.name == 'TimeoutError') {
+				trace("XmppJsStream: Timed out, disconnecting.");
+				xmpp.disconnect();
+				return;
+			}
+
+			trace("XmppJsStream: Error on start", err);
+
 			if (this.state.can("connection-error")) this.state.event("connection-error", { error: err });
 		});
 	}

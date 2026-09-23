@@ -37,6 +37,9 @@ class TestAll {
 			new TestStringUtil(),
 			new TestUtil(),
 			new TestXEP0393(),
+#if js
+			new TestXmppJsStream(),
+#end
 #if eval
 			new TestCaps(),
 #else
