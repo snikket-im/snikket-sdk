@@ -610,24 +610,25 @@ export default async (dbname, media, tokenize, stemmer) => {
 			)
 			.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 		const head = { ...versions[0] };
+		const outer = getOuter(result.value, message);
 		// Can't change primary key
-		head.serverIdBy = result.value.serverIdBy;
-		head.serverId = result.value.serverId;
-		head.localId = result.value.localId;
-		head.replyId = result.value.replyId;
+		head.serverIdBy = outer.serverIdBy;
+		head.serverId = outer.serverId;
+		head.localId = outer.localId;
+		head.replyId = outer.replyId;
 		// Edited version is not newer
-		head.timestamp = result.value.timestamp;
-		head.sortId = result.value.sortId;
+		head.timestamp = new Date(outer.timestamp);
+		head.sortId = outer.sortId;
 		head.versions = versions;
-		head.reactions = result.value.reactions; // Preserve these, edit doesn't touch them
+		head.reactions = outer.reactions; // Preserve these, edit doesn't touch them
 		// Calls can "edit" from multiple senders, but the original direction and sender holds
-		if (result.value.type === enums.borogove_MessageType.MessageCall) {
-			head.direction = result.value.direction;
-			head.senderId = result.value.senderId;
-			head.from = result.value.from;
-			head.to = result.value.to;
-			head.replyTo = result.value.replyTo;
-			head.recipients = result.value.recipients;
+		if (outer.type === enums.borogove_MessageType.MessageCall) {
+			head.direction = outer.direction;
+			head.senderId = outer.senderId;
+			head.from = outer.from;
+			head.to = outer.to;
+			head.replyTo = outer.replyTo;
+			head.recipients = outer.recipients;
 		}
 		result.update(head);
 		if (!message.isIncoming()) {
@@ -636,6 +637,19 @@ export default async (dbname, media, tokenize, stemmer) => {
 			}
 		}
 		return head;
+	}
+
+	function getOuter(original, possibleReplacement) {
+		if (!original.serverId) return original;
+
+		if (
+			original.serverId === possibleReplacement.serverId &&
+			original.serverIdBy === possibleReplacement.serverIdBy
+		) {
+			return possibleReplacement;
+		}
+
+		return original;
 	}
 
 	function setReactions(reactionsMap, sender, reactions) {
