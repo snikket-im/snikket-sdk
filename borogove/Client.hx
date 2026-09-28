@@ -1162,6 +1162,12 @@ class Client extends EventEmitter {
 								.tag("enable", { xmlns: "urn:xmpp:carbons:2" })
 								.up()
 						);
+						// Enable MAM archiving
+						sendStanza(
+							new Stanza("iq", { type: "set", id: ID.unique() })
+								.tag("prefs", { xmlns: "urn:xmpp:mam:2", "default": "always" })
+								.up()
+						);
 						sendPresence();
 						joinAllChannels();
 					}
