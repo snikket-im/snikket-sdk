@@ -1542,6 +1542,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			if (row.versions != null) {
 				final versions: DynamicAccess<{
 					timestamp: String,
+					sort_id: String,
 					stanza: String,
 					encryption: Dynamic,
 					debug: Dynamic,
@@ -1552,6 +1553,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 						final versionM = ChatMessage.fromStanza(Stanza.parse(version.stanza), accountJid, (toPushB, _) -> {
 							if (toPushB.serverId == null && versionId != toPushB.localId) toPushB.serverId = versionId;
 							toPushB.timestamp = version.timestamp;
+							toPushB.sortId = version.sort_id;
 							toPushB.debug = version.debug;
 							return toPushB;
 						}, hydrateEncryption(version.encryption));
@@ -1838,6 +1840,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			END,
 			json_object(
 				'timestamp', strftime('%FT%H:%M:%fZ', versions.created_at / 1000.0, 'unixepoch'),
+				'sort_id', versions.sort_id,
 				'stanza', versions.stanza,
 				'encryption', json(versions.encryption),
 				'debug', json(versions.debug)

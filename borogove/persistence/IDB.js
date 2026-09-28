@@ -594,21 +594,24 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 	function correctMessage(account, message, result) {
 		// Newest (by timestamp) version wins for head
-		const newVersions =
-			message.versions.length < 1 ? [message] : message.versions;
-		const storedVersions = result.value.versions || [];
-		// TODO: dedupe? There shouldn't be dupes...
-		const versions = (
-			storedVersions.length < 1 ? [result.value] : storedVersions
-		)
-			.concat(
-				newVersions
-					.filter(
-						(nv) => !storedVersions.find((sv) => nv.serverId === sv.serverId),
-					)
-					.map((nv) => serializeMessage(account, nv)),
-			)
-			.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+		const newVersions = (
+			message.versions.length < 1 ? [message] : message.versions
+		).map((nv) => serializeMessage(account, nv));
+		const storedVersions =
+			(result.value.versions || []).length < 1
+				? [result.value]
+				: result.value.versions;
+		const dedup = {};
+		const versions = [];
+		for (const version of newVersions.concat(storedVersions)) {
+			if (version.serverId) {
+				const key = version.serverId + "\n" + version.serverIdBy;
+				if (dedup[key]) continue;
+				dedup[key] = true;
+			}
+			versions.push(version);
+		}
+		versions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 		const head = { ...versions[0] };
 		const outer = getOuter(result.value, message);
 		// Can't change primary key

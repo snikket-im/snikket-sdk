@@ -569,6 +569,61 @@ export function sharedPersistenceTests(test) {
 		expect(stored.sortId).toBe("a0");
 	});
 
+	test("dedupes versions when storing a correction", async ({
+		borogove,
+		persistence,
+	}) => {
+		const account = "correction-sort-alice@example.com";
+		const chatId = "correction-sort-hatter@example.com";
+		const originalBuilder = new borogove.ChatMessageBuilder({
+			serverId: "archive-original",
+			serverIdBy: chatId,
+			localId: "correction-sort-original",
+			senderId: chatId,
+			direction: 0,
+			timestamp: "2026-08-26T12:00:00Z",
+		});
+		originalBuilder.sortId = "b0";
+		originalBuilder.text = "Original text";
+		originalBuilder.to = borogove.JID.parse(account);
+		originalBuilder.from = borogove.JID.parse(chatId);
+		originalBuilder.recipients = [originalBuilder.to];
+		originalBuilder.replyTo = [originalBuilder.from];
+		const original = originalBuilder.build();
+
+		const correctionBuilder = new borogove.ChatMessageBuilder({
+			serverId: "archive-correction",
+			serverIdBy: chatId,
+			localId: "correction-sort-correction",
+			senderId: chatId,
+			direction: 0,
+			timestamp: "2026-08-26T12:01:00Z",
+		});
+		correctionBuilder.sortId = "b1";
+		correctionBuilder.text = "Corrected text";
+		correctionBuilder.to = borogove.JID.parse(account);
+		correctionBuilder.from = borogove.JID.parse(chatId);
+		correctionBuilder.recipients = [correctionBuilder.to];
+		correctionBuilder.replyTo = [correctionBuilder.from];
+		const correctionVersion = correctionBuilder.build();
+		correctionBuilder.versions = [correctionVersion];
+		correctionBuilder.localId = original.localId;
+
+		await persistence.storeMessages(account, [original]);
+		await persistence.storeMessages(account, [correctionBuilder.build()]);
+
+		originalBuilder.sortId = "a0";
+		const [stored] = await persistence.storeMessages(account, [
+			originalBuilder.build(),
+		]);
+
+		await persistence.getMessage(account, chatId, original.serverId, null);
+
+		expect(stored.versions.length).toBe(2);
+		expect(stored.versions[1].serverId).toBe("archive-original");
+		expect(stored.versions[1].sortId).toBe("a0");
+	});
+
 	test("storeReaction", async ({ borogove, persistence }) => {
 		const builder = new borogove.ChatMessageBuilder({
 			serverId: "srv1",
