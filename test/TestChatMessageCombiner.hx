@@ -116,7 +116,7 @@ class TestChatMessageCombiner extends utest.Test {
 		builder.senderId = params.senderId ?? "alice@example.com";
 		builder.type = params.type ?? MessageChat;
 		builder.versions = params.versions ?? [];
-		builder.timestamp = params.timestamp;
+		builder.timeReceived = params.timestamp;
 		builder.sortId = params.sortId;
 		builder.setBody(borogove.Html.text(params.body ?? "message"));
 		return builder.build();

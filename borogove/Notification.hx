@@ -98,7 +98,7 @@ class Notification {
 			m.callSid(),
 			imageUri,
 			m.lang,
-			m.timestamp
+			m.timeSent
 		);
 	}
 

@@ -13,7 +13,7 @@ export function sharedPersistenceTests(test) {
 				senderId: account,
 				direction: borogove.MessageDirection.MessageSent,
 			});
-			builder.timestamp = timestamp;
+			builder.timeReceived = timestamp;
 			builder.sortId = localId;
 			builder.status = status;
 			builder.to = borogove.JID.parse("hatter@example.com");
@@ -441,7 +441,7 @@ export function sharedPersistenceTests(test) {
 			localId: "encrypted-original",
 			senderId: account,
 			direction: 1,
-			timestamp: "2026-08-26T12:00:00Z",
+			timeReceived: "2026-08-26T12:00:00Z",
 		});
 		originalBuilder.sortId = "encrypted-c0";
 		originalBuilder.text = "Original encrypted text";
@@ -463,7 +463,7 @@ export function sharedPersistenceTests(test) {
 			localId: "encrypted-correction",
 			senderId: account,
 			direction: 1,
-			timestamp: "2026-08-26T12:01:00Z",
+			timeReceived: "2026-08-26T12:01:00Z",
 		});
 		correctionBuilder.sortId = "encrypted-c0";
 		correctionBuilder.text = "Corrected encrypted text";
@@ -527,7 +527,7 @@ export function sharedPersistenceTests(test) {
 			localId: "correction-sort-original",
 			senderId: chatId,
 			direction: 0,
-			timestamp: "2026-08-26T12:00:00Z",
+			timeReceived: "2026-08-26T12:00:00Z",
 		});
 		originalBuilder.sortId = "b0";
 		originalBuilder.text = "Original text";
@@ -543,7 +543,7 @@ export function sharedPersistenceTests(test) {
 			localId: "correction-sort-correction",
 			senderId: chatId,
 			direction: 0,
-			timestamp: "2026-08-26T12:01:00Z",
+			timeReceived: "2026-08-26T12:01:00Z",
 		});
 		correctionBuilder.sortId = "b0";
 		correctionBuilder.text = "Corrected text";
@@ -581,7 +581,7 @@ export function sharedPersistenceTests(test) {
 			localId: "correction-sort-original",
 			senderId: chatId,
 			direction: 0,
-			timestamp: "2026-08-26T12:00:00Z",
+			timeReceived: "2026-08-26T12:00:00Z",
 		});
 		originalBuilder.sortId = "b0";
 		originalBuilder.text = "Original text";
@@ -597,7 +597,7 @@ export function sharedPersistenceTests(test) {
 			localId: "correction-sort-correction",
 			senderId: chatId,
 			direction: 0,
-			timestamp: "2026-08-26T12:01:00Z",
+			timeReceived: "2026-08-26T12:01:00Z",
 		});
 		correctionBuilder.sortId = "b1";
 		correctionBuilder.text = "Corrected text";
@@ -752,7 +752,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:01Z",
+			timeReceived: "2020-01-01T00:00:01Z",
 		});
 		builder.sortId = "a0";
 		builder.to = borogove.JID.parse("alice@example.com");
@@ -765,7 +765,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:00Z",
+			timeReceived: "2020-01-01T00:00:00Z",
 		});
 		builder2.sortId = "b0";
 		builder2.to = borogove.JID.parse("alice@example.com");
@@ -778,7 +778,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannelPrivate,
-			timestamp: "2020-01-01T00:00:03Z",
+			timeReceived: "2020-01-01T00:00:03Z",
 		});
 		builder3.sortId = "a0";
 		builder3.to = borogove.JID.parse("alice@example.com");
@@ -810,7 +810,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:01Z",
+			timeReceived: "2020-01-01T00:00:01Z",
 		});
 		builder.sortId = "a0";
 		builder.to = borogove.JID.parse("alice@example.com");
@@ -823,7 +823,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:00Z",
+			timeReceived: "2020-01-01T00:00:00Z",
 		});
 		builder2.sortId = "b0";
 		builder2.to = borogove.JID.parse("alice@example.com");
@@ -836,7 +836,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannelPrivate,
-			timestamp: "2020-01-01T00:00:03Z",
+			timeReceived: "2020-01-01T00:00:03Z",
 		});
 		builder3.sortId = "Z~";
 		builder3.to = borogove.JID.parse("alice@example.com");
@@ -849,7 +849,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:04Z",
+			timeReceived: "2020-01-01T00:00:04Z",
 		});
 		builder4.sortId = "c0";
 		builder4.to = borogove.JID.parse("alice@example.com");
@@ -880,7 +880,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:00Z",
+			timeReceived: "2020-01-01T00:00:00Z",
 		});
 		builder.sortId = "a0";
 		builder.to = borogove.JID.parse("alice@example.com");
@@ -893,7 +893,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:01Z",
+			timeReceived: "2020-01-01T00:00:01Z",
 		});
 		builder2.sortId = "b0";
 		builder2.to = borogove.JID.parse("alice@example.com");
@@ -906,7 +906,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannelPrivate,
-			timestamp: "2020-01-01T00:00:03Z",
+			timeReceived: "2020-01-01T00:00:03Z",
 		});
 		builder3.sortId = "Z~";
 		builder3.to = borogove.JID.parse("alice@example.com");
@@ -919,7 +919,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:04Z",
+			timeReceived: "2020-01-01T00:00:04Z",
 		});
 		builder4.sortId = "c0";
 		builder4.to = borogove.JID.parse("alice@example.com");
@@ -952,7 +952,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:00Z",
+			timeReceived: "2020-01-01T00:00:00Z",
 		});
 		builder.sortId = "a0";
 		builder.to = borogove.JID.parse("alice@example.com");
@@ -965,7 +965,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:01Z",
+			timeReceived: "2020-01-01T00:00:01Z",
 		});
 		builder2.sortId = "b0";
 		builder2.to = borogove.JID.parse("alice@example.com");
@@ -978,7 +978,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannelPrivate,
-			timestamp: "2020-01-01T00:00:03Z",
+			timeReceived: "2020-01-01T00:00:03Z",
 		});
 		builder3.sortId = "a1";
 		builder3.to = borogove.JID.parse("alice@example.com");
@@ -1010,7 +1010,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:01Z",
+			timeReceived: "2020-01-01T00:00:01Z",
 		});
 		builder.sortId = "a0";
 		builder.to = borogove.JID.parse("alice@example.com");
@@ -1023,7 +1023,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:00Z",
+			timeReceived: "2020-01-01T00:00:00Z",
 		});
 		builder2.sortId = "b0";
 		builder2.to = borogove.JID.parse("alice@example.com");
@@ -1036,7 +1036,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannelPrivate,
-			timestamp: "2020-01-01T00:00:03Z",
+			timeReceived: "2020-01-01T00:00:03Z",
 		});
 		builder3.sortId = "Z~";
 		builder3.to = borogove.JID.parse("alice@example.com");
@@ -1049,7 +1049,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:04Z",
+			timeReceived: "2020-01-01T00:00:04Z",
 		});
 		builder4.sortId = "c0";
 		builder4.to = borogove.JID.parse("alice@example.com");
@@ -1080,7 +1080,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:00Z",
+			timeReceived: "2020-01-01T00:00:00Z",
 		});
 		builder.sortId = "a0";
 		builder.to = borogove.JID.parse("alice@example.com");
@@ -1093,7 +1093,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:01Z",
+			timeReceived: "2020-01-01T00:00:01Z",
 		});
 		builder2.sortId = "b0";
 		builder2.to = borogove.JID.parse("alice@example.com");
@@ -1106,7 +1106,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannelPrivate,
-			timestamp: "2020-01-01T00:00:03Z",
+			timeReceived: "2020-01-01T00:00:03Z",
 		});
 		builder3.sortId = "Z~";
 		builder3.to = borogove.JID.parse("alice@example.com");
@@ -1119,7 +1119,7 @@ export function sharedPersistenceTests(test) {
 			senderId: "teaparty@example.com/hatter",
 			direction: 0,
 			type: borogove.MessageType.MessageChannel,
-			timestamp: "2020-01-01T00:00:04Z",
+			timeReceived: "2020-01-01T00:00:04Z",
 		});
 		builder4.sortId = "c0";
 		builder4.to = borogove.JID.parse("alice@example.com");
@@ -2156,7 +2156,7 @@ export function sharedPersistenceTests(test) {
 				{ text: "First correction" },
 				{ text: "Second correction" },
 			])
-			.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+			.sort((a, b) => new Date(b.timeReceived) - new Date(a.timeReceived));
 
 		const [stored, ...restStored] = await persistence.storeMessages(
 			account,

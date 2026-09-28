@@ -74,7 +74,7 @@ class Message {
 
 		var msg = new ChatMessageBuilder();
 		msg.stanza = stanza;
-		msg.timestamp = stanza.findText("{urn:xmpp:delay}delay@stamp");
+		msg.timeSent = stanza.findText("{urn:xmpp:delay}delay@stamp");
 		msg.threadId = stanza.getChildText("thread");
 		msg.lang = stanza.attr.get("xml:lang");
 		msg.text = stanza.getChildText("body");
@@ -247,8 +247,7 @@ class Message {
 		}
 
 		if (addContext != null) msg = addContext(msg, stanza);
-		final timestamp = msg.timestamp ?? Date.format(std.Date.now());
-		msg.timestamp = timestamp;
+		final timeSent = msg.timeSent ?? msg.timeReceived ?? Date.format(std.Date.now());
 
 		if (jmi != null && jmi.name != "accept" && jmi.name != "propose") {
 			msg.versions = [msg.build()];
@@ -267,8 +266,8 @@ class Message {
 					isGroupchat ? null : reactionId,
 					msg.chatId(),
 					msg.senderId ?? throw "no sender",
-					timestamp,
-					reactions.map(text -> new Reaction(msg.senderId ?? throw "no sender", timestamp, text, msg.localId)),
+					timeSent,
+					reactions.map(text -> new Reaction(msg.senderId ?? throw "no sender", timeSent, text, msg.localId)),
 					EmojiReactions
 				)), encryptionInfo);
 			}
@@ -286,7 +285,7 @@ class Message {
 				msg.chatId(),
 				msg.senderId,
 				msg.threadId,
-				ModerateMessageStanza(new ModerationAction(msg.chatId(), moderateServerId, timestamp, by, reason)),
+				ModerateMessageStanza(new ModerationAction(msg.chatId(), moderateServerId, timeSent, msg.timeReceived ?? Date.format(std.Date.now()), by, reason)),
 				encryptionInfo
 			);
 		}
@@ -336,8 +335,8 @@ class Message {
 					isGroupchat ? null : replyToID,
 					msg.chatId(),
 					msg.senderId ?? throw "no sender",
-					timestamp,
-					[new Reaction(msg.senderId ?? throw "no sender", timestamp, text.trim(), msg.localId)],
+					timeSent,
+					[new Reaction(msg.senderId ?? throw "no sender", timeSent, text.trim(), msg.localId)],
 					AppendReactions
 				)), encryptionInfo);
 			}
@@ -356,8 +355,8 @@ class Message {
 								isGroupchat ? null : replyToID,
 								msg.chatId(),
 								msg.senderId ?? throw "no sender",
-								timestamp,
-								[new CustomEmojiReaction(msg.senderId ?? throw "no sender", timestamp, els[0].attr.get("alt") ?? "", hash.serializeUri(), msg.localId)],
+								timeSent,
+								[new CustomEmojiReaction(msg.senderId ?? throw "no sender", timeSent, els[0].attr.get("alt") ?? "", hash.serializeUri(), msg.localId)],
 								AppendReactions
 							)), encryptionInfo);
 						}

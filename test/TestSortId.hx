@@ -142,7 +142,7 @@ class TestSortId extends utest.Test {
 			Assert.isTrue("a " < m1.sortId, "\"a \" < m1.sortId");
 			Assert.isTrue(m1.sortId < m2.sortId, "m1.sortId < m2.sortId");
 			Assert.isTrue(m2.sortId < "b00", "m2.sortId < \"b00\"");
-			Assert.isTrue(m1.timestamp < m2.timestamp, "m1.timestamp < m2.timestamp"); // fake fractional part
+			Assert.isTrue(m1.timeReceived < m2.timeReceived, "m1.timeReceived < m2.timeReceived"); // fake fractional part
 			Assert.equals("mam", m1.debug.source);
 			Assert.equals("2023-01-01T00:00:00Z", m1.debug.serverReceivedAt);
 			Assert.equals("2023-01-01T00:00:00Z", m2.debug.serverReceivedAt);

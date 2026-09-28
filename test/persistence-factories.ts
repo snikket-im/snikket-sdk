@@ -53,13 +53,13 @@ export function createFactories(borogove: any) {
 		builder.replyTo = replyTo ?? [fromJID];
 		builder.versions = versions ?? [];
 		builder.text = text ?? faker.lorem.sentence();
-		builder.timestamp = timestamp?.toISOString() ?? new Date().toISOString();
+		builder.timeReceived = timestamp?.toISOString() ?? new Date().toISOString();
 
 		return builder.build();
 	};
 
 	const corrections = (original: any, props: CorrectionProps[]) => {
-		const originalTimestamp = new Date(original.timestamp).getTime();
+		const originalTimestamp = new Date(original.timeReceived).getTime();
 
 		return props.map(({ text }, index) => {
 			const versionTimestamp = new Date(originalTimestamp + index + 1);

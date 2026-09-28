@@ -152,7 +152,7 @@ class TestSqlite extends utest.Test {
 		builder.senderId = "teaparty@example.com/hatter";
 		builder.direction = MessageReceived;
 		builder.type = MessageChannel;
-		builder.timestamp = "2020-01-01T00:00:01Z";
+		builder.timeReceived = "2020-01-01T00:00:01Z";
 		builder.sortId = "a0";
 		builder.to = JID.parse("alice@example.com");
 		builder.from = JID.parse("teaparty@example.com/hatter");
@@ -164,7 +164,7 @@ class TestSqlite extends utest.Test {
 		builder2.senderId = "teaparty@example.com/hatter";
 		builder2.direction = MessageReceived;
 		builder2.type = MessageChannel;
-		builder2.timestamp = "2020-01-01T00:00:00Z";
+		builder2.timeReceived = "2020-01-01T00:00:00Z";
 		builder2.sortId = "b0";
 		builder2.to = JID.parse("alice@example.com");
 		builder2.from = JID.parse("teaparty@example.com/hatter");
@@ -176,7 +176,7 @@ class TestSqlite extends utest.Test {
 		builder3.senderId = "teaparty@example.com/hatter";
 		builder3.direction = MessageReceived;
 		builder3.type = MessageChannelPrivate;
-		builder3.timestamp = "2020-01-01T00:00:03Z";
+		builder3.timeReceived = "2020-01-01T00:00:03Z";
 		builder3.sortId = "a0";
 		builder3.to = JID.parse("alice@example.com");
 		builder3.from = JID.parse("teaparty@example.com/hatter");
@@ -208,7 +208,7 @@ class TestSqlite extends utest.Test {
 		builder.senderId = "teaparty@example.com/hatter";
 		builder.direction = MessageReceived;
 		builder.type = MessageChannel;
-		builder.timestamp = "2020-01-01T00:00:01Z";
+		builder.timeReceived = "2020-01-01T00:00:01Z";
 		builder.sortId = "a0";
 		builder.to = JID.parse("alice@example.com");
 		builder.from = JID.parse("teaparty@example.com/hatter");
@@ -220,7 +220,7 @@ class TestSqlite extends utest.Test {
 		builder2.senderId = "teaparty@example.com/hatter";
 		builder2.direction = MessageReceived;
 		builder2.type = MessageChannel;
-		builder2.timestamp = "2020-01-01T00:00:00Z";
+		builder2.timeReceived = "2020-01-01T00:00:00Z";
 		builder2.sortId = "b0";
 		builder2.to = JID.parse("alice@example.com");
 		builder2.from = JID.parse("teaparty@example.com/hatter");
@@ -232,7 +232,7 @@ class TestSqlite extends utest.Test {
 		builder3.senderId = "teaparty@example.com/hatter";
 		builder3.direction = MessageReceived;
 		builder3.type = MessageChannelPrivate;
-		builder3.timestamp = "2020-01-01T00:00:03Z";
+		builder3.timeReceived = "2020-01-01T00:00:03Z";
 		builder3.sortId = "Z~";
 		builder3.to = JID.parse("alice@example.com");
 		builder3.from = JID.parse("teaparty@example.com/hatter");
@@ -244,7 +244,7 @@ class TestSqlite extends utest.Test {
 		builder4.senderId = "teaparty@example.com/hatter";
 		builder4.direction = MessageReceived;
 		builder4.type = MessageChannel;
-		builder4.timestamp = "2020-01-01T00:00:04Z";
+		builder4.timeReceived = "2020-01-01T00:00:04Z";
 		builder4.sortId = "c0";
 		builder4.to = JID.parse("alice@example.com");
 		builder4.from = JID.parse("teaparty@example.com/hatter");
@@ -277,7 +277,7 @@ class TestSqlite extends utest.Test {
 		builder.senderId = "teaparty@example.com/hatter";
 		builder.direction = MessageReceived;
 		builder.type = MessageChannel;
-		builder.timestamp = "2020-01-01T00:00:00Z";
+		builder.timeReceived = "2020-01-01T00:00:00Z";
 		builder.sortId = "a0";
 		builder.to = JID.parse("alice@example.com");
 		builder.from = JID.parse("teaparty@example.com/hatter");
@@ -289,7 +289,7 @@ class TestSqlite extends utest.Test {
 		builder2.senderId = "teaparty@example.com/hatter";
 		builder2.direction = MessageReceived;
 		builder2.type = MessageChannel;
-		builder2.timestamp = "2020-01-01T00:00:01Z";
+		builder2.timeReceived = "2020-01-01T00:00:01Z";
 		builder2.sortId = "b0";
 		builder2.to = JID.parse("alice@example.com");
 		builder2.from = JID.parse("teaparty@example.com/hatter");
@@ -301,7 +301,7 @@ class TestSqlite extends utest.Test {
 		builder3.senderId = "teaparty@example.com/hatter";
 		builder3.direction = MessageReceived;
 		builder3.type = MessageChannelPrivate;
-		builder3.timestamp = "2020-01-01T00:00:03Z";
+		builder3.timeReceived = "2020-01-01T00:00:03Z";
 		builder3.sortId = "Z~";
 		builder3.to = JID.parse("alice@example.com");
 		builder3.from = JID.parse("teaparty@example.com/hatter");
@@ -313,7 +313,7 @@ class TestSqlite extends utest.Test {
 		builder4.senderId = "teaparty@example.com/hatter";
 		builder4.direction = MessageReceived;
 		builder4.type = MessageChannel;
-		builder4.timestamp = "2020-01-01T00:00:04Z";
+		builder4.timeReceived = "2020-01-01T00:00:04Z";
 		builder4.sortId = "c0";
 		builder4.to = JID.parse("alice@example.com");
 		builder4.from = JID.parse("teaparty@example.com/hatter");
@@ -345,7 +345,7 @@ class TestSqlite extends utest.Test {
 		builder.senderId = "teaparty@example.com/hatter";
 		builder.direction = MessageReceived;
 		builder.type = MessageChannel;
-		builder.timestamp = "2020-01-01T00:00:00Z";
+		builder.timeReceived = "2020-01-01T00:00:00Z";
 		builder.sortId = "a0";
 		builder.to = JID.parse("alice@example.com");
 		builder.from = JID.parse("teaparty@example.com/hatter");
@@ -357,7 +357,7 @@ class TestSqlite extends utest.Test {
 		builder2.senderId = "teaparty@example.com/hatter";
 		builder2.direction = MessageReceived;
 		builder2.type = MessageChannel;
-		builder2.timestamp = "2020-01-01T00:00:01Z";
+		builder2.timeReceived = "2020-01-01T00:00:01Z";
 		builder2.sortId = "b0";
 		builder2.to = JID.parse("alice@example.com");
 		builder2.from = JID.parse("teaparty@example.com/hatter");
@@ -369,7 +369,7 @@ class TestSqlite extends utest.Test {
 		builder3.senderId = "teaparty@example.com/hatter";
 		builder3.direction = MessageReceived;
 		builder3.type = MessageChannelPrivate;
-		builder3.timestamp = "2020-01-01T00:00:03Z";
+		builder3.timeReceived = "2020-01-01T00:00:03Z";
 		builder3.sortId = "a1";
 		builder3.to = JID.parse("alice@example.com");
 		builder3.from = JID.parse("teaparty@example.com/hatter");
@@ -401,7 +401,7 @@ class TestSqlite extends utest.Test {
 		builder.senderId = "teaparty@example.com/hatter";
 		builder.direction = MessageReceived;
 		builder.type = MessageChannel;
-		builder.timestamp = "2020-01-01T00:00:01Z";
+		builder.timeReceived = "2020-01-01T00:00:01Z";
 		builder.sortId = "a0";
 		builder.to = JID.parse("alice@example.com");
 		builder.from = JID.parse("teaparty@example.com/hatter");
@@ -413,7 +413,7 @@ class TestSqlite extends utest.Test {
 		builder2.senderId = "teaparty@example.com/hatter";
 		builder2.direction = MessageReceived;
 		builder2.type = MessageChannel;
-		builder2.timestamp = "2020-01-01T00:00:00Z";
+		builder2.timeReceived = "2020-01-01T00:00:00Z";
 		builder2.sortId = "b0";
 		builder2.to = JID.parse("alice@example.com");
 		builder2.from = JID.parse("teaparty@example.com/hatter");
@@ -425,7 +425,7 @@ class TestSqlite extends utest.Test {
 		builder3.senderId = "teaparty@example.com/hatter";
 		builder3.direction = MessageReceived;
 		builder3.type = MessageChannelPrivate;
-		builder3.timestamp = "2020-01-01T00:00:03Z";
+		builder3.timeReceived = "2020-01-01T00:00:03Z";
 		builder3.sortId = "Z~";
 		builder3.to = JID.parse("alice@example.com");
 		builder3.from = JID.parse("teaparty@example.com/hatter");
@@ -437,7 +437,7 @@ class TestSqlite extends utest.Test {
 		builder4.senderId = "teaparty@example.com/hatter";
 		builder4.direction = MessageReceived;
 		builder4.type = MessageChannel;
-		builder4.timestamp = "2020-01-01T00:00:04Z";
+		builder4.timeReceived = "2020-01-01T00:00:04Z";
 		builder4.sortId = "c0";
 		builder4.to = JID.parse("alice@example.com");
 		builder4.from = JID.parse("teaparty@example.com/hatter");
@@ -470,7 +470,7 @@ class TestSqlite extends utest.Test {
 		builder.senderId = "teaparty@example.com/hatter";
 		builder.direction = MessageReceived;
 		builder.type = MessageChannel;
-		builder.timestamp = "2020-01-01T00:00:00Z";
+		builder.timeReceived = "2020-01-01T00:00:00Z";
 		builder.sortId = "a0";
 		builder.to = JID.parse("alice@example.com");
 		builder.from = JID.parse("teaparty@example.com/hatter");
@@ -482,7 +482,7 @@ class TestSqlite extends utest.Test {
 		builder2.senderId = "teaparty@example.com/hatter";
 		builder2.direction = MessageReceived;
 		builder2.type = MessageChannel;
-		builder2.timestamp = "2020-01-01T00:00:01Z";
+		builder2.timeReceived = "2020-01-01T00:00:01Z";
 		builder2.sortId = "b0";
 		builder2.to = JID.parse("alice@example.com");
 		builder2.from = JID.parse("teaparty@example.com/hatter");
@@ -494,7 +494,7 @@ class TestSqlite extends utest.Test {
 		builder3.senderId = "teaparty@example.com/hatter";
 		builder3.direction = MessageReceived;
 		builder3.type = MessageChannelPrivate;
-		builder3.timestamp = "2020-01-01T00:00:03Z";
+		builder3.timeReceived = "2020-01-01T00:00:03Z";
 		builder3.sortId = "Z~";
 		builder3.to = JID.parse("alice@example.com");
 		builder3.from = JID.parse("teaparty@example.com/hatter");
@@ -506,7 +506,7 @@ class TestSqlite extends utest.Test {
 		builder4.senderId = "teaparty@example.com/hatter";
 		builder4.direction = MessageReceived;
 		builder4.type = MessageChannel;
-		builder4.timestamp = "2020-01-01T00:00:04Z";
+		builder4.timeReceived = "2020-01-01T00:00:04Z";
 		builder4.sortId = "c0";
 		builder4.to = JID.parse("alice@example.com");
 		builder4.from = JID.parse("teaparty@example.com/hatter");
@@ -706,9 +706,9 @@ class TestSqlite extends utest.Test {
 		});
 
 		persistence.storeMessages(account, [message]).then(_ -> {
-			return persistence.db.exec("SELECT strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp FROM messages WHERE mam_id=?", [message.serverId]);
+			return persistence.db.exec("SELECT strftime('%FT%H:%M:%fZ', time_received / 1000.0, 'unixepoch') AS time_received FROM messages WHERE mam_id=?", [message.serverId]);
 		}).then(rows -> {
-			Assert.equals("2020-01-01T00:00:00.123Z", rows.next().timestamp);
+			Assert.equals("2020-01-01T00:00:00.123Z", rows.next().time_received);
 			async.done();
 		}).catchError(e -> {
 			Assert.fail(Std.string(e));
@@ -781,7 +781,7 @@ class TestSqlite extends utest.Test {
 		builder.senderId = senderId;
 		builder.direction = params.received ?? false ? MessageReceived : MessageSent;
 		builder.sortId = params.sortId ?? params.localId ?? params.serverId ?? "message";
-		builder.timestamp = params.timestamp;
+		builder.timeReceived = params.timestamp;
 		builder.syncPoint = params.syncPoint ?? false;
 		builder.status = params.status ?? MessagePending;
 		builder.versions = params.versions ?? [];
@@ -2065,7 +2065,8 @@ class TestSqlite extends utest.Test {
 			"type",
 			"status",
 			"status_text",
-			"strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp",
+			"strftime('%FT%H:%M:%fZ', time_sent / 1000.0, 'unixepoch') AS time_sent",
+			"strftime('%FT%H:%M:%fZ', time_received / 1000.0, 'unixepoch') AS time_received",
 			"sender_id",
 			"mam_id",
 			"mam_by",
@@ -2089,7 +2090,8 @@ class TestSqlite extends utest.Test {
 			"type",
 			"status",
 			"status_text",
-			"strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp",
+			"strftime('%FT%H:%M:%fZ', time_sent / 1000.0, 'unixepoch') AS time_sent",
+			"strftime('%FT%H:%M:%fZ', time_received / 1000.0, 'unixepoch') AS time_received",
 			"sender_id",
 			"mam_id",
 			"mam_by",
@@ -2117,7 +2119,8 @@ class TestSqlite extends utest.Test {
 			"type",
 			"status",
 			"status_text",
-			"strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp",
+			"strftime('%FT%H:%M:%fZ', time_sent / 1000.0, 'unixepoch') AS time_sent",
+			"strftime('%FT%H:%M:%fZ', time_received / 1000.0, 'unixepoch') AS time_received",
 			"sender_id",
 			"mam_id",
 			"mam_by",

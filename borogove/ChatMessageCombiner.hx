@@ -37,7 +37,8 @@ class ChatMessageCombiner {
 		builder.serverId = original.serverId;
 		builder.serverIdBy = original.serverIdBy;
 		builder.sortId = original.sortId;
-		builder.timestamp = original.timestamp;
+		builder.timeSent = original.timeSent;
+		builder.timeReceived = original.timeReceived;
 		builder.replyId = original.replyId;
 		builder.reactions = original.reactions;
 		if (original.type == MessageCall) {
@@ -63,14 +64,14 @@ class ChatMessageCombiner {
 			(version, uniqueVersions:Map<String, ChatMessage>) -> {
 				final id = identity(version);
 				final previous = uniqueVersions[id];
-				if (previous == null || version.timestamp > previous.timestamp) {
+				if (previous == null || version.timeReceived > previous.timeReceived) {
 					uniqueVersions.set(id, version);
 				}
 				uniqueVersions;
 			},
 			new Map<String, ChatMessage>()
 		).map(version -> version);
-		sortedVersions.sort((a, b) -> Reflect.compare(b.timestamp, a.timestamp));
+		sortedVersions.sort((a, b) -> Reflect.compare(b.timeReceived, a.timeReceived));
 		return sortedVersions;
 	}
 

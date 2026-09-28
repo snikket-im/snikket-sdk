@@ -87,12 +87,12 @@ class MessageSync {
 			final sortLower = sortA;
 			sortA = FractionalIndexing.between(sortLower, sortB, FractionalIndexing.BASE_95_DIGITS);
 			final serverReceivedAt = result.findText("{urn:xmpp:forward:0}forwarded/{urn:xmpp:delay}delay@stamp");
-			var timestamp = serverReceivedAt;
-			if (timestamp == null) {
+			var timeReceived = serverReceivedAt;
+			if (timeReceived == null) {
 				trace("MAM result with no timestamp", result);
 			} else {
 				// If no subseconds, fix them to at least sort right
-				timestamp = ~/([0-9][0-9]:[0-9][0-9]:[0-9][0-9])(\.[0-9][0-9][0-9])?/.map(timestamp, (ereg) -> {
+				timeReceived = ~/([0-9][0-9]:[0-9][0-9]:[0-9][0-9])(\.[0-9][0-9][0-9])?/.map(timeReceived, (ereg) -> {
 					if (ereg.matched(2) == null || ereg.matched(2) == ".000") {
 						if (ereg.matched(1) == previousMessageTime) {
 							counterSameTime++;
@@ -136,7 +136,7 @@ class MessageSync {
 						builder.serverId = result.attr.get("id");
 						builder.serverIdBy = serviceJID;
 						builder.encryption = decryptionResult.encryptionInfo;
-						if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
+						if (timeReceived != null && builder.timeReceived == null) builder.timeReceived = timeReceived;
 						return contextHandler(builder, stanza);
 					});
 				}, (err) -> {
@@ -155,7 +155,7 @@ class MessageSync {
 							};
 							builder.serverId = result.attr.get("id");
 							builder.serverIdBy = serviceJID;
-							if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
+							if (timeReceived != null && builder.timeReceived == null) builder.timeReceived = timeReceived;
 							return contextHandler(builder, stanza);
 						},
 						new EncryptionInfo(DecryptionFailure, NS.OMEMO, "OMEMO", "internal-error", Std.string(err))
@@ -181,7 +181,7 @@ class MessageSync {
 				};
 				builder.serverId = result.attr.get("id");
 				builder.serverIdBy = serviceJID;
-				if (timestamp != null && builder.timestamp == null) builder.timestamp = timestamp;
+				if (timeReceived != null && builder.timeReceived == null) builder.timeReceived = timeReceived;
 				return contextHandler(builder, stanza);
 			});
 
