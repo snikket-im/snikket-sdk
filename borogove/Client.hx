@@ -2424,6 +2424,10 @@ class Client extends EventEmitter {
 		var thirtyDaysAgo = Date.format(
 			DateTools.delta(std.Date.now(), DateTools.days(-30))
 		);
+		trace(
+			"SYNC: initialize MessageSync",
+			{ reason: "client doSync", accountId: accountId(), syncPointServerId: syncPoint?.serverId, syncPointSortId: syncPoint?.sortId, sortA: sortA },
+		);
 		var sync = new MessageSync(
 			this,
 			stream,

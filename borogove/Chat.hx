@@ -632,13 +632,33 @@ abstract class Chat extends EventEmitter {
 		An ID of the last message displayed to the user
 	**/
 	public function readUpTo(): Promise<Null<ChatMessage>> {
-		if (readUpToId == null) return Promise.resolve(null);
+		trace(
+			"READ: readUpTo lookup",
+			{ accountId: client.accountId(), chatId: chatId, readUpToId: readUpToId, readUpToBy: readUpToBy },
+		);
+		if (readUpToId == null) {
+			trace(
+				"READ: readUpTo returning null",
+				{ reason: "no read marker", chatId: chatId },
+			);
+			return Promise.resolve(null);
+		}
 
 		return persistence.getMessage(client.accountId(), chatId, readUpToId, null).then(m -> {
 			// A PM is not actually part of the chat
 			// So it cannot really be the read up to point
-			if (m?.type == MessageChannelPrivate) return null;
+			if (m?.type == MessageChannelPrivate) {
+				trace(
+					"READ: readUpTo returning null",
+					{ reason: "read marker resolved to a channel private message", chatId: chatId, serverId: m?.serverId, localId: m?.localId },
+				);
+				return null;
+			}
 
+			trace(
+				"READ: readUpTo result",
+				{ reason: m == null ? "read marker message not found" : "read marker message found", chatId: chatId, serverId: m?.serverId, localId: m?.localId, sortId: m?.sortId },
+			);
 			return m;
 		});
 	}
@@ -1193,6 +1213,10 @@ class DirectChat extends Chat {
 			} else {
 				var filter:MAMQueryParams = { with: this.chatId };
 				filter.page = { before: before?.serverId ?? "" };
+				trace(
+					"SYNC: initialize MessageSync",
+					{ reason: "getMessagesBefore local result empty", chatId: chatId, beforeServerId: before?.serverId, beforeSortId: before?.sortId },
+				);
 				var sync = new MessageSync(this.client, this.stream, filter, null, before?.sortId);
 				fetchFromSync(sync);
 			}
@@ -1203,6 +1227,9 @@ class DirectChat extends Chat {
 	public function getMessagesAfter(after: Null<ChatMessage>):Promise<Array<ChatMessage>> {
 		if (after != null && after.chatId() != chatId) throw "Cannot look after from a different chat";
 		if (after != null && lastMessage != null && lastMessage.canReplace(after) && !syncing()) {
+			trace(
+				"SYNC: getMessagesAfter returning empty",
+				{ reason: "direct chat is synced and cursor matches last message", chatId: chatId, afterServerId: after.serverId, afterSortId: after.sortId, lastMessageServerId: lastMessage.serverId, lastMessageSortId: lastMessage.sortId });
 			return Promise.resolve([]);
 		}
 
@@ -1212,6 +1239,10 @@ class DirectChat extends Chat {
 			} else {
 				var filter:MAMQueryParams = { with: this.chatId };
 				if (after?.serverId != null) filter.page = { after: after.serverId };
+				trace(
+					"SYNC: initialize MessageSync",
+					{ reason: "getMessagesAfter local result empty", chatId: chatId, afterServerId: after?.serverId, afterSortId: after?.sortId },
+				);
 				var sync = new MessageSync(this.client, this.stream, filter, after?.sortId, null);
 				fetchFromSync(sync);
 			}
@@ -1864,6 +1895,10 @@ class Channel extends Chat {
 		var threeDaysAgo = Date.format(
 			DateTools.delta(std.Date.now(), DateTools.days(-3))
 		);
+		trace(
+			"SYNC: initialize MessageSync",
+			{ reason: "channel doSync", chatId: chatId, syncPointServerId: syncPoint?.serverId, syncPointSortId: syncPoint?.sortId, sortFrom: sortFrom, sortTo: sortTo },
+		);
 		sync = new MessageSync(
 			client,
 			stream,
@@ -2222,6 +2257,10 @@ class Channel extends Chat {
 			} else {
 				var filter:MAMQueryParams = {};
 				filter.page = { before: before?.serverId ?? "" };
+				trace(
+					"SYNC: initialize MessageSync",
+					{ reason: "channel getMessagesBefore local result empty", chatId: chatId, beforeServerId: before?.serverId, beforeSortId: before?.sortId },
+				);
 				var sync = new MessageSync(this.client, this.stream, filter, null, before?.sortId, chatId);
 				sync.addContext((builder, stanza) -> {
 					builder = prepareIncomingMessage(builder, stanza);
@@ -2237,6 +2276,7 @@ class Channel extends Chat {
 	public function getMessagesAfter(after: Null<ChatMessage>):Promise<Array<ChatMessage>> {
 		if (after != null && after.chatId() != chatId) throw "Cannot look after from a different chat";
 		if (after != null && lastMessage != null && lastMessage.canReplace(after) && inSync) {
+			trace("SYNC: getMessagesAfter returning empty", { reason: "channel is synced and cursor matches last message", chatId: chatId, afterServerId: after.serverId, afterSortId: after.sortId, lastMessageServerId: lastMessage.serverId, lastMessageSortId: lastMessage.sortId });
 			return Promise.resolve([]);
 		}
 
@@ -2246,6 +2286,10 @@ class Channel extends Chat {
 			} else {
 				var filter:MAMQueryParams = {};
 				if (after?.serverId != null) filter.page = { after: after.serverId };
+				trace(
+					"SYNC: initialize MessageSync",
+					{ reason: "channel getMessagesAfter local result empty", chatId: chatId, afterServerId: after?.serverId, afterSortId: after?.sortId },
+				);
 				var sync = new MessageSync(this.client, this.stream, filter, after?.sortId, null, chatId);
 				sync.addContext((builder, stanza) -> {
 					builder = prepareIncomingMessage(builder, stanza);
