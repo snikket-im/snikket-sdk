@@ -193,9 +193,19 @@ class ChatMessage {
 	private final replyId : Null<String>;
 
 	/**
-		The timestamp of this message, in format YYYY-MM-DDThh:mm:ss[.sss]Z
+		The timestamp this message was sent, in format YYYY-MM-DDThh:mm:ss[.sss]Z
+
+		If the exact time is not known, the received time may be used
 	**/
-	public final timestamp: String;
+	public final timeSent: String;
+
+	/**
+		The timestamp this message was received, in format YYYY-MM-DDThh:mm:ss[.sss]Z
+
+		This will be the time received by our server, if known, or the time
+		received at the client otherwise.
+	**/
+	public final timeReceived: String;
 
 	@:allow(borogove)
 	private final to: JID;
@@ -311,7 +321,8 @@ class ChatMessage {
 		?type: MessageType,
 		?syncPoint: Bool,
 		?replyId: Null<String>,
-		timestamp: String,
+		timeSent: String,
+		timeReceived: String,
 		to: JID,
 		from: JID,
 		senderId: String,
@@ -340,7 +351,8 @@ class ChatMessage {
 		this.type = params.type ?? MessageChat;
 		this.syncPoint = params.syncPoint ?? false;
 		this.replyId = params.replyId;
-		this.timestamp = params.timestamp;
+		this.timeSent = params.timeSent;
+		this.timeReceived = params.timeReceived;
 		this.to = params.to;
 		this.from = params.from;
 		this.senderId = params.senderId;
@@ -564,11 +576,11 @@ class ChatMessage {
 	**/
 	public function callDuration(): Null<String> {
 		if (versions.length < 2) return null;
-		final startedStr = versions[versions.length - 1].timestamp;
+		final startedStr = versions[versions.length - 1].timeReceived;
 
 		return switch (callStatus()) {
 		case "finish":
-			final endedStr = versions[0].timestamp;
+			final endedStr = versions[0].timeReceived;
 			if (startedStr == null || endedStr == null) return null;
 			final started = DateTime.fromString(startedStr);
 			final ended = DateTime.fromString(endedStr);

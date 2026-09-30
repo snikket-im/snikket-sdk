@@ -1533,7 +1533,7 @@ class Client extends EventEmitter {
 						persistence.removeMedia(hash.algorithm, hash.hash);
 					}
 				}
-				moderateMessage = ChatMessageBuilder.makeModerated(moderateMessage, action.timestamp, action.moderatorId, action.reason);
+				moderateMessage = ChatMessageBuilder.makeModerated(moderateMessage, action.timeSent, action.timeReceived, action.moderatorId, action.reason);
 				persistence.updateMessage(accountId(), moderateMessage);
 				resolve(moderateMessage);
 			})
@@ -1989,7 +1989,7 @@ class Client extends EventEmitter {
 	private function sortChats() {
 		chats.sort((a, b) -> {
 			if (a.uiState == b.uiState) {
-				final tcompare = -Reflect.compare(a.lastMessage?.timestamp ?? "0", b.lastMessage?.timestamp ?? "0");
+				final tcompare = -Reflect.compare(a.lastMessage?.timeReceived ?? "0", b.lastMessage?.timeReceived ?? "0");
 				if (tcompare != 0) return tcompare;
 				return Reflect.compare(a.getDisplayName(), b.getDisplayName());
 			} else {
@@ -2047,7 +2047,7 @@ class Client extends EventEmitter {
 
 		persistence.getMessagesByStatus(accountId(), MessagePending).then(messages -> {
 			for (m in messages.filter(m -> m.type != MessageCall)) {
-				if (m.timestamp < tooOld) {
+				if (m.timeSent < tooOld) {
 					persistence.updateMessageStatus(accountId(), m.localId, MessageFailedToSend, "Message too old to auto-resend").then(newM -> {
 						notifyMessageHandlers(newM, StatusEvent);
 					});
@@ -2060,7 +2060,7 @@ class Client extends EventEmitter {
 						stanza.textTag("delay", "Resending after reconnect", {
 							xmlns: "urn:xmpp:delay",
 							from: accountId(),
-							stamp: m.timestamp
+							stamp: m.timeSent
 						});
 						// TODO: don't know if was originally send with OMEMO
 						chat.sendMessageStanza(stanza);

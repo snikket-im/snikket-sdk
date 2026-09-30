@@ -61,7 +61,6 @@ private function mkCallMessage(to: JID, client: Client, event: Stanza) {
 	m.replyTo = [m.sender];
 	m.direction = MessageSent;
 	m.setBody(Html.text("call " + event.name));
-	m.timestamp = Date.format(std.Date.now());
 	m.payloads.push(event);
 	m.localId = ID.unique();
 	if (event.name != "propose") {

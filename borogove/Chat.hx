@@ -1274,7 +1274,8 @@ class DirectChat extends Chat {
 	}
 
 	private function prepareOutgoingMessage(message:ChatMessageBuilder) {
-		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
+		message.timeSent = message.timeSent ?? Date.format(std.Date.now());
+		message.timeReceived = Date.format(std.Date.now());
 		message.direction = MessageSent;
 		message.from = client.jid;
 		message.sender = message.from.asBare();
@@ -1970,7 +1971,7 @@ class Channel extends Chat {
 					}
 
 					// Sort by time so that eg edits go into the past
-					dedupedMessages.sort((x, y) -> Reflect.compare(x.timestamp, y.timestamp));
+					dedupedMessages.sort((x, y) -> Reflect.compare(x.timeReceived, y.timeReceived));
 
 					final readIndex = dedupedMessages.findLastIndex((m) -> m.serverId == readUpToId || !m.isIncoming());
 					if (readIndex < 0) {
@@ -2348,7 +2349,8 @@ class Channel extends Chat {
 
 	private function prepareOutgoingMessage(message:ChatMessageBuilder) {
 		message.type = MessageChannel;
-		message.timestamp = message.timestamp ?? Date.format(std.Date.now());
+		message.timeSent = message.timeSent ?? Date.format(std.Date.now());
+		message.timeReceived = Date.format(std.Date.now());
 		message.direction = MessageSent;
 		message.from = client.jid;
 		message.senderId = self?.id ?? getFullJid().asString(); // TODO: what if we aren't joined and self is null and this is an occupant id room?

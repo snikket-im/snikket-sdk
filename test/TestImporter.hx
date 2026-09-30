@@ -83,7 +83,7 @@ class TestImporter extends utest.Test {
 				Assert.equals("Hello Romeo", chatMsg.body().toPlainText());
 				Assert.equals("mam-id-1", chatMsg.serverId);
 				Assert.equals("juliet@capulet.com", chatMsg.serverIdBy);
-				Assert.equals("2023-10-26T09:00:00Z", chatMsg.timestamp);
+				Assert.equals("2023-10-26T09:00:00Z", chatMsg.timeSent);
 				Assert.equals("2023-10-27T10:00:00Z", chatMsg.debug.serverReceivedAt);
 				Assert.equals("import", chatMsg.debug.source);
 				Assert.isFalse(chatMsg.isIncoming());
@@ -169,15 +169,15 @@ class TestImporter extends utest.Test {
 		Assert.equals(3, items.length);
 
 		switch (items[0].parsed) {
-			case ChatMessageStanza(m): Assert.equals("2023-10-27T10:00:00.001Z", m.timestamp);
+			case ChatMessageStanza(m): Assert.equals("2023-10-27T10:00:00.001Z", m.timeReceived);
 			default: Assert.fail();
 		}
 		switch (items[1].parsed) {
-			case ChatMessageStanza(m): Assert.equals("2023-10-27T10:00:00.002Z", m.timestamp);
+			case ChatMessageStanza(m): Assert.equals("2023-10-27T10:00:00.002Z", m.timeReceived);
 			default: Assert.fail();
 		}
 		switch (items[2].parsed) {
-			case ChatMessageStanza(m): Assert.equals("2023-10-27T10:00:01.001Z", m.timestamp);
+			case ChatMessageStanza(m): Assert.equals("2023-10-27T10:00:01.001Z", m.timeReceived);
 			default: Assert.fail();
 		}
 	}

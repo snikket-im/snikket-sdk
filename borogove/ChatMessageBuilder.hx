@@ -59,9 +59,19 @@ class ChatMessageBuilder {
 	private var replyId: Null<String> = null;
 
 	/**
-		The timestamp of this message, in format YYYY-MM-DDThh:mm:ss[.sss]+00:00
+		The timestamp this message was sent, in format YYYY-MM-DDThh:mm:ss[.sss]Z
+
+		If the exact time is not known, the received time may be used
 	**/
-	public var timestamp: Null<String> = null;
+	public var timeSent: Null<String> = null;
+
+	/**
+		The timestamp this message was received, in format YYYY-MM-DDThh:mm:ss[.sss]Z
+
+		This will be the time received by our server, if known, or the time
+		received at the client otherwise.
+	**/
+	public var timeReceived: Null<String> = null;
 
 	@:allow(borogove)
 	private var to: Null<JID> = null;
@@ -176,7 +186,8 @@ class ChatMessageBuilder {
 		?type: MessageType,
 		?syncPoint: Bool,
 		?replyId: Null<String>,
-		?timestamp: String,
+		?timeSent: String,
+		?timeReceived: String,
 		?senderId: String,
 		?replyToMessage: Null<ChatMessage>,
 		?threadId: Null<String>,
@@ -199,7 +210,8 @@ class ChatMessageBuilder {
 		this.type = params?.type ?? MessageChat;
 		this.syncPoint = params?.syncPoint ?? false;
 		this.replyId = params?.replyId;
-		this.timestamp = params?.timestamp;
+		this.timeSent = params?.timeSent;
+		this.timeReceived = params?.timeReceived;
 		this.senderId = params?.senderId;
 		this.replyToMessage = params?.replyToMessage;
 		this.threadId = params?.threadId;
@@ -232,7 +244,8 @@ class ChatMessageBuilder {
 		builder.type = m.type;
 		builder.syncPoint = m.syncPoint;
 		builder.replyId = m.replyId;
-		builder.timestamp = m.timestamp;
+		builder.timeSent = m.timeSent;
+		builder.timeReceived = m.timeReceived;
 		builder.to = m.to;
 		builder.from = m.from;
 		builder.senderId = m.senderId;
@@ -257,7 +270,7 @@ class ChatMessageBuilder {
 	}
 
 	@:allow(borogove)
-	private static function makeModerated(m: ChatMessage, timestamp: String, moderatorId: Null<String>, reason: Null<String>) {
+	private static function makeModerated(m: ChatMessage, timeSent: String, timeReceived: String, moderatorId: Null<String>, reason: Null<String>) {
 		final builder = new ChatMessageBuilder();
 		builder.localId = m.localId;
 		builder.serverId = m.serverId;
@@ -266,7 +279,8 @@ class ChatMessageBuilder {
 		builder.type = m.type;
 		builder.syncPoint = m.syncPoint;
 		builder.replyId = m.replyId;
-		builder.timestamp = m.timestamp;
+		builder.timeSent = m.timeSent;
+		builder.timeReceived = m.timeReceived;
 		builder.to = m.to;
 		builder.from = m.from;
 		builder.senderId = m.senderId;
@@ -279,13 +293,13 @@ class ChatMessageBuilder {
 		builder.direction = m.direction;
 		builder.status = m.status;
 		final cleanedStub = builder.build();
-		final payload = new Stanza("retracted", { xmlns: "urn:xmpp:message-retract:1", stamp: timestamp });
+		final payload = new Stanza("retracted", { xmlns: "urn:xmpp:message-retract:1", stamp: timeSent });
 		if (reason != null) payload.textTag("reason", reason);
 		payload.tag("moderated", { by: moderatorId, xmlns: "urn:xmpp:message-moderate:1" }).up();
 		builder.payloads.push(payload);
-		builder.timestamp = timestamp;
+		builder.timeSent = timeSent;
+		builder.timeReceived = timeReceived;
 		builder.versions = [builder.build(), cleanedStub];
-		builder.timestamp = m.timestamp;
 		return builder.build();
 	}
 
@@ -405,7 +419,8 @@ class ChatMessageBuilder {
 			type: type,
 			syncPoint: syncPoint,
 			replyId: replyId,
-			timestamp: timestamp ?? Date.format(std.Date.now()),
+			timeReceived: timeReceived ?? Date.format(std.Date.now()),
+			timeSent: timeSent ?? timeReceived ?? Date.format(std.Date.now()),
 			to: to,
 			from: from,
 			senderId: senderId,

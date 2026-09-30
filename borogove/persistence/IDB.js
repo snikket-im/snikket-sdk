@@ -454,6 +454,12 @@ export default async (dbname, media, tokenize, stemmer) => {
 		return newMap;
 	}
 
+	function toISOString(dateOrNothing) {
+		if (!dateOrNothing) return dateOrNothing;
+
+		return dateOrNothing.toISOString();
+	}
+
 	function hydrateMessageSync(value) {
 		if (!value) return null;
 
@@ -467,7 +473,8 @@ export default async (dbname, media, tokenize, stemmer) => {
 		message.direction = value.direction;
 		message.status = value.status;
 		message.statusText = value.statusText;
-		message.timestamp = value.timestamp && value.timestamp.toISOString();
+		message.timeSent = toISOString(value.timeSent || value.timestamp);
+		message.timeReceived = toISOString(value.timeReceived || value.timestamp);
 		message.from = value.from && borogove_JID.parse(value.from);
 		message.sender = value.sender && borogove_JID.parse(value.sender);
 		message.senderId = value.senderId;
@@ -489,7 +496,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 		);
 		message.debug = value.debug ?? null;
 		message.linkMetadata = value.linkMetadata ?? [];
-		message.reactions = hydrateReactions(value.reactions, message.timestamp);
+		message.reactions = hydrateReactions(value.reactions, message.timeSent);
 		message.text = value.text;
 		message.lang = value.lang;
 		message.type =
@@ -572,7 +579,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 			senderId: message.senderId,
 			recipients: message.recipients.map((r) => r.asString()),
 			replyTo: message.replyTo.map((r) => r.asString()),
-			timestamp: new Date(message.timestamp),
+			timeReceived: undefined, // We store it as timestamp for now
+			timestamp: new Date(message.timeReceived),
+			timeSent: new Date(message.timeSent),
 			replyToMessage: message.replyToMessage && [
 				account,
 				message.replyToMessage.serverId || "",
@@ -620,7 +629,8 @@ export default async (dbname, media, tokenize, stemmer) => {
 		head.localId = outer.localId;
 		head.replyId = outer.replyId;
 		// Edited version is not newer
-		head.timestamp = new Date(outer.timestamp);
+		head.timestamp = outer.timestamp ?? new Date(outer.timeReceived);
+		head.timeSent = new Date(outer.timeSent);
 		head.sortId = outer.sortId;
 		head.versions = versions;
 		head.reactions = outer.reactions; // Preserve these, edit doesn't touch them
@@ -1351,7 +1361,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 						reactionResult.value.localId,
 						message.chatId(),
 						message.senderId,
-						message.timestamp,
+						message.timeSent,
 						reactions,
 						enums.borogove_ReactionUpdateKind.CompleteReactions,
 					),
@@ -1487,7 +1497,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 							.openCursor(
 								IDBKeyRange.bound(
 									[account, chatId],
-									[account, chatId, new Date(before.timestamp)],
+									[account, chatId, new Date(before.timeReceived)],
 								),
 								"prev",
 							)
@@ -1507,7 +1517,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			);
 
 			if (messages.length > 0 && messages[0].serverIdBy === chatId) {
-				const earliest = new Date(messages[messages.length - 1].timestamp);
+				const earliest = new Date(messages[messages.length - 1].timeReceived);
 				const tx = db.transaction(["messages"], "readonly");
 				const store = tx.objectStore("messages");
 				const pmCursor = store
@@ -1515,7 +1525,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 					.openCursor(
 						IDBKeyRange.bound(
 							[account, chatId],
-							[account, chatId, before ? new Date(before.timestamp) : []],
+							[account, chatId, before ? new Date(before.timeReceived) : []],
 						),
 						"prev",
 					);
@@ -1537,7 +1547,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 				const pms = await Promise.all(promisePMs);
 				for (const pm of pms) {
-					const idx = messages.findIndex((m) => m.timestamp <= pm.timestamp);
+					const idx = messages.findIndex(
+						(m) => m.timeReceived <= pm.timeReceived,
+					);
 					if (idx >= 0) messages.splice(idx, 0, pm);
 				}
 			}
@@ -1553,7 +1565,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const bound = after
 				? [
 						after?.type === enums.borogove_MessageType.MessageChannelPrivate
-							? new Date(after.timestamp)
+							? new Date(after.timeReceived)
 							: after.sortId,
 					]
 				: [];
@@ -1572,14 +1584,18 @@ export default async (dbname, media, tokenize, stemmer) => {
 			);
 
 			if (messages.length > 0 && messages[0].serverIdBy === chatId) {
-				const latest = new Date(messages[messages.length - 1].timestamp);
+				const latest = new Date(messages[messages.length - 1].timeReceived);
 				const tx = db.transaction(["messages"], "readonly");
 				const store = tx.objectStore("messages");
 				const pmCursor = store
 					.index("chats")
 					.openCursor(
 						IDBKeyRange.bound(
-							[account, chatId, ...(after ? [new Date(after.timestamp)] : [])],
+							[
+								account,
+								chatId,
+								...(after ? [new Date(after.timeReceived)] : []),
+							],
 							[account, chatId, []],
 						),
 						"next",
@@ -1604,7 +1620,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 
 				const pms = await Promise.all(promisePMs);
 				for (const pm of pms) {
-					const idx = messages.findLastIndex((m) => m.timestamp < pm.timestamp);
+					const idx = messages.findLastIndex(
+						(m) => m.timeReceived < pm.timeReceived,
+					);
 					if (idx >= 0) messages.splice(idx + 1, 0, pm);
 				}
 			}
@@ -1720,7 +1738,11 @@ export default async (dbname, media, tokenize, stemmer) => {
 			}
 
 			return result.sort((a, b) =>
-				a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
+				a.timeReceived < b.timeReceived
+					? -1
+					: a.timeReceived > b.timeReceived
+						? 1
+						: 0,
 			);
 		},
 

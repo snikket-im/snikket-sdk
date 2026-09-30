@@ -142,10 +142,10 @@ class TestClient extends utest.Test {
 		client.checkForResends();
 	}
 
-	private function pendingMessage(localId: String, timestamp: String): ChatMessage {
+	private function pendingMessage(localId: String, timeSent: String): ChatMessage {
 		final builder = new ChatMessageBuilder();
 		builder.localId = localId;
-		builder.timestamp = timestamp;
+		builder.timeSent = timeSent;
 		builder.senderId = "test@example.com";
 		builder.from = JID.parse("test@example.com");
 		builder.to = JID.parse("friend@example.com");
@@ -311,7 +311,7 @@ class TestClient extends utest.Test {
 		final originalMessage = builder.build();
 
 		persistence.storeMessages(client.accountId(), [originalMessage]).then((_) -> {
-			final action = new ModerationAction(chatId, serverId, "2023-01-01T00:00:00Z", "mod@example.com", "Spam");
+			final action = new ModerationAction(chatId, serverId, "2023-01-01T00:00:00Z", "2023-01-01T00:00:00Z", "mod@example.com", "Spam");
 
 			client.moderateMessage(action).then((moderatedMessage) -> {
 				Assert.notNull(moderatedMessage);
@@ -337,7 +337,7 @@ class TestClient extends utest.Test {
 		final originalMessage = builder.build();
 
 		persistence.storeMessages(client.accountId(), [originalMessage]).then((_) -> {
-			final action = new ModerationAction(chatId, serverId, "2023-01-01T00:00:00Z", "mod@example.com", null);
+			final action = new ModerationAction(chatId, serverId, "2023-01-01T00:00:00Z", "2023-01-01T00:00:00Z", "mod@example.com", null);
 
 			client.moderateMessage(action).then((moderatedMessage) -> {
 				Assert.notNull(moderatedMessage);
@@ -364,7 +364,7 @@ class TestClient extends utest.Test {
 		builder.to = JID.parse("test@example.com");
 		builder.senderId = "alice@example.com";
 		builder.text = "hello";
-		builder.timestamp = "2023-01-01T00:00:00Z";
+		builder.timeReceived = "2023-01-01T00:00:00Z";
 		builder.sortId = "1";
 		builder.direction = MessageReceived;
 		final originalMessage = builder.build();

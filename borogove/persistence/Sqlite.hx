@@ -374,6 +374,18 @@ class Sqlite implements Persistence implements KeyValueStore {
 							"PRAGMA user_version = 23"]);
 					}
 					return Promise.resolve(null);
+				}).then(_ -> {
+					if (version < 24) {
+						return exec(["DROP INDEX messages_created_at",
+							"DROP INDEX messages_status",
+							"ALTER TABLE messages RENAME COLUMN created_at TO time_sent",
+							"ALTER TABLE messages ADD COLUMN time_received INTEGER", // should be NOT NULL ideally
+							"CREATE INDEX messages_time_received ON messages (account_id, chat_id, time_received)",
+							"CREATE INDEX messages_status ON messages (account_id, status, time_received)",
+							"UPDATE messages SET time_received=time_sent", // They're all NOT NULL now but sqlite won't let us change it
+							"PRAGMA user_version = 24"]);
+					}
+					return Promise.resolve(null);
 				});
 			});
 		});
@@ -924,9 +936,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 		var q = "WITH page AS (SELECT stanza_id, mam_id FROM messages where account_id=? AND chat_id=? AND (stanza_id IS NULL OR stanza_id='' OR stanza_id=correction_id) AND type<>?";
 		final params: Array<Dynamic> = [accountId, chatId, MessageChannelPrivate];
 		if (useTimestamp) {
-			q += " AND messages.created_at " + op + " unixepoch(?, 'subsec') * 1000";
+			q += " AND messages.time_received " + op + " unixepoch(?, 'subsec') * 1000";
 			params.push(timestamp);
-			q += " ORDER BY messages.created_at";
+			q += " ORDER BY messages.time_received";
 		} else if (sortId != null) {
 			q += " AND messages.sort_id " + op + " ?";
 			params.push(sortId);
@@ -949,7 +961,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		';
 		q += " ORDER BY messages.sort_id";
 		if (op == "<" || op == "<=") q += " DESC";
-		q += ", messages.created_at";
+		q += ", messages.time_received";
 		if (op == "<" || op == "<=") q += " DESC";
 
 		params.push(accountId);
@@ -959,7 +971,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		return db.exec(q, params).then(result -> {
 			final messages = hydrateMessages(accountId, result);
 			if (messages.length > 0 && messages[0].serverIdBy == chatId) {
-				final boundary = messages[messages.length - 1].timestamp;
+				final boundary = messages[messages.length - 1].timeReceived;
 				var pmQ = '
 					SELECT
 						${messageColumnsString()}
@@ -969,18 +981,18 @@ class Sqlite implements Persistence implements KeyValueStore {
 				final pmParams: Array<Dynamic> = [accountId, chatId, MessageChannelPrivate];
 
 				if (timestamp != null) {
-					pmQ += " AND messages.created_at " + op + " unixepoch(?, 'subsec') * 1000";
+					pmQ += " AND messages.time_received " + op + " unixepoch(?, 'subsec') * 1000";
 					pmParams.push(timestamp);
 				}
 
 				if (op == "<" || op == "<=") {
-					pmQ += " AND messages.created_at > unixepoch(?, 'subsec') * 1000";
+					pmQ += " AND messages.time_received > unixepoch(?, 'subsec') * 1000";
 					pmParams.push(boundary);
 				} else {
 					// We don't want to limit by timestamp in SQL because we want any PMs coming after the end but before the next message
 				}
 
-				pmQ += " ORDER BY messages.created_at";
+				pmQ += " ORDER BY messages.time_received";
 				if (op == "<" || op == "<=") q += " DESC";
 				pmQ += " LIMIT 50";
 
@@ -988,19 +1000,19 @@ class Sqlite implements Persistence implements KeyValueStore {
 					final pms = hydrateMessages(accountId, pmResult);
 					for (pm in pms) {
 						if (op == "<" || op == "<=") {
-							final idx = messages.findIndex(m -> m.timestamp <= pm.timestamp);
+							final idx = messages.findIndex(m -> m.timeReceived <= pm.timeReceived);
 							if (idx >= 0) messages.insert(idx, pm);
 						} else {
 							var idx = messages.length - 1;
 							while (idx >= 0) {
-								if (messages[idx].timestamp < pm.timestamp) {
+								if (messages[idx].timeReceived < pm.timeReceived) {
 									break;
 								}
 								idx--;
 							}
 							if (idx >= 0) messages.insert(idx + 1, pm);
 
-							if (pm.timestamp > boundary) break;
+							if (pm.timeReceived > boundary) break;
 						}
 					}
 					return messages;
@@ -1017,20 +1029,20 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	@HaxeCBridge.noemit
 	public function getMessagesBefore(accountId: String, chatId: String, before: Null<ChatMessage>): Promise<Array<ChatMessage>> {
-		return getMessages(accountId, chatId, before?.sortId, "<", before?.type == MessageChannelPrivate, before?.timestamp);
+		return getMessages(accountId, chatId, before?.sortId, "<", before?.type == MessageChannelPrivate, before?.timeReceived);
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesAfter(accountId: String, chatId: String, after: Null<ChatMessage>): Promise<Array<ChatMessage>> {
-		return getMessages(accountId, chatId, after?.sortId, ">", after?.type == MessageChannelPrivate, after?.timestamp);
+		return getMessages(accountId, chatId, after?.sortId, ">", after?.type == MessageChannelPrivate, after?.timeReceived);
 	}
 
 	@HaxeCBridge.noemit
 	public function getMessagesAround(accountId: String, around: ChatMessage): Promise<Array<ChatMessage>> {
 		final chatId = around.chatId();
 		return thenshim.PromiseTools.all([
-			getMessages(accountId, chatId, around.sortId, "<", around?.type == MessageChannelPrivate, around?.timestamp),
-			getMessages(accountId, chatId, around.sortId, ">=", around?.type == MessageChannelPrivate, around?.timestamp)
+			getMessages(accountId, chatId, around.sortId, "<", around?.type == MessageChannelPrivate, around?.timeReceived),
+			getMessages(accountId, chatId, around.sortId, ">=", around?.type == MessageChannelPrivate, around?.timeReceived)
 		]).then(results -> results.flatten());
 	}
 
@@ -1042,7 +1054,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					${messageColumnsString()}
 				FROM messages
 				WHERE account_id=? AND status=?
-				ORDER BY created_at
+				ORDER BY time_received
 			',
 			[accountId, status]
 		).then(result -> hydrateMessagesAndLoadMeta(accountId, result));
@@ -1464,7 +1476,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 		accountId: String,
 		rows: Iterator<{
 			stanza: String,
-			timestamp: String,
+			time_sent: String,
+			time_received: String,
 			direction: MessageDirection,
 			type: MessageType,
 			status: MessageStatus,
@@ -1503,7 +1516,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 		accountId: String,
 		rows: Iterator<{
 			stanza: String,
-			timestamp: String,
+			time_sent: String,
+			time_received: String,
 			direction: MessageDirection,
 			type: MessageType,
 			status: MessageStatus,
@@ -1523,7 +1537,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 		final accountJid = JID.parse(accountId);
 		return { iterator: () -> rows }.map(row -> ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid, (builder, _) -> {
 			builder.syncPoint = row.sync_point != 0;
-			builder.timestamp = row.timestamp;
+			builder.timeSent = row.time_sent;
+			builder.timeReceived = row.time_received;
 			builder.type = row.type;
 			builder.status = row.status;
 			builder.statusText = row.status_text;
@@ -1541,7 +1556,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 			if (row.stanza_id != null && row.stanza_id != "") builder.localId = row.stanza_id;
 			if (row.versions != null) {
 				final versions: DynamicAccess<{
-					timestamp: String,
+					time_sent: String,
+					time_received: String,
 					sort_id: String,
 					stanza: String,
 					encryption: Dynamic,
@@ -1552,7 +1568,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 					for (versionId => version in versions) {
 						final versionM = ChatMessage.fromStanza(Stanza.parse(version.stanza), accountJid, (toPushB, _) -> {
 							if (toPushB.serverId == null && versionId != toPushB.localId) toPushB.serverId = versionId;
-							toPushB.timestamp = version.timestamp;
+							toPushB.timeSent = version.time_sent;
+							toPushB.timeReceived = version.time_received;
 							toPushB.sortId = version.sort_id;
 							toPushB.debug = version.debug;
 							return toPushB;
@@ -1562,7 +1579,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 							builder.versions.push(toPush);
 						}
 					}
-					builder.versions.sort((a, b) -> Reflect.compare(b.timestamp, a.timestamp));
+					builder.versions.sort((a, b) -> Reflect.compare(b.timeReceived, a.timeReceived));
 				}
 			}
 			return builder;
@@ -1813,7 +1830,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 			col("type"),
 			col("status"),
 			col("status_text"),
-			col("timestamp", "strftime('%FT%H:%M:%fZ', created_at / 1000.0, 'unixepoch') AS timestamp"),
+			col("time_sent", "strftime('%FT%H:%M:%fZ', time_sent / 1000.0, 'unixepoch') AS time_sent"),
+			col("time_received", "strftime('%FT%H:%M:%fZ', time_received / 1000.0, 'unixepoch') AS time_received"),
 			col("sender_id"),
 			col("mam_id"),
 			col("mam_by"),
@@ -1839,7 +1857,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 				ELSE versions.mam_id
 			END,
 			json_object(
-				'timestamp', strftime('%FT%H:%M:%fZ', versions.created_at / 1000.0, 'unixepoch'),
+				'time_sent', strftime('%FT%H:%M:%fZ', versions.time_sent / 1000.0, 'unixepoch'),
+				'time_received', strftime('%FT%H:%M:%fZ', versions.time_received / 1000.0, 'unixepoch'),
 				'sort_id', versions.sort_id,
 				'stanza', versions.stanza,
 				'encryption', json(versions.encryption),
@@ -1850,13 +1869,14 @@ class Sqlite implements Persistence implements KeyValueStore {
 		messages.type,
 		messages.status,
 		messages.status_text,
-		strftime('%FT%H:%M:%fZ', messages.created_at / 1000.0, 'unixepoch') AS timestamp,
+		strftime('%FT%H:%M:%fZ', messages.time_sent / 1000.0, 'unixepoch') AS time_sent,
+		strftime('%FT%H:%M:%fZ', messages.time_received / 1000.0, 'unixepoch') AS time_received,
 		messages.sender_id,
 		messages.mam_id,
 		messages.mam_by,
 		messages.sort_id,
 		messages.sync_point,
-		MAX(versions.created_at),
+		MAX(versions.time_received),
 		json(versions.encryption) AS encryption,
 		json(versions.debug) AS debug,
 		versions.stanza";
@@ -1883,7 +1903,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 			insertCol("sync_point", (m) -> m.syncPoint),
 			insertCol("chat_id", (m) -> m.chatId()),
 			insertCol("sender_id", (m) -> m.senderId),
-			insertCol("created_at", (m) -> originalMessage(m).timestamp, "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)"),
+			insertCol("time_sent", (m) -> originalMessage(m).timeSent, "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)"),
+			insertCol("time_received", (m) -> originalMessage(m).timeReceived, "CAST(unixepoch(?, 'subsec') * 1000 AS INTEGER)"),
 			insertCol("status", (m) -> originalMessage(m).status),
 			insertCol("direction", (m) -> originalMessage(m).direction),
 			insertCol("type", (m) -> originalMessage(m).type),
