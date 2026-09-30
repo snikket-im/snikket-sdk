@@ -2046,7 +2046,7 @@ class Client extends EventEmitter {
 		);
 
 		persistence.getMessagesByStatus(accountId(), MessagePending).then(messages -> {
-			for (m in messages) {
+			for (m in messages.filter(m -> m.type != MessageCall)) {
 				if (m.timestamp < tooOld) {
 					persistence.updateMessageStatus(accountId(), m.localId, MessageFailedToSend, "Message too old to auto-resend").then(newM -> {
 						notifyMessageHandlers(newM, StatusEvent);
