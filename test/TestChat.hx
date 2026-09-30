@@ -14,6 +14,7 @@ import borogove.Caps.Identity;
 import borogove.Member;
 import borogove.Role;
 import thenshim.Promise;
+using Lambda;
 
 @:access(borogove)
 class TestChat extends utest.Test {
@@ -53,6 +54,125 @@ class TestChat extends utest.Test {
 		});
 
 		chat.bookmark();
+	}
+
+	public function testChannelBookmark(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final channel = new Channel(client, client.stream, persistence, "channel@example.com");
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
+				final pubsub = stanza.getChild("pubsub", "http://jabber.org/protocol/pubsub");
+				if (pubsub != null) {
+					final publish = pubsub.getChild("publish");
+					Assert.notNull(publish);
+					Assert.equals("urn:xmpp:bookmarks:1", publish.attr.get("node"));
+					Assert.isNull(publish.getChild("publish-options"), "publish-options must not be a child of publish");
+
+					final item = publish.getChild("item");
+					Assert.notNull(item);
+					Assert.equals("channel@example.com", item.attr.get("id"));
+
+					final conference = item.getChild("conference", "urn:xmpp:bookmarks:1");
+					Assert.notNull(conference);
+					Assert.equals("channel@example.com", conference.attr.get("name"));
+					Assert.equals("true", conference.attr.get("autojoin"));
+					Assert.equals("test", conference.getChildText("nick"));
+
+					final publishOptions = pubsub.getChild("publish-options");
+					Assert.notNull(publishOptions, "publish-options must be a child of pubsub");
+
+					final x = publishOptions.getChild("x", "jabber:x:data");
+					Assert.notNull(x);
+					Assert.equals("submit", x.attr.get("type"));
+
+					final fields = x.allTags("field");
+					final formType = fields.find(f -> f.attr.get("var") == "FORM_TYPE");
+					Assert.notNull(formType);
+					Assert.equals("http://jabber.org/protocol/pubsub#publish-options", formType.getChildText("value"));
+
+					final persistItems = fields.find(f -> f.attr.get("var") == "pubsub#persist_items");
+					Assert.notNull(persistItems);
+					Assert.equals("true", persistItems.getChildText("value"));
+
+					final maxItems = fields.find(f -> f.attr.get("var") == "pubsub#max_items");
+					Assert.notNull(maxItems);
+					Assert.equals("max", maxItems.getChildText("value"));
+
+					final sendLast = fields.find(f -> f.attr.get("var") == "pubsub#send_last_published_item");
+					Assert.notNull(sendLast);
+					Assert.equals("never", sendLast.getChildText("value"));
+
+					final accessModel = fields.find(f -> f.attr.get("var") == "pubsub#access_model");
+					Assert.notNull(accessModel);
+					Assert.equals("whitelist", accessModel.getChildText("value"));
+
+					final notifyDelete = fields.find(f -> f.attr.get("var") == "pubsub#notify_delete");
+					Assert.notNull(notifyDelete);
+					Assert.equals("true", notifyDelete.getChildText("value"));
+
+					final notifyRetract = fields.find(f -> f.attr.get("var") == "pubsub#notify_retract");
+					Assert.notNull(notifyRetract);
+					Assert.equals("true", notifyRetract.getChildText("value"));
+
+					async.done();
+					return EventHandled;
+				}
+			}
+			return EventUnhandled;
+		});
+
+		channel.bookmark();
+	}
+
+	public function testChannelBookmarkPreconditionNotMet(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final channel = new Channel(client, client.stream, persistence, "channel@example.com");
+
+		var step = 0;
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
+				if (step == 0) {
+					final pubsub = stanza.getChild("pubsub", "http://jabber.org/protocol/pubsub");
+					if (pubsub != null && pubsub.getChild("publish") != null) {
+						step = 1;
+						final id = stanza.attr.get("id");
+						client.stream.onStanza(
+							new Stanza("iq", { xmlns: "jabber:client", type: "error", id: id })
+								.tag("error", { type: "cancel" })
+								.tag("precondition-not-met", { xmlns: "http://jabber.org/protocol/pubsub#errors" })
+								.up().up()
+						);
+						return EventHandled;
+					}
+				} else if (step == 1) {
+					final owner = stanza.getChild("pubsub", "http://jabber.org/protocol/pubsub#owner");
+					if (owner != null) {
+						step = 2;
+						final configure = owner.getChild("configure");
+						Assert.notNull(configure);
+						Assert.equals("urn:xmpp:bookmarks:1", configure.attr.get("node"));
+						Assert.notNull(configure.getChild("x", "jabber:x:data"));
+						final id = stanza.attr.get("id");
+						client.stream.onStanza(
+							new Stanza("iq", { xmlns: "jabber:client", type: "result", id: id })
+						);
+						return EventHandled;
+					}
+				} else if (step == 2) {
+					final pubsub = stanza.getChild("pubsub", "http://jabber.org/protocol/pubsub");
+					if (pubsub != null && pubsub.getChild("publish") != null) {
+						async.done();
+						return EventHandled;
+					}
+				}
+			}
+			return EventUnhandled;
+		});
+
+		channel.bookmark();
 	}
 
 	public function testGetMessagesBeforeNull(async: Async) {

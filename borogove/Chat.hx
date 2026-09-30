@@ -2528,17 +2528,16 @@ class Channel extends Chat {
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function bookmark() {
 		if (uiState == Invited) uiState = Open;
-		stream.sendIq(
+
+		client.publishWithOptions(
 			new Stanza("iq", { type: "set" })
 				.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub" })
 				.tag("publish", { node: "urn:xmpp:bookmarks:1" })
 				.tag("item", { id: chatId })
 				.tag("conference", { xmlns: "urn:xmpp:bookmarks:1", name: getDisplayName(), autojoin: uiState == Closed || uiState == Invited ? "false" : "true" })
 				.textTag("nick", client.displayName()) // Redundant but some other clients want it
-				.addChild(extensions)
-				.up().up()
-				.tag("publish-options")
-				.tag("x", { xmlns: "jabber:x:data", type: "submit" })
+				.addChild(extensions),
+			new Stanza("x", { xmlns: "jabber:x:data", type: "submit" })
 				.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
 				.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
 				.tag("field", { "var": "pubsub#max_items" }).textTag("value", "max").up()
@@ -2546,34 +2545,6 @@ class Channel extends Chat {
 				.tag("field", { "var": "pubsub#access_model" }).textTag("value", "whitelist").up()
 				.tag("field", { "var": "pubsub#notify_delete" }).textTag("value", "true").up()
 				.tag("field", { "var": "pubsub#notify_retract" }).textTag("value", "true").up()
-				.up().up().up().up(),
-			(response) -> {
-				if (response.attr.get("type") == "error") {
-					final preconditionError = response.getChild("error")?.getChild("precondition-not-met", "http://jabber.org/protocol/pubsub#errors");
-					if (preconditionError != null) {
-						// publish options failed, so force them to be right, what a silly workflow
-						stream.sendIq(
-							new Stanza("iq", { type: "set" })
-								.tag("pubsub", { xmlns: "http://jabber.org/protocol/pubsub#owner" })
-								.tag("configure", { node: "urn:xmpp:bookmarks:1" })
-								.tag("x", { xmlns: "jabber:x:data", type: "submit" })
-								.tag("field", { "var": "FORM_TYPE", type: "hidden" }).textTag("value", "http://jabber.org/protocol/pubsub#publish-options").up()
-								.tag("field", { "var": "pubsub#persist_items" }).textTag("value", "true").up()
-								.tag("field", { "var": "pubsub#max_items" }).textTag("value", "max").up()
-								.tag("field", { "var": "pubsub#send_last_published_item" }).textTag("value", "never").up()
-								.tag("field", { "var": "pubsub#access_model" }).textTag("value", "whitelist").up()
-								.tag("field", { "var": "pubsub#notify_delete" }).textTag("value", "true").up()
-								.tag("field", { "var": "pubsub#notify_retract" }).textTag("value", "true").up()
-								.up().up().up(),
-							(response) -> {
-								if (response.attr.get("type") == "result") {
-									bookmark();
-								}
-							}
-						);
-					}
-				}
-			}
 		);
 	}
 
