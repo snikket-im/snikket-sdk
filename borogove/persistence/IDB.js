@@ -454,10 +454,22 @@ export default async (dbname, media, tokenize, stemmer) => {
 		return newMap;
 	}
 
+	function safeDate(str) {
+		const date = new Date(str);
+		if (isNaN(date.getTime())) {
+			console.error("Trying to store this invalid string as a date", str);
+
+			return undefined;
+		} else {
+			return date;
+		}
+	}
+
 	function toISOString(dateOrNothing) {
 		if (!dateOrNothing) return dateOrNothing;
 
-		return dateOrNothing.toISOString();
+		// toJSON is the same as toISOString except it returns null for invalid
+		return dateOrNothing.toJSON();
 	}
 
 	function hydrateMessageSync(value) {
@@ -473,8 +485,10 @@ export default async (dbname, media, tokenize, stemmer) => {
 		message.direction = value.direction;
 		message.status = value.status;
 		message.statusText = value.statusText;
-		message.timeSent = toISOString(value.timeSent || value.timestamp);
-		message.timeReceived = toISOString(value.timeReceived || value.timestamp);
+		message.timeSent =
+			toISOString(value.timeSent) || toISOString(value.timestamp);
+		message.timeReceived =
+			toISOString(value.timeReceived) || toISOString(value.timestamp);
 		message.from = value.from && borogove_JID.parse(value.from);
 		message.sender = value.sender && borogove_JID.parse(value.sender);
 		message.senderId = value.senderId;
@@ -580,8 +594,8 @@ export default async (dbname, media, tokenize, stemmer) => {
 			recipients: message.recipients.map((r) => r.asString()),
 			replyTo: message.replyTo.map((r) => r.asString()),
 			timeReceived: undefined, // We store it as timestamp for now
-			timestamp: new Date(message.timeReceived),
-			timeSent: new Date(message.timeSent),
+			timestamp: safeDate(message.timeReceived),
+			timeSent: safeDate(message.timeSent),
 			replyToMessage: message.replyToMessage && [
 				account,
 				message.replyToMessage.serverId || "",
@@ -629,8 +643,9 @@ export default async (dbname, media, tokenize, stemmer) => {
 		head.localId = outer.localId;
 		head.replyId = outer.replyId;
 		// Edited version is not newer
-		head.timestamp = outer.timestamp ?? new Date(outer.timeReceived);
-		head.timeSent = new Date(outer.timeSent);
+		head.timestamp = outer.timestamp ?? safeDate(outer.timeReceived);
+		head.timeSent =
+			safeDate(outer.timeSent || head.timestamp) ?? head.timestamp;
 		head.sortId = outer.sortId;
 		head.versions = versions;
 		head.reactions = outer.reactions; // Preserve these, edit doesn't touch them
@@ -1245,7 +1260,7 @@ export default async (dbname, media, tokenize, stemmer) => {
 							? update.reactions
 							: null,
 					messageId: update.serverId || update.localId,
-					timestamp: new Date(update.timestamp),
+					timestamp: safeDate(update.timestamp),
 					account: account,
 				}),
 			);
