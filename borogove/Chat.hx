@@ -1540,6 +1540,10 @@ class Channel extends Chat {
 	@:allow(borogove)
 	private function new(client:Client, stream:GenericStream, persistence:Persistence, chatId:String, uiState = Open, isBookmarked = false, isBlocked = false, extensions = null, readUpToId = null, readUpToBy = null, ?disco: Caps) {
 		super(client, stream, persistence, chatId, uiState, isBookmarked, isBlocked, extensions, readUpToId, readUpToBy);
+		trace(
+			"SYNC: channel inSync",
+			{ reason: "initialize", chatId: chatId, inSync: inSync }
+		);
 		if (disco != null) {
 			this.disco = disco;
 			if (!disco.features.contains("http://jabber.org/protocol/muc")) {
@@ -1604,6 +1608,10 @@ class Channel extends Chat {
 			self = null;
 			outbox.pause();
 			inSync = false;
+			trace(
+				"SYNC: channel inSync",
+				{ reason: "join", chatId: chatId, inSync: inSync }
+			);
 			client.trigger("chats/update", [this]);
 			final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
 			client.sendPresence(
@@ -1882,6 +1890,10 @@ class Channel extends Chat {
 		}
 		if (!disco.features.contains("urn:xmpp:mam:2")) {
 			inSync = true;
+			trace(
+				"SYNC: channel inSync",
+				{ reason: "MAM unsupported", chatId: chatId, inSync: inSync }
+			);
 			return;
 		}
 		if (sync != null) return;
@@ -1958,6 +1970,10 @@ class Channel extends Chat {
 					sync.fetchNext();
 				} else {
 					inSync = true;
+					trace(
+						"SYNC: channel inSync",
+						{ reason: "MAM sync complete", chatId: chatId, inSync: inSync }
+					);
 					sync = null;
 
 					final serverIds: Map<String, Bool> = [];

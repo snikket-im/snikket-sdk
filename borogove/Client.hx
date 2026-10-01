@@ -1102,6 +1102,16 @@ class Client extends EventEmitter {
 				// and will get anything since live
 				for (channel in getChannels()) {
 					channel.inSync = channel.self != null && channel.sortId != null;
+					trace(
+						"SYNC: channel inSync",
+						{
+							reason: "resume from disk",
+							chatId: channel.chatId,
+							inSync: channel.inSync,
+							isJoined: channel.self != null,
+							sortId: channel.sortId,
+						}
+					);
 					if (!channel.inSync) channel.join();
 				}
 				firstSync = false;
