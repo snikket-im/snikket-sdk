@@ -472,6 +472,16 @@ export default async (dbname, media, tokenize, stemmer) => {
 		return dateOrNothing.toJSON();
 	}
 
+	function hydrateJid(jid) {
+		if (typeof jid === "string") {
+			return borogove_JID.parse(jid);
+		} else if (jid) {
+			return new borogove_JID(jid.node, jid.domain, jid.resource, true);
+		} else {
+			return undefined;
+		}
+	}
+
 	function hydrateMessageSync(value) {
 		if (!value) return null;
 
@@ -489,14 +499,12 @@ export default async (dbname, media, tokenize, stemmer) => {
 			toISOString(value.timeSent) || toISOString(value.timestamp);
 		message.timeReceived =
 			toISOString(value.timeReceived) || toISOString(value.timestamp);
-		message.from = value.from && borogove_JID.parse(value.from);
-		message.sender = value.sender && borogove_JID.parse(value.sender);
+		message.from = hydrateJid(value.from);
+		message.sender = hydrateJid(value.sender);
 		message.senderId = value.senderId;
-		message.recipients = value.recipients.map((r) => borogove_JID.parse(r));
-		message.to = value.to
-			? borogove_JID.parse(value.to)
-			: message.recipients[0];
-		message.replyTo = value.replyTo.map((r) => borogove_JID.parse(r));
+		message.recipients = value.recipients.map((r) => hydrateJid(r));
+		message.to = value.to ? hydrateJid(value.to) : message.recipients[0];
+		message.replyTo = value.replyTo.map((r) => hydrateJid(r));
 		message.threadId = value.threadId;
 		message.attachments = (value.attachments ?? []).map(
 			(a) =>
@@ -636,16 +644,15 @@ export default async (dbname, media, tokenize, stemmer) => {
 		}
 		versions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 		const head = { ...versions[0] };
-		const outer = getOuter(result.value, message);
+		const outer = getOuter(result.value, serializeMessage(account, message));
 		// Can't change primary key
 		head.serverIdBy = outer.serverIdBy;
 		head.serverId = outer.serverId;
 		head.localId = outer.localId;
 		head.replyId = outer.replyId;
 		// Edited version is not newer
-		head.timestamp = outer.timestamp ?? safeDate(outer.timeReceived);
-		head.timeSent =
-			safeDate(outer.timeSent || head.timestamp) ?? head.timestamp;
+		head.timestamp = outer.timestamp;
+		head.timeSent = outer.timeSent || head.timestamp;
 		head.sortId = outer.sortId;
 		head.versions = versions;
 		head.reactions = outer.reactions; // Preserve these, edit doesn't touch them
