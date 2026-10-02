@@ -35,12 +35,14 @@ class MessageSync {
 	private final startFilter:MessageFilter;
 	private var sortA:Null<String>;
 	private final sortB:Null<String>;
+	public final startedAt:Float;
 	public var lastPage(default, null):ResultSetPageResult;
 	public var progress(default, null): Int = 0;
 	private var complete:Bool = false;
 	public var jmi(default, null): Map<String, Stanza> = [];
 
 	public function new(client:Client, stream:GenericStream, filter:MessageFilter, sortA: Null<String>, sortB: Null<String>, ?serviceJID:String) {
+		this.startedAt = std.Date.now().getTime();
 		this.client = client;
 		this.stream = stream;
 		this.startFilter = this.filter = Reflect.copy(filter);

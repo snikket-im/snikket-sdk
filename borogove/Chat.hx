@@ -1525,7 +1525,7 @@ class Channel extends Chat {
 	private var inSync = false;
 	@:allow(borogove)
 	private var joinFailed = null;
-	private var sync = null;
+	private var sync: Null<MessageSync> = null;
 	private var forceLive = false;
 	@:allow(borogove)
 	private var self: Null<Member> = null;
@@ -1896,7 +1896,21 @@ class Channel extends Chat {
 			);
 			return;
 		}
-		if (sync != null) return;
+		if (sync != null) {
+			trace(
+				"SYNC: channel doSync skipped, sync already exists",
+				{
+					chatId: chatId,
+					inSync: inSync,
+					startedAt: Date.format(std.Date.fromTime(sync.startedAt)),
+					elapsedMs: std.Date.now().getTime() - sync.startedAt,
+					progress: sync.progress,
+					lastPage: sync.lastPage,
+					hasMore: sync.hasMore(),
+				}
+			);
+			return;
+		}
 
 		// Sort into a window so live messages arriving concurrently can come after
 		final sortFrom = sortA ?? syncPoint?.sortId;
