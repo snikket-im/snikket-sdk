@@ -19,6 +19,11 @@ import HaxeCBridge;
 #end
 class Member {
 	/**
+		A placeholder member suitable for moderated messages
+	**/
+	public static final MODERATED = new Member("\x00moderated", "Moderated", null, false, [], new JID(null, "moderated.invalid"), new Map(), null);
+
+	/**
 		A unique id for this member
 	**/
 	public final id: String;
