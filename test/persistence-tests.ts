@@ -624,6 +624,72 @@ export function sharedPersistenceTests(test) {
 		expect(stored.versions[1].sortId).toBe("a0");
 	});
 
+	test("dedupes unreflected and reflected correction versions when editing our own message", async ({
+		borogove,
+		persistence,
+	}) => {
+		const account = "alice@example.com";
+		const chatId = "room@example.com";
+		const senderId = "room@example.com/alice";
+
+		const builder = new borogove.ChatMessageBuilder({
+			serverId: "orig-srv",
+			serverIdBy: chatId,
+			localId: "orig-loc",
+			senderId,
+			direction: borogove.MessageDirection.MessageSent,
+			timeReceived: "2026-08-26T12:00:00Z",
+		});
+		builder.sortId = "a0";
+		builder.text = "Original message";
+		builder.type = borogove.MessageType.MessageChannel;
+		builder.to = borogove.JID.parse(chatId);
+		builder.from = borogove.JID.parse(senderId);
+		builder.recipients = [builder.to];
+		builder.replyTo = [builder.to];
+		const original = builder.build();
+
+		await persistence.storeMessages(account, [original]);
+
+		// Local edit: store a version with no serverId
+		builder.serverId = null;
+		builder.serverIdBy = null;
+		builder.localId = "edit-loc";
+		builder.text = "Corrected message";
+		builder.timeReceived = "2026-08-26T12:01:00Z";
+		const localVersion = builder.build();
+
+		builder.localId = original.localId;
+		builder.versions = [localVersion];
+		await persistence.storeMessages(account, [builder.build()]);
+
+		// Channel reflects: store a duplicate version that now has a serverId
+		builder.serverId = "edit-srv";
+		builder.serverIdBy = chatId;
+		builder.localId = "edit-loc";
+		builder.versions = [];
+		const reflectedVersion = builder.build();
+
+		builder.localId = original.localId;
+		builder.versions = [reflectedVersion];
+		const [stored] = await persistence.storeMessages(account, [
+			builder.build(),
+		]);
+
+		const [fetched] = await persistence.getMessagesBefore(account, chatId);
+
+		expect(stored.versions.length).toBe(2);
+		expect(stored.versions.map((v) => v.text)).toEqual([
+			"Corrected message",
+			"Original message",
+		]);
+		expect(fetched.versions.length).toBe(2);
+		expect(fetched.versions.map((v) => v.text)).toEqual([
+			"Corrected message",
+			"Original message",
+		]);
+	});
+
 	test("storeReaction", async ({ borogove, persistence }) => {
 		const builder = new borogove.ChatMessageBuilder({
 			serverId: "srv1",
