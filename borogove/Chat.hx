@@ -629,6 +629,13 @@ abstract class Chat extends EventEmitter {
 	}
 
 	/**
+		Has the user ever read this chat?
+	**/
+	public function hasEverRead(): Bool {
+		return readUpToId != null;
+	}
+
+	/**
 		An ID of the last message displayed to the user
 	**/
 	public function readUpTo(): Promise<Null<ChatMessage>> {
