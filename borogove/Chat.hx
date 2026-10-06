@@ -2165,7 +2165,7 @@ class Channel extends Chat {
 	/**
 		List of current voice requests we are aware of
 	**/
-	public function voiceRequests() {
+	public function voiceRequests(): Promise<Array<Member>> {
 		return persistence.listVoiceRequests(client.accountId(), this);
 	}
 
