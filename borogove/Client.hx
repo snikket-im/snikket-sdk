@@ -1128,6 +1128,9 @@ class Client extends EventEmitter {
 		}
 
 		channelPinger.clear();
+		for (channel in getChannels()) {
+			channel.sync = null;
+		}
 
 		// We don't know what any presences are
 		persistence.clearMemberPresence(accountId(), null);

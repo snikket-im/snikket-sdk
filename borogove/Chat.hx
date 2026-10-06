@@ -1516,6 +1516,7 @@ class Channel extends Chat {
 	private var inSync = false;
 	@:allow(borogove)
 	private var joinFailed = null;
+	@:allow(borogove)
 	private var sync: Null<MessageSync> = null;
 	private var forceLive = false;
 	@:allow(borogove)
