@@ -606,7 +606,7 @@ class ChatMessage {
 		@param client Client to use when fetching
 		@returns Promise resolving to a ChatAttachment with cachedAt filled in, if possible
 	**/
-	public function fetchAttachment(attachment: ChatAttachment, client: Client, storeIfNeeded: Bool = true) {
+	public function fetchAttachment(attachment: ChatAttachment, client: Client, storeIfNeeded: Bool = true): Promise<ChatAttachment> {
 		final hasNoHashes = attachment.hashes.length < 1;
 		return client.fetchAttachment(attachment).then(r -> {
 			if (hasNoHashes && r.hashes.length > 0) {
