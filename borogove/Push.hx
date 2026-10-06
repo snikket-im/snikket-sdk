@@ -26,6 +26,10 @@ class Push {
 		@returns a Notification representing the push data
 	**/
 	public static function receive(data: String, persistence: Persistence) {
+		#if cpp
+		// Do a big GC before parsing a push notification
+		cpp.NativeGc.run(true);
+		#end
 		var stanza = Stanza.parse(data);
 		if (stanza == null) return null;
 		if (stanza.name == "envelope" && stanza.attr.get("xmlns") == "urn:xmpp:sce:1") {
