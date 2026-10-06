@@ -635,6 +635,13 @@ export default async (dbname, media, tokenize, stemmer) => {
 		const dedup = {};
 		const versions = [];
 		for (const version of newVersions.concat(storedVersions)) {
+			if (
+				version.direction === enums.borogove_MessageDirection.MessageSent &&
+				version.localId
+			) {
+				if (dedup[version.localId]) continue;
+				dedup[version.localId] = true;
+			}
 			if (version.serverId) {
 				const key = version.serverId + "\n" + version.serverIdBy;
 				if (dedup[key]) continue;
