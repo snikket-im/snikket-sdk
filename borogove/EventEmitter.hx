@@ -23,7 +23,7 @@ typedef EventHandlerToken = Int;
 @:HaxeSwiftBridge.contextLifetime
 class EventEmitter {
 	private static var nextEventHandlerToken = 0;
-	private var eventHandlers:Map<String,Map<EventHandlerToken, EventCallback>> = [];
+	private var eventHandlers:Map<String,Map<EventHandlerToken, EventCallback>> = new Map();
 
 	private function new() { }
 
