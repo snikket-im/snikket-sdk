@@ -65,7 +65,10 @@ class ChannelPinger {
 	private function pingDueBy(cutoff: Float): Void {
 		final due = getDueBy(cutoff);
 
-		for (scheduled in due) scheduled.channel.selfPing(false);
+		for (scheduled in due) {
+			schedule(scheduled.channel); // Don't ping again right away
+			scheduled.channel.selfPing(false);
+		}
 	}
 
 	private function getDueBy(cutoff: Float): Array<ScheduledChannel> {
