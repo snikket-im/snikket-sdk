@@ -2084,6 +2084,7 @@ class Client extends EventEmitter {
 
 	@:allow(borogove)
 	private function sendQuery(query:GenericQuery) {
+		channelPinger.pingDueInWindow();
 		this.stream.sendIq(query.getQueryStanza(), query.handleResponse);
 	}
 
