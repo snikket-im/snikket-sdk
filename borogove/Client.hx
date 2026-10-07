@@ -1126,6 +1126,8 @@ class Client extends EventEmitter {
 			return EventHandled;
 		}
 
+		channelPinger.clear();
+
 		// We don't know what any presences are
 		persistence.clearMemberPresence(accountId(), null);
 		for (chat in chats) {
@@ -2546,6 +2548,7 @@ class Client extends EventEmitter {
 	}
 
 	private function joinAllChannels() {
+		channelPinger.clear();
 		for (channel in getChannels()) {
 			if (channel.disco.identities.length < 1) {
 				channel.refreshDisco(() -> {

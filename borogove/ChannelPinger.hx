@@ -47,6 +47,10 @@ class ChannelPinger {
 		scheduledChannels.remove(channel.chatId);
 	}
 
+	public function clear(): Void {
+		scheduledChannels.clear();
+	}
+
 	public function pingPastDue(): Void {
 		pingDueBy(now());
 	}
