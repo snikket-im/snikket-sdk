@@ -1535,7 +1535,8 @@ class Channel extends Chat {
 	private var sync: Null<MessageSync> = null;
 	private var forceLive = false;
 	@:allow(borogove)
-	private var self: Null<Member> = null;
+	private var self: Member;
+	private var isJoined(default, null): Bool = false;
 	@:allow(borogove)
 	private var mavUntil = null;
 	@:allow(borogove.SerializedChat)
@@ -1550,6 +1551,18 @@ class Channel extends Chat {
 		trace(
 			"SYNC: channel inSync",
 			{ reason: "initialize", chatId: chatId, inSync: inSync }
+		);
+		final nick = client.displayName();
+		final account = client.getDirectChat(client.accountId(), false);
+		self = new Member(
+			JID.parse(chatId).withResource(nick).asString(),
+			nick,
+			account.getPhoto(),
+			true,
+			[],
+			JID.parse(account.chatId),
+			new Map(),
+			new AvailableChat(account.chatId, account.getDisplayName(), account.chatId, CapsRepo.empty)
 		);
 		if (disco != null) {
 			this.disco = disco;
@@ -1612,8 +1625,7 @@ class Channel extends Chat {
 
 		return (justCleared ?  Promise.resolve(null) : persistence.clearMemberPresence(client.accountId(), chatId)).then(_ -> {
 			joinFailed = null;
-			self = null;
-			outbox.pause();
+			disconnected();
 			inSync = false;
 			trace(
 				"SYNC: channel inSync",
@@ -1671,7 +1683,7 @@ class Channel extends Chat {
 		Can the user set the Channel subject?
 	**/
 	public function canSetSubject() {
-		if (self == null || disco == null) return false;
+		if (!isJoined || disco == null) return false;
 
 		final it = self.presence.iterator();
 		if (!it.hasNext()) return false;
@@ -1719,8 +1731,6 @@ class Channel extends Chat {
 
 	override public function canInvite() {
 		if (!isPrivate()) return true;
-		if (self == null) return false;
-
 		final it = self.presence.iterator();
 		if (!it.hasNext()) return false;
 
@@ -1731,7 +1741,6 @@ class Channel extends Chat {
 
 	override public function canSend() {
 		if (!super.canSend()) return false;
-		if (self == null) return true;
 
 		final it = self.presence.iterator();
 		if (!it.hasNext()) return true;
@@ -1740,7 +1749,7 @@ class Channel extends Chat {
 	}
 
 	override public function canModerate() {
-		if (self == null || disco == null) return false;
+		if (!isJoined || disco == null) return false;
 
 		final it = self.presence.iterator();
 		if (!it.hasNext()) return false;
@@ -1764,8 +1773,6 @@ class Channel extends Chat {
 	}
 
 	private function isOwner() {
-		if (self == null) return false;
-
 		return self.roles.exists(r -> r.id == "owner");
 	}
 
@@ -1869,12 +1876,9 @@ class Channel extends Chat {
 		}
 		if (member.isSelf) {
 			if (presence.type == "unavailable") {
-				self = null;
-				outbox.pause();
+				disconnected();
 			} else {
-				self = member;
-				outbox.start();
-				client.channelPinger.schedule(this);
+				joined(member);
 			}
 			if (!noStore) client.trigger("chats/update", [this]);
 		}
@@ -2102,11 +2106,24 @@ class Channel extends Chat {
 		return lastMessageSenderName + ": " + super.preview();
 	}
 
+	private function joined(member: Member): Void {
+		self = member;
+		isJoined = true;
+		outbox.start();
+		client.channelPinger.schedule(this);
+	}
+
+	private function disconnected(): Void {
+		isJoined = false;
+		outbox.pause();
+		client.channelPinger.remove(this);
+	}
+
 	@:allow(borogove)
 	override private function livePresence() {
 		if (forceLive) return true;
 
-		return self != null;
+		return isJoined;
 	}
 
 	override public function syncing() {
@@ -2140,7 +2157,7 @@ class Channel extends Chat {
 	}
 
 	private function nickInUse() {
-		return self?.displayName ?? client.displayName();
+		return self.displayName;
 	}
 
 	@:allow(borogove)
@@ -2151,13 +2168,13 @@ class Channel extends Chat {
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function members() {
 		return persistence
-			.getMembers(client.accountId(), this, self == null ? false : self.roles.exists(r -> ["admin", "owner"].contains(r.id)))
+			.getMembers(client.accountId(), this, self.roles.exists(r -> ["admin", "owner"].contains(r.id)))
 			.then(members -> members.filter(member -> member.id != chatId));
 	}
 
 	@HaxeCBridge.noemit // on superclass as abstract
 	public function getMemberDetails(memberIds: Array<String>) {
-		if (memberIds.length == 1 && self != null && memberIds[0] == self.id) return Promise.resolve([cast self]);
+		if (memberIds.length == 1 && memberIds[0] == self.id) return Promise.resolve([cast self]);
 
 		return persistence.getMemberDetails(client.accountId(), this, memberIds);
 	}
@@ -2212,7 +2229,7 @@ class Channel extends Chat {
 			final affRole = Role.forAffiliation(presence.mucUser.affiliation);
 			if (affRole != null) roles.unshift(affRole);
 		}
-		if (oneTen != null || id == self?.id) {
+		if (oneTen != null || id == self.id) {
 			final chat = client.getDirectChat(client.accountId(), false);
 			return new Member(
 				id,
@@ -2240,8 +2257,6 @@ class Channel extends Chat {
 	}
 
 	override public function availableRoles(member: Member):Array<Role> {
-		if (self == null) return [];
-
 		if (self.roles.exists(r -> r.id == "owner")) {
 			return ["owner", "admin", "none", "outcast"].filter(aff -> !member.roles.exists(r -> r.id == aff)).map(aff -> Role.forAffiliation(aff));
 		}
@@ -2256,8 +2271,6 @@ class Channel extends Chat {
 	}
 
 	override public function canRemoveRole(member: Member, role: Role):Bool {
-		if (self == null) return false;
-
 		if (self.roles.exists(r -> r.id == "owner")) {
 			return ["owner", "admin", "none", "outcast"].contains(role.id);
 		}
@@ -2377,7 +2390,7 @@ class Channel extends Chat {
 		}
 		final occupantId = stanza.getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
 		message.senderId = occupantId == null ? stanza.attr.get("from") : chatId + "/" + occupantId; // MUC always needs full JIDs
-		if (message.senderId == self?.id) {
+		if (message.senderId == self.id) {
 			message.recipients = message.replyTo;
 			message.direction = MessageSent;
 		}
@@ -2390,7 +2403,7 @@ class Channel extends Chat {
 		message.timeReceived = Date.format(std.Date.now());
 		message.direction = MessageSent;
 		message.from = client.jid;
-		message.senderId = self?.id ?? getFullJid().asString(); // TODO: what if we aren't joined and self is null and this is an occupant id room?
+		message.senderId = self.id;
 		message.replyTo = [getFullJid()];
 		message.to = JID.parse(chatId);
 		message.recipients = [message.to];
@@ -2486,11 +2499,11 @@ class Channel extends Chat {
 		final reactions = [];
 		for (areaction => reacts in m.reactions) {
 			if (areaction != reaction.key) {
-				final react = reacts.find(r -> r.senderId == self?.id);
+				final react = reacts.find(r -> r.senderId == self.id);
 				if (react != null && !Std.isOfType(react, CustomEmojiReaction)) reactions.push(react);
 			}
 		}
-		final update = new ReactionUpdate(ID.unique(), m.serverId, m.chatId(), null, m.chatId(), self?.id, Date.format(std.Date.now()), reactions, EmojiReactions);
+		final update = new ReactionUpdate(ID.unique(), m.serverId, m.chatId(), null, m.chatId(), self.id, Date.format(std.Date.now()), reactions, EmojiReactions);
 		final outboxItem = outbox.newItem();
 		persistence.storeReaction(client.accountId(), update).then((stored) -> {
 			sendMessageStanza(update.asStanza(), outboxItem);

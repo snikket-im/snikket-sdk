@@ -18,6 +18,7 @@ import borogove.JID;
 import borogove.ID;
 import borogove.Message;
 import borogove.Chat;
+import borogove.Client;
 import borogove.Chat.AvailableChat;
 import borogove.Status;
 import borogove.Reaction;
@@ -1245,7 +1246,8 @@ class TestSqlite extends utest.Test {
 
 	public function testGetChatsHydratesMembersForNameAndMavUntil(async: Async) {
 		final account = "alice@example.com";
-		final chat = new Channel(cast null, cast null, persistence, "room-chat-hydrate@example.com");
+		final client = new Client(account, persistence);
+		final chat = new Channel(client, client.stream, persistence, "room-chat-hydrate@example.com");
 		chat.displayName = "Tea Room";
 		chat.mavUntil = "2024-05-01T12:00:00Z";
 
@@ -1304,7 +1306,7 @@ class TestSqlite extends utest.Test {
 		]).then(_ -> {
 			haxe.Timer.delay(() -> {
 				persistence.getChats(account).then(chats -> {
-					final stored = chats[0];
+					final stored = chats.filter(stored -> stored.chatId == chat.chatId)[0];
 					Assert.notNull(stored.membersForName);
 					Assert.equals("2024-05-01T12:00:00Z", stored.mavUntil);
 					Assert.equals(2, stored.membersForName.length);
@@ -1340,7 +1342,8 @@ class TestSqlite extends utest.Test {
 
 	public function testGetMembersHydratesPersistedMemberData(async: Async) {
 		final account = "alice@example.com";
-		final chat = new Channel(cast null, cast null, persistence, "room-members-1@example.com");
+		final client = new Client(account, persistence);
+		final chat = new Channel(client, client.stream, persistence, "room-members-1@example.com");
 		chat.displayName = "A Chat";
 		chat.trusted = true;
 		final member = new Member(
@@ -1373,7 +1376,8 @@ class TestSqlite extends utest.Test {
 
 	public function testStoreMemberUpdatesMergesExistingMemberData(async: Async) {
 		final account = "alice@example.com";
-		final chat = new Channel(cast null, cast null, persistence, "room-members-2@example.com");
+		final client = new Client(account, persistence);
+		final chat = new Channel(client, client.stream, persistence, "room-members-2@example.com");
 		chat.displayName = "A Chat";
 
 		persistence.storeMembers(account, chat.chatId, [
@@ -1414,7 +1418,8 @@ class TestSqlite extends utest.Test {
 
 	public function testStoreMemberUpdatesClearsOmittedFullListAffiliations(async: Async) {
 		final account = "alice@example.com";
-		final chat = new Channel(cast null, cast null, persistence, "room-members-2b@example.com");
+		final client = new Client(account, persistence);
+		final chat = new Channel(client, client.stream, persistence, "room-members-2b@example.com");
 		chat.displayName = "A Chat";
 
 		persistence.storeMembers(account, chat.chatId, [
@@ -1470,7 +1475,8 @@ class TestSqlite extends utest.Test {
 
 	public function testStoreMemberUpdatesMatchesExistingMemberByTrueJid(async: Async) {
 		final account = "alice@example.com";
-		final chat = new Channel(cast null, cast null, persistence, "room-members-3@example.com");
+		final client = new Client(account, persistence);
+		final chat = new Channel(client, client.stream, persistence, "room-members-3@example.com");
 		chat.displayName = "A Chat";
 
 		persistence.storeMembers(account, chat.chatId, [
@@ -1509,9 +1515,10 @@ class TestSqlite extends utest.Test {
 
 	public function testClearMemberPresenceOnlyClearsTargetedChat(async: Async) {
 		final account = "alice@example.com";
-		final chat1 = new Channel(cast null, cast null, persistence, "room-members-4a@example.com");
+		final client = new Client(account, persistence);
+		final chat1 = new Channel(client, client.stream, persistence, "room-members-4a@example.com");
 		chat1.displayName = "A Chat";
-		final chat2 = new Channel(cast null, cast null, persistence, "room-members-4b@example.com");
+		final chat2 = new Channel(client, client.stream, persistence, "room-members-4b@example.com");
 		chat2.displayName = "A Chat";
 
 		persistence.storeMembers(account, chat1.chatId, [
@@ -1560,7 +1567,8 @@ class TestSqlite extends utest.Test {
 
 	public function testGetMembersFiltersHiddenRowsForNonModerators(async: Async) {
 		final account = "alice@example.com";
-		final chat = new Channel(cast null, cast null, persistence, "room-members-5@example.com");
+		final client = new Client(account, persistence);
+		final chat = new Channel(client, client.stream, persistence, "room-members-5@example.com");
 		chat.displayName = "A Chat";
 
 		persistence.storeMembers(account, chat.chatId, [
@@ -1581,7 +1589,8 @@ class TestSqlite extends utest.Test {
 
 	public function testGetMembersTreatsEmptyPresenceAsOffline(async: Async) {
 		final account = "alice@example.com";
-		final chat = new Channel(cast null, cast null, persistence, "room-members-empty-presence@example.com");
+		final client = new Client(account, persistence);
+		final chat = new Channel(client, client.stream, persistence, "room-members-empty-presence@example.com");
 		chat.displayName = "A Chat";
 
 		persistence.storeMembers(account, chat.chatId, [
@@ -1608,7 +1617,8 @@ class TestSqlite extends utest.Test {
 
 	public function testGetMembersIncludesModeratorVisibleRows(async: Async) {
 		final account = "alice@example.com";
-		final chat = new Channel(cast null, cast null, persistence, "room-members-6@example.com");
+		final client = new Client(account, persistence);
+		final chat = new Channel(client, client.stream, persistence, "room-members-6@example.com");
 		chat.displayName = "A Chat";
 
 		persistence.storeMembers(account, chat.chatId, [
@@ -1629,7 +1639,8 @@ class TestSqlite extends utest.Test {
 
 	public function testGetMemberDetailsReturnsNullForIncompleteRows(async: Async) {
 		final account = "alice@example.com";
-		final chat = new Channel(cast null, cast null, persistence, "room-members-7@example.com");
+		final client = new Client(account, persistence);
+		final chat = new Channel(client, client.stream, persistence, "room-members-7@example.com");
 		chat.displayName = "A Chat";
 
 		persistence.storeMembers(account, chat.chatId, [
@@ -1673,7 +1684,8 @@ class TestSqlite extends utest.Test {
 
 	public function testVoiceRequests(async: Async) {
 		final account = "alice@example.com";
-		final chat = new Channel(cast null, cast null, persistence, "room-voice-requests@example.com");
+		final client = new Client(account, persistence);
+		final chat = new Channel(client, client.stream, persistence, "room-voice-requests@example.com");
 		chat.displayName = "A Chat";
 
 		persistence.storeMembers(account, chat.chatId, [

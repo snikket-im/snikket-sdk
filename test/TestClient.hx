@@ -1116,7 +1116,9 @@ class TestClient extends utest.Test {
 		});
 
 		client.startChatWith("room@example.com", _->Open, _->{
-			Assert.equals(1, client.chats.length);
+			final rooms = client.chats.filter(c -> c.chatId == "room@example.com");
+			Assert.equals(1, rooms.length);
+			Assert.equals(chat, rooms[0]);
 			async.done();
 		});
 	}

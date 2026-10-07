@@ -80,7 +80,7 @@ class MemberUpdate {
 						id,
 						jid,
 						item.attr.get("nick") ?? resource,
-						jid?.asString() == accountId || channel?.self?.id == id,
+						jid?.asString() == accountId || channel?.self.id == id,
 						Role.forAffiliation(aff),
 						stanza.name == "presence" ? [ resource ?? "" => stanza ] : new Map()
 					));

@@ -9,8 +9,10 @@ async function idbFixture() {
 		`${databaseName}-media`,
 	);
 	const persistence = await borogove.persistence.IDB(databaseName, mediaStore);
-	const createChannel = (p: any, chatId: string) =>
-		new borogove.Channel(null, null, p, chatId);
+	const createChannel = (p: any, chatId: string) => {
+		const client = new borogove.Client("alice@example.com", p);
+		return new borogove.Channel(client, client.stream, p, chatId);
+	};
 	const storeIncompleteMember = async (chatId: string) => {
 		const request = indexedDB.open(databaseName);
 		const db = await new Promise<IDBDatabase>((resolve, reject) => {

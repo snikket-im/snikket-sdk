@@ -1101,14 +1101,14 @@ class Client extends EventEmitter {
 				// We resumed from disk so these must have been synced before
 				// and will get anything since live
 				for (channel in getChannels()) {
-					channel.inSync = channel.self != null && channel.sortId != null;
+					channel.inSync = channel.livePresence() && channel.sortId != null;
 					trace(
 						"SYNC: channel inSync",
 						{
 							reason: "resume from disk",
 							chatId: channel.chatId,
 							inSync: channel.inSync,
-							isJoined: channel.self != null,
+							livePresence: channel.livePresence(),
 							sortId: channel.sortId,
 						}
 					);

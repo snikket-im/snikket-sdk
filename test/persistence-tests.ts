@@ -230,7 +230,9 @@ export function sharedPersistenceTests(test) {
 				chat: { chatId: "hidden@example.com" },
 			},
 		]);
-		const [stored] = await persistence.getChats("alice@example.com");
+		const stored = (await persistence.getChats("alice@example.com")).find(
+			(storedChat) => storedChat.chatId === chat.chatId,
+		);
 		expect(stored.mavUntil).toBe("2024-05-01T12:00:00Z");
 		expect(stored.membersForName.map((m) => m.displayName)).toEqual([
 			"Alpha",
@@ -1624,13 +1626,9 @@ export function sharedPersistenceTests(test) {
 	test("getMembers filters hidden rows for non-moderators", async ({
 		borogove,
 		persistence,
+		createChannel,
 	}) => {
-		const chat = new borogove.Channel(
-			null,
-			null,
-			persistence,
-			"room-members-5@example.com",
-		);
+		const chat = createChannel(persistence, "room-members-5@example.com");
 		chat.displayName = "Tea Room";
 		chat.trusted = true;
 

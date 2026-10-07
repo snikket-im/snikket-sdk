@@ -30,8 +30,10 @@ async function sqliteFixture() {
 		storeChats(...args);
 		return new Promise((resolve) => setTimeout(resolve, 200));
 	};
-	const createChannel = (p: any, chatId: string) =>
-		new sqlite.Channel(null, null, p, chatId);
+	const createChannel = (p: any, chatId: string) => {
+		const client = new borogove.Client("alice@example.com", p);
+		return new sqlite.Channel(client, client.stream, p, chatId);
+	};
 	const storeIncompleteMember = async (chatId: string) => {
 		await persistence.db.exec(
 			"INSERT INTO members(account_id, chat_id, member_id, display_name, photo_uri, is_self, chat, roles, presence, jid) VALUES(?, ?, ?, ?, ?, ?, ?, jsonb(?), jsonb(?), ?)",
