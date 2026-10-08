@@ -1526,6 +1526,14 @@ class DirectChat extends Chat {
 @:build(HaxeSwiftBridge.expose())
 #end
 class Channel extends Chat {
+	/**
+		Broadcast displayed markers to other room occupants when marking messages read.
+		Defaults to false for every channel; private device synchronization still runs.
+		Applications may enable this per channel after an explicit user choice.
+		This policy is not persisted; reapply it when loading a channel.
+	**/
+	public var sendDisplayedMarkers: Bool = false;
+
 	@:allow(borogove)
 	private var disco: Caps = new Caps("", [], ["http://jabber.org/protocol/muc"], []);
 	@:allow(borogove)
@@ -2547,7 +2555,7 @@ class Channel extends Chat {
 		markReadUpToMessage(message).then(_ -> {
 			// Only send markers for others messages,
 			// it's obvious we've read our own
-			if (message.isIncoming() && message.serverId != null) {
+			if (sendDisplayedMarkers && message.isIncoming() && message.serverId != null) {
 				final stanza = new Stanza("message", { to: chatId, id: ID.unique(), type: "groupchat" })
 					.tag("displayed", { xmlns: "urn:xmpp:chat-markers:0", id: message.serverId }).up();
 				if (message.threadId != null) {
