@@ -18,6 +18,59 @@ using Lambda;
 
 @:access(borogove)
 class TestChat extends utest.Test {
+	public function testChannelReadMarkersDefaultOff(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final channel = new Channel(client, client.stream, persistence, "channel@example.com");
+		Assert.isFalse(channel.sendDisplayedMarkers);
+		assertChannelReadMarkers(async, client, channel, 0);
+	}
+
+	public function testChannelReadMarkersOptIn(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final channel = new Channel(client, client.stream, persistence, "channel@example.com");
+		channel.sendDisplayedMarkers = true;
+		assertChannelReadMarkers(async, client, channel, 1);
+	}
+
+	private function assertChannelReadMarkers(async: Async, client: Client, channel: Channel, expectedMarkers: Int) {
+		final builder = new ChatMessageBuilder();
+		builder.type = MessageChannel;
+		builder.direction = MessageReceived;
+		builder.serverId = "server-id";
+		builder.serverIdBy = channel.chatId;
+		builder.senderId = channel.chatId + "/friend";
+		builder.to = client.jid;
+		builder.replyTo = [JID.parse(channel.chatId)];
+		final message = builder.build();
+		channel.lastMessage = message;
+		channel.setUnreadCount(1);
+
+		final sent: Array<Stanza> = [];
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			sent.push(stanza);
+			return EventUnhandled;
+		});
+		client.on("chats/update", (_: Array<borogove.Chat>) -> {
+			Assert.equals("server-id", channel.readUpToId);
+			Assert.equals(0, channel.unreadCount());
+			final markers = sent.filter(s -> s.getChild("displayed", "urn:xmpp:chat-markers:0") != null);
+			Assert.equals(expectedMarkers, markers.length);
+			if (markers.length > 0) {
+				Assert.equals(channel.chatId, markers[0].attr.get("to"));
+				Assert.equals("server-id", markers[0].getChild("displayed", "urn:xmpp:chat-markers:0").attr.get("id"));
+			}
+			final mds = sent.filter(s -> s.findChild("{http://jabber.org/protocol/pubsub}pubsub/publish")?.attr.get("node") == "urn:xmpp:mds:displayed:0");
+			Assert.equals(1, mds.length);
+			Assert.equals("server-id", mds[0].findChild("{http://jabber.org/protocol/pubsub}pubsub/publish/item/{urn:xmpp:mds:displayed:0}displayed/{urn:xmpp:sid:0}stanza-id").attr.get("id"));
+			async.done();
+			return EventHandled;
+		});
+
+		channel.markReadUpTo(message);
+	}
+
 	public function testSetTags() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
