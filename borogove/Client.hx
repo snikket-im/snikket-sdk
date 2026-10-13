@@ -120,7 +120,7 @@ class Client extends EventEmitter {
 	@:allow(borogove)
 	private var sortId: String = "a ";
 	private var rosterVer: Null<String> = null;
-	private final pendingCaps: Map<String, Array<(Null<Caps>)->Chat>> = [];
+	private final pendingCaps: Map<String, Array<Chat>> = [];
 	private final brokenAvatars: Map<String, JID> = [];
 #if !NO_OMEMO
 	@:allow(borogove)
@@ -372,11 +372,10 @@ class Client extends EventEmitter {
 					return EventUnhandled;
 				}
 
-				if (presence.ver == null) {
-					chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza, false);
-				} else {
+				chat.setPresence(from.resource, stanza, false);
+				if (presence.ver != null) {
 					final handleCaps = (caps) -> {
-						chat.setPresence(JID.parse(stanza.attr.get("from")).resource, stanza, false);
+						this.trigger("chats/update", [chat]);
 						return chat;
 					};
 
@@ -385,25 +384,22 @@ class Client extends EventEmitter {
 							final ver = presence.ver;
 							final pending = pendingCaps.get(ver);
 							if (pending == null) {
-								pendingCaps.set(ver, [handleCaps]);
+								pendingCaps.set(ver, [chat]);
 								final discoGet = new DiscoInfoGet(stanza.attr.get("from"), presence.capsNode + "#" + ver);
 								discoGet.onFinished(() -> {
-									final chatsToUpdate: Map<String, Chat> = [];
-									final handlers = pendingCaps.get(ver) ?? [];
+									final chatsToUpdate = pendingCaps.get(ver) ?? [];
 									pendingCaps.remove(ver);
 									if (discoGet.getResult() != null) {
 										final cachedCaps = capsRepo.add(discoGet.getResult());
-										for (handler in handlers) {
-											final c = handler(cachedCaps);
-										}
+										this.trigger("chats/update", chatsToUpdate);
 									}
 								});
 								sendQuery(discoGet);
 							} else {
-								pending.push(handleCaps);
+								pending.push(chat);
 							}
 						} else {
-							handleCaps(caps);
+							this.trigger("chats/update", [chat]);
 						}
 					});
 				}

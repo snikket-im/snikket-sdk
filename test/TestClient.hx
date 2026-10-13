@@ -29,6 +29,21 @@ using Lambda;
 
 @:access(borogove)
 class TestClient extends utest.Test {
+	public function testPresenceAppliedBeforeCapsDiscovery() {
+		final client = new Client("test@example.com", new Dummy());
+		final channel = new borogove.Chat.Channel(client, client.stream, client.persistence, "room@example.com");
+		client.chats.push(channel);
+		final caps = new borogove.Caps("test-client", [], ["urn:xmpp:jingle:apps:rtp:audio"], []);
+		final node = caps.node + "#" + caps.ver();
+		final presence = new Stanza("presence", { xmlns: "jabber:client", from: "room@example.com/me" })
+			.tag("x", { xmlns: "http://jabber.org/protocol/muc#user" }).tag("status", { code: "110" }).up().up()
+			.tag("c", { xmlns: "http://jabber.org/protocol/caps", hash: "sha-1", node: caps.node, ver: caps.ver() }).up();
+
+		Assert.isFalse(channel.isJoined);
+		client.stream.onStanza(presence);
+		Assert.isTrue(channel.isJoined);
+	}
+
 	public function testSetStatus(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
