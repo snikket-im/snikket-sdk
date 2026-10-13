@@ -19,6 +19,7 @@ class TestAll {
 			new TestChatMessage(),
 			new TestChatMessageCombiner(),
 			new TestChatMessageBuilder(),
+			new TestChatUpdateBatcher(),
 			new TestClient(),
 			new TestEmojiUtil(),
 			new TestHtml(),

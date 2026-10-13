@@ -44,6 +44,78 @@ class TestClient extends utest.Test {
 		Assert.isTrue(channel.isJoined);
 	}
 
+	public function testChatsUpdateBatchSurvivesResubscription() {
+		final client = new Client("test@example.com", new Dummy());
+		final first = client.getDirectChat("first@example.com", false);
+		final last = client.getDirectChat("last@example.com", false);
+		final oldBatches: Array<Array<Chat>> = [];
+		final newBatches: Array<Array<Chat>> = [];
+
+		final token = client.addChatsUpdatedListener(batch -> oldBatches.push(batch));
+		client.trigger("chats/update", [first]);
+		Assert.equals(1, oldBatches.length);
+		client.trigger("chats/update", [first]);
+		client.removeEventListener(token);
+
+		client.addChatsUpdatedListener(batch -> newBatches.push(batch));
+		client.trigger("chats/update", [last]);
+		Assert.equals(0, newBatches.length);
+		client.chatUpdateBatcher.timer.run();
+
+		Assert.equals(1, oldBatches.length);
+		Assert.equals(1, newBatches.length);
+		Assert.equals(2, newBatches[0].length);
+		Assert.isTrue(newBatches[0].contains(first));
+		Assert.isTrue(newBatches[0].contains(last));
+	}
+
+	public function testChatsUpdateListenersShareBatch() {
+		final client = new Client("test@example.com", new Dummy());
+		final chat = client.getDirectChat("friend@example.com", false);
+		final batches: Array<Array<Chat>> = [];
+		final lateBatches: Array<Array<Chat>> = [];
+
+		client.addChatsUpdatedListener(batch -> batches.push(batch));
+		client.trigger("chats/update", [chat]);
+		client.addChatsUpdatedListener(batch -> lateBatches.push(batch));
+		client.trigger("chats/update", [chat, chat]);
+		Assert.equals(1, batches.length);
+		Assert.equals(0, lateBatches.length);
+		client.chatUpdateBatcher.timer.run();
+
+		Assert.equals(2, batches.length);
+		Assert.equals(1, lateBatches.length);
+		Assert.equals(batches[1], lateBatches[0]);
+		Assert.equals(1, batches[1].length);
+		Assert.equals(chat, batches[1][0]);
+	}
+
+	public function testClientsBatchChatsUpdatesIndependently() {
+		final client = new Client("test@example.com", new Dummy());
+		final other = new Client("other@example.com", new Dummy());
+		final chat = client.getDirectChat("friend@example.com", false);
+		final otherChat = other.getDirectChat("friend@example.com", false);
+		var calls = 0;
+		var otherCalls = 0;
+		client.addChatsUpdatedListener(_ -> calls++);
+		other.addChatsUpdatedListener(_ -> otherCalls++);
+
+		client.trigger("chats/update", [chat]);
+		client.trigger("chats/update", [chat]);
+		Assert.equals(1, calls);
+		Assert.equals(0, otherCalls);
+		other.trigger("chats/update", [otherChat]);
+		other.trigger("chats/update", [otherChat]);
+		Assert.equals(1, otherCalls);
+
+		client.chatUpdateBatcher.timer.run();
+		Assert.equals(2, calls);
+		Assert.equals(1, otherCalls);
+		other.chatUpdateBatcher.timer.run();
+		Assert.equals(2, calls);
+		Assert.equals(2, otherCalls);
+	}
+
 	public function testSetStatus(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
@@ -106,6 +178,7 @@ class TestClient extends utest.Test {
 					.tag("undefined")
 						.textTag("emoji", "💻", { xmlns: "https://ns.borogove.dev/" })
 		);
+		client.chatUpdateBatcher.timer.run();
 	}
 
 	public function testPresenceIncludesStatus() {
@@ -775,10 +848,12 @@ class TestClient extends utest.Test {
 		client.stream.onStanza(originalStanza);
 
 		haxe.Timer.delay(() -> {
-			client.addChatsUpdatedListener(chats -> {
+			var token = null;
+			token = client.addChatsUpdatedListener(chats -> {
 				final c = chats.find(x -> x.chatId == "friend@example.com");
 				Assert.notNull(c?.lastMessage);
 				Assert.equals("corrected", c.lastMessage.text);
+				client.removeEventListener(token);
 				async.done();
 			});
 
@@ -786,6 +861,7 @@ class TestClient extends utest.Test {
 					.textTag("body", "corrected")
 					.tag("replace", { id: "msg1", xmlns: "urn:xmpp:message-correct:0" }).up();
 			client.stream.onStanza(correctionStanza);
+			client.chatUpdateBatcher.timer.run();
 		}, 1);
 	}
 
