@@ -82,6 +82,7 @@ class Client extends EventEmitter {
 	@:allow(borogove)
 	private var chats: Array<Chat> = [];
 	private final chatsIndex: Map<String, Chat> = new Map();
+	private final chatUpdateBatcher: ChatUpdateBatcher;
 	private final persistence: Persistence;
 	@:allow(borogove)
 	private final capsRepo: CapsRepo;
@@ -150,6 +151,9 @@ class Client extends EventEmitter {
 		promiseFactory.scheduler.addNext = mainLoop.run;
 		#end
 		super();
+		chatUpdateBatcher = new ChatUpdateBatcher(batch -> {
+			this.trigger("chats/update/batched", batch);
+		});
 		capsRepo = new CapsRepo(persistence);
 		this.jid = JID.parse(accountId);
 		this._displayName = this.jid.node ?? this.jid.asString();
@@ -172,6 +176,7 @@ class Client extends EventEmitter {
 		});
 
 		this.on("chats/update", (data: Array<Chat>) -> {
+			chatUpdateBatcher.add(data);
 			stream.emitSMupdates = !Util.existsFast(chats, chat -> chat.uiState != Closed && chat.syncing());
 			return EventHandled;
 		});
@@ -1781,43 +1786,11 @@ class Client extends EventEmitter {
 	**/
 	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
 	public function addChatsUpdatedListener(handler:Array<Chat>->Void) {
-		final updateChatBuffer: Map<String, Bool> = new Map();
-		var lastCall = -1.0;
-		var updateChatTimer = null;
-		return this.on("chats/update", (data: Array<Chat>) -> {
-			final now = haxe.Timer.stamp() * 1000;
-			if (updateChatTimer != null) {
-				updateChatTimer.stop();
-			}
-			for (chat in data) {
-				assert(getChat(chat.chatId) != null, "chats/update was triggered for a chat not in chats");
-				updateChatBuffer[chat.chatId] = true;
-			}
-			if (lastCall < 0 || now - lastCall >= 500) {
-				lastCall = now;
-				final toSend = [];
-				for (chatId => v in updateChatBuffer) {
-					toSend.push(getChat(chatId));
-				}
-				handler(toSend);
-				updateChatTimer = null;
-				updateChatBuffer.clear();
-			} else {
-				updateChatTimer = haxe.Timer.delay(() -> {
-					lastCall = haxe.Timer.stamp() * 1000;
-					final toSend = [];
-					for (chatId => v in updateChatBuffer) {
-						toSend.push(getChat(chatId));
-					}
-					handler(toSend);
-					updateChatTimer = null;
-					updateChatBuffer.clear();
-				}, 500);
-			}
+		return this.on("chats/update/batched", (data: Array<Chat>) -> {
+			handler(data);
 			return EventHandled;
 		});
 	}
-
 #if !NO_JINGLE
 	/**
 		Event fired when a new call comes in
