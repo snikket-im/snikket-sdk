@@ -2,8 +2,22 @@ package test;
 
 import utest.Assert;
 import borogove.Util;
+#if js
+import borogove.Map;
+#end
 
 class TestUtil extends utest.Test {
+	public function testMapAsIterable() {
+		final map = new Map<String, Int>();
+		Assert.same([], Lambda.array(map));
+
+		map.set("first", 1);
+		map.set("second", 2);
+		final array = Lambda.array(map);
+		array.sort(Reflect.compare);
+		Assert.same([1, 2], array);
+	}
+
 	public function testXmlEscape() {
 		Assert.equals("foo &amp; bar &lt; baz &gt;", borogove.Util.xmlEscape("foo & bar < baz >"));
 		Assert.equals("nothing", borogove.Util.xmlEscape("nothing"));
