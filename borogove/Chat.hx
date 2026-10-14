@@ -639,15 +639,7 @@ abstract class Chat extends EventEmitter {
 		An ID of the last message displayed to the user
 	**/
 	public function readUpTo(): Promise<Null<ChatMessage>> {
-		trace(
-			"READ: readUpTo lookup",
-			{ accountId: client.accountId(), chatId: chatId, readUpToId: readUpToId, readUpToBy: readUpToBy },
-		);
 		if (readUpToId == null) {
-			trace(
-				"READ: readUpTo returning null",
-				{ reason: "no read marker", chatId: chatId },
-			);
 			return Promise.resolve(null);
 		}
 
@@ -655,17 +647,9 @@ abstract class Chat extends EventEmitter {
 			// A PM is not actually part of the chat
 			// So it cannot really be the read up to point
 			if (m?.type == MessageChannelPrivate) {
-				trace(
-					"READ: readUpTo returning null",
-					{ reason: "read marker resolved to a channel private message", chatId: chatId, serverId: m?.serverId, localId: m?.localId },
-				);
 				return null;
 			}
 
-			trace(
-				"READ: readUpTo result",
-				{ reason: m == null ? "read marker message not found" : "read marker message found", chatId: chatId, serverId: m?.serverId, localId: m?.localId, sortId: m?.sortId },
-			);
 			return m;
 		});
 	}
