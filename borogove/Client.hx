@@ -134,6 +134,7 @@ class Client extends EventEmitter {
 	private var firstSync = true;
 	@:allow(borogove.Channel)
 	private final channelPinger: ChannelPinger;
+	private final loginRequestRateLimit: Array<std.Date> = [];
 
 	/**
 		Create a new Client to connect to a particular account
@@ -590,6 +591,23 @@ class Client extends EventEmitter {
 					persistence.storeVoiceRequest(accountId(), channel, jid.asBare().asString(), true).then(_ -> {
 						this.trigger("chats/update", [channel]);
 					});
+				}
+			case LoginRequest(req):
+				final tooOld = Date.format(
+					DateTools.delta(std.Date.now(), DateTools.minutes(-5))
+				);
+				while (loginRequestRateLimit.length > 0 && loginRequestRateLimit[0].olderThan(DateTools.minutes(60))) {
+					loginRequestRateLimit.shift();
+				}
+				final lastMinute = loginRequestRateLimit.filter(d -> !d.olderThan(DateTools.minutes(1))).length;
+				final last15Mins = loginRequestRateLimit.filter(d -> !d.olderThan(DateTools.minutes(15))).length;
+				if (req.timeSent > tooOld) {
+					if (lastMinute < 5 && last15Mins < 10 && loginRequestRateLimit.length < 20) {
+						loginRequestRateLimit.push(std.Date.now());
+						trigger("message/login", req);
+					}
+				} else {
+					rejectLoginRequest(req, "Expired");
 				}
 			default:
 				// ignore
@@ -1883,6 +1901,34 @@ class Client extends EventEmitter {
 		});
 	}
 #end
+
+	/**
+		Event fired when the user is trying to login to a website
+
+		@param handler takes one argument, the LoginRequest
+		@returns token for use with removeEventListener
+	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
+	public function addLoginRequestListener(handler: (LoginRequest)->Void) {
+		return this.on("message/login", (req) -> {
+			handler(req);
+			return EventHandled;
+		});
+	}
+
+	/**
+		Approve a LoginRequest to a website
+	**/
+	public function approveLoginRequest(req: LoginRequest) {
+		sendStanza(req.approveStanza());
+	}
+
+	/**
+		Reject a LoginRequest to a website
+	**/
+	public function rejectLoginRequest(req: LoginRequest, reason: String) {
+		sendStanza(req.rejectStanza(reason));
+	}
 
 	/**
 		Let the SDK know the UI is in the foreground

@@ -41,6 +41,7 @@ enum MessageStanza {
 	ReactionUpdateStanza(update: ReactionUpdate);
 	MucInviteStanza(serverId: Null<String>, serverIdBy: Null<String>, reason: Null<String>, password: Null<String>);
 	MucVoiceRequest(jid: JID);
+	LoginRequest(req: LoginRequest);
 	UnknownMessageStanza(stanza: Stanza);
 }
 
@@ -248,6 +249,17 @@ class Message {
 
 		if (addContext != null) msg = addContext(msg, stanza);
 		final timeSent = msg.timeSent ?? msg.timeReceived ?? Date.format(std.Date.now());
+
+		final xep0070 = stanza.getChild("confirm", "http://jabber.org/protocol/http-auth");
+		if (xep0070 != null) {
+			final threadId = msg.threadId;
+			final id = xep0070.attr.get("id");
+			final method = xep0070.attr.get("method");
+			final url = xep0070.attr.get("url");
+			if (from != null && threadId != null && id != null && method != null && url != null) {
+				return new Message(msg.chatId(), msg.senderId, threadId, LoginRequest(new LoginRequest(from, threadId, id, method, url, timeSent)), encryptionInfo);
+			}
+		}
 
 		if (jmi != null && jmi.name != "accept" && jmi.name != "propose") {
 			msg.versions = [msg.build()];

@@ -10,6 +10,7 @@ import borogove.ChatMessageBuilder;
 import borogove.Client;
 import borogove.Date;
 import borogove.JID;
+import borogove.LoginRequest;
 import borogove.Member;
 import borogove.MemberUpdate;
 import borogove.Message;
@@ -242,6 +243,103 @@ class TestClient extends utest.Test {
 		builder.direction = MessageSent;
 		builder.status = MessagePending;
 		return builder.build();
+	}
+
+	private function loginRequestStanza(ageMinutes: Float, id: String): Stanza {
+		final stamp = Date.format(DateTools.delta(std.Date.now(), -DateTools.minutes(ageMinutes)));
+		return new Stanza("message", { xmlns: "jabber:client", from: "site@example.com", type: "chat", id: id })
+			.textTag("thread", "login-thread")
+			.tag("delay", { xmlns: "urn:xmpp:delay", stamp: stamp }).up()
+			.tag("confirm", {
+				xmlns: "http://jabber.org/protocol/http-auth",
+				id: "confirm-" + id,
+				method: "GET",
+				url: "https://example.com/login"
+			}).up();
+	}
+
+	public function testLoginRateLimitAllowsFiveRequestsPerMinute() {
+		final client = new Client("test@example.com", new Dummy());
+		final received = new Array<LoginRequest>();
+		client.addLoginRequestListener(req -> received.push(req));
+		for (i in 0...4) {
+			client.loginRequestRateLimit.push(std.Date.now());
+		}
+
+		client.stream.onStanza(loginRequestStanza(0, "first"));
+		Assert.equals(1, received.length);
+
+		// A sixth request within the same minute is silently dropped
+		client.stream.onStanza(loginRequestStanza(0, "second"));
+		Assert.equals(1, received.length);
+		Assert.equals(5, client.loginRequestRateLimit.length);
+	}
+
+	public function testLoginRateLimitDoesNotCountRequestsOlderThanAMinute() {
+		final client = new Client("test@example.com", new Dummy());
+		final received = new Array<LoginRequest>();
+		client.addLoginRequestListener(req -> received.push(req));
+		for (i in 0...5) {
+			client.loginRequestRateLimit.push(DateTools.delta(std.Date.now(), -DateTools.minutes(2)));
+		}
+
+		client.stream.onStanza(loginRequestStanza(0, "fresh"));
+		Assert.equals(1, received.length);
+	}
+
+	public function testLoginRateLimitAllowsTenRequestsPerFifteenMinutes() {
+		final client = new Client("test@example.com", new Dummy());
+		final received = new Array<LoginRequest>();
+		client.addLoginRequestListener(req -> received.push(req));
+		for (i in 0...9) {
+			client.loginRequestRateLimit.push(DateTools.delta(std.Date.now(), -DateTools.minutes(6)));
+		}
+
+		client.stream.onStanza(loginRequestStanza(0, "first"));
+		Assert.equals(1, received.length);
+
+		client.stream.onStanza(loginRequestStanza(0, "second"));
+		Assert.equals(1, received.length);
+		Assert.equals(10, client.loginRequestRateLimit.length);
+	}
+
+	public function testLoginRateLimitAllowsTwentyRequestsPerHour() {
+		final client = new Client("test@example.com", new Dummy());
+		final received = new Array<LoginRequest>();
+		client.addLoginRequestListener(req -> received.push(req));
+		for (i in 0...19) {
+			client.loginRequestRateLimit.push(DateTools.delta(std.Date.now(), -DateTools.minutes(20)));
+		}
+
+		client.stream.onStanza(loginRequestStanza(0, "first"));
+		Assert.equals(1, received.length);
+
+		client.stream.onStanza(loginRequestStanza(0, "second"));
+		Assert.equals(1, received.length);
+		Assert.equals(20, client.loginRequestRateLimit.length);
+	}
+
+	public function testLoginRateLimitForgetsRequestsOlderThanAnHour() {
+		final client = new Client("test@example.com", new Dummy());
+		final received = new Array<LoginRequest>();
+		client.addLoginRequestListener(req -> received.push(req));
+		for (i in 0...20) {
+			client.loginRequestRateLimit.push(DateTools.delta(std.Date.now(), -DateTools.minutes(61)));
+		}
+
+		client.stream.onStanza(loginRequestStanza(0, "fresh"));
+		Assert.equals(1, received.length);
+		Assert.equals(1, client.loginRequestRateLimit.length);
+	}
+
+	public function testLoginRequestExpiredAfterFiveMinutes() {
+		final client = new Client("test@example.com", new Dummy());
+		final received = new Array<LoginRequest>();
+		client.addLoginRequestListener(req -> received.push(req));
+
+		client.stream.onStanza(loginRequestStanza(10, "expired"));
+		Assert.equals(0, received.length);
+		Assert.equals(0, client.loginRequestRateLimit.length);
 	}
 
 	@:timeout(3000)
