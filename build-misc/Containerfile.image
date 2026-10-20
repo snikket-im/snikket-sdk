@@ -80,7 +80,9 @@ ENV HAXE_STD_PATH=/opt/haxe/std
 RUN make hx-build-dep
 
 COPY npm /usr/src/sdk/npm
-RUN cd npm && npm install --legacy-peer-deps
+# We use legacy-peer-deps to work around bugs in older npm
+# But that makes us need to manually install vite
+RUN cd npm && npm install --legacy-peer-deps && npm install --legacy-peer-deps vite
 RUN ln -s npm/node_modules node_modules
 
 COPY . /usr/src/sdk/
