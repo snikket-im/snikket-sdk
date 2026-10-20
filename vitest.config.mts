@@ -28,6 +28,7 @@ export default defineConfig({
 		],
 		browser: {
 			enabled: true,
+			connectTimeout: 300_000,
 			provider: socketPlaywright(),
 			commands: socketCommands,
 			headless: true,
