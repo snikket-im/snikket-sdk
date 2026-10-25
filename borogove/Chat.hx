@@ -603,11 +603,14 @@ abstract class Chat extends EventEmitter {
 
 	@:allow(borogove)
 	private function updateFromRoster(item: RosterItem) {
-		isBookmarked = true;
+		final isRemoved = item.subscription == "remove";
+
+		isBookmarked = !isRemoved;
 		setTrusted(item.subscription == "both" || item.subscription == "from");
+		extensions.removeChildren("group", "jabber:iq:roster");
+		if (isRemoved) return;
 		if (item.name != null && item.name != "") displayName = item.name;
 		if (uiState == Invited) uiState = Open;
-		extensions.removeChildren("group", "jabber:iq:roster");
 		for (group in item.groups) {
 			extensions.textTag("group", group, { xmlns: "jabber:iq:roster" });
 		}
