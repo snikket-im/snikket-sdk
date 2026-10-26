@@ -317,11 +317,13 @@ class Client extends EventEmitter {
 
 			final chatsToUpdate = [];
 			for (item in items) {
-				if (item.subscription != "remove") {
-					final chat = getDirectChat(item.jid, false);
-					chat.updateFromRoster(item);
-					chatsToUpdate.push(cast (chat, Chat));
-				}
+				final chat = item.subscription == "remove"
+					? Util.downcast(getChat(item.jid), DirectChat)
+					: getDirectChat(item.jid, false);
+				if (chat == null) continue;
+
+				chat.updateFromRoster(item);
+				chatsToUpdate.push(cast (chat, Chat));
 			}
 			persistence.storeChats(this.accountId(), chatsToUpdate);
 			this.trigger("chats/update", chatsToUpdate);
@@ -2258,14 +2260,26 @@ class Client extends EventEmitter {
 		var rosterGet = new RosterGet(rosterVer);
 		rosterGet.onFinished(() -> {
 			final chatsToUpdate = [];
-			// TODO: We should update all chats not in this list as not trusted.
-			// Special case for when it is empty but there was no <query/> child
-			// to do nothing is needed also.
+			final rosterJids: Map<String, Bool> = new Map();
 			for (item in rosterGet.getResult()) {
-				var chat = getDirectChat(item.jid, false);
+				rosterJids[item.jid] = true;
+				final chat = getDirectChat(item.jid, false);
 				chat.updateFromRoster(item);
 				chatsToUpdate.push(cast (chat, Chat));
 			}
+
+			// A versioned response with no query means our cached roster is still
+			// current and any modifications will arrive as roster pushes.
+			if (rosterGet.hasFullRoster()) {
+				for (chat in chats) {
+					final directChat = Util.downcast(chat, DirectChat);
+					if (directChat == null || rosterJids.exists(directChat.chatId)) continue;
+
+					directChat.updateFromRoster(new Stanza("item", { jid: directChat.chatId, subscription: "remove" }));
+					chatsToUpdate.push(cast (directChat, Chat));
+				}
+			}
+
 			if (rosterGet.ver != null) {
 				rosterVer = rosterGet.ver;
 				persistence.storeLogin(accountId(), stream.clientId ?? jid.resource, displayName(), rosterVer, null);

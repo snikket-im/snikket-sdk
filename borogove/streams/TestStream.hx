@@ -8,6 +8,8 @@ import borogove.GenericStream;
 import borogove.Stanza;
 
 class TestStream extends GenericStream {
+	private final iqHandlers: Map<IqRequestType, Map<String, Stanza->IqResult>> = [IqRequestType.Get => [], IqRequestType.Set => []];
+
 	public function register(domain: String, preAuth: Null<String>) {
 		return Promise.resolve(null);
 	}
@@ -22,5 +24,21 @@ class TestStream extends GenericStream {
 		this.trigger("sendStanza", stanza);
 	}
 
-	public function onIq(type:IqRequestType, tag:String, xmlns:String, handler:(Stanza)->IqResult):Void { }
+	public function onIq(type:IqRequestType, tag:String, xmlns:String, handler:(Stanza)->IqResult):Void {
+		iqHandlers[type]['{' + xmlns + '}' + tag] = handler;
+	}
+
+	/**
+		Dispatch an incoming IQ request to the handler registered for it.
+	**/
+	public function dispatchIq(stanza:Stanza):IqResult {
+		final child = stanza.getFirstChild();
+		if (child == null) return IqNoResult;
+
+		final type = stanza.attr.get("type") == "get" ? IqRequestType.Get : IqRequestType.Set;
+		final handler = iqHandlers[type]['{' + child.attr.get("xmlns") + '}' + child.name];
+		if (handler == null) return IqNoResult;
+
+		return handler(stanza);
+	}
 }

@@ -697,6 +697,190 @@ class TestClient extends utest.Test {
 		client.stream.onStanza(stanza);
 	}
 
+	public function testLiveRosterRemovalClearsRosterState() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("bob@example.com");
+		final stream = Std.downcast(client.stream, borogove.streams.TestStream);
+
+		stream.dispatchIq(
+			new Stanza("iq", { xmlns: "jabber:client", type: "set", from: "example.com" })
+				.tag("query", { xmlns: "jabber:iq:roster" })
+				.tag("item", { jid: "bob@example.com", name: "Bob", subscription: "both" })
+		);
+
+		Assert.isTrue(chat.isTrusted());
+		Assert.isTrue(chat.isBookmarked);
+		Assert.equals("Bob", chat.getDisplayName());
+
+		chat.setTags(["friends"]);
+		Assert.same(["friends"], chat.getTags());
+
+		chat.uiState = Invited;
+
+		stream.dispatchIq(
+			new Stanza("iq", { xmlns: "jabber:client", type: "set", from: "example.com" })
+				.tag("query", { xmlns: "jabber:iq:roster" })
+				.tag("item", { jid: "bob@example.com", subscription: "remove" })
+		);
+
+		Assert.isFalse(chat.isTrusted());
+		Assert.isFalse(chat.isBookmarked);
+		Assert.same([], chat.getTags());
+		Assert.equals("Bob", chat.displayName);
+		Assert.equals(Invited, chat.uiState);
+	}
+
+	public function testLiveRosterRemovalDoesNotCreateChat() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final stream = Std.downcast(client.stream, borogove.streams.TestStream);
+
+		stream.dispatchIq(
+			new Stanza("iq", { xmlns: "jabber:client", type: "set", from: "example.com" })
+				.tag("query", { xmlns: "jabber:iq:roster" })
+				.tag("item", { jid: "nobody@example.com", subscription: "remove" })
+		);
+
+		Assert.isNull(client.getChat("nobody@example.com"));
+	}
+
+	public function testLiveRosterSubscriptionChangeUntrustsChat() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("bob@example.com");
+		chat.setTrusted(true);
+
+		final stream = Std.downcast(client.stream, borogove.streams.TestStream);
+		stream.dispatchIq(
+			new Stanza("iq", { xmlns: "jabber:client", type: "set", from: "example.com" })
+				.tag("query", { xmlns: "jabber:iq:roster" })
+				.tag("item", { jid: "bob@example.com", subscription: "to" })
+		);
+
+		Assert.isFalse(chat.isTrusted());
+	}
+
+	public function testRosterGetFullRosterMissingItemClearsRosterState() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("bob@example.com");
+		chat.setTrusted(true);
+		chat.isBookmarked = true;
+		chat.setTags(["friends"]);
+		chat.displayName = "Bob";
+		chat.uiState = Invited;
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "get" && stanza.getChild("query", "jabber:iq:roster") != null) {
+				client.stream.onStanza(
+					new Stanza("iq", { xmlns: "jabber:client", type: "result", from: "example.com", id: stanza.attr.get("id") })
+						.tag("query", { xmlns: "jabber:iq:roster", ver: "ver-1" })
+						.tag("item", { jid: "carol@example.com", subscription: "both" })
+				);
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		client.rosterGet();
+
+		Assert.isFalse(chat.isTrusted());
+		Assert.isFalse(chat.isBookmarked);
+		Assert.same([], chat.getTags());
+		Assert.equals("Bob", chat.displayName);
+		Assert.equals(Invited, chat.uiState);
+	}
+
+	public function testRosterGetCachedVersionDoesNotClearRosterState() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("bob@example.com");
+		chat.setTrusted(true);
+		chat.isBookmarked = true;
+		chat.setTags(["friends"]);
+		chat.displayName = "Bob";
+		chat.uiState = Invited;
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "get" && stanza.getChild("query", "jabber:iq:roster") != null) {
+				client.stream.onStanza(
+					new Stanza("iq", { xmlns: "jabber:client", type: "result", from: "example.com", id: stanza.attr.get("id") })
+				);
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		client.rosterGet();
+
+		Assert.isTrue(chat.isTrusted());
+		Assert.isTrue(chat.isBookmarked);
+		Assert.same(["friends"], chat.getTags());
+		Assert.equals("Bob", chat.displayName);
+		Assert.equals(Invited, chat.uiState);
+	}
+
+	public function testRosterGetInterimRemovePushClearsRosterState() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("bob@example.com");
+		chat.setTrusted(true);
+		chat.isBookmarked = true;
+		chat.setTags(["friends"]);
+		chat.displayName = "Bob";
+		chat.uiState = Invited;
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "get" && stanza.getChild("query", "jabber:iq:roster") != null) {
+				client.stream.onStanza(
+					new Stanza("iq", { xmlns: "jabber:client", type: "result", from: "example.com", id: stanza.attr.get("id") })
+				);
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		client.rosterGet();
+		Assert.isTrue(chat.isTrusted());
+
+		final stream = Std.downcast(client.stream, borogove.streams.TestStream);
+		stream.dispatchIq(
+			new Stanza("iq", { xmlns: "jabber:client", type: "set", from: "example.com" })
+				.tag("query", { xmlns: "jabber:iq:roster", ver: "ver-2" })
+				.tag("item", { jid: "bob@example.com", subscription: "remove" })
+		);
+
+		Assert.isFalse(chat.isTrusted());
+		Assert.isFalse(chat.isBookmarked);
+		Assert.same([], chat.getTags());
+		Assert.equals("Bob", chat.displayName);
+		Assert.equals(Invited, chat.uiState);
+	}
+
+	public function testRosterGetSubscriptionChangeUntrustsChat() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final chat = client.getDirectChat("bob@example.com");
+		chat.setTrusted(true);
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "get" && stanza.getChild("query", "jabber:iq:roster") != null) {
+				client.stream.onStanza(
+					new Stanza("iq", { xmlns: "jabber:client", type: "result", from: "example.com", id: stanza.attr.get("id") })
+						.tag("query", { xmlns: "jabber:iq:roster", ver: "ver-1" })
+						.tag("item", { jid: "bob@example.com", subscription: "to" })
+				);
+				return EventHandled;
+			}
+			return EventUnhandled;
+		});
+
+		client.rosterGet();
+
+		Assert.isFalse(chat.isTrusted());
+	}
+
 	public function testSortAfterDirectChat() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);

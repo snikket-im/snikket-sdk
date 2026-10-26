@@ -31,6 +31,16 @@ class RosterGet extends GenericQuery {
 		finish();
 	}
 
+	/**
+		Whether the response contained the full roster.
+
+		A versioned response may contain no query at all when the cached roster
+		is still current; that is different from an empty roster query.
+	**/
+	public function hasFullRoster():Bool {
+		return responseStanza != null && responseStanza.getChild("query", xmlns) != null;
+	}
+
 	public function getResult() {
 		if (responseStanza == null) {
 			return [];
