@@ -38,6 +38,7 @@ import borogove.queries.RosterGet;
 import borogove.queries.VcardTempGet;
 using Lambda;
 using StringTools;
+using borogove.Util;
 
 #if cpp
 import HaxeCBridge;
@@ -582,7 +583,7 @@ class Client extends EventEmitter {
 				}
 			case MucVoiceRequest(jid):
 				final chat = getChat(message.chatId);
-				final channel = chat == null ? null : Util.downcast(chat, Channel);
+				final channel = chat == null ? null : chat.downcast(Channel);
 				if (channel == null) {
 					trace("Ignoring voice request from unknown channel: " + stanza.toString());
 				} else {
@@ -676,7 +677,7 @@ class Client extends EventEmitter {
 
 		final memberUpdates = MemberUpdate.extractUpdates(accountId(), chat, stanza);
 		if (memberUpdates.length > 0) {
-			final channel = Util.downcast(chat, Channel);
+			final channel = chat.downcast(Channel);
 			final mucUser = stanza.getChild("x", "http://jabber.org/protocol/muc#user");
 			var isFullList = false;
 			if (channel != null && mucUser != null) {
@@ -1135,7 +1136,7 @@ class Client extends EventEmitter {
 		// We don't know what any presences are
 		persistence.clearMemberPresence(accountId(), null);
 		for (chat in chats) {
-			final directChat = Util.downcast(chat, DirectChat);
+			final directChat = chat.downcast(DirectChat);
 			if (directChat != null) directChat.presence.clear();
 		}
 
