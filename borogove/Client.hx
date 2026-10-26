@@ -896,20 +896,32 @@ class Client extends EventEmitter {
 
 			return persistence.getChats(accountId());
 		}).then((protoChats) -> {
-			protoChats.sort((a, b) -> a.chatId == accountId() ? 1 : 0);
 			var oneProtoChat = null;
 			final chatPromises = [];
-			while ((oneProtoChat = protoChats.pop()) != null) {
-				chatPromises.push(oneProtoChat.toChat(this, stream, persistence));
-			}
-			return thenshim.PromiseTools.all(chatPromises).then(theChats -> {
-				chats = theChats;
-				for (chat in chats) {
-					chatsIndex[chat.chatId] = chat;
+
+			final selfChatIndex = protoChats.findIndex(a -> a.chatId == accountId());
+			return (if (selfChatIndex == -1) {
+				Promise.resolve(null);
+			} else {
+				protoChats.splice(selfChatIndex, 1)[0].toChat(this, stream, persistence).then(selfChat -> {
+					chats = [selfChat];
+					chatsIndex[selfChat.chatId] = selfChat;
+					chatPromises.push(Promise.resolve(selfChat));
+					return null;
+				});
+			}).then(_ -> {
+				while ((oneProtoChat = protoChats.pop()) != null) {
+					chatPromises.push(oneProtoChat.toChat(this, stream, persistence));
 				}
-				getDirectChat(accountId()); // Ensure self chat exists
-				getDirectChat(JID.parse(accountId()).domain); // Ensure server chat exists
-				return persistence.getChatsUnreadDetails(accountId(), chats);
+				return thenshim.PromiseTools.all(chatPromises).then(theChats -> {
+					chats = theChats;
+					for (chat in chats) {
+						chatsIndex[chat.chatId] = chat;
+					}
+					getDirectChat(accountId()); // Ensure self chat exists
+					getDirectChat(JID.parse(accountId()).domain); // Ensure server chat exists
+					return persistence.getChatsUnreadDetails(accountId(), chats);
+				});
 			});
 		}).then((details) -> {
 			for (detail in details) {

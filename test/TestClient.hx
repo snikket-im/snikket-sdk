@@ -920,6 +920,79 @@ class TestClient extends utest.Test {
 		client.start();
 	}
 
+	public function testRestoreChannelDoesNotOverrideSelfChat(async: Async) {
+		final accountId = "me@example.com";
+		final channelId = "room@example.com";
+		final avatarBytes = haxe.io.Bytes.ofHex("0102030405060708090a0b0c0d0e0f1011121314").getData();
+
+		final selfProtoChat = new SerializedChat(
+			accountId,
+			true,
+			true,
+			avatarBytes,
+			new Map(),
+			null,
+			"Self Name",
+			Open,
+			false,
+			new Status("", ""),
+			null,
+			null,
+			null,
+			null,
+			false,
+			false,
+			new borogove.Chat.StringMapNullableKey(),
+			null,
+			null,
+			[],
+			"DirectChat"
+		);
+
+		final channelProtoChat = new SerializedChat(
+			channelId,
+			false,
+			false,
+			null,
+			new Map(),
+			null,
+			"Channel Name",
+			Open,
+			false,
+			new Status("", ""),
+			null,
+			null,
+			null,
+			null,
+			false,
+			false,
+			new borogove.Chat.StringMapNullableKey(),
+			null,
+			null,
+			[],
+			"Channel"
+		);
+
+		final persistence = new RestoreChatsMockPersistence([channelProtoChat, selfProtoChat]);
+		final client = new Client(accountId, persistence);
+
+		client.startOffline().then(_ -> {
+			final storedSelfChats = persistence.storedChats.filter(c -> c.chatId == accountId);
+			Assert.equals(0, storedSelfChats.length);
+
+			final selfChat = client.getDirectChat(accountId, false);
+			Assert.notNull(selfChat);
+			Assert.equals("Self Name", selfChat.displayName);
+			Assert.equals(selfProtoChat.avatarSha1, selfChat.avatarSha1);
+
+			final channel = Std.downcast(client.getChat(channelId), borogove.Chat.Channel);
+			Assert.notNull(channel);
+			Assert.equals(selfChat.getPhoto(), channel.self.photoUri);
+
+			async.done();
+		});
+	}
+
 	public function testGetChannelsReturnsOnlyChannels() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
@@ -1606,5 +1679,26 @@ class VoiceRequestMockPersistence extends Dummy {
 	override public function storeVoiceRequest(accountId: String, chat: Chat, jid: String, requesting: Bool): Promise<Bool> {
 		lastVoiceRequests.push({ accountId: accountId, chat: chat, jid: jid, requesting: requesting });
 		return Promise.resolve(true);
+	}
+}
+
+@:access(borogove)
+class RestoreChatsMockPersistence extends Dummy {
+	public var storedChats: Array<Chat> = [];
+	public var chats: Array<SerializedChat>;
+
+	public function new(chats: Array<SerializedChat>) {
+		super();
+		this.chats = chats;
+	}
+
+	override public function getChats(accountId: String): Promise<Array<SerializedChat>> {
+		return Promise.resolve(chats.copy());
+	}
+
+	override public function storeChats(accountId: String, chats: Array<Chat>) {
+		for (c in chats) {
+			storedChats.push(c);
+		}
 	}
 }
