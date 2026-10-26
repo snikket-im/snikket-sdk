@@ -251,4 +251,8 @@ class Util {
 
 		return first + rest;
 	}
+
+	static public function olderThan(d: std.Date, delta: Float) {
+		return d.getTime() < DateTools.delta(std.Date.now(), -1*delta).getTime();
+	}
 }

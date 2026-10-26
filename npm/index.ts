@@ -35,6 +35,7 @@ export {
 	borogove_Identicon as Identicon,
 	borogove_Importer as Importer,
 	borogove_LinkMetadata as LinkMetadata,
+	borogove_LoginRequest as LoginRequest,
 	borogove_Notification as Notification,
 	borogove_Member as Member,
 	borogove_Profile as Profile,

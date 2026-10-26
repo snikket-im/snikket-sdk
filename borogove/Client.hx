@@ -38,6 +38,7 @@ import borogove.queries.RosterGet;
 import borogove.queries.VcardTempGet;
 using Lambda;
 using StringTools;
+using borogove.Util;
 
 #if cpp
 import HaxeCBridge;
@@ -133,6 +134,7 @@ class Client extends EventEmitter {
 	private var firstSync = true;
 	@:allow(borogove.Channel)
 	private final channelPinger: ChannelPinger;
+	private final loginRequestRateLimit: Array<std.Date> = [];
 
 	/**
 		Create a new Client to connect to a particular account
@@ -582,13 +584,30 @@ class Client extends EventEmitter {
 				}
 			case MucVoiceRequest(jid):
 				final chat = getChat(message.chatId);
-				final channel = chat == null ? null : Util.downcast(chat, Channel);
+				final channel = chat == null ? null : chat.downcast(Channel);
 				if (channel == null) {
 					trace("Ignoring voice request from unknown channel: " + stanza.toString());
 				} else {
 					persistence.storeVoiceRequest(accountId(), channel, jid.asBare().asString(), true).then(_ -> {
 						this.trigger("chats/update", [channel]);
 					});
+				}
+			case LoginRequest(req):
+				final tooOld = Date.format(
+					DateTools.delta(std.Date.now(), DateTools.minutes(-5))
+				);
+				while (loginRequestRateLimit.length > 0 && loginRequestRateLimit[0].olderThan(DateTools.minutes(60))) {
+					loginRequestRateLimit.shift();
+				}
+				final lastMinute = loginRequestRateLimit.filter(d -> !d.olderThan(DateTools.minutes(1))).length;
+				final last15Mins = loginRequestRateLimit.filter(d -> !d.olderThan(DateTools.minutes(15))).length;
+				if (req.timeSent > tooOld) {
+					if (lastMinute < 5 && last15Mins < 10 && loginRequestRateLimit.length < 20) {
+						loginRequestRateLimit.push(std.Date.now());
+						trigger("message/login", req);
+					}
+				} else {
+					rejectLoginRequest(req, "Expired");
 				}
 			default:
 				// ignore
@@ -676,7 +695,7 @@ class Client extends EventEmitter {
 
 		final memberUpdates = MemberUpdate.extractUpdates(accountId(), chat, stanza);
 		if (memberUpdates.length > 0) {
-			final channel = Util.downcast(chat, Channel);
+			final channel = chat.downcast(Channel);
 			final mucUser = stanza.getChild("x", "http://jabber.org/protocol/muc#user");
 			var isFullList = false;
 			if (channel != null && mucUser != null) {
@@ -1135,7 +1154,7 @@ class Client extends EventEmitter {
 		// We don't know what any presences are
 		persistence.clearMemberPresence(accountId(), null);
 		for (chat in chats) {
-			final directChat = Util.downcast(chat, DirectChat);
+			final directChat = chat.downcast(DirectChat);
 			if (directChat != null) directChat.presence.clear();
 		}
 
@@ -1882,6 +1901,34 @@ class Client extends EventEmitter {
 		});
 	}
 #end
+
+	/**
+		Event fired when the user is trying to login to a website
+
+		@param handler takes one argument, the LoginRequest
+		@returns token for use with removeEventListener
+	**/
+	@:HaxeSwiftBridge.contextLifetime(handler, EventEmitter)
+	public function addLoginRequestListener(handler: (LoginRequest)->Void) {
+		return this.on("message/login", (req) -> {
+			handler(req);
+			return EventHandled;
+		});
+	}
+
+	/**
+		Approve a LoginRequest to a website
+	**/
+	public function approveLoginRequest(req: LoginRequest) {
+		sendStanza(req.approveStanza());
+	}
+
+	/**
+		Reject a LoginRequest to a website
+	**/
+	public function rejectLoginRequest(req: LoginRequest, reason: String) {
+		sendStanza(req.rejectStanza(reason));
+	}
 
 	/**
 		Let the SDK know the UI is in the foreground
