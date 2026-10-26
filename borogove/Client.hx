@@ -318,7 +318,7 @@ class Client extends EventEmitter {
 			final chatsToUpdate = [];
 			for (item in items) {
 				final chat = item.subscription == "remove"
-					? Util.downcast(getChat(item.jid), DirectChat)
+					? getChat(item.jid).downcast(DirectChat)
 					: getDirectChat(item.jid, false);
 				if (chat == null) continue;
 
@@ -2272,7 +2272,7 @@ class Client extends EventEmitter {
 			// current and any modifications will arrive as roster pushes.
 			if (rosterGet.hasFullRoster()) {
 				for (chat in chats) {
-					final directChat = Util.downcast(chat, DirectChat);
+					final directChat = chat.downcast(DirectChat);
 					if (directChat == null || rosterJids.exists(directChat.chatId)) continue;
 
 					directChat.updateFromRoster(new Stanza("item", { jid: directChat.chatId, subscription: "remove" }));
