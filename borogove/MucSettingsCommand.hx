@@ -12,9 +12,19 @@ import HaxeCBridge;
 #end
 
 class MucSettingsCommand extends Command {
+	private var onCompleted: Null<()->Void>;
+
 	@:allow(borogove)
-	public function new(client: Client, jid: JID) {
+	public function new(client: Client, jid: JID, ?onCompleted: ()->Void) {
 		super(client, { jid: jid, name: "Settings", node: "muc-settings" });
+		this.onCompleted = onCompleted;
+	}
+
+	@:allow(borogove.MucSettingsCommandSession)
+	private function notifyCompleted() {
+		final cb = onCompleted;
+		onCompleted = null;
+		if (cb != null) cb();
 	}
 
 	override public function execute(): Promise<CommandSession> {
@@ -82,6 +92,7 @@ class MucSettingsCommandSession extends CommandSession {
 					return;
 				}
 
+				Util.downcast(this.command, MucSettingsCommand)?.notifyCompleted();
 				resolve(new MucSettingsCommandSession("completed", null, [], [], this.command));
 			});
 			this.command.client.sendQuery(q);

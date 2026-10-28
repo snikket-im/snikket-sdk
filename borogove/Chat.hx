@@ -1657,6 +1657,19 @@ class Channel extends Chat {
 		}
 	}
 
+	@:allow(borogove)
+	private function completeCreation(): Void {
+		if (uiState != Creating) return;
+
+		uiState = Open;
+		outbox.start();
+		client.channelPinger.schedule(this);
+		persistence.storeChats(client.accountId(), [this]);
+		persistence.storeMembers(client.accountId(), chatId, [self]).then(_ -> trigger("members/update", [self]));
+		client.sortChats();
+		client.trigger("chats/update", [this]);
+	}
+
 	private function selfPingSuccess() {
 		if (nickInUse() != client.displayName()) {
 			final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
@@ -1785,7 +1798,8 @@ class Channel extends Chat {
 	override public function commands(): Promise<Array<Command>> {
 		return super.commands().then((cmds: Array<Command>) -> {
 			if (isOwner()) {
-				cmds.push(new MucSettingsCommand(client, JID.parse(chatId)));
+				final onCompleted = uiState == Creating ? () -> completeCreation() : null;
+				cmds.push(new MucSettingsCommand(client, JID.parse(chatId), onCompleted));
 			}
 			return cmds;
 		});
