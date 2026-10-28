@@ -77,6 +77,7 @@ enum abstract UiState(Int) {
 	var Open; // or Unspecified
 	var Closed; // Archived
 	var Invited;
+	var Creating; // Room creation in progress
 }
 
 /**
@@ -1564,7 +1565,7 @@ class Channel extends Chat {
 
 	@:allow(borogove)
 	private function selfPing(refresh: Bool) {
-		if (uiState == Invited) return;
+		if (uiState == Invited || uiState == Creating) return;
 
 		if (uiState == Closed) {
 			client.channelPinger.remove(this);
@@ -1634,10 +1635,26 @@ class Channel extends Chat {
 					return stanza;
 				}
 			);
-			persistence.syncPoint(client.accountId(), chatId).then((point) -> doSync(point));
+			if (uiState != Creating) persistence.syncPoint(client.accountId(), chatId).then((point) -> doSync(point));
 
 			return null;
 		});
+	}
+
+	@:allow(borogove)
+	private function setJoinFailed(stanza: Stanza): Void {
+		joinFailed = stanza;
+		if (uiState == Creating) {
+			uiState = Closed;
+			client.sendPresence(
+				getFullJid().asString(),
+				(stanza) -> {
+					stanza.attr.set("type", "unavailable");
+					return stanza;
+				}
+			);
+			disconnected();
+		}
 	}
 
 	private function selfPingSuccess() {
@@ -1728,6 +1745,7 @@ class Channel extends Chat {
 	}
 
 	override public function canSend() {
+		if (uiState == Creating) return false;
 		if (!super.canSend()) return false;
 
 		final it = self.presence.iterator();
@@ -1825,61 +1843,77 @@ class Channel extends Chat {
 	private function setPresence(resource:String, presence:Presence, noStore:Bool) {
 		final oneTen = presence?.mucUser?.statusCodes?.find((status) -> status == "110");
 		final member = buildMember(resource, presence);
-		if (presence.mucUser != null && oneTen == null && member.isSelf) {
-			// ejabberd sends presence updates for self without 110
-			final mucUser: Stanza = presence.mucUser;
-			mucUser.tag("status", { code: "110" }).up();
-			setPresence(resource, presence, noStore);
-			return;
-		}
-		final occupantId = (presence : Stanza).getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
-		if (!noStore && !(disco.features.contains("urn:xmpp:occupant-id:0") && member.id != chatId + "/" + occupantId)) {
-			if (presence.type == "unavailable" && member.photoUri == null) {
-				final memberUpdates = MemberUpdate.extractUpdates(client.accountId(), this, presence);
-				persistence.storeMemberUpdates(client.accountId(), this, memberUpdates, false).then(members -> {
-					trigger("members/update", members);
-				});
-			} else {
-				persistence.storeMembers(client.accountId(), chatId, [member]).then(_ -> {
-					trigger("members/update", [member]);
-				});
+		if (uiState == Creating) {
+			if (member.isSelf) {
+				self = member;
+				if (!isJoined && (presence.mucUser?.statusCodes ?? []).indexOf("201") < 0) {
+					setJoinFailed(
+						new Stanza("presence", { type: "error" })
+							.tag("error", { type: "cancel" })
+							.tag("conflict", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" })
+					);
+				} else {
+					isJoined = true;
+				}
+				client.trigger("chats/update", [this]);
 			}
-		}
-		final mucUser: MucUser = (presence : Stanza).getChild("x", "http://jabber.org/protocol/muc#user");
-		if (mucUser != null) {
-			final mav = mucUser.mav;
-			if (mav?.attr?.get("since") != null && mav?.attr?.get("since") != mavUntil) {
-				trace("MAV update with unknown previous version", mavUntil, presence);
+		} else {
+			if (presence.mucUser != null && oneTen == null && member.isSelf) {
+				// ejabberd sends presence updates for self without 110
+				final mucUser: Stanza = presence.mucUser;
+				mucUser.tag("status", { code: "110" }).up();
+				setPresence(resource, presence, noStore);
+				return;
 			}
-			if (mav?.attr?.get("until") != null && mavUntil != mav?.attr?.get("until")) {
-				mavUntil = mav?.attr?.get("until");
-				if (!noStore) persistence.storeChats(client.accountId(), [this]);
+			final occupantId = (presence : Stanza).getChild("occupant-id", "urn:xmpp:occupant-id:0")?.attr?.get("id");
+			if (!noStore && !(disco.features.contains("urn:xmpp:occupant-id:0") && member.id != chatId + "/" + occupantId)) {
+				if (presence.type == "unavailable" && member.photoUri == null) {
+					final memberUpdates = MemberUpdate.extractUpdates(client.accountId(), this, presence);
+					persistence.storeMemberUpdates(client.accountId(), this, memberUpdates, false).then(members -> {
+						trigger("members/update", members);
+					});
+				} else {
+					persistence.storeMembers(client.accountId(), chatId, [member]).then(_ -> {
+						trigger("members/update", [member]);
+					});
+				}
 			}
-			if (!noStore && mucUser.role != "visitor" && mucUser.jid != null) {
-				// If they're not a visitor they can't be requesting voice
-				persistence.storeVoiceRequest(client.accountId(), this, mucUser.jid.asBare().asString(), false).then(_ -> {
-					client.trigger("chats/update", [this]);
-				});
+			final mucUser: MucUser = (presence : Stanza).getChild("x", "http://jabber.org/protocol/muc#user");
+			if (mucUser != null) {
+				final mav = mucUser.mav;
+				if (mav?.attr?.get("since") != null && mav?.attr?.get("since") != mavUntil) {
+					trace("MAV update with unknown previous version", mavUntil, presence);
+				}
+				if (mav?.attr?.get("until") != null && mavUntil != mav?.attr?.get("until")) {
+					mavUntil = mav?.attr?.get("until");
+					if (!noStore) persistence.storeChats(client.accountId(), [this]);
+				}
+				if (!noStore && mucUser.role != "visitor" && mucUser.jid != null) {
+					// If they're not a visitor they can't be requesting voice
+					persistence.storeVoiceRequest(client.accountId(), this, mucUser.jid.asBare().asString(), false).then(_ -> {
+						client.trigger("chats/update", [this]);
+					});
+				}
 			}
-		}
-		if (member.isSelf) {
-			if (presence.type == "unavailable") {
-				disconnected();
-			} else {
-				joined(member);
+			if (member.isSelf) {
+				if (presence.type == "unavailable") {
+					disconnected();
+				} else {
+					joined(member);
+				}
+				if (!noStore) client.trigger("chats/update", [this]);
 			}
-			if (!noStore) client.trigger("chats/update", [this]);
-		}
-		if (!member.isSelf && member.id != chatId && membersForName != null) {
-			membersForName = membersForName.filter(m -> m.id != member.id);
-			membersForName.push({ id: member.id, displayName: member.displayName });
-			membersForName.sort((a, b) -> Reflect.compare(a.displayName, b.displayName));
-			if (membersForName.length > 20) membersForName = null;
-			if (displayName == chatId && !noStore) client.trigger("chats/update", [this]);
-		}
-		final tripleThree = presence?.mucUser?.statusCodes?.find((status) -> status == "333");
-		if (member.isSelf && tripleThree != null) {
-			haxe.Timer.delay(() -> selfPing(true), 5000);
+			if (!member.isSelf && member.id != chatId && membersForName != null) {
+				membersForName = membersForName.filter(m -> m.id != member.id);
+				membersForName.push({ id: member.id, displayName: member.displayName });
+				membersForName.sort((a, b) -> Reflect.compare(a.displayName, b.displayName));
+				if (membersForName.length > 20) membersForName = null;
+				if (displayName == chatId && !noStore) client.trigger("chats/update", [this]);
+			}
+			final tripleThree = presence?.mucUser?.statusCodes?.find((status) -> status == "333");
+			if (member.isSelf && tripleThree != null) {
+				haxe.Timer.delay(() -> selfPing(true), 5000);
+			}
 		}
 	}
 
@@ -2115,6 +2149,7 @@ class Channel extends Chat {
 	}
 
 	override public function syncing() {
+		if (uiState == Creating) return true;
 		if (joinFailed != null) return false;
 
 		return sync != null || !livePresence();

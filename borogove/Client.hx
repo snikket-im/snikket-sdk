@@ -471,7 +471,7 @@ class Client extends EventEmitter {
 				final channel = Std.downcast(chat, Channel);
 				if (channel != null && from.asString() == channel.getFullJid().asString()) {
 					trace("Join failed", channel.chatId, stanza);
-					channel.joinFailed = stanza;
+					channel.setJoinFailed(stanza);
 					this.trigger("chats/update", [channel]);
 				}
 			}
@@ -1135,6 +1135,7 @@ class Client extends EventEmitter {
 				// We resumed from disk so these must have been synced before
 				// and will get anything since live
 				for (channel in getChannels()) {
+					if (channel.uiState == Creating) continue;
 					channel.inSync = channel.livePresence() && channel.sortId != null;
 					trace(
 						"SYNC: channel inSync",
@@ -1553,6 +1554,35 @@ class Client extends EventEmitter {
 		persistence.storeChats(accountId(), [chat]);
 		this.trigger("chats/update", [chat]);
 		return chat;
+	}
+
+	/**
+		Create a new Channel
+
+		@param options channel creation options
+		@returns A promise resolving to the newly created Channel, in the `Creating` state
+	**/
+	public function createChannel(options: ChannelCreateOptions): Promise<Channel> {
+		return (if (options.service != null) {
+			Promise.resolve(options.service);
+		} else {
+			persistence.findServicesWithFeature(accountId(), "http://jabber.org/protocol/muc").then(services -> services[0]?.serviceId);
+		}).then((service) -> {
+			if (service == null) throw "No default service on which to make a channel";
+
+			final chatId = options.jid(service).asString();
+			if (getChat(chatId) != null) throw 'Chat already exists: ${chatId}';
+
+			final channel = new Channel(this, this.stream, this.persistence, chatId, Creating, false, false, null);
+			channel.displayName = options.name ?? options.localpart ?? chatId;
+			channel.join();
+
+			chats.unshift(channel);
+			chatsIndex[channel.chatId] = channel;
+			this.trigger("chats/update", [channel]);
+
+			return channel;
+		});
 	}
 
 	/**
