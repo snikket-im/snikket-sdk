@@ -8,7 +8,7 @@ import borogove.GenericStream;
 import borogove.Stanza;
 
 class TestStream extends GenericStream {
-	private final iqHandlers: Map<IqRequestType, Map<String, Stanza->IqResult>> = [IqRequestType.Get => [], IqRequestType.Set => []];
+	private final iqHandlers: Map<IqRequestType, Map<String, Stanza->IqResult>> = [IqRequestType.Get => new Map(), IqRequestType.Set => new Map()];
 
 	public function register(domain: String, preAuth: Null<String>) {
 		return Promise.resolve(null);
