@@ -78,6 +78,15 @@ class FormSubmitBuilder {
 	**/
 	public function new() { }
 
+	@:allow(borogove)
+	private static function fromMap(data: Map<String, Array<String>>): FormSubmitBuilder {
+		final builder = new FormSubmitBuilder();
+		for (k => values in data) {
+			for (v in values) builder.add(k, v);
+		}
+		return builder;
+	}
+
 	/**
 		Add a submitted value for a field.
 

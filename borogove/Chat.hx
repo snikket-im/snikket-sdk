@@ -9,6 +9,7 @@ import borogove.ChatMessage;
 import borogove.Color;
 import borogove.GenericStream;
 import borogove.ID;
+import borogove.Form;
 import borogove.Message;
 import borogove.MessageSync;
 import borogove.Outbox;
@@ -1521,6 +1522,10 @@ class Channel extends Chat {
 	@:allow(borogove)
 	private var joinFailed = null;
 	@:allow(borogove)
+	private var creationFormPrefill: Null<Map<String, Array<String>>> = null;
+	@:allow(borogove)
+	private var creationFormSubmission: Null<Map<String, Array<String>>> = null;
+	@:allow(borogove)
 	private var sync: Null<MessageSync> = null;
 	private var forceLive = false;
 	@:allow(borogove)
@@ -1670,6 +1675,54 @@ class Channel extends Chat {
 		client.trigger("chats/update", [this]);
 	}
 
+	private function maybeConfigureCreation(): Void {
+		if (uiState != Creating || creationFormSubmission == null) return;
+
+		final command = new MucSettingsCommand(
+			client,
+			JID.parse(chatId),
+			() -> completeCreation(),
+			creationFormPrefill
+		);
+		command.execute().then(session -> {
+			if (session.status != "executing" || session.forms.length < 1) {
+				failCreationConfig(session);
+				return null;
+			}
+
+			#if js
+			final submitData = creationFormSubmission;
+			#else
+			final submitData = FormSubmitBuilder.fromMap(creationFormSubmission);
+			#end
+
+			session.execute(null, submitData, 0).then(nextSession -> {
+				if (nextSession.status != "completed") failCreationConfig(nextSession);
+				return null;
+			}, err -> {
+				failCreationConfig(err);
+				return null;
+			});
+			return null;
+		}, err -> {
+			failCreationConfig(err);
+			return null;
+		});
+	}
+
+	private function failCreationConfig(error: Dynamic): Void {
+		if (uiState != Creating) return;
+
+		final stanza: Stanza = Std.isOfType(error, Stanza)
+			? (cast error : Stanza)
+			: new Stanza("presence", { type: "error" })
+				.tag("error", { type: "cancel" })
+				.tag("internal-server-error", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" });
+
+		setJoinFailed(stanza);
+		client.trigger("chats/update", [this]);
+	}
+
 	private function selfPingSuccess() {
 		if (nickInUse() != client.displayName()) {
 			final desiredFullJid = JID.parse(chatId).withResource(client.displayName());
@@ -1798,8 +1851,9 @@ class Channel extends Chat {
 	override public function commands(): Promise<Array<Command>> {
 		return super.commands().then((cmds: Array<Command>) -> {
 			if (isOwner()) {
+				final prefill = uiState == Creating ? creationFormPrefill : null;
 				final onCompleted = uiState == Creating ? () -> completeCreation() : null;
-				cmds.push(new MucSettingsCommand(client, JID.parse(chatId), onCompleted));
+				cmds.push(new MucSettingsCommand(client, JID.parse(chatId), onCompleted, prefill));
 			}
 			return cmds;
 		});
@@ -1867,6 +1921,7 @@ class Channel extends Chat {
 							.tag("conflict", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" })
 					);
 				} else {
+					if (!isJoined) maybeConfigureCreation();
 					isJoined = true;
 				}
 				client.trigger("chats/update", [this]);

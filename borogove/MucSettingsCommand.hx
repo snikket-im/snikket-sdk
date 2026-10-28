@@ -13,11 +13,13 @@ import HaxeCBridge;
 
 class MucSettingsCommand extends Command {
 	private var onCompleted: Null<()->Void>;
+	private var prefill: Null<Map<String, Array<String>>>;
 
 	@:allow(borogove)
-	public function new(client: Client, jid: JID, ?onCompleted: ()->Void) {
+	public function new(client: Client, jid: JID, ?onCompleted: ()->Void, ?prefill: Null<Map<String, Array<String>>>) {
 		super(client, { jid: jid, name: "Settings", node: "muc-settings" });
 		this.onCompleted = onCompleted;
+		this.prefill = prefill;
 	}
 
 	@:allow(borogove.MucSettingsCommandSession)
@@ -25,6 +27,15 @@ class MucSettingsCommand extends Command {
 		final cb = onCompleted;
 		onCompleted = null;
 		if (cb != null) cb();
+	}
+
+	private static function applyPrefill(form: DataForm, prefill: Null<Map<String, Array<String>>>): Void {
+		if (prefill == null) return;
+
+		for (name => values in prefill) {
+			final field = form.field(name);
+			if (field != null) field.value = values;
+		}
 	}
 
 	override public function execute(): Promise<CommandSession> {
@@ -43,6 +54,7 @@ class MucSettingsCommand extends Command {
 					return;
 				}
 
+				applyPrefill(form, prefill);
 				resolve(new MucSettingsCommandSession("executing", null, [new FormOption("Submit", "execute"), new FormOption("Cancel", "cancel")], [new Form(form, null)], this));
 			});
 			this.client.sendQuery(q);
