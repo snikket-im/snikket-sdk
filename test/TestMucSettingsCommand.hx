@@ -14,7 +14,8 @@ class TestMucSettingsCommand extends utest.Test {
 	public function testExecuteSuccess(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
-		final command = new MucSettingsCommand(client, JID.parse("channel@example.com"));
+		var completed = 0;
+		final command = new MucSettingsCommand(client, JID.parse("channel@example.com"), () -> completed++);
 
 		client.stream.on("sendStanza", (stanza: Stanza) -> {
 			if (stanza.name == "iq" && stanza.attr.get("type") == "get") {
@@ -41,6 +42,7 @@ class TestMucSettingsCommand extends utest.Test {
 			Assert.equals("executing", session.status);
 			Assert.equals(1, session.forms.length);
 			Assert.notNull(session.forms[0]);
+			Assert.equals(0, completed);
 
 			client.stream.on("sendStanza", (stanza: Stanza) -> {
 				if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
@@ -66,6 +68,70 @@ class TestMucSettingsCommand extends utest.Test {
 			session.execute(null, data, 0).then(nextSession -> {
 				Assert.equals("completed", nextSession.status);
 				Assert.equals(0, nextSession.forms.length);
+				Assert.equals(1, completed);
+				async.done();
+			}, err -> {
+				Assert.fail(err);
+			});
+		}, err -> {
+			Assert.fail(err);
+		});
+	}
+
+	public function testSubmitErrorDoesNotComplete(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		var completed = 0;
+		final command = new MucSettingsCommand(client, JID.parse("channel@example.com"), () -> completed++);
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "get") {
+				final query = stanza.getChild("query", "http://jabber.org/protocol/muc#owner");
+				if (query != null) {
+					final responseStanza = new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id"), from: "channel@example.com", to: "test@example.com" })
+						.tag("query", { xmlns: "http://jabber.org/protocol/muc#owner" })
+							.tag("x", { xmlns: "jabber:x:data", type: "form" })
+								.tag("field", { "var": "muc#roomconfig_roomname" })
+									.textTag("value", "Test Room")
+								.up()
+							.up()
+						.up();
+
+					client.stream.onStanza(responseStanza);
+					return EventHandled;
+				}
+			}
+			return EventUnhandled;
+		});
+
+		command.execute().then(session -> {
+			Assert.equals("executing", session.status);
+
+			client.stream.on("sendStanza", (stanza: Stanza) -> {
+				if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
+					final query = stanza.getChild("query", "http://jabber.org/protocol/muc#owner");
+					if (query != null) {
+						final responseStanza = new Stanza("iq", { xmlns: "jabber:client", type: "error", id: stanza.attr.get("id"), from: "channel@example.com", to: "test@example.com" })
+							.tag("error", { type: "cancel" })
+								.tag("conflict", { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" }).up()
+							.up();
+						client.stream.onStanza(responseStanza);
+						return EventHandled;
+					}
+				}
+				return EventUnhandled;
+			});
+
+			#if js
+			final data = {};
+			#else
+			final data = new borogove.Form.FormSubmitBuilder();
+			#end
+
+			session.execute(null, data, 0).then(nextSession -> {
+				Assert.equals("error", nextSession.status);
+				Assert.equals(1, nextSession.forms.length);
+				Assert.equals(0, completed);
 				async.done();
 			}, err -> {
 				Assert.fail(err);
@@ -78,7 +144,8 @@ class TestMucSettingsCommand extends utest.Test {
 	public function testExecuteGetError(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
-		final command = new MucSettingsCommand(client, JID.parse("channel@example.com"));
+		var completed = 0;
+		final command = new MucSettingsCommand(client, JID.parse("channel@example.com"), () -> completed++);
 
 		client.stream.on("sendStanza", (stanza: Stanza) -> {
 			if (stanza.name == "iq" && stanza.attr.get("type") == "get") {
@@ -99,6 +166,7 @@ class TestMucSettingsCommand extends utest.Test {
 		command.execute().then(session -> {
 			Assert.equals("error", session.status);
 			Assert.equals(1, session.forms.length);
+			Assert.equals(0, completed);
 			async.done();
 		}, err -> {
 			Assert.fail(err);
@@ -108,7 +176,8 @@ class TestMucSettingsCommand extends utest.Test {
 	public function testSessionCancel(async: Async) {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
-		final command = new MucSettingsCommand(client, JID.parse("channel@example.com"));
+		var completed = 0;
+		final command = new MucSettingsCommand(client, JID.parse("channel@example.com"), () -> completed++);
 
 		final session = new borogove.MucSettingsCommand.MucSettingsCommandSession("executing", null, [], [], command);
 
@@ -119,6 +188,7 @@ class TestMucSettingsCommand extends utest.Test {
 
 		session.execute("cancel", null, 0).then(nextSession -> {
 			Assert.equals("canceled", nextSession.status);
+			Assert.equals(0, completed);
 			async.done();
 		}, err -> {
 			Assert.fail(err);
