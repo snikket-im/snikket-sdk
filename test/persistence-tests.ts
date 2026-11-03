@@ -2290,6 +2290,89 @@ export function sharedPersistenceTests(test) {
 			original.text,
 		]);
 	});
+
+	test("ring-before-propose storage race keeps direction from the proposal", async ({
+		borogove,
+		persistence,
+	}) => {
+		const account = "race-alice@example.com";
+		const contact = "race-hatter@example.com";
+		const sid = "ring-before-propose";
+		const client = new borogove.Client(account, persistence);
+		const storeOrder: string[] = [];
+		const originalStoreMessages = persistence.storeMessages.bind(persistence);
+		let proposalStarted!: () => void;
+		let releaseProposal!: () => void;
+		const proposalStoreStarted = new Promise<void>((resolve) => {
+			proposalStarted = resolve;
+		});
+		const proposalStoreCanFinish = new Promise<void>((resolve) => {
+			releaseProposal = resolve;
+		});
+		let ringStoreStarted = false;
+		let ringStoreFinished!: () => void;
+		const ringStoreCanFinish = new Promise<void>((resolve) => {
+			ringStoreFinished = resolve;
+		});
+
+		persistence.storeMessages = async (accountId, messages) => {
+			const isProposal = messages.some(
+				(message) =>
+					message.type === borogove.MessageType.MessageCall &&
+					message.callStatus() === "propose",
+			);
+			const isRinging = messages.some(
+				(message) =>
+					message.type === borogove.MessageType.MessageCall &&
+					message.callStatus() === "ringing",
+			);
+			if (isProposal) {
+				proposalStarted();
+				await proposalStoreCanFinish;
+			}
+			if (isRinging) ringStoreStarted = true;
+			const result = await originalStoreMessages(accountId, messages);
+			for (const message of messages) {
+				if (message.type === borogove.MessageType.MessageCall) {
+					storeOrder.push(message.callStatus());
+				}
+			}
+			if (isRinging) ringStoreFinished();
+			return result;
+		};
+
+		try {
+			(client as any).processLiveMessage(
+				borogove.Stanza.parse(`
+					<message xmlns="jabber:client" from="${contact}/phone" to="${account}" type="chat" id="proposal-message-id">
+						<propose xmlns="urn:xmpp:jingle-message:0" id="${sid}">
+							<description xmlns="urn:xmpp:jingle:apps:rtp:1" media="audio"/>
+						</propose>
+						<stanza-id xmlns="urn:xmpp:sid:0" by="${account}" id="race-propose-server-id"/>
+					</message>
+				`),
+				null,
+			);
+
+			await proposalStoreStarted;
+			// Let the real ring path run while the proposal write is still blocked.
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			expect(ringStoreStarted).toBe(false);
+			releaseProposal();
+			// Wait for the ring write instead of assuming it finishes in a fixed time.
+			await ringStoreCanFinish;
+
+			expect(storeOrder).toEqual(["propose", "ringing"]);
+			const stored = await persistence.getMessage(account, contact, null, sid);
+			expect(stored).not.toBeNull();
+			expect(stored?.direction).toBe(borogove.MessageDirection.MessageReceived);
+			expect(stored?.senderId).toBe(contact);
+		} finally {
+			releaseProposal();
+			persistence.storeMessages = originalStoreMessages;
+		}
+	});
+
 }
 
 type TestKeyPair = {

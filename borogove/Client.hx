@@ -541,12 +541,28 @@ class Client extends EventEmitter {
 							}
 						});
 					};
+					final maybeRing = () -> {
+#if !NO_JINGLE
+						final jmiP = stanza.getChild("propose", "urn:xmpp:jingle-message:0");
+						if (jmiP == null || jmiP.attr.get("id") == null || from == null) return;
+						final session = new IncomingProposedSession(this, from, jmiP.attr.get("id"));
+						if (!chat.jingleSessions.exists(session.sid)) {
+							chat.jingleSessions.set(session.sid, session);
+							session.ring();
+						}
+#end
+					};
 					if (chatMessage.serverId == null) {
 						updateChat(chatMessage);
+						maybeRing();
 					} else {
 						maybeAutodownloadAttachments(chat, chatMessage).then(_ ->
-							storeMessages([chatMessage]).then((stored) -> updateChat(stored[0]))
-						);
+							storeMessages([chatMessage])
+						).then((stored) -> {
+							updateChat(stored[0]);
+							maybeRing();
+							return true;
+						});
 					}
 				}
 			case ReactionUpdateStanza(update):
@@ -620,17 +636,6 @@ class Client extends EventEmitter {
 		if (stanza.attr.get("type") == "error") return;
 
 #if !NO_JINGLE
-		final jmiP = stanza.getChild("propose", "urn:xmpp:jingle-message:0");
-		if (jmiP != null && jmiP.attr.get("id") != null) {
-			final session = new IncomingProposedSession(this, from, jmiP.attr.get("id"));
-			final chat = getDirectChat(from.asBare().asString());
-			if (!chat.jingleSessions.exists(session.sid)) {
-				chat.jingleSessions.set(session.sid, session);
-				chatActivity(chat);
-				session.ring();
-			}
-		}
-
 		final jmiR = stanza.getChild("retract", "urn:xmpp:jingle-message:0");
 		if (jmiR != null && jmiR.attr.get("id") != null) {
 			final chat = getDirectChat(from.asBare().asString());
