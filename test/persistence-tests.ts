@@ -1,6 +1,57 @@
 import { faker } from "@faker-js/faker";
 import { expect } from "vitest";
 
+function createCallMessage(
+	borogove: any,
+	account: string,
+	contact: string,
+	sid: string,
+) {
+	return ({
+		direction,
+		event,
+		localId = sid,
+		serverId = null,
+		sortId,
+		timeReceived,
+		versions = [],
+	}: {
+		direction: number;
+		event: string;
+		localId?: string;
+		serverId?: string | null;
+		sortId: string;
+		timeReceived: string;
+		versions?: any[];
+	}) => {
+		const received = direction === borogove.MessageDirection.MessageReceived;
+		const from = received ? contact : account;
+		const to = received ? account : contact;
+		const builder = new borogove.ChatMessageBuilder({
+			localId,
+			serverId,
+			serverIdBy: serverId == null ? null : account,
+			senderId: from,
+			direction,
+			type: borogove.MessageType.MessageCall,
+			timeReceived,
+			versions,
+			payloads: [
+				borogove.Stanza.parse(
+					`<${event} xmlns="urn:xmpp:jingle-message:0" id="${sid}"/>`,
+				),
+			],
+			text: "call " + event,
+		});
+		builder.sortId = sortId;
+		builder.to = borogove.JID.parse(to);
+		builder.from = borogove.JID.parse(from);
+		builder.recipients = [builder.to];
+		builder.replyTo = [builder.from];
+		return builder.build();
+	};
+}
+
 export function sharedPersistenceTests(test) {
 	test("getMessagesByStatus filters and orders messages", async ({
 		borogove,
@@ -2382,49 +2433,7 @@ export function sharedPersistenceTests(test) {
 		const sid = "ordering-outgoing-call";
 		const proposedAt = "2024-01-01T00:00:00.000Z";
 		const rejectedAt = "2024-01-01T00:00:01.000Z";
-		const callMessage = ({
-			direction,
-			event,
-			localId,
-			sortId,
-			timeReceived,
-			serverId,
-			versions,
-		}: {
-			direction: number;
-			event: string;
-			localId?: string;
-			sortId: string;
-			timeReceived: string;
-			serverId?: string;
-			versions?: any[];
-		}) => {
-			const received = direction === borogove.MessageDirection.MessageReceived;
-			const from = received ? contact : account;
-			const to = received ? account : contact;
-			const builder = new borogove.ChatMessageBuilder({
-				localId: localId ?? sid,
-				serverId: serverId ?? null,
-				serverIdBy: serverId == null ? null : account,
-				senderId: from,
-				direction,
-				type: borogove.MessageType.MessageCall,
-				timeReceived,
-				versions: versions ?? [],
-				payloads: [
-					borogove.Stanza.parse(
-						`<${event} xmlns="urn:xmpp:jingle-message:0" id="${sid}"/>`,
-					),
-				],
-				text: "call " + event,
-			});
-			builder.sortId = sortId;
-			builder.to = borogove.JID.parse(to);
-			builder.from = borogove.JID.parse(from);
-			builder.recipients = [builder.to];
-			builder.replyTo = [builder.from];
-			return builder.build();
-		};
+		const callMessage = createCallMessage(borogove, account, contact, sid);
 
 		const propose = callMessage({
 			direction: borogove.MessageDirection.MessageSent,
@@ -2462,6 +2471,88 @@ export function sharedPersistenceTests(test) {
 		expect(details.message.direction).toBe(
 			borogove.MessageDirection.MessageSent,
 		);
+	});
+
+	test("getMessagesBefore includes the full call log across directions", async ({
+		borogove,
+		persistence,
+	}) => {
+		const account = "call-log-alice@example.com";
+		const contact = "call-log-hatter@example.com";
+		const sid = "call-log-sid";
+		const callMessage = createCallMessage(borogove, account, contact, sid);
+		const callUpdate = ({
+			direction,
+			event,
+			sortId,
+			timeReceived,
+		}: {
+			direction: number;
+			event: string;
+			sortId: string;
+			timeReceived: string;
+		}) => {
+			const serverId = `call-log-${event}-server-id`;
+			const version = callMessage({
+				direction,
+				event,
+				localId: `call-log-${event}-stanza-id`,
+				serverId,
+				sortId,
+				timeReceived,
+			});
+			return callMessage({
+				direction,
+				event,
+				serverId,
+				sortId,
+				timeReceived,
+				versions: [version],
+			});
+		};
+
+		await persistence.storeMessages(account, [
+			callMessage({
+				direction: borogove.MessageDirection.MessageSent,
+				event: "propose",
+				serverId: "call-log-propose-server-id",
+				sortId: "call-log-a0",
+				timeReceived: "2024-02-01T00:00:00.000Z",
+			}),
+		]);
+		for (const update of [
+			{
+				direction: borogove.MessageDirection.MessageReceived,
+				event: "ringing",
+				sortId: "call-log-a1",
+				timeReceived: "2024-02-01T00:00:01.000Z",
+			},
+			{
+				direction: borogove.MessageDirection.MessageReceived,
+				event: "proceed",
+				sortId: "call-log-a2",
+				timeReceived: "2024-02-01T00:00:02.000Z",
+			},
+			{
+				direction: borogove.MessageDirection.MessageSent,
+				event: "finish",
+				sortId: "call-log-a3",
+				timeReceived: "2024-02-01T00:00:03.000Z",
+			},
+		]) {
+			await persistence.storeMessages(account, [callUpdate(update)]);
+		}
+
+		const messages = await persistence.getMessagesBefore(account, contact);
+		const call = messages.find((message) => message.localId === sid);
+		expect(call).toBeDefined();
+		expect(call?.type).toBe(borogove.MessageType.MessageCall);
+		expect(call?.versions.map((version) => version.callStatus())).toEqual([
+			"finish",
+			"proceed",
+			"ringing",
+			"propose",
+		]);
 	});
 }
 

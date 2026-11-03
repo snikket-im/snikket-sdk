@@ -876,17 +876,20 @@ class Sqlite implements Persistence implements KeyValueStore {
 			SELECT
 				$versionedMessageColumns
 			FROM messages
-			INNER JOIN messages versions USING (correction_id, sender_id)
+			$versionedMessagesJoin
 			WHERE
 				messages.account_id=?
 				AND messages.chat_id=?
-				AND (messages.stanza_id IS NULL OR messages.stanza_id=\'\' OR messages.stanza_id=correction_id)
+				AND (messages.stanza_id IS NULL OR messages.stanza_id=\'\' OR messages.stanza_id=messages.correction_id)
 		';
-		var params = [accountId, stub.chatId()];
+		var params:Array<Dynamic> = [MessageCall, accountId, stub.chatId()];
 		if (stub.versions.length > 0 || stub.serverId == null) {
-			q += " AND correction_id=? AND sender_id=?";
+			q += " AND messages.correction_id=?";
 			params.push(stub.localId);
-			params.push(stub.senderId);
+			if (stub.type != MessageCall) {
+				q += " AND messages.sender_id=?";
+				params.push(stub.senderId);
+			}
 		} else if (stub.serverId != null) {
 			q += " AND messages.mam_id=? AND messages.mam_by=?";
 			params.push(stub.serverId);
@@ -894,7 +897,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 		} else {
 			throw "No way to look up this message";
 		}
-		q += " GROUP BY correction_id, CASE WHEN messages.type=? THEN 'call' ELSE messages.sender_id END";
+		q += " GROUP BY messages.correction_id, CASE WHEN messages.type=? THEN 'call' ELSE messages.sender_id END";
+		params.push(MessageCall);
 		return db.exec(q, params).then(results -> {
 			final row = results.next();
 			if (row == null) return stub;
@@ -952,18 +956,19 @@ class Sqlite implements Persistence implements KeyValueStore {
 			SELECT
 				$versionedMessageColumns
 			FROM messages
-			INNER JOIN messages versions USING (correction_id, sender_id)
+			$versionedMessagesJoin
 			WHERE
 				(messages.stanza_id, messages.mam_id) IN (SELECT * FROM page)
 				AND messages.account_id=?
 				AND messages.chat_id=?
-				GROUP BY correction_id, CASE WHEN messages.type=? THEN \'call\' ELSE messages.sender_id END
+				GROUP BY messages.correction_id, CASE WHEN messages.type=? THEN \'call\' ELSE messages.sender_id END
 		';
 		q += " ORDER BY messages.sort_id";
 		if (op == "<" || op == "<=") q += " DESC";
 		q += ", messages.time_received";
 		if (op == "<" || op == "<=") q += " DESC";
 
+		params.push(MessageCall);
 		params.push(accountId);
 		params.push(chatId);
 		params.push(MessageCall);
@@ -1848,8 +1853,16 @@ class Sqlite implements Persistence implements KeyValueStore {
 		.map(column -> column.sql);
 	}
 
+	private final versionedMessagesJoin = "
+		INNER JOIN messages versions
+			ON versions.correction_id = messages.correction_id
+			AND CASE
+				WHEN messages.type = ? THEN versions.type = messages.type
+				ELSE versions.sender_id = messages.sender_id
+			END";
+
 	private final versionedMessageColumns = "
-		correction_id AS stanza_id,
+		messages.correction_id AS stanza_id,
 		json_group_object(
 			CASE
 				WHEN versions.mam_id IS NULL OR versions.mam_id=''

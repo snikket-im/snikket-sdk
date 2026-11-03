@@ -252,7 +252,7 @@ class Message {
 			final version = msg.build();
 			// The session id is what really identifies us
 			msg.localId = jmi.attr.get("id");
-			if (jmi.name != "propose") {
+			if (jmi.name != "propose" && msg.versions.length < 1) {
 				msg.versions = [version];
 			}
 		}
