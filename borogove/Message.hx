@@ -243,12 +243,19 @@ class Message {
 			msg.type = MessageCall;
 			msg.payloads.push(jmi);
 			if (msg.text == null) msg.text = "call " + jmi.name;
-			// The session id is what really identifies us
-			msg.localId = jmi.attr.get("id");
 		}
 
 		if (addContext != null) msg = addContext(msg, stanza);
 		final timeSent = msg.timeSent ?? msg.timeReceived ?? Date.format(std.Date.now());
+
+		if (jmi != null && jmi.name != "accept") {
+			final version = msg.build();
+			// The session id is what really identifies us
+			msg.localId = jmi.attr.get("id");
+			if (jmi.name != "propose") {
+				msg.versions = [version];
+			}
+		}
 
 		final xep0070 = stanza.getChild("confirm", "http://jabber.org/protocol/http-auth");
 		if (xep0070 != null) {
@@ -259,10 +266,6 @@ class Message {
 			if (from != null && threadId != null && id != null && method != null && url != null) {
 				return new Message(msg.chatId(), msg.senderId, threadId, LoginRequest(new LoginRequest(from, threadId, id, method, url, timeSent)), encryptionInfo);
 			}
-		}
-
-		if (jmi != null && jmi.name != "accept" && jmi.name != "propose") {
-			msg.versions = [msg.build()];
 		}
 
 		final reactionsEl = stanza.getChild("reactions", "urn:xmpp:reactions:0");

@@ -2373,6 +2373,96 @@ export function sharedPersistenceTests(test) {
 		}
 	});
 
+	test("getChatUnreadDetails keeps outgoing call direction after a later remote status", async ({
+		borogove,
+		persistence,
+	}) => {
+		const account = "ordering-alice@example.com";
+		const contact = "ordering-hatter@example.com";
+		const sid = "ordering-outgoing-call";
+		const proposedAt = "2024-01-01T00:00:00.000Z";
+		const rejectedAt = "2024-01-01T00:00:01.000Z";
+		const callMessage = ({
+			direction,
+			event,
+			localId,
+			sortId,
+			timeReceived,
+			serverId,
+			versions,
+		}: {
+			direction: number;
+			event: string;
+			localId?: string;
+			sortId: string;
+			timeReceived: string;
+			serverId?: string;
+			versions?: any[];
+		}) => {
+			const received = direction === borogove.MessageDirection.MessageReceived;
+			const from = received ? contact : account;
+			const to = received ? account : contact;
+			const builder = new borogove.ChatMessageBuilder({
+				localId: localId ?? sid,
+				serverId: serverId ?? null,
+				serverIdBy: serverId == null ? null : account,
+				senderId: from,
+				direction,
+				type: borogove.MessageType.MessageCall,
+				timeReceived,
+				versions: versions ?? [],
+				payloads: [
+					borogove.Stanza.parse(
+						`<${event} xmlns="urn:xmpp:jingle-message:0" id="${sid}"/>`,
+					),
+				],
+				text: "call " + event,
+			});
+			builder.sortId = sortId;
+			builder.to = borogove.JID.parse(to);
+			builder.from = borogove.JID.parse(from);
+			builder.recipients = [builder.to];
+			builder.replyTo = [builder.from];
+			return builder.build();
+		};
+
+		const propose = callMessage({
+			direction: borogove.MessageDirection.MessageSent,
+			event: "propose",
+			sortId: "order-b1",
+			timeReceived: proposedAt,
+			serverId: "ordering-propose-server-id",
+		});
+		const rejectVersion = callMessage({
+			direction: borogove.MessageDirection.MessageReceived,
+			event: "reject",
+			localId: "ordering-reject-stanza-id",
+			sortId: "order-b2",
+			timeReceived: rejectedAt,
+			serverId: "ordering-reject-server-id",
+		});
+		const reject = callMessage({
+			direction: borogove.MessageDirection.MessageReceived,
+			event: "reject",
+			sortId: "order-b2",
+			timeReceived: rejectedAt,
+			serverId: "ordering-reject-server-id",
+			versions: [rejectVersion],
+		});
+
+		await persistence.storeMessages(account, [propose]);
+		await persistence.storeMessages(account, [reject]);
+
+		const chat = Object.create(borogove.DirectChat.prototype);
+		chat.chatId = contact;
+		chat.readUpToId = "no-such-message";
+		chat.notificationsFiltered = () => false;
+
+		const details = await persistence.getChatUnreadDetails(account, chat);
+		expect(details.message.direction).toBe(
+			borogove.MessageDirection.MessageSent,
+		);
+	});
 }
 
 type TestKeyPair = {
