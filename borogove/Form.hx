@@ -103,7 +103,7 @@ class FormSubmitBuilder {
 						tag.textTag("value", v);
 					}
 					tag.up();
-				} else if (f.required && (data.get(f.name) == null || data[f.name].length < 1)) {
+				} else if (f.required && f.name != "http://jabber.org/protocol/commands#actions" && (data.get(f.name) == null || data[f.name].length < 1)) {
 					trace("No value provided for required field", f.name);
 					return null;
 				}
