@@ -650,7 +650,7 @@ class MediaStream {
 		Create default bidirectional audio track
 	**/
 	public static function makeAudio(): MediaStream {
-		final audio = new DescriptionAudio(cpp.StdString.ofString(ID.unique()), SendRecv);
+		final audio = new DescriptionAudio(cpp.StdString.ofString(ID.random(16)), SendRecv);
 		audio.addOpusCodec(107); // May need to get from rtpmap?
 		audio.addPCMUCodec(0);
 		audio.addAudioCodec(101, cpp.StdString.ofString("telephone-event/8000")); // May need to get from rtpmap?
