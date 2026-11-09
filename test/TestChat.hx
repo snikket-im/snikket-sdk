@@ -8,10 +8,12 @@ import borogove.Stanza;
 import borogove.JID;
 import borogove.persistence.Dummy;
 import borogove.CapsRepo;
+import borogove.Chat;
 import borogove.Chat.Channel;
 import borogove.Chat.AvailableChat;
 import borogove.Caps.Identity;
 import borogove.Member;
+import borogove.Presence;
 import borogove.Role;
 import thenshim.Promise;
 using Lambda;
@@ -649,6 +651,69 @@ class TestChat extends utest.Test {
 		Assert.isFalse(channel.canSend());
 		channel.disconnected();
 		Assert.isFalse(channel.canSend());
+	}
+
+	public function testCreationRequires201(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final channel = new Channel(client, client.stream, persistence, "room@example.com", Creating);
+		var sentUnavailable = false;
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "presence" && stanza.attr.get("type") == "unavailable") sentUnavailable = true;
+			return EventUnhandled;
+		});
+
+		Assert.isFalse(channel.canSend());
+
+		channel.join().then(_ -> {
+			final presence: Presence = cast Stanza.parse('<presence xmlns="jabber:client" from="room@example.com/test" to="test@example.com"><x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="member" role="participant"/><status code="110"/></x></presence>');
+			channel.setPresence("test", presence, false);
+
+			Assert.equals("conflict", channel.joinFailed?.getError()?.condition);
+			Assert.equals(Closed, channel.uiState);
+			Assert.isTrue(sentUnavailable);
+			async.done();
+			return null;
+		}, err -> {
+			Assert.fail(err);
+			return null;
+		});
+	}
+
+	public function testCreationErrorPresenceClosesChannel(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final channel = new Channel(client, client.stream, persistence, "room@example.com", Creating);
+		client.chats.push(channel);
+		client.chatsIndex[channel.chatId] = channel;
+
+		channel.join().then(_ -> {
+			client.stream.onStanza(Stanza.parse('<presence xmlns="jabber:client" from="room@example.com/test" to="test@example.com" type="error"><error type="auth"><forbidden xmlns="urn:ietf:params:xml:ns:xmpp-stanzas"/></error></presence>'));
+
+			Assert.equals("forbidden", channel.joinFailed?.getError()?.condition);
+			Assert.equals(Closed, channel.uiState);
+			async.done();
+			return null;
+		}, err -> {
+			Assert.fail(err);
+			return null;
+		});
+	}
+
+	public function testSelfPingNoopWhileCreating() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final channel = new Channel(client, client.stream, persistence, "room@example.com", Creating);
+		var sentPing = false;
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.getChild("ping", "urn:xmpp:ping") != null) sentPing = true;
+			return EventUnhandled;
+		});
+
+		channel.selfPing(true);
+		Assert.isFalse(sentPing);
 	}
 
 	public function testJoinFailure() {

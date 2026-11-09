@@ -5,6 +5,7 @@ import utest.Assert;
 import utest.Async;
 
 import borogove.Chat;
+import borogove.Chat.Channel;
 import borogove.ChatMessage;
 import borogove.ChatMessageBuilder;
 import borogove.Client;
@@ -15,6 +16,8 @@ import borogove.Member;
 import borogove.MemberUpdate;
 import borogove.Message;
 import borogove.ModerationAction;
+import borogove.MucSettingsCommand;
+import borogove.Presence;
 import borogove.Role;
 import borogove.Stanza;
 import borogove.Status;
@@ -30,6 +33,24 @@ using Lambda;
 
 @:access(borogove)
 class TestClient extends utest.Test {
+	private function errorStanza(condition: String, type: String = "cancel"): Stanza {
+		return new Stanza("presence", { type: "error" })
+			.tag("error", { type: type })
+				.tag(condition, { xmlns: "urn:ietf:params:xml:ns:xmpp-stanzas" }).up()
+			.up();
+	}
+
+	private function discardChannel(client: Client, channel: Channel): Void {
+		channel.setJoinFailed(errorStanza("internal-server-error"));
+		client.chats.remove(channel);
+		client.chatsIndex.remove(channel.chatId);
+	}
+
+	private function submittedField(stanza: Stanza, name: String): Null<String> {
+		final x = stanza.getChild("query", "http://jabber.org/protocol/muc#owner")?.getChild("x", "jabber:x:data");
+		return x?.allTags("field").find(field -> field.attr.get("var") == name)?.getChildText("value");
+	}
+
 	public function testPresenceAppliedBeforeCapsDiscovery() {
 		final client = new Client("test@example.com", new Dummy());
 		final channel = new borogove.Chat.Channel(client, client.stream, client.persistence, "room@example.com");
@@ -1569,6 +1590,287 @@ class TestClient extends utest.Test {
 		});
 	}
 
+	public function testCreateChannelDerivesLocalpartFromName(async: Async) {
+		final client = new Client("test@example.com", new Dummy());
+
+		client.createChannel("  Design Team & Chat!  ", "   ", "groups.example.com").then(channel -> {
+			Assert.equals("design-team-chat@groups.example.com", channel.chatId);
+			discardChannel(client, channel);
+			async.done();
+			return null;
+		}, err -> {
+			Assert.fail(err);
+			return null;
+		});
+	}
+
+	public function testCreateChannelFallsBackToUuid(async: Async) {
+		final client = new Client("test@example.com", new Dummy());
+
+		client.createChannel(null, "   ", "groups.example.com").then(channel -> {
+			final parsed = JID.parse(channel.chatId);
+			Assert.notNull(parsed.node);
+			Assert.isFalse(parsed.node == "");
+			Assert.equals("groups.example.com", parsed.domain);
+			discardChannel(client, channel);
+			async.done();
+			return null;
+		}, err -> {
+			Assert.fail(err);
+			return null;
+		});
+	}
+
+	public function testCreateChannelUsesPersistedService(async: Async) {
+		final persistence = new ChannelCreationMockPersistence();
+		persistence.services = [{
+			serviceId: "groups.example.com",
+			name: "Groups",
+			node: null,
+			caps: new borogove.Caps("", [], ["http://jabber.org/protocol/muc"], []),
+		}];
+		final client = new Client("test@example.com", persistence);
+
+		client.createChannel(null, "design-team").then(channel -> {
+			Assert.equals("design-team@groups.example.com", channel.chatId);
+			discardChannel(client, channel);
+			async.done();
+			return null;
+		}, err -> {
+			Assert.fail(err);
+			return null;
+		});
+	}
+
+	public function testCreateChannelWithoutServiceRejects(async: Async) {
+		final client = new Client("test@example.com", new Dummy());
+
+		client.createChannel(null, null).then(_ -> {
+			Assert.fail("Expected createChannel to reject");
+			return null;
+		}, err -> {
+			Assert.notNull(err);
+			async.done();
+			return null;
+		});
+	}
+
+	public function testCreateChannelRejectsExistingChat(async: Async) {
+		final client = new Client("test@example.com", new Dummy());
+
+		client.createChannel(null, "design-team", "groups.example.com").then(channel -> {
+			client.createChannel(null, "design-team", "groups.example.com").then(_ -> {
+				Assert.fail("Expected second createChannel to reject");
+				return null;
+			}, err -> {
+				Assert.notNull(err);
+				discardChannel(client, channel);
+				async.done();
+				return null;
+			});
+			return null;
+		}, err -> {
+			Assert.fail(err);
+			return null;
+		});
+	}
+
+	public function testCreateChannelInstantConfiguresAutomatically(async: Async) {
+		final persistence = new ChannelCreationMockPersistence();
+		final client = new Client("test@example.com", persistence);
+
+		var created: Null<Channel> = null;
+		var sentPresence: Null<Stanza> = null;
+		var submitted: Null<Stanza> = null;
+		var ownerGets = 0;
+		var ownerSets = 0;
+		var done = false;
+
+		client.on("chats/update", (chats: Array<Chat>) -> {
+			final channel = created;
+			if (done || channel == null || chats.indexOf(channel) < 0 || channel.uiState != Open) return EventHandled;
+
+			done = true;
+			Assert.equals(1, ownerGets);
+			Assert.equals(1, ownerSets);
+			Assert.notNull(submitted);
+			Assert.equals("Design Team", submittedField(submitted, "muc#roomconfig_roomname"));
+			Assert.equals("0", submittedField(submitted, "muc#roomconfig_membersonly"));
+			Assert.equals("1", submittedField(submitted, "muc#roomconfig_persistentroom"));
+			Assert.equals("anyone", submittedField(submitted, "muc#roomconfig_whois"));
+			Assert.equals("1", submittedField(submitted, "muc#roomconfig_allowinvites"));
+			Assert.equals(Open, channel.uiState);
+			Assert.isTrue(channel.canSend());
+			Assert.isTrue(persistence.storedChats.indexOf(channel) >= 0);
+			async.done();
+			return EventHandled;
+		});
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "presence") {
+				sentPresence = stanza;
+				return EventHandled;
+			}
+
+			if (stanza.name == "iq" && stanza.attr.get("type") == "get") {
+				final query = stanza.getChild("query", "http://jabber.org/protocol/muc#owner");
+				if (query != null) {
+					ownerGets++;
+					final responseStanza = new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id"), from: "design-team@groups.example.com", to: "test@example.com" })
+						.tag("query", { xmlns: "http://jabber.org/protocol/muc#owner" })
+							.tag("x", { xmlns: "jabber:x:data", type: "form" })
+								.tag("field", { "var": "muc#roomconfig_roomname" })
+									.textTag("value", "Server Default")
+								.up()
+								.tag("field", { "var": "muc#roomconfig_membersonly", type: "boolean" })
+									.textTag("value", "1")
+								.up()
+							.up()
+						.up();
+
+					client.stream.onStanza(responseStanza);
+					return EventHandled;
+				}
+			} else if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
+				final query = stanza.getChild("query", "http://jabber.org/protocol/muc#owner");
+				if (query != null) {
+					ownerSets++;
+					submitted = stanza;
+					final responseStanza = new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id"), from: "design-team@groups.example.com", to: "test@example.com" });
+					client.stream.onStanza(responseStanza);
+					return EventHandled;
+				}
+			}
+
+			return EventUnhandled;
+		});
+
+		client.createChannelInstant("Design Team", false, "design-team", "groups.example.com").then(channel -> {
+			created = channel;
+
+			Assert.equals("design-team@groups.example.com", channel.chatId);
+			Assert.equals("Design Team", channel.getDisplayName());
+			Assert.equals(Creating, channel.uiState);
+			Assert.isFalse(channel.canSend());
+			Assert.equals(channel, client.getChat(channel.chatId));
+			Assert.isTrue(client.getChats().indexOf(channel) >= 0);
+			Assert.isFalse(persistence.storedChats.indexOf(channel) >= 0);
+			Assert.notNull(channel.creationFormSubmission);
+			Assert.equals("Design Team", channel.creationFormSubmission.get("muc#roomconfig_roomname")[0]);
+			Assert.equals("0", channel.creationFormSubmission.get("muc#roomconfig_membersonly")[0]);
+			Assert.notNull(sentPresence);
+			Assert.equals("design-team@groups.example.com/test", sentPresence.attr.get("to"));
+			Assert.notNull(sentPresence.getChild("x", "http://jabber.org/protocol/muc"));
+
+			final presence: Presence = cast Stanza.parse('<presence xmlns="jabber:client" from="design-team@groups.example.com/test" to="test@example.com"><x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="owner" role="moderator"/><status code="110"/><status code="201"/></x></presence>');
+			client.stream.onStanza(presence);
+			return null;
+		}, err -> {
+			Assert.fail(err);
+			return null;
+		});
+	}
+
+	public function testCreateChannelDefersConfig(async: Async) {
+		final persistence = new ChannelCreationMockPersistence();
+		final client = new Client("test@example.com", persistence);
+
+		var submitted: Null<Stanza> = null;
+		var ownerGets = 0;
+		var ownerSets = 0;
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "get") {
+				final query = stanza.getChild("query", "http://jabber.org/protocol/muc#owner");
+				if (query != null) {
+					ownerGets++;
+					final responseStanza = new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id"), from: "design-team@groups.example.com", to: "test@example.com" })
+						.tag("query", { xmlns: "http://jabber.org/protocol/muc#owner" })
+							.tag("x", { xmlns: "jabber:x:data", type: "form" })
+								.tag("field", { "var": "muc#roomconfig_roomname" })
+									.textTag("value", "Server Default")
+								.up()
+							.up()
+						.up();
+
+					client.stream.onStanza(responseStanza);
+					return EventHandled;
+				}
+			} else if (stanza.name == "iq" && stanza.attr.get("type") == "set") {
+				final query = stanza.getChild("query", "http://jabber.org/protocol/muc#owner");
+				if (query != null) {
+					ownerSets++;
+					submitted = stanza;
+					final responseStanza = new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id"), from: "design-team@groups.example.com", to: "test@example.com" });
+					client.stream.onStanza(responseStanza);
+					return EventHandled;
+				}
+			}
+			return EventUnhandled;
+		});
+
+		client.createChannel("Design Team", "design-team", "groups.example.com").then(channel -> {
+			Assert.equals("design-team@groups.example.com", channel.chatId);
+			Assert.equals(Creating, channel.uiState);
+			Assert.isFalse(channel.canSend());
+			Assert.isNull(channel.creationFormSubmission);
+			Assert.notNull(channel.creationFormPrefill);
+			Assert.equals("Design Team", channel.creationFormPrefill.get("muc#roomconfig_roomname")[0]);
+
+			final presence: Presence = cast Stanza.parse('<presence xmlns="jabber:client" from="design-team@groups.example.com/test" to="test@example.com"><x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="owner" role="moderator"/><status code="110"/><status code="201"/></x></presence>');
+			client.stream.onStanza(presence);
+
+			Assert.isTrue(channel.isJoined);
+			Assert.equals(Creating, channel.uiState);
+			Assert.isFalse(channel.canSend());
+			Assert.equals(0, ownerGets);
+
+			channel.commands().then(cmds -> {
+				final settings = cmds.filter(cmd -> Std.isOfType(cmd, MucSettingsCommand))[0];
+				settings.execute().then(session -> {
+					Assert.equals("executing", session.status);
+					final nameItem = session.forms[0].items().find(item -> item.field?.name == "muc#roomconfig_roomname");
+					Assert.notNull(nameItem);
+					Assert.equals("Design Team", nameItem.field.value[0]);
+
+					#if js
+					final data = {};
+					#else
+					final data = new borogove.Form.FormSubmitBuilder();
+					#end
+
+					session.execute(null, data, 0).then(nextSession -> {
+						Assert.equals("completed", nextSession.status);
+						Assert.equals(1, ownerGets);
+						Assert.equals(1, ownerSets);
+						Assert.notNull(submitted);
+						Assert.equals("Design Team", submittedField(submitted, "muc#roomconfig_roomname"));
+						Assert.equals(Open, channel.uiState);
+						Assert.isTrue(channel.canSend());
+						Assert.isTrue(persistence.storedChats.indexOf(channel) >= 0);
+						async.done();
+						return null;
+					}, err -> {
+						Assert.fail(err);
+						return null;
+					});
+					return null;
+				}, err -> {
+					Assert.fail(err);
+					return null;
+				});
+				return null;
+			}, err -> {
+				Assert.fail(err);
+				return null;
+			});
+			return null;
+		}, err -> {
+			Assert.fail(err);
+			return null;
+		});
+	}
+
 #if js
 	public function testPreferOMEMO() {
 		final persistence = new Dummy();
@@ -1700,5 +2002,19 @@ class RestoreChatsMockPersistence extends Dummy {
 		for (c in chats) {
 			storedChats.push(c);
 		}
+	}
+}
+
+@:access(borogove)
+class ChannelCreationMockPersistence extends Dummy {
+	public var storedChats: Array<Chat> = [];
+	public var services: Array<{serviceId: String, name: Null<String>, node: Null<String>, caps: borogove.Caps}> = [];
+
+	override public function storeChats(accountId: String, chats: Array<Chat>) {
+		storedChats = storedChats.concat(chats);
+	}
+
+	override public function findServicesWithFeature(accountId: String, feature: String): Promise<Array<{serviceId: String, name: Null<String>, node: Null<String>, caps: borogove.Caps}>> {
+		return Promise.resolve(services);
 	}
 }

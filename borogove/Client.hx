@@ -471,7 +471,7 @@ class Client extends EventEmitter {
 				final channel = Std.downcast(chat, Channel);
 				if (channel != null && from.asString() == channel.getFullJid().asString()) {
 					trace("Join failed", channel.chatId, stanza);
-					channel.joinFailed = stanza;
+					channel.setJoinFailed(stanza);
 					this.trigger("chats/update", [channel]);
 				}
 			}
@@ -1135,6 +1135,7 @@ class Client extends EventEmitter {
 				// We resumed from disk so these must have been synced before
 				// and will get anything since live
 				for (channel in getChannels()) {
+					if (channel.uiState == Creating) continue;
 					channel.inSync = channel.livePresence() && channel.sortId != null;
 					trace(
 						"SYNC: channel inSync",
@@ -1553,6 +1554,100 @@ class Client extends EventEmitter {
 		persistence.storeChats(accountId(), [chat]);
 		this.trigger("chats/update", [chat]);
 		return chat;
+	}
+
+	/**
+		Create a new unconfigured Channel
+
+		The returned channel starts in the `Creating` state and stays locked until
+		the caller submits the muc-settings command.
+
+		@param name human-readable name for the channel
+		@param localpart localpart of the room ID
+		@param service MUC service domain; uses the account default if omitted
+		@returns A promise resolving to the newly created Channel, in the `Creating` state
+	**/
+	public function createChannel(
+		?name: Null<String>,
+		?localpart: Null<String>,
+		?service: Null<String>
+	): Promise<Channel> {
+		return createChannelInternal(name, localpart, service, name == null ? null : ["muc#roomconfig_roomname" => [name]], null);
+	}
+
+	/**
+		Create a new Channel and configure it
+
+		@param name human-readable name for the channel
+		@param isPrivate whether the room should be members only
+		@param localpart localpart of the room ID
+		@param service MUC service domain; uses the account default if omitted
+		@returns A promise resolving to the newly created Channel, in the `Creating` state
+	**/
+	public function createChannelInstant(
+		?name: Null<String>,
+		isPrivate: Bool = true,
+		?localpart: Null<String>,
+		?service: Null<String>
+	): Promise<Channel> {
+		final submission = new Map<String, Array<String>>();
+		if (name != null && name.trim() != "") {
+			submission.set("muc#roomconfig_roomname", [name]);
+		}
+		submission.set("muc#roomconfig_membersonly", [isPrivate ? "1" : "0"]);
+		submission.set("muc#roomconfig_persistentroom", ["1"]);
+		submission.set("muc#roomconfig_whois", ["anyone"]);
+		submission.set("muc#roomconfig_allowinvites", ["1"]);
+		return createChannelInternal(name, localpart, service, null, submission);
+	}
+
+	private function createChannelInternal(
+		?name: Null<String>,
+		?localpart: Null<String>,
+		?service: Null<String>,
+		?prefill: Null<Map<String, Array<String>>>,
+		?submission: Null<Map<String, Array<String>>>
+	): Promise<Channel> {
+		return (if (service != null) {
+			Promise.resolve(service);
+		} else {
+			persistence.findServicesWithFeature(accountId(), "http://jabber.org/protocol/muc").then(services -> services[0]?.serviceId);
+		}).then((service) -> {
+			if (service == null) throw "No default service on which to make a channel";
+
+			final chatId = channelJid(service, name, localpart).asString();
+			if (getChat(chatId) != null) throw 'Chat already exists: ${chatId}';
+
+			final channel = new Channel(this, this.stream, this.persistence, chatId, Creating, false, false, null);
+			channel.displayName = name ?? localpart ?? chatId;
+			channel.creationFormPrefill = prefill;
+			channel.creationFormSubmission = submission;
+			channel.join();
+
+			chats.unshift(channel);
+			chatsIndex[channel.chatId] = channel;
+			this.trigger("chats/update", [channel]);
+
+			return channel;
+		});
+	}
+
+	private static function channelJid(service: String, name: Null<String>, localpart: Null<String>): JID {
+		final requested = localpart;
+		var local = requested != null && requested.trim() != "" ? requested : channelSlug(name);
+		if (local == null || local == "") local = ID.unique();
+
+		return new JID(local, service);
+	}
+
+	private static function channelSlug(name: Null<String>): Null<String> {
+		if (name == null) return null;
+
+		var result = name.trim().toLowerCase();
+		result = ~/[^a-z0-9]+/g.replace(result, "-");
+		result = ~/^-+|-+$/g.replace(result, "");
+
+		return result == "" ? null : result;
 	}
 
 	/**
