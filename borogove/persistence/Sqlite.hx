@@ -56,7 +56,11 @@ class Sqlite implements Persistence implements KeyValueStore {
 	final media: MediaStore;
 	final storeMessagesSerialized = new AsyncLock();
 
-	public static function prepare(q: { sql: String, ?params: Array<Dynamic> }): String {
+	#if js
+		public
+	#else
+		@:allow(borogove)
+	#end static function prepare(q: { sql: String, ?params: Array<Dynamic> }): String {
 		return ~/\?/gm.map(q.sql, f -> {
 			var p = (q.params ?? []).shift();
 			return switch (Type.typeof(p)) {
