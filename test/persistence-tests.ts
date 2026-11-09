@@ -1937,7 +1937,12 @@ export function sharedPersistenceTests(test) {
 			);
 		}
 		const loaded = await persistence.getOmemoPreKeys(identifier);
-		expect(loaded).toEqual(preKeys);
+		expect(loaded).toHaveLength(preKeys.length);
+		const loadedById = new Map(loaded.map((key) => [key.keyId, key]));
+		for (const preKey of preKeys) {
+			const actual = loadedById.get(preKey.keyId);
+			expectKeyPair(actual.keyPair, preKey.keyPair);
+		}
 	});
 
 	test("storeOmemoSignedPreKey and getOmemoSignedPreKey", async ({
@@ -2003,7 +2008,7 @@ export function sharedPersistenceTests(test) {
 			account,
 			address,
 		);
-		expect(loaded).toEqual(identityKey);
+		expectKey(loaded, identityKey);
 	});
 
 	test("getOmemoSession returns null when none is stored", async ({
@@ -2314,5 +2319,5 @@ function expectKeyPair(actual: TestKeyPair, expected: TestKeyPair) {
 }
 
 function expectKey(actual: ArrayBuffer, expected: ArrayBuffer) {
-	expect(actual).toEqual(expected);
+	expect(new Uint8Array(actual)).toEqual(new Uint8Array(expected));
 }

@@ -145,15 +145,13 @@ class SqliteDriver {
 	}
 
 	private function execute(qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<Array<Dynamic>> {
-		final first = qs.shift();
 		final sql = qs.map(q -> Sqlite.prepare(q) + ";");
 		final items: Array<Dynamic> = [];
 		var signalAllDone;
 		final allDone = new Promise((resolve, reject) -> signalAllDone = resolve);
 		return sqlite('exec', {
 			dbId: dbId,
-			sql: [first.sql + ";"].concat(sql),
-			bind: (first.params ?? []).map(formatParam),
+			sql: sql,
 			rowMode: "object",
 			callback: (r) -> {
 				if (r.rowNumber == null) {
@@ -176,16 +174,6 @@ class SqliteDriver {
 
 	public function exec(sql: String, ?params: Array<Dynamic>) {
 		return execMany([{ sql: sql, params: params }]);
-	}
-
-	private function formatParam(p: Dynamic): Dynamic {
-		return switch (Type.typeof(p)) {
-			case TClass(haxe.io.Bytes):
-				var bytes:Bytes = cast p;
-				return bytes.getData();
-			case _:
-				return p;
-		}
 	}
 }
 #end
