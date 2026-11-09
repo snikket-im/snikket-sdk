@@ -69,7 +69,7 @@ class SqliteDriver {
 		return worker;
 	}
 
-	public function new(dbfile: String, migrate: (Array<String>->Promise<haxe.iterators.ArrayIterator<Dynamic>>)->Promise<Any>) {
+	public function new(dbfile: String, migrate: (Array<String>->Promise<Array<Dynamic>>)->Promise<Any>) {
 		ready = new Promise((resolve, reject) -> setReady = resolve);
 
 		writePool.push(mkWorker(dbfile, true));
@@ -86,7 +86,7 @@ class SqliteDriver {
 		});
 	}
 
-	private function execute(pool: Array<Worker>, qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<haxe.iterators.ArrayIterator<Dynamic>> {
+	private function execute(pool: Array<Worker>, qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<Array<Dynamic>> {
 		final worker = pool.pop();
 		if (worker == null) {
 			return new Promise((resolve, reject) -> haxe.Timer.delay(() -> resolve(null), 10)).then(_ ->
@@ -98,11 +98,11 @@ class SqliteDriver {
 		worker.postMessage({ id: id, qs: qs.map(q -> Sqlite.prepare(q)) });
 		return promise.then(result -> {
 			pool.push(worker);
-			return result.iterator();
+			return result;
 		});
 	}
 
-	public function execMany(qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<haxe.iterators.ArrayIterator<Dynamic>> {
+	public function execMany(qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<Array<Dynamic>> {
 		return ready.then(_ -> {
 			final pool = StringTools.startsWith(qs[0].sql, "SELECT") ? readPool : writePool;
 			return execute(pool, qs);
@@ -126,7 +126,7 @@ class SqliteDriver {
 	private final ready: Promise<Bool>;
 	private var setReady: (Bool)->Void;
 
-	public function new(dbfile: String, migrate: (Array<String>->Promise<haxe.iterators.ArrayIterator<Dynamic>>)->Promise<Any>) {
+	public function new(dbfile: String, migrate: (Array<String>->Promise<Array<Dynamic>>)->Promise<Any>) {
 		ready = new Promise((resolve, reject) -> setReady = resolve);
 		Worker1.v2({
 			worker: () -> new js.html.Worker(
@@ -144,7 +144,7 @@ class SqliteDriver {
 		});
 	}
 
-	private function execute(qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<haxe.iterators.ArrayIterator<Dynamic>> {
+	private function execute(qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<Array<Dynamic>> {
 		final first = qs.shift();
 		final sql = qs.map(q -> Sqlite.prepare(q) + ";");
 		final items: Array<Dynamic> = [];
@@ -167,10 +167,10 @@ class SqliteDriver {
 				}
 				null;
 			}
-		}).then(_ -> allDone).then(_ -> items.iterator());
+		}).then(_ -> allDone).then(_ -> items);
 	}
 
-	public function execMany(qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<haxe.iterators.ArrayIterator<Dynamic>> {
+	public function execMany(qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<Array<Dynamic>> {
 		return ready.then(_ -> execute(qs));
 	}
 

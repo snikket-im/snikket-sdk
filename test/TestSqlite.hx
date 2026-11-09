@@ -607,7 +607,7 @@ class TestSqlite extends utest.Test {
 		persistence.storeMessages(account, [correctable]).then(_ -> {
 			return persistence.db.exec("SELECT correction_id FROM messages WHERE mam_id=?", [version.serverId]);
 		}).then(rows -> {
-			final row = rows.next();
+			final row = rows[0];
 			Assert.equals("call-sid", row.correction_id);
 			async.done();
 		}).catchError(e -> {
@@ -638,7 +638,7 @@ class TestSqlite extends utest.Test {
 		persistence.storeMessages(account, [correctable]).then(_ -> {
 			return persistence.db.exec("SELECT sync_point, chat_id, sender_id FROM messages WHERE mam_id=?", [version.serverId]);
 		}).then(rows -> {
-			final row = rows.next();
+			final row = rows[0];
 			Assert.equals(1, row.sync_point);
 			Assert.equals("correctable-chat@example.com", row.chat_id);
 			Assert.equals("correctable@example.com", row.sender_id);
@@ -666,7 +666,7 @@ class TestSqlite extends utest.Test {
 		persistence.storeMessages(account, [correctable]).then(_ -> {
 			return persistence.db.exec("SELECT correction_id FROM messages WHERE mam_id=?", [version.serverId]);
 		}).then(rows -> {
-			Assert.equals("correctable-local-local", rows.next().correction_id);
+			Assert.equals("correctable-local-local", rows[0].correction_id);
 			async.done();
 		}).catchError(e -> {
 			Assert.fail(Std.string(e));
@@ -690,7 +690,7 @@ class TestSqlite extends utest.Test {
 		persistence.storeMessages(account, [correctable]).then(_ -> {
 			return persistence.db.exec("SELECT correction_id FROM messages WHERE mam_id=?", [version.serverId]);
 		}).then(rows -> {
-			Assert.equals("correctable-server-server", rows.next().correction_id);
+			Assert.equals("correctable-server-server", rows[0].correction_id);
 			async.done();
 		}).catchError(e -> {
 			Assert.fail(Std.string(e));
@@ -709,7 +709,7 @@ class TestSqlite extends utest.Test {
 		persistence.storeMessages(account, [message]).then(_ -> {
 			return persistence.db.exec("SELECT strftime('%FT%H:%M:%fZ', time_received / 1000.0, 'unixepoch') AS time_received FROM messages WHERE mam_id=?", [message.serverId]);
 		}).then(rows -> {
-			Assert.equals("2020-01-01T00:00:00.123Z", rows.next().time_received);
+			Assert.equals("2020-01-01T00:00:00.123Z", rows[0].time_received);
 			async.done();
 		}).catchError(e -> {
 			Assert.fail(Std.string(e));
