@@ -14,7 +14,7 @@ class SqliteDriver {
 	private var setReady: (Bool)->Void;
 	private var setFailed: (Dynamic)->Void;
 
-	public function new(dbfile: String, migrate: (Array<String>->Promise<haxe.iterators.ArrayIterator<Dynamic>>)->Promise<Any>) {
+	public function new(dbfile: String, migrate: (Array<String>->Promise<Array<Dynamic>>)->Promise<Any>) {
 		this.dbfile = dbfile;
 		readPool = Config.constrainedMemoryMode ? writePool : new sys.thread.ElasticThreadPool(10);
 		ready = new Promise((resolve, reject) -> {
@@ -60,7 +60,7 @@ class SqliteDriver {
 					final arr = { iterator: () -> result }.array();
 					if (qs.length > 1) db.request("COMMIT");
 					dbs.push(db);
-					resolve(arr.iterator());
+					resolve(arr);
 				} catch (e) {
 					if (qs.length > 1) db.request("ROLLBACK");
 					dbs.push(db);

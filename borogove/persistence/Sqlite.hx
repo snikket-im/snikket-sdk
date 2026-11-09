@@ -35,17 +35,28 @@ typedef InsertColumn = {
 }
 
 @:expose
+typedef SqliteDriverInterface = {
+	function exec(sql: String, ?params: Array<Dynamic>): Promise<Array<Dynamic>>;
+	function execMany(qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<Array<Dynamic>>;
+}
+
+typedef SqliteDriverFactory = (String, (Array<String>->Promise<Array<Dynamic>>)->Promise<Any>)->SqliteDriverInterface;
+
+@:expose
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
 class Sqlite implements Persistence implements KeyValueStore {
+	#if js
+	final db: SqliteDriverInterface;
+	#else
 	final db: SqliteDriver;
+	#end
 	final media: MediaStore;
 	final storeMessagesSerialized = new AsyncLock();
 
-	@:allow(borogove)
-	private static function prepare(q: { sql: String, ?params: Array<Dynamic> }): String {
+	public static function prepare(q: { sql: String, ?params: Array<Dynamic> }): String {
 		return ~/\?/gm.map(q.sql, f -> {
 			var p = (q.params ?? []).shift();
 			return switch (Type.typeof(p)) {
@@ -86,12 +97,16 @@ class Sqlite implements Persistence implements KeyValueStore {
 		@param media a MediaStore to use for media
 		@returns new persistence layer
 	**/
-	public function new(dbfile: String, media: MediaStore) {
+	public function new(
+		dbfile: String,
+		media: MediaStore,
+		#if js ?driver: SqliteDriverFactory, #end
+	) {
 		this.media = media;
 		media.setKV(this);
-		db = new SqliteDriver(dbfile, (exec) -> {
-			exec(["PRAGMA user_version"]).then(iter -> {
-				final version = Std.parseInt(iter.next()?.user_version) ?? 0;
+		final migrate = (exec: Array<String>->Promise<Array<Dynamic>>) -> {
+			exec(["PRAGMA user_version"]).then(rows -> {
+				final version = Std.parseInt(rows[0]?.user_version) ?? 0;
 				return Promise.resolve(null).then(_ -> {
 					if (version < 1) {
 						return exec(["CREATE TABLE messages (
@@ -388,7 +403,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 					return Promise.resolve(null);
 				});
 			});
-		});
+		};
+		#if js
+		db = driver == null ? new SqliteDriver(dbfile, migrate) : driver(dbfile, migrate);
+		#else
+		db = new SqliteDriver(dbfile, migrate);
+		#end
 	}
 
 	@HaxeCBridge.noemit
@@ -644,7 +664,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 				"SELECT member_id, display_name, photo_uri, is_self, chat, json(roles) AS roles, json(presence) AS presence, jid FROM members WHERE account_id=? AND member_id=? LIMIT 1",
 				[accountId, update.id]
 			).then(rows ->
-				return rows.hasNext() ? rows.next() : null
+				return rows[0]
 			)).then(existing -> {
 				if (existing != null || update.jid == null) return Promise.resolve(existing);
 
@@ -652,7 +672,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 					"SELECT member_id, display_name, photo_uri, is_self, chat, json(roles) AS roles, json(presence) AS presence, jid FROM members WHERE account_id=? AND chat_id=? AND jid=? LIMIT 1",
 					[accountId, chat.chatId, update.jid.asString()]
 				).then(rows ->
-					return rows.hasNext() ? rows.next() : null
+					return rows[0]
 				);
 			}).then(existing -> {
 				final member = hydrateStoredMember(chat, existing);
@@ -801,8 +821,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		return db.exec(
 			"SELECT chat_id, trusted, bookmarked, avatar_sha1, fn, ui_state, blocked, extensions, read_up_to_id, read_up_to_by, notifications_filtered, notify_mention, notify_reply, json(caps) AS caps, caps_ver, json(meta) AS meta, class FROM chats LEFT JOIN caps ON chats.caps_ver=caps.sha1 WHERE account_id=?",
 			[accountId]
-		).then(result -> {
-			final rows = { iterator: () -> result }.array();
+		).then(rows -> {
 			return chatPresenceAndMembersForName(accountId, rows).then(chatData -> {
 				final chats: Array<SerializedChat> = [];
 				for (row in rows) {
@@ -900,9 +919,9 @@ class Sqlite implements Persistence implements KeyValueStore {
 		q += " GROUP BY messages.correction_id, CASE WHEN messages.type=? THEN 'call' ELSE messages.sender_id END";
 		params.push(MessageCall);
 		return db.exec(q, params).then(results -> {
-			final row = results.next();
+			final row = results[0];
 			if (row == null) return stub;
-			return hydrateMessages(accountId, [row].iterator())[0];
+			return hydrateMessages(accountId, [row])[0];
 		});
 	}
 
@@ -1087,8 +1106,8 @@ class Sqlite implements Persistence implements KeyValueStore {
 			',
 			[accountId, chat.chatId, MessageChannelPrivate, chat.readUpToId, MessageSent, accountId, chat.chatId, MessageChannelPrivate]
 		).then(result -> {
-			final row: Dynamic = result.next();
-			final lastMessage = row.stanza == null ? [] : hydrateMessages(accountId, [row].iterator());
+			final row: Dynamic = result[0];
+			final lastMessage = row.stanza == null ? [] : hydrateMessages(accountId, [row]);
 			return { unreadCount: row.unreadCount, chatId: chat.chatId, message: lastMessage[0] };
 		});
 	}
@@ -1271,7 +1290,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 	@HaxeCBridge.noemit
 	public function listAccounts(): Promise<Array<String>> {
 		return db.exec("SELECT account_id FROM accounts").then(result ->
-			result == null ? [] : { iterator: () -> result }.map(row -> row.account_id)
+			result == null ? [] : result.map(row -> row.account_id)
 		);
 	}
 
@@ -1445,13 +1464,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 				params = params.concat(stanzaIds);
 			}
 			db.exec(q.join(" UNION ALL "), params);
-		}).then(iter -> {
-			if (iter != null) {
-				final parents = { iterator: () -> iter }.array();
+		}).then(parents -> {
+			if (parents != null) {
 				for (message in messages) {
 					if (message.replyToMessage != null) {
-						final found: Dynamic = Util.findFast(parents, p -> p.chat_id == message.chatId() && (message.replyToMessage.serverId == null || p.mam_id == message.replyToMessage.serverId) && (message.replyToMessage.localId == null || p.stanza_id == message.replyToMessage.localId));
-						if (found != null) message.set_replyToMessage(hydrateMessages(accountId, [found].iterator())[0]);
+						final found: Dynamic = Util.findFast(parents, (p: Dynamic) -> p.chat_id == message.chatId() && (message.replyToMessage.serverId == null || p.mam_id == message.replyToMessage.serverId) && (message.replyToMessage.localId == null || p.stanza_id == message.replyToMessage.localId));
+						if (found != null) message.set_replyToMessage(hydrateMessages(accountId, [found])[0]);
 					}
 				}
 			}
@@ -1479,7 +1497,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	private function hydrateMessagesAndLoadMeta(
 		accountId: String,
-		rows: Iterator<{
+		rows: Iterable<{
 			stanza: String,
 			time_sent: String,
 			time_received: String,
@@ -1519,7 +1537,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 
 	private function hydrateMessages(
 		accountId: String,
-		rows: Iterator<{
+		rows: Iterable<{
 			stanza: String,
 			time_sent: String,
 			time_received: String,
@@ -1540,7 +1558,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 	): Array<ChatMessage> {
 		// TODO: Calls can "edit" from multiple senders, but the original direction and sender holds
 		final accountJid = JID.parse(accountId);
-		return { iterator: () -> rows }.map(row -> ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid, (builder, _) -> {
+		return Lambda.map(rows, row -> ChatMessage.fromStanza(Stanza.parse(row.stanza), accountJid, (builder, _) -> {
 			builder.syncPoint = row.sync_point != 0;
 			builder.timeSent = row.time_sent;
 			builder.timeReceived = row.time_received;
@@ -1645,7 +1663,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 			"SELECT device_id FROM omemo_devices WHERE identifier=?",
 			[identifier],
 		).then(result -> {
-			return { iterator: () -> result }.map(row -> row.device_id).array();
+			return result.map(row -> row.device_id);
 		});
 	}
 
@@ -1735,7 +1753,7 @@ class Sqlite implements Persistence implements KeyValueStore {
 		return db.exec(
 			"SELECT key_id, private_key, public_key FROM omemo_prekeys WHERE account_id=? ORDER BY key_id",
 			[login],
-		).then(result -> { iterator: () -> result }.map(row -> ({
+		).then(result -> result.map(row -> ({
 			keyId: row.key_id,
 			keyPair: {
 				privKey: row.private_key,
