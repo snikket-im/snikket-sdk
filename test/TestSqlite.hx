@@ -104,6 +104,35 @@ class TestSqlite extends utest.Test {
 		mediaStore = new MockMediaStore();
 		persistence = new Sqlite("file:" + ID.unique() + "?mode=memory&cache=shared", mediaStore);
 	}
+	#if js
+	public function testInjectedDriver(async: Async) {
+		var migrated = Promise.resolve(null);
+		var migrationQueries: Array<String> = [];
+		final injected = new Sqlite("injected.sqlite3", mediaStore, (file, migrate) -> {
+			Assert.equals("injected.sqlite3", file);
+			migrated = migrate(sql -> {
+				migrationQueries = migrationQueries.concat(sql);
+				return Promise.resolve([{ user_version: 24 }]);
+			});
+			return {
+				exec: (sql: String, ?params: Array<Dynamic>) -> {
+					Assert.equals("SELECT v FROM keyvaluepairs WHERE k=? LIMIT 1", sql);
+					Assert.equals("key", params[0]);
+					return Promise.resolve([{ v: "injected value" }]);
+				},
+				execMany: qs -> Promise.resolve([])
+			};
+		});
+		migrated.then(_ -> injected.get("key")).then(value -> {
+			Assert.same(["PRAGMA user_version"], migrationQueries);
+			Assert.equals("injected value", value);
+			async.done();
+		}).catchError(e -> {
+			Assert.fail(Std.string(e));
+			async.done();
+		});
+	}
+	#end
 
 	public function testOrder(async: Async) {
 		final account = "alice@example.com";

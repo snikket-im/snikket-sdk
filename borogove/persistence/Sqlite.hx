@@ -35,12 +35,24 @@ typedef InsertColumn = {
 }
 
 @:expose
+typedef SqliteDriverInterface = {
+	function exec(sql: String, ?params: Array<Dynamic>): Promise<Array<Dynamic>>;
+	function execMany(qs: Array<{ sql: String, ?params: Array<Dynamic> }>): Promise<Array<Dynamic>>;
+}
+
+typedef SqliteDriverFactory = (String, (Array<String>->Promise<Array<Dynamic>>)->Promise<Any>)->SqliteDriverInterface;
+
+@:expose
 #if cpp
 @:build(HaxeCBridge.expose())
 @:build(HaxeSwiftBridge.expose())
 #end
 class Sqlite implements Persistence implements KeyValueStore {
+	#if js
+	final db: SqliteDriverInterface;
+	#else
 	final db: SqliteDriver;
+	#end
 	final media: MediaStore;
 	final storeMessagesSerialized = new AsyncLock();
 
@@ -85,10 +97,14 @@ class Sqlite implements Persistence implements KeyValueStore {
 		@param media a MediaStore to use for media
 		@returns new persistence layer
 	**/
-	public function new(dbfile: String, media: MediaStore) {
+	public function new(
+		dbfile: String,
+		media: MediaStore,
+		#if js ?driver: SqliteDriverFactory, #end
+	) {
 		this.media = media;
 		media.setKV(this);
-		db = new SqliteDriver(dbfile, (exec) -> {
+		final migrate = (exec: Array<String>->Promise<Array<Dynamic>>) -> {
 			exec(["PRAGMA user_version"]).then(rows -> {
 				final version = Std.parseInt(rows[0]?.user_version) ?? 0;
 				return Promise.resolve(null).then(_ -> {
@@ -387,7 +403,12 @@ class Sqlite implements Persistence implements KeyValueStore {
 					return Promise.resolve(null);
 				});
 			});
-		});
+		};
+		#if js
+		db = driver == null ? new SqliteDriver(dbfile, migrate) : driver(dbfile, migrate);
+		#else
+		db = new SqliteDriver(dbfile, migrate);
+		#end
 	}
 
 	@HaxeCBridge.noemit
