@@ -244,4 +244,43 @@ class TestChatMessage extends utest.Test {
 		// Reaction should skip the already-quoted line and only quote the first non-quoted line
 		Assert.equals("> actual text…\n\n❤️", body);
 	}
+
+	public function testMucInviteChatIdIsBare() {
+		final stanza = new Stanza("message");
+		stanza.attr.set("id", "invite-1");
+		stanza.attr.set("from", "alice@example.com/phone");
+		stanza.attr.set("to", "bob@example.com");
+		stanza.tag("x", { xmlns: "http://jabber.org/protocol/muc#user" })
+			.tag("invite", { from: "alice@example.com/phone" })
+			.textTag("reason", "join us")
+			.up()
+			.up();
+
+		final msg = Message.fromStanza(stanza, JID.parse("bob@example.com"));
+		Assert.equals("alice@example.com", msg.chatId);
+		switch (msg.parsed) {
+			case MucInviteStanza(_, _, reason, _): Assert.equals("join us", reason);
+			default: Assert.fail("Expected MucInviteStanza");
+		}
+	}
+
+	public function testSentCarbonInviteIsNotAnInvite() {
+		final inner = new Stanza("message", { from: "bob@example.com/phone", to: "alice@example.com", type: "chat" });
+		inner.tag("x", { xmlns: "http://jabber.org/protocol/muc#user" })
+			.tag("invite", { from: "bob@example.com/phone" })
+			.up()
+			.up();
+
+		final carbon = new Stanza("message", { from: "bob@example.com", to: "bob@example.com/phone" });
+		carbon.tag("sent", { xmlns: "urn:xmpp:carbons:2" })
+			.tag("forwarded", { xmlns: "urn:xmpp:forward:0" })
+			.addChild(inner);
+
+		final msg = Message.fromStanza(carbon, JID.parse("bob@example.com"));
+		Assert.equals("alice@example.com", msg.chatId);
+		switch (msg.parsed) {
+			case MucInviteStanza(_, _, _, _): Assert.fail("Sent carbon invite should not be processed as an invite");
+			default:
+		}
+	}
 }
