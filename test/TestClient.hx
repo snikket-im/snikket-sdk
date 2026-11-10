@@ -1684,6 +1684,7 @@ class TestClient extends utest.Test {
 		var submitted: Null<Stanza> = null;
 		var ownerGets = 0;
 		var ownerSets = 0;
+		var discoGets = 0;
 		var done = false;
 
 		client.on("chats/update", (chats: Array<Chat>) -> {
@@ -1693,6 +1694,7 @@ class TestClient extends utest.Test {
 			done = true;
 			Assert.equals(1, ownerGets);
 			Assert.equals(1, ownerSets);
+			Assert.equals(1, discoGets);
 			Assert.notNull(submitted);
 			Assert.equals("Design Team", submittedField(submitted, "muc#roomconfig_roomname"));
 			Assert.equals("0", submittedField(submitted, "muc#roomconfig_membersonly"));
@@ -1728,6 +1730,17 @@ class TestClient extends utest.Test {
 							.up()
 						.up();
 
+					client.stream.onStanza(responseStanza);
+					return EventHandled;
+				}
+
+				if (stanza.getChild("query", "http://jabber.org/protocol/disco#info") != null) {
+					discoGets++;
+					final responseStanza = new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id"), from: "design-team@groups.example.com", to: "test@example.com" })
+						.tag("query", { xmlns: "http://jabber.org/protocol/disco#info" })
+							.tag("identity", { category: "conference", type: "text", name: "Design Team" }).up()
+							.tag("feature", { "var": "http://jabber.org/protocol/muc" }).up()
+						.up();
 					client.stream.onStanza(responseStanza);
 					return EventHandled;
 				}
@@ -1778,6 +1791,7 @@ class TestClient extends utest.Test {
 		var submitted: Null<Stanza> = null;
 		var ownerGets = 0;
 		var ownerSets = 0;
+		var discoGets = 0;
 
 		client.stream.on("sendStanza", (stanza: Stanza) -> {
 			if (stanza.name == "iq" && stanza.attr.get("type") == "get") {
@@ -1793,6 +1807,17 @@ class TestClient extends utest.Test {
 							.up()
 						.up();
 
+					client.stream.onStanza(responseStanza);
+					return EventHandled;
+				}
+
+				if (stanza.getChild("query", "http://jabber.org/protocol/disco#info") != null) {
+					discoGets++;
+					final responseStanza = new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id"), from: "design-team@groups.example.com", to: "test@example.com" })
+						.tag("query", { xmlns: "http://jabber.org/protocol/disco#info" })
+							.tag("identity", { category: "conference", type: "text", name: "Design Team" }).up()
+							.tag("feature", { "var": "http://jabber.org/protocol/muc" }).up()
+						.up();
 					client.stream.onStanza(responseStanza);
 					return EventHandled;
 				}
@@ -1843,6 +1868,7 @@ class TestClient extends utest.Test {
 						Assert.equals("completed", nextSession.status);
 						Assert.equals(1, ownerGets);
 						Assert.equals(1, ownerSets);
+						Assert.equals(1, discoGets);
 						Assert.notNull(submitted);
 						Assert.equals("Design Team", submittedField(submitted, "muc#roomconfig_roomname"));
 						Assert.equals(Open, channel.uiState);

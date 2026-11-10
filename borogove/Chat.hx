@@ -1671,13 +1671,15 @@ class Channel extends Chat {
 	private function completeCreation(): Void {
 		if (uiState != Creating) return;
 
-		uiState = Open;
-		outbox.start();
-		client.channelPinger.schedule(this);
-		persistence.storeChats(client.accountId(), [this]);
-		persistence.storeMembers(client.accountId(), chatId, [self]).then(_ -> trigger("members/update", [self]));
-		client.sortChats();
-		client.trigger("chats/update", [this]);
+		refreshDisco(() -> {
+			uiState = Open;
+			outbox.start();
+			client.channelPinger.schedule(this);
+			persistence.storeChats(client.accountId(), [this]);
+			persistence.storeMembers(client.accountId(), chatId, [self]).then(_ -> trigger("members/update", [self]));
+			client.sortChats();
+			client.trigger("chats/update", [this]);
+		});
 	}
 
 	private function maybeConfigureCreation(): Void {

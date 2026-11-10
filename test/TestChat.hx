@@ -701,6 +701,37 @@ class TestChat extends utest.Test {
 		});
 	}
 
+	public function testCreationCompletionRefreshesDisco() {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final channel = new Channel(client, client.stream, persistence, "room@example.com", Creating);
+
+		var discoRequested = false;
+		var stillCreatingWhenDiscoSent = false;
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name == "iq" && stanza.attr.get("type") == "get" && stanza.getChild("query", "http://jabber.org/protocol/disco#info") != null) {
+				discoRequested = true;
+				stillCreatingWhenDiscoSent = channel.uiState == Creating;
+				client.stream.onStanza(
+					new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id"), from: "room@example.com", to: "test@example.com" })
+						.tag("query", { xmlns: "http://jabber.org/protocol/disco#info" })
+							.tag("identity", { category: "conference", type: "text" }).up()
+							.tag("feature", { "var": "http://jabber.org/protocol/muc" }).up()
+							.tag("feature", { "var": "muc_membersonly" }).up()
+						.up()
+				);
+			}
+			return EventUnhandled;
+		});
+
+		channel.completeCreation();
+
+		Assert.isTrue(discoRequested);
+		Assert.isTrue(stillCreatingWhenDiscoSent);
+		Assert.isTrue(channel.isPrivate());
+		Assert.equals(Open, channel.uiState);
+	}
+
 	public function testSelfPingNoopWhileCreating() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);
