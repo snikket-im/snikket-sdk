@@ -1324,6 +1324,11 @@ class DirectChat extends Chat {
 						client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 						client.trigger("chats/update", [this]);
 					});
+				}, (e) -> {
+					trace("Failed to store outgoing message", { chatId: chatId, localId: message.localId, error: e });
+					// Don't let this item block every later message
+					outboxItem.handle(() -> {});
+					return null;
 				});
 			case ReactionUpdateStanza(update):
 				persistence.storeReaction(client.accountId(), update).then((stored) -> {
@@ -2560,6 +2565,11 @@ class Channel extends Chat {
 						client.notifyMessageHandlers(stored, stored.versions.length > 1 ? CorrectionEvent : DeliveryEvent);
 						client.trigger("chats/update", [this]);
 					});
+				}, (e) -> {
+					trace("Failed to store outgoing message", { chatId: chatId, localId: message.localId, error: e });
+					// Don't let this item block every later message
+					outboxItem.handle(() -> {});
+					return null;
 				});
 			case ReactionUpdateStanza(update):
 				persistence.storeReaction(client.accountId(), update).then((stored) -> {
