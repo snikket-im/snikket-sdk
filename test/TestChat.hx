@@ -732,6 +732,39 @@ class TestChat extends utest.Test {
 		Assert.equals(Open, channel.uiState);
 	}
 
+	public function testCreationCompletionInitializesSortId(async: Async) {
+		final persistence = new Dummy();
+		final client = new Client("test@example.com", persistence);
+		final channel = new Channel(client, client.stream, persistence, "room@example.com", Creating);
+
+		client.stream.on("sendStanza", (stanza: Stanza) -> {
+			if (stanza.name != "iq") return EventUnhandled;
+
+			if (stanza.getChild("query", "http://jabber.org/protocol/disco#info") != null) {
+				client.stream.onStanza(
+					new Stanza("iq", { xmlns: "jabber:client", type: "result", id: stanza.attr.get("id"), from: "room@example.com", to: "test@example.com" })
+						.tag("query", { xmlns: "http://jabber.org/protocol/disco#info" })
+							.tag("identity", { category: "conference", type: "text" }).up()
+							.tag("feature", { "var": "http://jabber.org/protocol/muc" }).up()
+							.tag("feature", { "var": "urn:xmpp:mam:2" }).up()
+						.up()
+				);
+				return EventHandled;
+			}
+
+			if (stanza.findChild("{urn:xmpp:mam:2}query") != null) {
+				Assert.notNull(channel.sortId);
+				Assert.notNull(channel.sync);
+				async.done();
+				return EventHandled;
+			}
+
+			return EventUnhandled;
+		});
+
+		channel.completeCreation();
+	}
+
 	public function testSelfPingNoopWhileCreating() {
 		final persistence = new Dummy();
 		final client = new Client("test@example.com", persistence);

@@ -1679,6 +1679,7 @@ class Channel extends Chat {
 			persistence.storeMembers(client.accountId(), chatId, [self]).then(_ -> trigger("members/update", [self]));
 			client.sortChats();
 			client.trigger("chats/update", [this]);
+			persistence.syncPoint(client.accountId(), chatId).then((point) -> doSync(point));
 		});
 	}
 
