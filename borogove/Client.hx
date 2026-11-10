@@ -1691,6 +1691,9 @@ class Client extends EventEmitter {
 
 	@:allow(borogove)
 	private function getDirectChat(chatId:String, triggerIfNew:Bool = true):DirectChat {
+		final bareChatId = chatId.split("\n").map(part -> JID.parse(part).asBare().asString()).join("\n");
+		if (bareChatId != chatId) throw 'Malformed chatId: $chatId';
+
 		for (chat in chats) {
 			if (Std.isOfType(chat, DirectChat) && chat.chatId == chatId) {
 				return Std.downcast(chat, DirectChat);
