@@ -925,7 +925,8 @@ abstract class Chat extends EventEmitter {
 			attr.set("thread", threadId);
 		}
 		other.sendMessageStanza(
-			new Stanza("message").tag("x", attr).up()
+			new Stanza("message").tag("x", attr).up(),
+			NoE2EE // Disable for now since OMEMO can't handle this anyway
 		);
 	}
 
