@@ -848,7 +848,10 @@ export default async (dbname, media, tokenize, stemmer) => {
 			const store = tx.objectStore("chats");
 			const membersStore = tx.objectStore("members");
 			const range = IDBKeyRange.bound([account], [account, []]);
-			const result = await promisifyRequest(store.getAll(range));
+			const result = (await promisifyRequest(store.getAll(range))).filter(
+				// Filter out old bad data
+				(r) => !r.chatId?.includes("/"),
+			);
 			return await Promise.all(
 				result.map(
 					async (r) =>
