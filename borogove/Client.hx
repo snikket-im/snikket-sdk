@@ -499,7 +499,7 @@ class Client extends EventEmitter {
 		final message = Message.fromStanza(stanza, this.jid, (builder, stanza) -> {
 			var chat = getChat(builder.chatId());
 			final isNewChat = chat == null;
-			if (chat == null && stanza.attr.get("type") != "groupchat") chat = getDirectChat(builder.chatId(), false);
+			if (chat == null && builder.type != MessageChannel && builder.type != MessageChannelPrivate) chat = getDirectChat(builder.chatId(), false);
 			if (isNewChat) newChat = chat;
 			if (chat == null) return builder;
 			return chat.prepareIncomingMessage(builder, stanza);

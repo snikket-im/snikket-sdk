@@ -66,6 +66,18 @@ class TestClient extends utest.Test {
 		Assert.isTrue(channel.isJoined);
 	}
 
+	public function testChannelPrivateMessageDoesNotCreateChat() {
+		final client = new Client("test@example.com", new Dummy());
+		client.stream.onStanza(Stanza.parse('<message xmlns="jabber:client" from="room@example.com/nick" to="test@example.com" type="chat" id="pm-1"><body>secret</body><x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="member" role="participant"/></x></message>'));
+
+		Assert.isNull(client.getChat("room@example.com"));
+		Assert.isNull(client.getChat("room@example.com/nick"));
+
+		// Normal 1:1 messages must still start a chat
+		client.stream.onStanza(Stanza.parse('<message xmlns="jabber:client" from="alice@example.com/phone" to="test@example.com" type="chat" id="dm-1"><body>hi</body></message>'));
+		Assert.notNull(client.getChat("alice@example.com"));
+	}
+
 	public function testChatsUpdateBatchSurvivesResubscription() {
 		final client = new Client("test@example.com", new Dummy());
 		final first = client.getDirectChat("first@example.com", false);
