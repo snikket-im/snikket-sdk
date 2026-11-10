@@ -66,6 +66,19 @@ class TestClient extends utest.Test {
 		Assert.isTrue(channel.isJoined);
 	}
 
+	public function testThinPushNotificationUsesBareJids() {
+		final privateMessage = borogove.Push.receive('<message xmlns="jabber:client" from="room@example.com/nick" to="test@example.com/device" type="chat"><x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="member" role="participant"/></x></message>', new Dummy());
+		Assert.notNull(privateMessage);
+		Assert.equals("room@example.com", privateMessage.chatId);
+		Assert.equals("room@example.com", privateMessage.senderId);
+		Assert.equals(MessageChannelPrivate, privateMessage.type);
+
+		final groupMessage = borogove.Push.receive('<message xmlns="jabber:client" from="room@example.com/nick" to="test@example.com/device" type="groupchat"><x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="member" role="participant"/></x></message>', new Dummy());
+		Assert.notNull(groupMessage);
+		Assert.equals("room@example.com", groupMessage.chatId);
+		Assert.equals(MessageChannel, groupMessage.type);
+	}
+
 	public function testChannelPrivateMessageDoesNotCreateChat() {
 		final client = new Client("test@example.com", new Dummy());
 		client.stream.onStanza(Stanza.parse('<message xmlns="jabber:client" from="room@example.com/nick" to="test@example.com" type="chat" id="pm-1"><body>secret</body><x xmlns="http://jabber.org/protocol/muc#user"><item affiliation="member" role="participant"/></x></message>'));

@@ -124,14 +124,18 @@ class Notification {
 	// Assume it is an incoming message of some kind
 	@:allow(borogove)
 	private static function fromThinStanza(stanza: Stanza) {
+		final from = JID.parse(stanza.attr.get("from"));
+		final bareFrom = from.asBare().asString();
+		final mucUser = stanza.getChild("x", "http://jabber.org/protocol/muc#user");
+		final type = stanza.attr.get("type") == "groupchat" ? MessageChannel : (mucUser == null ? MessageChat : MessageChannelPrivate);
 		return new Notification(
 			"New Message",
 			"",
 			JID.parse(stanza.attr.get("to")).asBare().asString(),
-			JID.parse(stanza.attr.get("from")).asBare().asString(),
-			JID.parse(stanza.attr.get("from")).asString(),
+			bareFrom,
+			type == MessageChannel ? from.asString() : bareFrom,
 			stanza.getChildText("stanza-id", "urn:xmpp:sid:0"),
-			stanza.attr.get("type") == "groupchat" ? MessageChannel : MessageChat,
+			type,
 			null,
 			null,
 			null,
