@@ -1629,9 +1629,9 @@ class Client extends EventEmitter {
 			channel.creationFormSubmission = submission;
 			channel.join();
 
-			chats.unshift(channel);
+			chats.push(channel);
 			chatsIndex[channel.chatId] = channel;
-			this.trigger("chats/update", [channel]);
+			chatActivity(channel);
 
 			return channel;
 		});
